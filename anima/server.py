@@ -177,6 +177,10 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/state":
                 heart = Heart.from_dict(load_json(_path(self.name)))
                 self._send(200, "application/json", json.dumps(heart.feeling()).encode())
+            elif u.path == "/persona":
+                from .mouth import load_persona
+                self._send(200, "application/json",
+                           json.dumps({"persona": load_persona(self.name)}).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -202,6 +206,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/stt":
                 self._send(200, "application/json",
                            json.dumps(_transcribe(self._read_body())).encode())
+            elif path == "/persona":
+                from .mouth import save_persona
+                data = json.loads(self._read_body() or b"{}")
+                save_persona(self.name, str(data.get("persona", ""))[:8000])
+                self._send(200, "application/json", b'{"ok":true}')
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:

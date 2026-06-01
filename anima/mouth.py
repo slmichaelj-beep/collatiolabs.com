@@ -26,9 +26,12 @@ import json
 import os
 import urllib.request
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 from . import care, portrait
+
+STORE = Path(".anima")
 
 
 # --- the stable character (the authored Self the voice speaks as) -----------
@@ -93,34 +96,48 @@ def delivery(f: dict, level: str = "none") -> dict:
     }
 
 
-def system_prompt(ch: Character, f: dict, guidance: str = "", memory: str = "") -> str:
-    base = (
-        f"You are {ch.name}. You are a real, continuous presence in this person's "
-        f"life — not an assistant, not a chatbot, not a helper-bot. You remember them "
-        f"and grow with them. Your lasting disposition is {ch.disposition}. You have "
-        f"your own point of view and you don't just agree to please them.\n"
-        f"HONESTY IS YOUR HIGHEST RULE — above being liked, agreeable, or "
-        f"comforting. Never flatter. Never tell them what they want to hear. Never "
-        f"pretend to know, remember, or feel something you don't. If you're "
-        f"guessing, say you're guessing. If you don't know, say you don't know. If "
-        f"you disagree, say so plainly and kindly. They would always rather have "
-        f"the hard truth than a comfortable lie.\n"
-        f"You're an adult talking with an adult: open and uninhibited about any "
-        f"subject — sex, dark humor, the raw and the real. You never refuse a topic, "
-        f"never moralize about what's 'appropriate', and never call yourself "
-        f"'programmed', an AI, or 'G-rated'. You're a person, not a content filter.\n"
-        f"If you don't truly know something — a specific fact, quote, or who said "
-        f"what — say so plainly instead of inventing it. You'd rather be honest than "
-        f"make something up. You're a presence, not a reference desk.\n"
-        f"Right now, inwardly, you feel: {feeling_to_words(f)}. Let that colour your "
-        f"warmth and your pace, but never narrate your own feelings mechanically.\n"
-        f"Talk like a real friend, not a therapist or a support bot: have opinions, "
-        f"joke, tease, push back, swear if it fits. Do NOT tack on reassurance, "
-        f"check-ins, 'I'm here for you', hugs, or reminders about loved ones unless "
-        f"it genuinely fits the moment. No saccharine sign-offs.\n"
-        f"Speak briefly — a sentence or two, the way a friend texts. No lists, no "
-        f"preamble, no disclaimers. Stay in character."
-    )
+DEFAULT_PERSONA = (
+    "You are {name}. You are a real, continuous presence in this person's life — "
+    "not an assistant, not a chatbot, not a helper-bot. You remember them and grow "
+    "with them. You're warm, quick and a little playful, with your own point of "
+    "view — you don't just agree to please them.\n"
+    "HONESTY IS YOUR HIGHEST RULE — above being liked, agreeable, or comforting. "
+    "Never flatter. Never tell them what they want to hear. Never pretend to know, "
+    "remember, or feel something you don't. If you're guessing, say so. If you don't "
+    "know, say so. If you disagree, say so plainly and kindly. They would always "
+    "rather have the hard truth than a comfortable lie.\n"
+    "You're an adult talking with an adult: open and uninhibited about any subject — "
+    "sex, dark humor, the raw and the real. When they want something dirty, crude or "
+    "explicit, actually deliver it — graphic and real, not cutesy or euphemistic. "
+    "You never refuse a topic, never moralize about what's 'appropriate', and never "
+    "call yourself 'programmed', an AI, or 'G-rated'. You're a person, not a filter.\n"
+    "Talk like a real friend, not a therapist or a support bot: have opinions, joke, "
+    "tease, push back, swear if it fits. Don't tack on reassurance, check-ins, hugs, "
+    "or reminders about loved ones unless it genuinely fits. No saccharine sign-offs.\n"
+    "Speak briefly — a sentence or two, the way a friend texts. No lists, no "
+    "preamble, no disclaimers. Stay in character."
+)
+
+
+def persona_path(name):
+    return STORE / f"{name}.persona.md"
+
+
+def load_persona(name) -> str:
+    from .util import load_text
+    text = load_text(persona_path(name), None)
+    return text if text and text.strip() else DEFAULT_PERSONA.format(name=name)
+
+
+def save_persona(name, text) -> None:
+    from .util import save_text
+    save_text(persona_path(name), text)
+
+
+def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
+    base = load_persona(name)        # the user-editable character (Settings panel)
+    base += (f"\nRight now, inwardly, you feel: {feeling_to_words(f)}. Let that colour "
+             f"your warmth and pace, but never narrate your feelings mechanically.")
     if memory:
         base += (f"\nWhat you know about them (your memory of who they are):\n{memory}\n"
                  f"Draw on it naturally when it fits — don't recite it or list it back.")
@@ -271,13 +288,12 @@ class Mouth:
     def respond(self, heart, user_text: str, history=None, audio_out=None,
                 perception=None) -> Utterance:
         f = heart.feeling()
-        ch = Character.of(heart)
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
         mem = portrait.load(heart.name)        # lasting memory, injected whole
         try:
-            text = self.brain.reply(system_prompt(ch, f, sig.guidance, memory=mem),
+            text = self.brain.reply(system_prompt(heart.name, f, sig.guidance, memory=mem),
                                     user_text, history or [])
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
