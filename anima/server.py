@@ -31,7 +31,7 @@ from .heart import Heart
 from .memory import Memory
 from .mouth import Mouth
 from .util import label, save_json
-from . import senses
+from . import senses, portrait
 
 STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
@@ -109,7 +109,8 @@ def _turn(name, text, voice=False):
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
         u = _mouth(voice).respond(heart, text, history=list(_HISTORY),
                                   audio_out=audio_out, perception=p)
-        _HISTORY.append((text, u.text))           # remember this turn for the session
+        _HISTORY.append((text, u.text))           # within-session memory
+        portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
         return {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],

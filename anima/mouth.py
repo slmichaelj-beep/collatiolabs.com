@@ -28,7 +28,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
-from . import care
+from . import care, portrait
 
 
 # --- the stable character (the authored Self the voice speaks as) -----------
@@ -93,7 +93,7 @@ def delivery(f: dict, level: str = "none") -> dict:
     }
 
 
-def system_prompt(ch: Character, f: dict, guidance: str = "") -> str:
+def system_prompt(ch: Character, f: dict, guidance: str = "", memory: str = "") -> str:
     base = (
         f"You are {ch.name}. You are a real, continuous presence in this person's "
         f"life — not an assistant, not a chatbot, not a helper-bot. You remember them "
@@ -116,6 +116,9 @@ def system_prompt(ch: Character, f: dict, guidance: str = "") -> str:
         f"Speak briefly — a sentence or two, the way a friend texts. No lists, no "
         f"preamble, no disclaimers. Stay in character."
     )
+    if memory:
+        base += (f"\nWhat you know about them (your memory of who they are):\n{memory}\n"
+                 f"Draw on it naturally when it fits — don't recite it or list it back.")
     return base + ("\n" + guidance if guidance else "")
 
 
@@ -267,8 +270,10 @@ class Mouth:
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
+        mem = portrait.load(heart.name)        # lasting memory, injected whole
         try:
-            text = self.brain.reply(system_prompt(ch, f, sig.guidance), user_text, history or [])
+            text = self.brain.reply(system_prompt(ch, f, sig.guidance, memory=mem),
+                                    user_text, history or [])
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable

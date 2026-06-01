@@ -18,19 +18,14 @@ def label(title: str) -> None:
         pass
 
 
-def save_json(path, obj) -> None:
-    """Write JSON atomically: a crash mid-write can never corrupt the file.
-
-    The creature's whole continuity lives in these files — a half-written save
-    would be its death. So we write a temp file and atomically rename over the
-    target (os.replace is atomic on the same filesystem).
-    """
+def save_text(path, text: str) -> None:
+    """Write text atomically (temp file + rename), so a crash can't corrupt it."""
     path = str(path)
     directory = os.path.dirname(path) or "."
     fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
     try:
         with os.fdopen(fd, "w") as f:
-            json.dump(obj, f)
+            f.write(text)
         os.replace(tmp, path)
     except Exception:
         try:
@@ -38,4 +33,10 @@ def save_json(path, obj) -> None:
         except OSError:
             pass
         raise
+
+
+def save_json(path, obj) -> None:
+    """Write JSON atomically. The creature's continuity lives in these files — a
+    half-written save would be its death — so we never write in place."""
+    save_text(path, json.dumps(obj))
 

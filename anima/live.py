@@ -22,7 +22,7 @@ from .heart import Heart
 from .memory import Memory, Replay
 from .mouth import Mouth
 from .util import label, save_json
-from . import senses, growth
+from . import senses, growth, portrait
 
 STORE = Path(".anima")
 
@@ -130,6 +130,9 @@ def main(argv: list[str] | None = None) -> None:
     tk.add_argument("--well", type=float, default=None, help="override inferred wellbeing")
     tk.add_argument("--voice", action="store_true", help="synthesize a spoken WAV (needs Kokoro)")
 
+    pt = sub.add_parser("portrait", help="show what she remembers about you (editable)")
+    pt.add_argument("name")
+
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
@@ -165,17 +168,21 @@ def main(argv: list[str] | None = None) -> None:
         _report(heart)
     elif args.cmd == "sleep":
         heart = _load(args.name)
+        # 1) lasting memory: distil the day's conversation into the Portrait
+        from .mouth import OllamaBrain
+        brain = OllamaBrain()
+        if brain.available() and portrait.consolidate(args.name, brain):
+            print(f"{args.name} consolidated what she's learned about you (see: portrait).")
+        # 2) feeling: fold lived moments into long-term replay, then learn on them
         mem = Memory.load(_mem_path(args.name))
         replay = Replay.load(_replay_path(args.name))
-        # fold the day's journal into long-term memory as episodes, then empty it
         if len(mem) >= 4:
             replay.absorb([r["I"] for r in mem.rows], [r["dt"] for r in mem.rows])
             replay.save(_replay_path(args.name))
             Memory().save(_mem_path(args.name))
         if len(replay) == 0:
-            sys.exit(f"{args.name} has too few memories to grow on yet "
-                     f"({len(mem)} moments) — feed it more with say/tend.")
-        # learn on a sample of the WHOLE remembered life, new interleaved with old
+            print(f"{args.name} has no lived moments to grow feelings on yet.")
+            return
         train, hold = replay.train_holdout()
         theta = heart.genome.theta()
         acc, before, after = growth.consolidate(theta, heart.genome.inv_tau, train, hold)
@@ -201,6 +208,7 @@ def main(argv: list[str] | None = None) -> None:
               f"rate {u.delivery['rate']} | via {u.backend})")
         if u.audio_path:
             print(f"  voice -> {u.audio_path}")
+        portrait.log_turn(args.name, args.text, u.text)
     elif args.cmd == "chat":
         heart = _load(args.name)
         mouth = Mouth.assemble(voice=args.voice)
@@ -213,10 +221,17 @@ def main(argv: list[str] | None = None) -> None:
                 p = senses.read(line, name=args.name)
                 _feed(heart, p.vector(), time.time())
                 _save(heart)
-                print(f"{args.name}: {mouth.respond(heart, line, perception=p).text}")
+                resp = mouth.respond(heart, line, perception=p)
+                print(f"{args.name}: {resp.text}")
+                portrait.log_turn(args.name, line, resp.text)
         except (EOFError, KeyboardInterrupt):
             pass
         print(f"\n({args.name} will grow on this when it next sleeps.)")
+    elif args.cmd == "portrait":
+        text = portrait.load(args.name)
+        print(text if text.strip() else
+              f"{args.name} hasn't formed a portrait of you yet — talk, then `sleep`.")
+        print(f"\n(this is yours to read or edit: {portrait.portrait_path(args.name)})")
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []
         print("\n".join(f"  {n}" for n in names) if names else "no animae yet.")
