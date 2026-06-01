@@ -249,7 +249,11 @@ class Mouth:
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
-        text = self.brain.reply(system_prompt(ch, f, sig.guidance), user_text, history or [])
+        try:
+            text = self.brain.reply(system_prompt(ch, f, sig.guidance), user_text, history or [])
+        except Exception:
+            # a slow or unreachable model must never crash the conversation
+            text = "I'm here with you — give me a moment, my words are slow to come right now."
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources
         hints = delivery(f, sig.level)
