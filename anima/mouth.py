@@ -23,6 +23,7 @@ so the heart -> mouth wiring is testable anywhere.
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
@@ -112,9 +113,13 @@ def system_prompt(ch: Character, f: dict, guidance: str = "") -> str:
 class OllamaBrain:
     """Real speech: a local LLM via Ollama. Falls back if Ollama isn't running."""
 
-    def __init__(self, model="qwen2.5:7b-instruct", host="http://localhost:11434", temperature=0.8):
-        self.model, self.host, self.temperature = model, host, temperature
-        self.name = f"ollama:{model}"
+    def __init__(self, model=None, host=None, temperature=0.8):
+        # model/host configurable via env so you can point at any local model:
+        #   ANIMA_MODEL=qwen3:32b   ANIMA_OLLAMA_HOST=http://localhost:11434
+        self.model = model or os.environ.get("ANIMA_MODEL", "qwen2.5:7b-instruct")
+        self.host = host or os.environ.get("ANIMA_OLLAMA_HOST", "http://localhost:11434")
+        self.temperature = temperature
+        self.name = f"ollama:{self.model}"
 
     def available(self) -> bool:
         try:
