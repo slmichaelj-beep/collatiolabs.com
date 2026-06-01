@@ -152,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _fail(self, verb):
         import sys
-        print(f"[anima server] {verb} {self.path} failed", file=sys.stderr)
+        print(f"[anima server] {verb} {urlparse(self.path).path} failed", file=sys.stderr)
         try:
             self._send(500, "text/plain", b"error")
         except Exception:
