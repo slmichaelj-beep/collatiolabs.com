@@ -178,13 +178,18 @@ class KokoroVoice:
 
     def speak(self, text: str, hints: dict, out_path: str) -> Optional[str]:
         try:
+            import numpy as np
             import soundfile as sf
             from kokoro import KPipeline
             if self._pipe is None:
                 self._pipe = KPipeline(lang_code="a")
             speed = hints.get("rate", 1.0)
-            audio = b"".join(chunk for _, _, chunk in self._pipe(text, voice=self.voice, speed=speed))
-            sf.write(out_path, audio, 24000)
+            # Kokoro yields (graphemes, phonemes, audio); audio is a float tensor
+            chunks = [np.asarray(audio, dtype="float32")
+                      for _, _, audio in self._pipe(text, voice=self.voice, speed=speed)]
+            if not chunks:
+                return None
+            sf.write(out_path, np.concatenate(chunks), 24000)
             return out_path
         except Exception as e:
             import sys
