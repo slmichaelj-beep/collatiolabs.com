@@ -15,8 +15,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import threading
 import time
+import warnings
+
+warnings.filterwarnings("ignore")                       # quiet torch/HF startup noise
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs

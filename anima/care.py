@@ -73,6 +73,5 @@ def assess(text: str | None, distress: float = 0.0, seeking: float = 0.0) -> Car
     elif distress > 0.3 or seeking > 0.6:
         level = "elevated"
     else:
-        level = "none"
-    guidance = (_GUIDANCE[level] + " " + DEPENDENCY_GUARD).strip()
-    return CareSignal(level, guidance)
+        return CareSignal("none", "")   # ordinary conversation — no care steering at all
+    return CareSignal(level, (_GUIDANCE[level] + " " + DEPENDENCY_GUARD).strip())
