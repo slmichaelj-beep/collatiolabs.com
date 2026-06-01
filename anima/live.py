@@ -21,6 +21,7 @@ from pathlib import Path
 from .heart import Heart
 from .memory import Memory, Replay
 from .mouth import Mouth
+from .util import label
 from . import senses, growth
 
 STORE = Path(".anima")
@@ -133,6 +134,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
+    label(f"{getattr(args, 'name', '?')} {args.cmd}")
 
     if args.cmd == "birth":
         if _path(args.name).exists():

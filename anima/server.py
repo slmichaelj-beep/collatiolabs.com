@@ -24,6 +24,7 @@ from urllib.parse import urlparse, parse_qs
 from .heart import Heart
 from .memory import Memory
 from .mouth import Mouth
+from .util import label
 from . import senses
 
 STORE = Path(".anima")
@@ -122,6 +123,7 @@ def main(argv=None):
 
     host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
+    label(f"{args.name} server :{args.port}")
     Handler.name, Handler.voice = args.name, args.voice
     srv = ThreadingHTTPServer((host, args.port), Handler)
     print(f"{args.name} is listening at http://{host}:{args.port}")
