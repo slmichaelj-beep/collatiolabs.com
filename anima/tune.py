@@ -17,10 +17,10 @@ import time
 
 import numpy as np
 
-from .heart import Genome, D_IN
+from .heart import Genome, D_IN, PERCEPT_FIELDS
 from .growth import consolidate, evaluate
 
-D_PERCEPT = 6
+D_PERCEPT = len(PERCEPT_FIELDS)
 
 
 def rich_stream(seed, days=4, per_day=18):
@@ -36,8 +36,9 @@ def rich_stream(seed, days=4, per_day=18):
         mood = float(np.clip(sum(a * np.sin(2 * np.pi * t / p + ph)
                                  for a, p, ph in zip(amps, periods, phases)), -1, 1))
         present = 1.0 if 7 < hour < 23 else 0.0
-        percept = np.array([present, present * 0.6, mood, 0.3 + 0.4 * abs(mood),
-                            0.5 + 0.5 * mood, 0.5 * (1 + np.sin(2 * np.pi * step / (per_day * 5)))])
+        percept = np.zeros(D_PERCEPT)
+        percept[:6] = [present, present * 0.6, mood, 0.3 + 0.4 * abs(mood),
+                       0.5 + 0.5 * mood, 0.5 * (1 + np.sin(2 * np.pi * step / (per_day * 5)))]
         tod = 2 * np.pi * hour / 24
         I_seq.append(np.concatenate([percept, [1.0, 0.0, np.sin(tod), np.cos(tod)]]))
         dt_seq.append(24.0 * 60.0 / per_day)

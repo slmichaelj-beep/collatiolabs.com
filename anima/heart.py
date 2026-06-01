@@ -58,7 +58,8 @@ CONTACT_MIN = 3.0            # length of the felt "reunion" pulse, in creature-m
 # What the heart ingests each instant: a low-dimensional, continuous *perception*
 # (never tokens, never text) supplied by the senses, plus a few body-internal
 # signals. The senses fill PERCEPT_FIELDS; the body fills INTERNAL_FIELDS itself.
-PERCEPT_FIELDS = ("presence", "attention", "mood", "intensity", "wellbeing", "load")
+PERCEPT_FIELDS = ("presence", "attention", "mood", "intensity", "wellbeing", "load",
+                  "distress", "seeking", "openness")
 INTERNAL_FIELDS = ("bias", "unrest", "tod_sin", "tod_cos")
 D_IN = len(PERCEPT_FIELDS) + len(INTERNAL_FIELDS)
 _PIDX = {f: i for i, f in enumerate(PERCEPT_FIELDS)}

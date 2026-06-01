@@ -48,6 +48,13 @@ LEXICON: dict[str, tuple[float, float]] = {
 INTENSIFIERS = {"very", "so", "really", "extremely", "incredibly", "deeply", "totally", "absolutely"}
 NEGATIONS = {"not", "no", "never", "cant", "cannot", "dont", "wont", "isnt", "arent", "nothing"}
 SECOND_PERSON = {"you", "your", "youre", "u", "ur", "yourself"}
+FIRST_PERSON = {"i", "im", "me", "my", "mine", "myself", "ive", "id"}
+# explicit signals of acute distress, and of reaching out for connection/support
+DISTRESS_WORDS = {"scared", "afraid", "terrified", "panic", "panicking", "overwhelmed",
+                  "hopeless", "alone", "lonely", "breaking", "cant", "hurts", "hurting",
+                  "crying", "drowning", "lost", "desperate", "anxious"}
+SEEKING_WORDS = {"help", "need", "talk", "listen", "please", "tell", "stay", "here",
+                 "miss", "alone", "scared", "worried", "support", "advice", "okay"}
 
 _WORD = re.compile(r"[a-z']+")
 
@@ -62,6 +69,9 @@ class Perception:
     intensity: float = 0.0     # how charged the moment is                     [0, 1]
     wellbeing: float = 0.5     # overall how-they-are (explicit or inferred)   [0, 1]
     load: float = 0.0          # pressure of the day ahead                     [0, 1]
+    distress: float = 0.0      # acuteness of suffering in the moment          [0, 1]
+    seeking: float = 0.0       # are they reaching out for connection/support  [0, 1]
+    openness: float = 0.0      # how much they are disclosing / sharing        [0, 1]
 
     def vector(self) -> np.ndarray:
         d = self.__dict__
@@ -119,15 +129,30 @@ def read(text: str | None = None, *, now: float | None = None,
     caps = sum(c.isupper() for c in letters) / len(letters) if letters else 0.0
     intensity = float(np.clip(0.55 * word_arousal + 0.3 * exclaim + 0.15 * caps, 0.0, 1.0))
 
-    # attention: is this turned toward the creature?
     wordset = set(words)
+    # attention: is this turned toward the creature?
     addressed = bool(wordset & SECOND_PERSON)
     named = bool(name) and name.lower() in wordset
     question = "?" in text
     attention = float(np.clip(0.35 + 0.3 * addressed + 0.4 * named + 0.2 * question, 0.0, 1.0))
 
-    # wellbeing: trust an explicit report; otherwise read it off the tone
-    wb = 0.5 + 0.5 * mood if wellbeing is None else float(np.clip(wellbeing, 0.0, 1.0))
+    # distress: how acutely they are hurting right now
+    distress = float(np.clip(0.65 * max(0.0, -mood) * (0.5 + 0.5 * intensity)
+                             + 0.4 * (len(wordset & DISTRESS_WORDS) > 0), 0.0, 1.0))
 
-    return Perception(presence=1.0, attention=attention, mood=mood,
-                      intensity=intensity, wellbeing=float(np.clip(wb, 0.0, 1.0)), load=load)
+    # seeking: a bid for connection or support
+    first = wordset & FIRST_PERSON
+    seeking = float(np.clip(0.3 * bool(first) + 0.35 * (len(wordset & SEEKING_WORDS) > 0)
+                            + 0.2 * question + 0.15 * addressed, 0.0, 1.0))
+
+    # openness: how much they are actually disclosing
+    fp_density = len(first) / max(1, len(words))
+    openness = float(np.clip(0.4 * min(len(words) / 25.0, 1.0) + 0.35 * min(fp_density * 4, 1.0)
+                             + 0.25 * bool(valences), 0.0, 1.0))
+
+    # wellbeing: explicit report, else read off tone and dampened by distress
+    wb = (0.5 + 0.5 * mood - 0.3 * distress) if wellbeing is None else float(np.clip(wellbeing, 0.0, 1.0))
+
+    return Perception(presence=1.0, attention=attention, mood=mood, intensity=intensity,
+                      wellbeing=float(np.clip(wb, 0.0, 1.0)), load=load,
+                      distress=distress, seeking=seeking, openness=openness)

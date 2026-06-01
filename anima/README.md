@@ -15,9 +15,11 @@ recurrent network** (Hasani et al., 2021) integrated in continuous time with a
 stable fused solver. Tiny (24 neurons), pure-numpy, CPU-instant — the kind of
 thing that could one day sit on a phone or a robot, which is the point.
 
-**The senses** (`senses.py`) — organs that distil a moment of the world (words,
-their tone, the hour, the day ahead) into a low-dimensional, continuous
-`Perception` the heart drinks. The heart never sees text or tokens: words are
+**The senses** (`senses.py`) — organs that distil a moment of the world into a
+continuous, 9-channel `Perception` the heart drinks: presence, attention, mood,
+intensity, wellbeing, load, and — for a companion that must read you — **distress**
+(acute suffering), **seeking** (a bid for connection/support), and **openness**
+(how much you're disclosing). The heart never sees text or tokens: words are
 split only to look up their felt weight, then discarded. What flows inward is
 feeling. The encoder is a tiny on-device affect lexicon today; it can be swapped
 for a small embedding model later without the heart noticing, because the
@@ -70,6 +72,8 @@ python3 -m anima.live tend  Vera --well .8  # make contact; tell it how you are
 python3 -m anima.live say   Vera "text..."  # speak; it feels the tone, not the words
 python3 -m anima.live sleep Vera            # consolidate lived memories into the weights
 python3 -m anima.live talk  Vera "text..."  # it replies, in words shaped by its state
+python3 -m anima.live chat  Vera            # open conversation; it remembers after
+python3 -m anima.nightly install --name Vera --hour 3   # auto-sleep nightly (macOS)
 ```
 
 Quit after `birth`, come back an hour later, and `feel` it — it will have aged

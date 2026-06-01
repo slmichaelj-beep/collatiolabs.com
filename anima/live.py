@@ -120,6 +120,10 @@ def main(argv: list[str] | None = None) -> None:
     sl = sub.add_parser("sleep", help="consolidate lived memories into the weights (grow)")
     sl.add_argument("name")
 
+    ch = sub.add_parser("chat", help="an open conversation; it feels and replies each turn")
+    ch.add_argument("name")
+    ch.add_argument("--voice", action="store_true")
+
     tk = sub.add_parser("talk", help="speak with it; it replies from its felt-state")
     tk.add_argument("name")
     tk.add_argument("text")
@@ -196,6 +200,21 @@ def main(argv: list[str] | None = None) -> None:
               f"rate {u.delivery['rate']} | via {u.backend})")
         if u.audio_path:
             print(f"  voice -> {u.audio_path}")
+    elif args.cmd == "chat":
+        heart = _load(args.name)
+        mouth = Mouth.assemble(voice=args.voice)
+        print(f"(with {args.name} — empty line or 'bye' to leave; it remembers after)")
+        try:
+            while True:
+                line = input("you: ").strip()
+                if not line or line.lower() in ("bye", "quit", "exit"):
+                    break
+                _feed(heart, senses.read(line, name=args.name).vector(), time.time())
+                _save(heart)
+                print(f"{args.name}: {mouth.respond(heart, line).text}")
+        except (EOFError, KeyboardInterrupt):
+            pass
+        print(f"\n({args.name} will grow on this when it next sleeps.)")
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []
         print("\n".join(f"  {n}" for n in names) if names else "no animae yet.")

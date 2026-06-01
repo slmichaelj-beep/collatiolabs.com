@@ -222,14 +222,9 @@ def sample_stream(person, days=3, per_day=16):
         mood = person["ar"] * mood + (1 - person["ar"]) * target + rng.normal(0, person["noise"])
         mood = float(np.clip(mood, -1, 1))
         present = 1.0 if abs(hour - person["wake"] - 7) < 7 else 0.0
-        percept = np.array([
-            present,                                   # presence
-            present * 0.6,                             # attention
-            mood,                                      # mood
-            0.3 + 0.4 * abs(mood),                     # intensity
-            0.5 + 0.5 * mood,                          # wellbeing
-            0.5 * (1 + np.sin(2 * np.pi * step / (per_day * 7))),  # load
-        ])
+        percept = np.zeros(D_PERCEPT)
+        percept[:6] = [present, present * 0.6, mood, 0.3 + 0.4 * abs(mood),
+                       0.5 + 0.5 * mood, 0.5 * (1 + np.sin(2 * np.pi * step / (per_day * 7)))]
         tod = 2 * np.pi * hour / 24
         I = np.concatenate([percept, [1.0, 0.0, np.sin(tod), np.cos(tod)]])
         I_seq.append(I)

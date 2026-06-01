@@ -24,7 +24,8 @@ try:
 except Exception:                       # not on Apple Silicon / MLX not installed
     HAVE_MLX = False
 
-D_PERCEPT = 6                           # len(heart.PERCEPT_FIELDS)
+from .heart import PERCEPT_FIELDS
+D_PERCEPT = len(PERCEPT_FIELDS)
 
 
 def available() -> bool:
