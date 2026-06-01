@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .util import save_text
+from .util import save_text, load_text
 
 STORE = Path(".anima")
 
@@ -42,11 +42,7 @@ def log_path(name):
 
 
 def load(name) -> str:
-    p = portrait_path(name)
-    try:
-        return p.read_text() if p.exists() else ""
-    except OSError:
-        return ""
+    return load_text(portrait_path(name), "") or ""
 
 
 def save(name, text):

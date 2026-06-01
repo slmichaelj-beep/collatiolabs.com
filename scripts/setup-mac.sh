@@ -11,8 +11,8 @@ MODEL="qwen2.5:7b-instruct"
 say() { printf "\n\033[1m• %s\033[0m\n" "$1"; }
 cd "$(dirname "$0")/.." || exit 1
 
-say "Creature deps (numpy, clear process labels) + Mac GPU training (mlx)"
-python3 -m pip install --quiet --upgrade numpy setproctitle || { echo "  install failed"; exit 1; }
+say "Creature deps (numpy, labels, at-rest encryption) + Mac GPU training (mlx)"
+python3 -m pip install --quiet --upgrade numpy setproctitle cryptography || { echo "  install failed"; exit 1; }
 python3 -m pip install --quiet --upgrade mlx 2>/dev/null \
   || echo "  (mlx is Apple-Silicon only — numpy alone runs everything, just on CPU)"
 

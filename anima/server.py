@@ -14,8 +14,10 @@ a tunnel in front of it (Tailscale, or `cloudflared tunnel`) — no app to insta
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import logging
+import os
 import threading
 import time
 import warnings
@@ -30,7 +32,7 @@ from urllib.parse import urlparse, parse_qs
 from .heart import Heart
 from .memory import Memory
 from .mouth import Mouth
-from .util import label, save_json
+from .util import label, save_json, load_json
 from . import senses, portrait
 
 STORE = Path(".anima")
@@ -98,7 +100,7 @@ def _ensure(name, neurons):
 def _turn(name, text, voice=False):
     """One exchange: feel it, record it, reply from state. Serialised for safety."""
     with _lock:
-        heart = Heart.from_dict(json.loads(_path(name).read_text()))
+        heart = Heart.from_dict(load_json(_path(name)))
         p = senses.read(text, name=name)
         now = time.time()
         mem = Memory.load(_mem(name))
@@ -122,6 +124,17 @@ def _turn(name, text, voice=False):
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
+    token = ""        # set from ANIMA_TOKEN; "" disables auth
+
+    def _authed(self) -> bool:
+        if not self.token:
+            return True
+        q = parse_qs(urlparse(self.path).query)
+        given = q.get("k", [""])[0] or self.headers.get("X-Anima-Key", "")
+        auth = self.headers.get("Authorization", "")
+        if not given and auth.startswith("Bearer "):
+            given = auth[7:]
+        return hmac.compare_digest(given, self.token)   # constant-time
 
     def _send(self, code, ctype, body):
         self.send_response(code)
@@ -147,9 +160,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
+            if not self._authed():
+                return self._send(401, "text/plain", b"unauthorized")
             u = urlparse(self.path)
             if u.path in ("/", "/index.html"):
-                html = (WEB / "index.html").read_text().replace("__NAME__", self.name)
+                html = ((WEB / "index.html").read_text()
+                        .replace("__NAME__", self.name).replace("__TOKEN__", self.token))
                 self._send(200, "text/html; charset=utf-8", html.encode())
             elif u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
@@ -159,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send(404, "text/plain", b"no audio")
             elif u.path == "/state":
-                heart = Heart.from_dict(json.loads(_path(self.name).read_text()))
+                heart = Heart.from_dict(load_json(_path(self.name)))
                 self._send(200, "application/json", json.dumps(heart.feeling()).encode())
             else:
                 self._send(404, "text/plain", b"not found")
@@ -168,6 +184,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not self._authed():
+                return self._send(401, "text/plain", b"unauthorized")
             path = urlparse(self.path).path
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
@@ -207,10 +225,18 @@ def main(argv=None):
 
     host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
+    try:                                  # verify the key fits before serving
+        load_json(_path(args.name))
+    except RuntimeError as e:
+        raise SystemExit(f"\ncannot open {args.name}: {e}\n"
+                         "  set the same ANIMA_KEY you used before (or unset it if plaintext).\n")
     label(f"{args.name} server :{args.port}")
-    import os
+    Handler.token = os.environ.get("ANIMA_TOKEN", "")
+    from . import crypto
     print(f"brain: {os.environ.get('ANIMA_MODEL', 'qwen2.5:7b-instruct')} (Ollama) — "
           f"make sure `ollama list` shows it")
+    print(f"security: auth {'ON (token required)' if Handler.token else 'OFF (no token)'} · "
+          f"files {'ENCRYPTED' if crypto.enabled() else 'plaintext'}")
     if args.voice:
         from .mouth import KokoroVoice
         if KokoroVoice().available():

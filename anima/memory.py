@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .util import save_json
+from .util import save_json, load_json
 
 
 class Memory:
@@ -56,13 +56,8 @@ class Memory:
 
     @classmethod
     def load(cls, path):
-        p = Path(path)
-        if not p.exists():
-            return cls()
-        try:
-            return cls(json.loads(p.read_text()).get("rows", []))
-        except (ValueError, OSError):
-            return cls()        # tolerate a truncated/corrupt journal rather than die
+        d = load_json(path)            # decrypts if needed; tolerates missing/corrupt
+        return cls(d.get("rows", [])) if isinstance(d, dict) else cls()
 
 
 def _chunk(I_seq, dt_seq, window, step):
@@ -127,9 +122,8 @@ class Replay:
 
     @classmethod
     def load(cls, path, capacity=64):
-        p = Path(path)
-        if not p.exists():
+        d = load_json(path)
+        if not isinstance(d, dict):
             return cls(capacity=capacity)
-        d = json.loads(p.read_text())
         return cls(capacity=d.get("capacity", capacity),
                    episodes=d.get("episodes", []), seen=d.get("seen", 0))

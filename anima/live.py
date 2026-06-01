@@ -21,7 +21,7 @@ from pathlib import Path
 from .heart import Heart
 from .memory import Memory, Replay
 from .mouth import Mouth
-from .util import label, save_json
+from .util import label, save_json, load_json
 from . import senses, growth, portrait
 
 STORE = Path(".anima")
@@ -37,11 +37,13 @@ def _save(heart: Heart) -> None:
 
 
 def _load(name: str) -> Heart:
-    import json
     p = _path(name)
     if not p.exists():
         sys.exit(f"no anima named {name!r} — try: python3 -m anima.live birth {name}")
-    return Heart.from_dict(json.loads(p.read_text()))
+    try:
+        return Heart.from_dict(load_json(p))
+    except RuntimeError as e:
+        sys.exit(f"cannot open {name}: {e}\n  set the same ANIMA_KEY you used before.")
 
 
 def _mem_path(name: str) -> Path:

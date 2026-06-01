@@ -44,6 +44,8 @@ button svg{display:block;margin:auto;pointer-events:none}
   <button type="submit" title="send">↑</button>
 </form>
 <script>
+const TOKEN="__TOKEN__";                       // injected by the server; "" if auth off
+const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic');
 
@@ -60,13 +62,15 @@ function prime(){
 }
 function speak(audioUrl){           // play the Mac's natural (Kokoro) voice only
   if(!audioUrl)return;
-  player.src=audioUrl; player.play().catch(()=>{});
+  player.src=audioUrl+(TOKEN?'&k='+encodeURIComponent(TOKEN):'');
+  player.play().catch(()=>{});
 }
 
 async function send(text){
   add(text,'me');input.value='';
   try{
-    const r=await fetch('/talk',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/talk',{method:'POST',
+      headers:{'Content-Type':'application/json',...HDR},
       body:JSON.stringify({text})});
     const d=await r.json();
     add(d.reply,'her');
@@ -98,7 +102,7 @@ mic.onclick=async ()=>{
       stateEl.textContent='… listening';
       try{
         const blob=new Blob(chunks,{type:mediaRec.mimeType||'audio/mp4'});
-        const r=await fetch('/stt',{method:'POST',body:blob});
+        const r=await fetch('/stt',{method:'POST',headers:HDR,body:blob});
         const d=await r.json();
         if(d.text && d.text.trim()) send(d.text.trim());
         else stateEl.textContent="(didn't catch that — try again)";
