@@ -174,6 +174,13 @@ class Handler(BaseHTTPRequestHandler):
                 text = str(data.get("text", ""))[:4000]          # cap absurd input
                 self._send(200, "application/json",
                            json.dumps(_turn(self.name, text, self.voice)).encode())
+            elif path == "/say":
+                # text-only turn (no server-side voice synth) — for the Action Button
+                # shortcut, which speaks her reply with the phone's own voice
+                data = json.loads(self._read_body() or b"{}")
+                text = str(data.get("text", ""))[:4000]
+                self._send(200, "application/json",
+                           json.dumps(_turn(self.name, text, voice=False)).encode())
             elif path == "/stt":
                 self._send(200, "application/json",
                            json.dumps(_transcribe(self._read_body())).encode())
