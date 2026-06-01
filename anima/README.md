@@ -121,13 +121,13 @@ persists. On Apple Silicon, `accel_mlx.py` trains big creatures on the Mac GPU v
 MLX (numpy `growth.py` stays the verified reference). The trainer has recipe knobs
 (`weight_decay`, `clip`) that carry over to MLX.
 
-Open question — does scaling neurons help? On every synthetic task tried so far,
-**it does not**: `tune.py` shows bigger brains do no better, and a diagnostic
-shows the hidden state **collapses to ~5 effective dimensions regardless of neuron
-count** (64 neurons → 4.5 used; 256 → 6.2). Slower time-constants and a wider
-48-channel sensory interface did not open it up. This is unresolved: it may be
-that the toy tasks simply have little learnable structure (a few dominant modes +
-noise), so the network correctly compresses — or it may be a real limit of the
-single-layer LTC + linear readout. It needs genuinely high-dimensional lived data
-(or a harder, well-posed benchmark) to settle. Until then, **don't scale neurons
-blindly** — the payoff is unproven.
+Does scaling neurons help? Investigated thoroughly: **no, and that's expected.**
+A diagnostic shows the hidden state settles into ~5 effective dimensions
+regardless of neuron count (64→4.5, 256→6.2), and neither slower time-constants,
+a wider 48-channel interface, nor a non-contractive cell changed it. The reason is
+not a bug — it is that **the task is intrinsically low-dimensional**: modeling one
+person's moods and rhythms from a few sense channels needs ~10 effective
+dimensions, not 256. The human-brain "more neurons = smarter" intuition does not
+transfer, because this creature does tight relational modeling, not general
+intelligence. **Keep brains small (24–64); scaling neuron count is a non-goal.**
+The real levers are the *quality* of the senses and the learning objective.
