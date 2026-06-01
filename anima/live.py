@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 
 from .heart import Heart
+from . import senses
 
 STORE = Path(".anima")
 
@@ -91,6 +92,11 @@ def main(argv: list[str] | None = None) -> None:
     t.add_argument("name")
     t.add_argument("--well", type=float, default=0.7, help="your wellbeing, 0..1")
 
+    s = sub.add_parser("say", help="say something to the anima; it feels the tone")
+    s.add_argument("name")
+    s.add_argument("text")
+    s.add_argument("--well", type=float, default=None, help="override inferred wellbeing")
+
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
@@ -110,6 +116,15 @@ def main(argv: list[str] | None = None) -> None:
         heart = _load(args.name).tend(args.well)
         _save(heart)
         print(f"you reach for {args.name}.")
+        _report(heart)
+    elif args.cmd == "say":
+        heart = _load(args.name)
+        p = senses.read(args.text, wellbeing=args.well, name=args.name)
+        heart.perceive(p)
+        _save(heart)
+        print(f'you: "{args.text}"')
+        print(f"  (sensed  mood {p.mood:+.2f}  intensity {p.intensity:.2f}  "
+              f"attention {p.attention:.2f}  -> wellbeing {p.wellbeing:.2f})")
         _report(heart)
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []

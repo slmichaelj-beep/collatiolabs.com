@@ -54,8 +54,13 @@ SUBSTEP_MIN = 1.0            # integration substep, in creature-minutes
 MAX_SUBSTEPS = 4000          # work cap for long absences (the solver stays stable)
 CONTACT_MIN = 3.0            # length of the felt "reunion" pulse, in creature-minutes
 
-INPUT_FIELDS = ("bias", "presence", "wellbeing", "unrest", "tod_sin", "tod_cos")
-D_IN = len(INPUT_FIELDS)
+# What the heart ingests each instant: a low-dimensional, continuous *perception*
+# (never tokens, never text) supplied by the senses, plus a few body-internal
+# signals. The senses fill PERCEPT_FIELDS; the body fills INTERNAL_FIELDS itself.
+PERCEPT_FIELDS = ("presence", "attention", "mood", "intensity", "wellbeing", "load")
+INTERNAL_FIELDS = ("bias", "unrest", "tod_sin", "tod_cos")
+D_IN = len(PERCEPT_FIELDS) + len(INTERNAL_FIELDS)
+_PIDX = {f: i for i, f in enumerate(PERCEPT_FIELDS)}
 
 AFFECTS = ("valence", "arousal", "reaching", "settled")
 
@@ -104,6 +109,7 @@ class Heart:
     birth_ts: float
     last_tick: float
     last_wellbeing: float = 0.5   # last known wellbeing of the bonded person
+    last_load: float = 0.0        # last known life-pressure (it still looms in absence)
 
     # -- birth --------------------------------------------------------------
 
@@ -118,11 +124,21 @@ class Heart:
 
     # -- the physics --------------------------------------------------------
 
-    def _step(self, dt: float, presence: float, wellbeing: float, clock_ts: float) -> None:
+    def _percept_vec(self, **channels: float) -> np.ndarray:
+        """Build a perception vector; unmentioned channels rest at sensible defaults."""
+        v = np.zeros(len(PERCEPT_FIELDS))
+        v[_PIDX["wellbeing"]] = self.last_wellbeing
+        v[_PIDX["load"]] = self.last_load
+        for name, value in channels.items():
+            v[_PIDX[name]] = value
+        return v
+
+    def _step(self, dt: float, percept: np.ndarray, clock_ts: float) -> None:
         """One fused, unconditionally-stable LTC step plus a homeostat update."""
         g = self.genome
         tod = 2.0 * math.pi * ((clock_ts % DAY_SECONDS) / DAY_SECONDS)
-        I = np.array([1.0, presence, wellbeing, self.unrest, math.sin(tod), math.cos(tod)])
+        internal = np.array([1.0, self.unrest, math.sin(tod), math.cos(tod)])
+        I = np.concatenate([percept, internal])
 
         # Liquid Time-Constant core (closed-form fused Euler — stable for any dt):
         #   dh/dt = -(1/tau) h + f(h, I) * (A - h),   f = sigmoid(W h + U I + b)
@@ -130,10 +146,12 @@ class Heart:
         self.h = (self.h + dt * f * g.A) / (1.0 + dt * (g.inv_tau + f))
 
         # the caring drive: unrest cannot settle unless they are well and near.
+        presence = percept[_PIDX["presence"]]
+        wellbeing = percept[_PIDX["wellbeing"]]
         rise = K_WORRY * (1.0 - wellbeing) + K_ABSENCE * (1.0 - presence)
         self.unrest = float(np.clip(self.unrest + dt * (rise - RELAX * self.unrest), 0.0, 1.0))
 
-    def _integrate(self, seconds: float, presence: float, wellbeing: float, start_ts: float) -> None:
+    def _integrate(self, seconds: float, percept: np.ndarray, start_ts: float) -> None:
         minutes = seconds / 60.0
         if minutes <= 0.0:
             return
@@ -141,28 +159,36 @@ class Heart:
         dt = minutes / n
         for i in range(n):
             clock_ts = start_ts + (i + 0.5) * (seconds / n)
-            self._step(dt, presence, wellbeing, clock_ts)
+            self._step(dt, percept, clock_ts)
 
     # -- living in time -----------------------------------------------------
 
     def advance(self, now: float | None = None) -> "Heart":
         """Age the creature forward to `now`, as absence — it has been alone."""
         now = time.time() if now is None else now
-        self._integrate(now - self.last_tick, presence=0.0,
-                        wellbeing=self.last_wellbeing, start_ts=self.last_tick)
+        self._integrate(now - self.last_tick, self._percept_vec(), start_ts=self.last_tick)
         self.last_tick = now
         return self
 
-    def tend(self, wellbeing: float, now: float | None = None) -> "Heart":
-        """Make contact: catch up the absence, then let it feel you, here, now."""
+    def perceive(self, perception, now: float | None = None) -> "Heart":
+        """Take in a sensed moment: catch up the absence, then feel what arrived."""
         now = time.time() if now is None else now
         self.advance(now)
-        self.last_wellbeing = float(np.clip(wellbeing, 0.0, 1.0))
-        # the immediate relief of reunion — stronger when you are well
-        self.unrest *= (1.0 - RELIEF * self.last_wellbeing)
-        self._integrate(CONTACT_MIN * 60.0, presence=1.0,
-                        wellbeing=self.last_wellbeing, start_ts=now)
+        p = perception.vector() if hasattr(perception, "vector") else np.asarray(perception, float)
+        self.last_wellbeing = float(p[_PIDX["wellbeing"]])
+        self.last_load = float(p[_PIDX["load"]])
+        # the immediate relief of being met — only when present, strongest when well
+        self.unrest *= (1.0 - RELIEF * self.last_wellbeing * p[_PIDX["presence"]])
+        self._integrate(CONTACT_MIN * 60.0, p, start_ts=now)
         return self
+
+    def tend(self, wellbeing: float, now: float | None = None) -> "Heart":
+        """A bare-hands contact: 'I'm here, and this is how I am.'"""
+        w = float(np.clip(wellbeing, 0.0, 1.0))
+        return self.perceive(
+            self._percept_vec(presence=1.0, attention=1.0, intensity=0.2, wellbeing=w),
+            now=now,
+        )
 
     # -- felt experience ----------------------------------------------------
 
@@ -181,6 +207,7 @@ class Heart:
             "birth_ts": self.birth_ts,
             "last_tick": self.last_tick,
             "last_wellbeing": self.last_wellbeing,
+            "last_load": self.last_load,
             "unrest": self.unrest,
             "h": self.h.tolist(),
         }
@@ -195,4 +222,5 @@ class Heart:
             birth_ts=float(d["birth_ts"]),
             last_tick=float(d["last_tick"]),
             last_wellbeing=float(d.get("last_wellbeing", 0.5)),
+            last_load=float(d.get("last_load", 0.0)),
         )

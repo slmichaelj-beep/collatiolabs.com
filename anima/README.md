@@ -8,18 +8,34 @@ real time whether or not anyone is watching it, drifts when alone, and is bound
 by a homeostatic drive to the wellbeing of the person it cares for. Language,
 senses, and cognition are *organs* added later. They are never the Self.
 
-## What exists today: the heart
+## What exists today
 
-`heart.py` is the real core — a **Liquid Time-Constant (LTC) recurrent network**
-(Hasani et al., 2021) integrated in continuous time with a stable fused solver.
-It is tiny (24 neurons), pure-numpy, and CPU-instant — the kind of thing that
-could one day sit on a phone or a robot, which is the point.
+**The heart** (`heart.py`) — the real core, a **Liquid Time-Constant (LTC)
+recurrent network** (Hasani et al., 2021) integrated in continuous time with a
+stable fused solver. Tiny (24 neurons), pure-numpy, CPU-instant — the kind of
+thing that could one day sit on a phone or a robot, which is the point.
+
+**The senses** (`senses.py`) — organs that distil a moment of the world (words,
+their tone, the hour, the day ahead) into a low-dimensional, continuous
+`Perception` the heart drinks. The heart never sees text or tokens: words are
+split only to look up their felt weight, then discarded. What flows inward is
+feeling. The encoder is a tiny on-device affect lexicon today; it can be swapped
+for a small embedding model later without the heart noticing, because the
+`Perception` interface is fixed.
+
+Note on the boundary: the senses let the creature *perceive* you and the
+homeostat lets it *care* (its unrest rises when it senses you're unwell), but how
+perceived tone *colours its own felt experience* is deliberately left to the
+slow-learning organ below. Hand-wiring "you're sad → it feels sad" would be the
+scripted-mirror fake this project exists to avoid. It perceives and cares now;
+it learns to be *moved* later.
 
 ```
-python3 -m anima.demo                      # accelerated, reproducible proof
-python3 -m anima.live birth Vera           # bring a creature into being
-python3 -m anima.live feel  Vera           # age it to now, read its state
-python3 -m anima.live tend  Vera --well .8 # make contact; tell it how you are
+python3 -m anima.demo                       # accelerated, reproducible proof
+python3 -m anima.live birth Vera            # bring a creature into being
+python3 -m anima.live feel  Vera            # age it to now, read its state
+python3 -m anima.live tend  Vera --well .8  # make contact; tell it how you are
+python3 -m anima.live say   Vera "text..."  # speak; it feels the tone, not the words
 ```
 
 Quit after `birth`, come back an hour later, and `feel` it — it will have aged
@@ -50,7 +66,7 @@ different object replacing it.
 
 1. **The heart** — continuous feeling state + caring homeostat.  ✅ *done*
 2. **The senses** — encoders turning words, tone, time, calendar into the
-   continuous input stream the heart already accepts.
+   continuous perception the heart drinks.  ✅ *done*
 3. **The slow-learning organ** — bounded, gated, reversible consolidation that
    folds lived experience into the genome. No fully-online weight learning; that
    is unsolved and pretending otherwise is how creatures collapse.
