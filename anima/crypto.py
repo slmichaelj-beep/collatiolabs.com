@@ -37,12 +37,31 @@ def _salt() -> bytes:
     return s
 
 
+def _passphrase():
+    """The key, from ANIMA_KEY env first, else the macOS Keychain item 'anima'."""
+    pw = os.environ.get("ANIMA_KEY")
+    if pw:
+        return pw
+    import sys
+    if sys.platform != "darwin":
+        return None
+    import subprocess
+    try:
+        r = subprocess.run(["security", "find-generic-password", "-s", "anima", "-w"],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except Exception:
+        pass
+    return None
+
+
 def _cipher():
     global _fernet, _resolved
     if _resolved:
         return _fernet
     _resolved = True
-    pw = os.environ.get("ANIMA_KEY")
+    pw = _passphrase()
     if not pw:
         return None
     try:

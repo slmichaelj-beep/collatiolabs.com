@@ -18,6 +18,7 @@ import json
 from pathlib import Path
 
 from .util import save_text, load_text
+from . import crypto
 
 STORE = Path(".anima")
 
@@ -54,8 +55,8 @@ def log_turn(name, user, reply):
     """Append one exchange to the transient working log (raw text, short-lived)."""
     STORE.mkdir(exist_ok=True)
     try:
-        with open(log_path(name), "a") as f:
-            f.write(json.dumps({"u": user, "v": reply}) + "\n")
+        with open(log_path(name), "a") as f:        # each line sealed if a key is set
+            f.write(crypto.maybe_encrypt(json.dumps({"u": user, "v": reply})) + "\n")
     except OSError:
         pass
 
@@ -67,9 +68,9 @@ def read_transcript(name, limit=60) -> str:
     out = []
     for line in p.read_text().splitlines()[-limit:]:
         try:
-            d = json.loads(line)
+            d = json.loads(crypto.maybe_decrypt(line))
             out.append(f"Them: {d['u']}\n{name}: {d['v']}")
-        except ValueError:
+        except Exception:
             pass
     return "\n".join(out)
 
