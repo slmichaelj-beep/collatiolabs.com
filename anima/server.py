@@ -31,6 +31,7 @@ STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
 _lock = threading.Lock()
 _MOUTH = None
+_EARS = None
 
 
 def _mouth(voice):
@@ -38,6 +39,33 @@ def _mouth(voice):
     if _MOUTH is None:
         _MOUTH = Mouth.assemble(voice=voice)   # built once, not per request
     return _MOUTH
+
+
+def _ears():
+    global _EARS
+    if _EARS is None:
+        from .mouth import WhisperEars
+        _EARS = WhisperEars()                  # Whisper large-v3-turbo, loaded once
+    return _EARS
+
+
+def _transcribe(audio_bytes):
+    import os
+    import tempfile
+    with tempfile.NamedTemporaryFile(suffix=".audio", delete=False) as f:
+        f.write(audio_bytes)
+        tmp = f.name
+    try:
+        return {"text": _ears().listen(tmp)}
+    except Exception as e:
+        import sys
+        print(f"[anima ears] transcription failed: {e}", file=sys.stderr)
+        return {"text": ""}
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def _path(name):
@@ -105,11 +133,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, "text/plain", b"not found")
 
     def do_POST(self):
-        if urlparse(self.path).path == "/talk":
+        path = urlparse(self.path).path
+        if path == "/talk":
             n = int(self.headers.get("Content-Length", 0))
             data = json.loads(self.rfile.read(n) or b"{}")
             self._send(200, "application/json",
                        json.dumps(_turn(self.name, data.get("text", ""), self.voice)).encode())
+        elif path == "/stt":
+            n = int(self.headers.get("Content-Length", 0))
+            audio = self.rfile.read(n)
+            self._send(200, "application/json", json.dumps(_transcribe(audio)).encode())
         else:
             self._send(404, "text/plain", b"not found")
 
@@ -142,6 +175,11 @@ def main(argv=None):
         else:
             print("voice: Kokoro NOT available — phone will use the robotic browser voice.\n"
                   "  fix: pip install kokoro soundfile  &&  brew install espeak-ng")
+    from .mouth import WhisperEars
+    if WhisperEars().available():
+        print("ears: Whisper large-v3-turbo (mic dictation ready)")
+    else:
+        print("ears: faster-whisper not installed — mic off (pip install faster-whisper)")
     Handler.name, Handler.voice = args.name, args.voice
     srv = ThreadingHTTPServer((host, args.port), Handler)
     print(f"{args.name} is listening at http://{host}:{args.port}")

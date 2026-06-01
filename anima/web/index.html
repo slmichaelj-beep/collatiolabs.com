@@ -78,32 +78,36 @@ async function send(text){
 document.getElementById('f').addEventListener('submit',e=>{
   e.preventDefault();prime();const v=input.value.trim();if(v)send(v);});
 
-// Press-to-dictate. The phone mic needs a secure (https) context — over the
-// plain-http LAN address iOS blocks it, so this lights up on the Tailscale link.
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let rec=null, listening=false;
-if(SR && window.isSecureContext){
-  rec=new SR(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=false;
-  rec.onstart=()=>{listening=true;mic.classList.add('on');};
-  rec.onend  =()=>{listening=false;mic.classList.remove('on');};
-  rec.onerror=()=>{listening=false;mic.classList.remove('on');};
-  rec.onresult=e=>{
-    let txt=''; for(const r of e.results) txt+=r[0].transcript;
-    input.value=txt;                                   // show the words as you speak
-    if(e.results[e.results.length-1].isFinal){
-      const said=input.value.trim(); input.value='';
-      if(said) send(said);                             // drop it into the chat + send
-    }
-  };
-}
-mic.onclick=()=>{
+// Press-to-dictate via the server's Whisper: tap to start (mic turns red),
+// speak, tap again to stop — it transcribes and sends. Needs the https address.
+let mediaRec=null, chunks=[], recording=false;
+mic.onclick=async ()=>{
   prime();
-  if(!rec){
-    add("To talk out loud you'll need my secure address — open the Tailscale https link. "
-        +"For now, tap the text box and use your keyboard's own mic to dictate.","her");
-    return;
+  if(recording){ if(mediaRec) mediaRec.stop(); return; }
+  if(!navigator.mediaDevices || !window.MediaRecorder){
+    add("Open my secure (https) address to use the mic.","her"); return;
   }
-  if(listening){ rec.stop(); } else { input.value=''; rec.start(); }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    mediaRec=new MediaRecorder(stream); chunks=[];
+    mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    mediaRec.onstop=async ()=>{
+      recording=false; mic.classList.remove('on');
+      stream.getTracks().forEach(t=>t.stop());
+      if(!chunks.length) return;
+      stateEl.textContent='… listening';
+      try{
+        const blob=new Blob(chunks,{type:mediaRec.mimeType||'audio/mp4'});
+        const r=await fetch('/stt',{method:'POST',body:blob});
+        const d=await r.json();
+        if(d.text && d.text.trim()) send(d.text.trim());
+        else stateEl.textContent="(didn't catch that — try again)";
+      }catch(e){ stateEl.textContent='(transcription failed)'; }
+    };
+    mediaRec.start(); recording=true; mic.classList.add('on');
+  }catch(err){
+    add("Tap 'Allow' when Safari asks for the microphone, then tap the mic again.","her");
+  }
 };
 </script>
 </body>
