@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 from .heart import Heart
-from .memory import Memory
+from .memory import Memory, Replay
 from . import senses, growth
 
 STORE = Path(".anima")
@@ -45,6 +45,10 @@ def _load(name: str) -> Heart:
 
 def _mem_path(name: str) -> Path:
     return STORE / f"{name}.mem.json"
+
+
+def _replay_path(name: str) -> Path:
+    return STORE / f"{name}.replay.json"
 
 
 def _feed(heart: Heart, percept_vec, now: float) -> None:
@@ -149,10 +153,17 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "sleep":
         heart = _load(args.name)
         mem = Memory.load(_mem_path(args.name))
-        train, hold = mem.streams()
-        if not train:
+        replay = Replay.load(_replay_path(args.name))
+        # fold the day's journal into long-term memory as episodes, then empty it
+        if len(mem) >= 4:
+            replay.absorb([r["I"] for r in mem.rows], [r["dt"] for r in mem.rows])
+            replay.save(_replay_path(args.name))
+            Memory().save(_mem_path(args.name))
+        if len(replay) == 0:
             sys.exit(f"{args.name} has too few memories to grow on yet "
                      f"({len(mem)} moments) — feed it more with say/tend.")
+        # learn on a sample of the WHOLE remembered life, new interleaved with old
+        train, hold = replay.train_holdout()
         theta = heart.genome.theta()
         acc, before, after = growth.consolidate(theta, heart.genome.inv_tau, train, hold)
         if acc:
@@ -160,7 +171,8 @@ def main(argv: list[str] | None = None) -> None:
             heart.learned = True
             _save(heart)
         verb = "grew" if acc else "dreamt but kept itself"
-        print(f"{args.name} slept on {len(mem)} moments and {verb}.")
+        print(f"{args.name} slept, re-living {len(replay)} episodes "
+              f"from a life of {replay.seen}, and {verb}.")
         print(f"  prediction error on held-out life: {before:.4f} -> {after:.4f}"
               f"   ({'accepted' if acc else 'rolled back'})")
     elif args.cmd == "list":

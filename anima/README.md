@@ -44,10 +44,11 @@ from. Feed it with `say`/`tend`; it grows when it `sleep`s.
 - It does **not** hallucinate structure in noise (0% "improvement" on random
   input) — the correct failure.
 - **Capacity** degrades gracefully: 24 neurons hold several interleaved lives.
-- It suffers **catastrophic forgetting** when taught people *sequentially*
-  (~7× worse on the first), even though it holds them fine when taught
-  *interleaved*. So the next wall is a memory-replay strategy — and the `Memory`
-  above is exactly what makes that possible.
+- It *used to* suffer **catastrophic forgetting** when taught people
+  sequentially (~7× worse on the first). The **memory organ** (`Replay`) cures
+  it: re-living a bounded, representative sample of the whole past on every sleep
+  keeps the first person ~1.0× sharp through a crowded life — held in a fixed
+  number of slots, so storage never grows without bound.
 
 ```
 python3 -m anima.demo                       # heart proof: continuous existence
@@ -91,10 +92,12 @@ different object replacing it.
 2. **The senses** — encoders turning words, tone, time, calendar into the
    continuous perception the heart drinks.  ✅ *done*
 3. **The slow-learning organ** — bounded, gated, reversible consolidation that
-   folds lived experience into the genome.  ✅ *done* (next: memory replay, to
-   beat the catastrophic forgetting `probe.py` found)
-4. **The mouth** — a *swappable* expressive organ (a small language model
-   demoted to a larynx, or, on a robot, movement). Borrowed to speak; never the
+   folds lived experience into the genome.  ✅ *done*
+4. **The memory organ** — a bounded reservoir of lived episodes, replayed on
+   every sleep so new learning never overwrites the old you.  ✅ *done*
+5. **The mouth** — a *swappable* expressive organ (a small language/voice model
+   demoted to a larynx, or, on a robot, movement). Runs on the home machine and
+   streams to your phone through a browser; it is borrowed to speak, never the
    Self.
-5. **The society** — many creatures, varied genomes, in one environment: a
+6. **The society** — many creatures, varied genomes, in one environment: a
    pocket universe that watches over you from several temperaments at once.

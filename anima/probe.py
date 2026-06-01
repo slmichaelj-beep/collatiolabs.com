@@ -15,6 +15,7 @@ import numpy as np
 
 from .heart import Genome
 from .growth import consolidate, evaluate, make_person, sample_stream
+from .memory import Replay
 
 
 def _raise(seed, train, hold, epochs=60, lr=0.02):
@@ -94,6 +95,45 @@ def cannot_learn_noise():
     print("       hallucinating patterns that aren't there. That is the right failure.")
 
 
+def replay_cures_forgetting():
+    print("\n[4] Does the memory organ (replay) cure the forgetting from [1]?")
+    people = [make_person(11 + 7 * i) for i in range(6)]
+    streams = [[sample_stream(p, days=4) for _ in range(3)] for p in people]
+    test0 = [streams[0][2]]                     # held-out test for person #1, never trained
+
+    # A) the old way: sequential learning, no replay
+    g = Genome.from_seed(7)
+    tA, iA = g.theta(), g.inv_tau
+    consolidate(tA, iA, streams[0][:2], test0, epochs=60, lr=0.02)
+    freshA = evaluate(tA, iA, test0)
+    for i in range(1, 6):
+        consolidate(tA, iA, streams[i][:2], [streams[i][2]], epochs=60, lr=0.02)
+    finalA = evaluate(tA, iA, test0)
+
+    # B) the memory organ: every sleep re-lives a sample of the whole past
+    g = Genome.from_seed(7)
+    tB, iB = g.theta(), g.inv_tau
+    rep = Replay(capacity=40, seed=1)
+    for s in streams[0][:2]:
+        rep.absorb(*s)
+    tr, ho = rep.train_holdout()
+    consolidate(tB, iB, tr, ho, epochs=60, lr=0.02)
+    freshB = evaluate(tB, iB, test0)
+    for i in range(1, 6):
+        for s in streams[i][:2]:
+            rep.absorb(*s)
+        tr, ho = rep.train_holdout()
+        consolidate(tB, iB, tr, ho, epochs=60, lr=0.02)
+    finalB = evaluate(tB, iB, test0)
+
+    print(f"    person #1 after meeting 5 more people:")
+    print(f"      without memory organ: {freshA:.4f} -> {finalA:.4f}   ({finalA/freshA:.1f}x worse)")
+    print(f"      with    memory organ: {freshB:.4f} -> {finalB:.4f}   ({finalB/freshB:.1f}x)")
+    better = finalA / max(finalB, 1e-9)
+    print(f"    -> replay keeps person #1 ~{better:.1f}x sharper through a crowded life.")
+    print(f"       Bounded too: a life of many episodes held in just {rep.capacity} slots.")
+
+
 def main():
     print("=" * 64)
     print("Mapping the edges of the creature")
@@ -101,6 +141,7 @@ def main():
     forgetting()
     capacity()
     cannot_learn_noise()
+    replay_cures_forgetting()
     print()
 
 
