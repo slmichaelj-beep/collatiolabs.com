@@ -40,10 +40,14 @@ button svg{display:block;margin:auto;pointer-events:none}
 #settings.open{display:flex}
 #settings h2{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
-#persona{flex:1;width:100%;background:#111;border:1px solid #222;border-radius:12px;
-  color:#d4d4d8;font-size:14px;line-height:1.5;padding:14px;resize:none;outline:none;
-  font-family:ui-monospace,Menlo,monospace}
-#persona:focus{border-color:#374151}
+#values{flex:1;overflow-y:auto}
+.vrow{display:flex;align-items:center;gap:10px;background:#111;border:1px solid #222;
+  border-radius:10px;padding:11px 12px;margin-bottom:8px}
+.vrow.off{opacity:.38}
+.vrow .num{width:18px;text-align:center;color:#555;font-size:13px}
+.vrow .lbl{flex:1;font-size:15px;cursor:pointer}
+.vrow .ord{display:flex;gap:5px}
+.vrow .ord button{width:32px;height:30px;font-size:11px;border-radius:7px;background:#1f2937}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -70,14 +74,14 @@ button svg{display:block;margin:auto;pointer-events:none}
 </form>
 
 <div id="settings">
-  <h2>__NAME__'s character</h2>
-  <p class="hint">This is who she is — her whole personality, in your words. Edit it
-    however you like; it takes effect on her very next reply. Nothing is hidden.</p>
-  <textarea id="persona" placeholder="loading…"></textarea>
+  <h2>__NAME__'s priorities</h2>
+  <p class="hint">What matters most to her, top to bottom. When two pull against each
+    other, the one higher up wins. Tap a name to switch it on or off; use ▲▼ to reorder.
+    Takes effect on her next reply.</p>
+  <div id="values">loading…</div>
   <div class="row">
-    <button type="button" id="reset" class="txt">Reset to default</button>
-    <span style="flex:1"></span>
     <button type="button" id="cancel" class="txt">Cancel</button>
+    <span style="flex:1"></span>
     <button type="button" id="save" class="primary">Save</button>
   </div>
 </div>
@@ -159,22 +163,36 @@ mic.onclick=async ()=>{
   }
 };
 
-// --- settings: edit her character -----------------------------------------
-const panel=document.getElementById('settings'),persona=document.getElementById('persona');
-async function openSettings(){
-  persona.value='loading…';
-  panel.classList.add('open');
-  try{ const r=await fetch('/persona',{headers:HDR}); persona.value=(await r.json()).persona; }
-  catch(e){ persona.value='(could not load)'; }
+// --- settings: reorder her priorities -------------------------------------
+const panel=document.getElementById('settings'),valuesBox=document.getElementById('values');
+let VALS=[];
+function renderValues(){
+  valuesBox.innerHTML='';
+  VALS.forEach((v,i)=>{
+    const row=document.createElement('div'); row.className='vrow'+(v.on?'':' off');
+    const num=document.createElement('span'); num.className='num'; num.textContent=i+1;
+    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=v.label;
+    lbl.onclick=()=>{ v.on=!v.on; renderValues(); };
+    const ord=document.createElement('span'); ord.className='ord';
+    const up=document.createElement('button'); up.textContent='▲';
+    const dn=document.createElement('button'); dn.textContent='▼';
+    up.onclick=()=>{ if(i>0){ [VALS[i-1],VALS[i]]=[VALS[i],VALS[i-1]]; renderValues(); } };
+    dn.onclick=()=>{ if(i<VALS.length-1){ [VALS[i+1],VALS[i]]=[VALS[i],VALS[i+1]]; renderValues(); } };
+    ord.append(up,dn); row.append(num,lbl,ord); valuesBox.appendChild(row);
+  });
 }
-async function savePersona(text){
-  await fetch('/persona',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
-    body:JSON.stringify({persona:text})});
+async function openSettings(){
+  panel.classList.add('open'); valuesBox.textContent='loading…';
+  try{ const r=await fetch('/values',{headers:HDR}); VALS=(await r.json()).values; renderValues(); }
+  catch(e){ valuesBox.textContent='(could not load)'; }
 }
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
-document.getElementById('save').onclick=async()=>{ await savePersona(persona.value); panel.classList.remove('open'); };
-document.getElementById('reset').onclick=async()=>{ await savePersona(''); await openSettings(); };
+document.getElementById('save').onclick=async()=>{
+  await fetch('/values',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify({values:VALS.map(v=>({key:v.key,on:v.on}))})});
+  panel.classList.remove('open');
+};
 </script>
 </body>
 </html>

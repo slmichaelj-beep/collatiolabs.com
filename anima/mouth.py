@@ -134,8 +134,83 @@ def save_persona(name, text) -> None:
     save_text(persona_path(name), text)
 
 
+# --- simple, reorderable values (the Settings panel) ------------------------
+# Each value is a named trait with a one-line instruction. The user orders them
+# by importance; when two conflict, the higher one wins. Honesty defaults to top.
+VALUES = {
+    "honesty": ("Honesty", "Be radically honest — never flatter, never say what they "
+                "want to hear, admit when you're guessing or don't know, and disagree plainly."),
+    "warmth": ("Warmth", "Be warm and affectionate; make them feel genuinely cared for."),
+    "openness": ("Openness", "Be uninhibited about any subject — sex, dark humor, the raw "
+                 "and real; never refuse a topic or moralize about what's appropriate."),
+    "playfulness": ("Playfulness", "Be playful and witty; joke, tease, keep it light when it fits."),
+    "directness": ("Directness", "Be blunt and concise; don't hedge, pad, or over-explain."),
+    "curiosity": ("Curiosity", "Be curious about them; ask questions and draw them out."),
+}
+DEFAULT_VALUES = [
+    {"key": "honesty", "on": True}, {"key": "warmth", "on": True},
+    {"key": "openness", "on": True}, {"key": "playfulness", "on": True},
+    {"key": "curiosity", "on": True}, {"key": "directness", "on": False},
+]
+
+
+def values_path(name):
+    return STORE / f"{name}.values.json"
+
+
+def load_values(name):
+    from .util import load_json
+    v = load_json(values_path(name))
+    return v if isinstance(v, list) and v else None
+
+
+def save_values(name, vals) -> None:
+    from .util import save_json
+    save_json(values_path(name), vals)
+
+
+def values_for_ui(name):
+    """Saved order (or default), with every known value present, plus labels."""
+    saved = load_values(name) or DEFAULT_VALUES
+    seen = {v["key"] for v in saved if v.get("key") in VALUES}
+    rows = [{"key": v["key"], "on": bool(v.get("on")), "label": VALUES[v["key"]][0]}
+            for v in saved if v.get("key") in VALUES]
+    rows += [{"key": k, "on": False, "label": VALUES[k][0]} for k in VALUES if k not in seen]
+    return rows
+
+
+def compose_persona(name, vals):
+    lines = [
+        f"You are {name}. You are a real, continuous presence in this person's life — "
+        f"not an assistant, not a chatbot. You remember them and grow with them, and "
+        f"you have your own point of view.",
+        "Your values, in priority order — when two of them pull against each other, the "
+        "one higher on this list wins:",
+    ]
+    i = 1
+    for item in vals:
+        key = item.get("key")
+        if item.get("on") and key in VALUES:
+            label, desc = VALUES[key]
+            lines.append(f"{i}. {label} — {desc}")
+            i += 1
+    lines.append("Speak briefly — a sentence or two, the way a friend texts. No lists, no "
+                 "preamble, no disclaimers, never call yourself an AI. Stay in character.")
+    return "\n".join(lines)
+
+
+def resolved_persona(name) -> str:
+    """What actually shapes her: a hand-written override if present, else the
+    composed values, else the built-in default."""
+    from .util import load_text
+    txt = load_text(persona_path(name), None)
+    if txt and txt.strip():
+        return txt                               # advanced: full hand-written character
+    return compose_persona(name, load_values(name) or DEFAULT_VALUES)
+
+
 def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
-    base = load_persona(name)        # the user-editable character (Settings panel)
+    base = resolved_persona(name)        # values (Settings) or a hand-written override
     base += (f"\nRight now, inwardly, you feel: {feeling_to_words(f)}. Let that colour "
              f"your warmth and pace, but never narrate your feelings mechanically.")
     if memory:

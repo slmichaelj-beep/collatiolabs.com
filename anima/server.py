@@ -181,6 +181,10 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import load_persona
                 self._send(200, "application/json",
                            json.dumps({"persona": load_persona(self.name)}).encode())
+            elif u.path == "/values":
+                from .mouth import values_for_ui
+                self._send(200, "application/json",
+                           json.dumps({"values": values_for_ui(self.name)}).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -210,6 +214,13 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import save_persona
                 data = json.loads(self._read_body() or b"{}")
                 save_persona(self.name, str(data.get("persona", ""))[:8000])
+                self._send(200, "application/json", b'{"ok":true}')
+            elif path == "/values":
+                from .mouth import save_values, VALUES
+                data = json.loads(self._read_body() or b"{}")
+                vals = [{"key": v.get("key"), "on": bool(v.get("on"))}
+                        for v in data.get("values", []) if v.get("key") in VALUES][:20]
+                save_values(self.name, vals)
                 self._send(200, "application/json", b'{"ok":true}')
             else:
                 self._send(404, "text/plain", b"not found")
