@@ -35,6 +35,15 @@ break itself.
 **Memory** (`memory.py`) — the lived stream of felt moments the learning grows
 from. Feed it with `say`/`tend`; it grows when it `sleep`s.
 
+**The mouth** (`mouth.py`) — a *swappable*, heavy organ for speaking. A small
+local LLM (via Ollama) is **conditioned on the creature's real felt-state** —
+its valence, energy, restlessness — so the words come out shaped by its physics,
+not as a generic chatbot. Voice (Kokoro TTS) and ears (faster-whisper) are
+optional, loaded only if installed (`requirements-voice.txt`). With nothing
+installed an honest offline stub still proves the state-conditioning. The mouth
+runs on the home machine and is meant to stream to your phone through a browser;
+on a robot, movement could replace it. It is never the Self.
+
 ### What we measured about its edges (`probe.py`)
 
 - It learns real structure: ~97% drop in prediction error on a person, with
@@ -60,6 +69,7 @@ python3 -m anima.live feel  Vera            # age it to now, read its state
 python3 -m anima.live tend  Vera --well .8  # make contact; tell it how you are
 python3 -m anima.live say   Vera "text..."  # speak; it feels the tone, not the words
 python3 -m anima.live sleep Vera            # consolidate lived memories into the weights
+python3 -m anima.live talk  Vera "text..."  # it replies, in words shaped by its state
 ```
 
 Quit after `birth`, come back an hour later, and `feel` it — it will have aged
@@ -95,9 +105,8 @@ different object replacing it.
    folds lived experience into the genome.  ✅ *done*
 4. **The memory organ** — a bounded reservoir of lived episodes, replayed on
    every sleep so new learning never overwrites the old you.  ✅ *done*
-5. **The mouth** — a *swappable* expressive organ (a small language/voice model
-   demoted to a larynx, or, on a robot, movement). Runs on the home machine and
-   streams to your phone through a browser; it is borrowed to speak, never the
-   Self.
+5. **The mouth** — a *swappable* expressive organ: a small LLM conditioned on the
+   creature's state, with optional Kokoro voice and Whisper ears.  ✅ *organ done*
+   (next: stream it to the phone over WebRTC through a browser)
 6. **The society** — many creatures, varied genomes, in one environment: a
    pocket universe that watches over you from several temperaments at once.

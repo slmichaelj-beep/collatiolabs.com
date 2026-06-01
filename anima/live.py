@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .heart import Heart
 from .memory import Memory, Replay
+from .mouth import Mouth
 from . import senses, growth
 
 STORE = Path(".anima")
@@ -118,6 +119,11 @@ def main(argv: list[str] | None = None) -> None:
     sl = sub.add_parser("sleep", help="consolidate lived memories into the weights (grow)")
     sl.add_argument("name")
 
+    tk = sub.add_parser("talk", help="speak with it; it replies from its felt-state")
+    tk.add_argument("name")
+    tk.add_argument("text")
+    tk.add_argument("--well", type=float, default=None, help="override inferred wellbeing")
+
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
@@ -175,6 +181,16 @@ def main(argv: list[str] | None = None) -> None:
               f"from a life of {replay.seen}, and {verb}.")
         print(f"  prediction error on held-out life: {before:.4f} -> {after:.4f}"
               f"   ({'accepted' if acc else 'rolled back'})")
+    elif args.cmd == "talk":
+        heart = _load(args.name)
+        p = senses.read(args.text, wellbeing=args.well, name=args.name)
+        _feed(heart, p.vector(), time.time())     # it feels you, and records the moment
+        _save(heart)
+        u = Mouth.assemble().respond(heart, args.text)
+        print(f'you: "{args.text}"')
+        print(f"\n  {args.name}: {u.text}\n")
+        print(f"  (spoken from state: {u.feeling} | register {u.delivery['register']} "
+              f"rate {u.delivery['rate']} | via {u.backend})")
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []
         print("\n".join(f"  {n}" for n in names) if names else "no animae yet.")
