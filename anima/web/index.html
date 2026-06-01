@@ -25,7 +25,7 @@ input:focus{border-color:#374151}
 button{background:#1f2937;border:none;color:#fff;border-radius:50%;width:44px;height:44px;
   font-size:18px;cursor:pointer;flex:none}
 button:active{background:#374151}
-button svg{display:block;margin:auto}
+button svg{display:block;margin:auto;pointer-events:none}
 #mic.on{background:#b91c1c;animation:pulse 1.1s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(185,28,28,.6)}50%{box-shadow:0 0 0 11px rgba(185,28,28,0)}}
 </style>
@@ -50,13 +50,17 @@ const log=document.getElementById('log'),input=document.getElementById('t'),
 function add(text,who){const d=document.createElement('div');d.className='msg '+who;
   d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;}
 
-function speak(text,audioUrl){
-  if(audioUrl){const a=new Audio(audioUrl);a.play().catch(()=>fallback(text));}
-  else fallback(text);
+// one reused audio element, "blessed" on a tap so iOS lets us play it later
+const player=new Audio();
+let primed=false;
+const SILENT="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+function prime(){
+  if(primed)return; primed=true;
+  try{ player.src=SILENT; player.play().catch(()=>{}); }catch(e){}
 }
-function fallback(text){            // browser TTS if the server has no voice model
-  if('speechSynthesis'in window){const u=new SpeechSynthesisUtterance(text);
-    u.rate=0.98;speechSynthesis.speak(u);}
+function speak(audioUrl){           // play the Mac's natural (Kokoro) voice only
+  if(!audioUrl)return;
+  player.src=audioUrl; player.play().catch(()=>{});
 }
 
 async function send(text){
@@ -67,12 +71,12 @@ async function send(text){
     const d=await r.json();
     add(d.reply,'her');
     stateEl.textContent=d.feeling+'  ·  '+d.register;
-    speak(d.reply,d.audio_url);
+    speak(d.audio_url);
   }catch(e){add('(could not reach the server)','her');}
 }
 
 document.getElementById('f').addEventListener('submit',e=>{
-  e.preventDefault();const v=input.value.trim();if(v)send(v);});
+  e.preventDefault();prime();const v=input.value.trim();if(v)send(v);});
 
 // Press-to-dictate. The phone mic needs a secure (https) context — over the
 // plain-http LAN address iOS blocks it, so this lights up on the Tailscale link.
@@ -93,6 +97,7 @@ if(SR && window.isSecureContext){
   };
 }
 mic.onclick=()=>{
+  prime();
   if(!rec){
     add("To talk out loud you'll need my secure address — open the Tailscale https link. "
         +"For now, tap the text box and use your keyboard's own mic to dictate.","her");
