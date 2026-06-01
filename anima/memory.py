@@ -16,6 +16,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .util import save_json
+
 
 class Memory:
     def __init__(self, rows=None):
@@ -50,14 +52,17 @@ class Memory:
         return chunks[:cut], chunks[cut:] or chunks[-1:]
 
     def save(self, path):
-        Path(path).write_text(json.dumps({"rows": self.rows}))
+        save_json(path, {"rows": self.rows})
 
     @classmethod
     def load(cls, path):
         p = Path(path)
         if not p.exists():
             return cls()
-        return cls(json.loads(p.read_text()).get("rows", []))
+        try:
+            return cls(json.loads(p.read_text()).get("rows", []))
+        except (ValueError, OSError):
+            return cls()        # tolerate a truncated/corrupt journal rather than die
 
 
 def _chunk(I_seq, dt_seq, window, step):
@@ -118,8 +123,7 @@ class Replay:
         return self._streams(eps[:cut]), self._streams(eps[cut:] or eps[-1:])
 
     def save(self, path):
-        Path(path).write_text(json.dumps(
-            {"capacity": self.capacity, "seen": self.seen, "episodes": self.episodes}))
+        save_json(path, {"capacity": self.capacity, "seen": self.seen, "episodes": self.episodes})
 
     @classmethod
     def load(cls, path, capacity=64):

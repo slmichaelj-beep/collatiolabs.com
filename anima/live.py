@@ -21,7 +21,7 @@ from pathlib import Path
 from .heart import Heart
 from .memory import Memory, Replay
 from .mouth import Mouth
-from .util import label
+from .util import label, save_json
 from . import senses, growth
 
 STORE = Path(".anima")
@@ -33,8 +33,7 @@ def _path(name: str) -> Path:
 
 def _save(heart: Heart) -> None:
     STORE.mkdir(exist_ok=True)
-    import json
-    _path(heart.name).write_text(json.dumps(heart.to_dict(), indent=2))
+    save_json(_path(heart.name), heart.to_dict())   # atomic — never half-written
 
 
 def _load(name: str) -> Heart:

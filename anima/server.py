@@ -22,6 +22,7 @@ import warnings
 
 warnings.filterwarnings("ignore")                       # quiet torch/HF startup noise
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -29,28 +30,35 @@ from urllib.parse import urlparse, parse_qs
 from .heart import Heart
 from .memory import Memory
 from .mouth import Mouth
-from .util import label
+from .util import label, save_json
 from . import senses
 
 STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
-_lock = threading.Lock()
+MAX_BODY = 25 * 1024 * 1024          # cap request bodies (audio uploads) at 25 MB
+_lock = threading.Lock()             # serialises a turn (state read-modify-write)
+_model_lock = threading.Lock()       # guards one-time model loads
 _MOUTH = None
 _EARS = None
+_HISTORY = deque(maxlen=6)           # recent (you, vera) turns — within-session memory
 
 
 def _mouth(voice):
     global _MOUTH
     if _MOUTH is None:
-        _MOUTH = Mouth.assemble(voice=voice)   # built once, not per request
+        with _model_lock:
+            if _MOUTH is None:
+                _MOUTH = Mouth.assemble(voice=voice)   # built once, not per request
     return _MOUTH
 
 
 def _ears():
     global _EARS
     if _EARS is None:
-        from .mouth import WhisperEars
-        _EARS = WhisperEars()                  # Whisper large-v3-turbo, loaded once
+        with _model_lock:
+            if _EARS is None:
+                from .mouth import WhisperEars
+                _EARS = WhisperEars()              # Whisper large-v3-turbo, loaded once
     return _EARS
 
 
@@ -84,7 +92,7 @@ def _mem(name):
 def _ensure(name, neurons):
     if not _path(name).exists():
         STORE.mkdir(exist_ok=True)
-        _path(name).write_text(json.dumps(Heart.born(name, n=neurons).to_dict()))
+        save_json(_path(name), Heart.born(name, n=neurons).to_dict())
 
 
 def _turn(name, text, voice=False):
@@ -99,8 +107,10 @@ def _turn(name, text, voice=False):
         mem.save(_mem(name))
         heart.perceive(p.vector(), now=now)
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
-        u = _mouth(voice).respond(heart, text, audio_out=audio_out, perception=p)
-        _path(name).write_text(json.dumps(heart.to_dict()))
+        u = _mouth(voice).respond(heart, text, history=list(_HISTORY),
+                                  audio_out=audio_out, perception=p)
+        _HISTORY.append((text, u.text))           # remember this turn for the session
+        save_json(_path(name), heart.to_dict())    # atomic — never half-written
         return {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
             "rate": u.delivery["rate"], "backend": u.backend,
@@ -119,37 +129,57 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_body(self):
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            n = 0
+        return self.rfile.read(max(0, min(n, MAX_BODY)))
+
+    def _fail(self, verb):
+        import sys
+        print(f"[anima server] {verb} {self.path} failed", file=sys.stderr)
+        try:
+            self._send(500, "text/plain", b"error")
+        except Exception:
+            pass
+
     def do_GET(self):
-        u = urlparse(self.path)
-        if u.path in ("/", "/index.html"):
-            html = (WEB / "index.html").read_text().replace("__NAME__", self.name)
-            self._send(200, "text/html; charset=utf-8", html.encode())
-        elif u.path == "/audio":
-            nm = parse_qs(u.query).get("name", [self.name])[0]
-            f = STORE / f"{nm}.last.wav"
-            if f.exists():
-                self._send(200, "audio/wav", f.read_bytes())
+        try:
+            u = urlparse(self.path)
+            if u.path in ("/", "/index.html"):
+                html = (WEB / "index.html").read_text().replace("__NAME__", self.name)
+                self._send(200, "text/html; charset=utf-8", html.encode())
+            elif u.path == "/audio":
+                nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
+                f = STORE / f"{nm}.last.wav"
+                if f.exists():
+                    self._send(200, "audio/wav", f.read_bytes())
+                else:
+                    self._send(404, "text/plain", b"no audio")
+            elif u.path == "/state":
+                heart = Heart.from_dict(json.loads(_path(self.name).read_text()))
+                self._send(200, "application/json", json.dumps(heart.feeling()).encode())
             else:
-                self._send(404, "text/plain", b"no audio")
-        elif u.path == "/state":
-            heart = Heart.from_dict(json.loads(_path(self.name).read_text()))
-            self._send(200, "application/json", json.dumps(heart.feeling()).encode())
-        else:
-            self._send(404, "text/plain", b"not found")
+                self._send(404, "text/plain", b"not found")
+        except Exception:
+            self._fail("GET")
 
     def do_POST(self):
-        path = urlparse(self.path).path
-        if path == "/talk":
-            n = int(self.headers.get("Content-Length", 0))
-            data = json.loads(self.rfile.read(n) or b"{}")
-            self._send(200, "application/json",
-                       json.dumps(_turn(self.name, data.get("text", ""), self.voice)).encode())
-        elif path == "/stt":
-            n = int(self.headers.get("Content-Length", 0))
-            audio = self.rfile.read(n)
-            self._send(200, "application/json", json.dumps(_transcribe(audio)).encode())
-        else:
-            self._send(404, "text/plain", b"not found")
+        try:
+            path = urlparse(self.path).path
+            if path == "/talk":
+                data = json.loads(self._read_body() or b"{}")
+                text = str(data.get("text", ""))[:4000]          # cap absurd input
+                self._send(200, "application/json",
+                           json.dumps(_turn(self.name, text, self.voice)).encode())
+            elif path == "/stt":
+                self._send(200, "application/json",
+                           json.dumps(_transcribe(self._read_body())).encode())
+            else:
+                self._send(404, "text/plain", b"not found")
+        except Exception:
+            self._fail("POST")
 
     def log_message(self, *a):
         pass
@@ -186,7 +216,12 @@ def main(argv=None):
     else:
         print("ears: faster-whisper not installed — mic off (pip install faster-whisper)")
     Handler.name, Handler.voice = args.name, args.voice
-    srv = ThreadingHTTPServer((host, args.port), Handler)
+    try:
+        srv = ThreadingHTTPServer((host, args.port), Handler)
+    except OSError:
+        raise SystemExit(
+            f"\nport {args.port} is busy — another {args.name} is already running.\n"
+            f"  free it:  lsof -ti:{args.port} | xargs kill -9   (then start again)\n")
     print(f"{args.name} is listening at http://{host}:{args.port}")
     if host == "0.0.0.0":
         print("EXPOSED on your LAN (no password). Prefer a private tunnel (Tailscale) for the phone.")
