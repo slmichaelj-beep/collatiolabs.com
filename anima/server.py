@@ -57,7 +57,7 @@ def _turn(name, text, voice=False):
         mem.save(_mem(name))
         heart.perceive(p.vector(), now=now)
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
-        u = Mouth.assemble(voice=voice).respond(heart, text, audio_out=audio_out)
+        u = Mouth.assemble(voice=voice).respond(heart, text, audio_out=audio_out, perception=p)
         _path(name).write_text(json.dumps(heart.to_dict()))
         return {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],

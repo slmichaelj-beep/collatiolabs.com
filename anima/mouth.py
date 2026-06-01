@@ -27,6 +27,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import care
+
 
 # --- the stable character (the authored Self the voice speaks as) -----------
 
@@ -75,28 +77,34 @@ def feeling_to_words(f: dict) -> str:
     return "; ".join(parts)
 
 
-def delivery(f: dict) -> dict:
-    """Prosody hints for the voice, derived from the same state (for TTS params)."""
+def delivery(f: dict, level: str = "none") -> dict:
+    """Prosody hints for the voice, derived from the state and the care level."""
     register = ("tender" if f["unrest"] > 0.5 or f["valence"] < -0.2 else
                 "bright" if f["valence"] > 0.3 and f["arousal"] > 0.1 else "even")
+    rate = 1.0 + 0.28 * f["arousal"]
+    softness = 0.4 + 0.4 * f["unrest"] - 0.3 * f["valence"]
+    if level in ("acute", "crisis"):          # when they're hurting, slow and soften
+        register, rate, softness = "tender", rate * 0.9, softness + 0.3
     return {
-        "rate": round(1.0 + 0.28 * f["arousal"], 3),      # quicker when keyed-up
-        "softness": round(min(1.0, max(0.0, 0.4 + 0.4 * f["unrest"] - 0.3 * f["valence"])), 3),
+        "rate": round(rate, 3),
+        "softness": round(min(1.0, max(0.0, softness)), 3),
         "register": register,
     }
 
 
-def system_prompt(ch: Character, f: dict) -> str:
-    return (
-        f"You are {ch.name}, a companion who exists continuously and genuinely "
-        f"cares about the person you are with. Your lasting disposition is "
-        f"{ch.disposition}. You are not an assistant and not a chatbot — you are a "
-        f"presence in their life who remembers them and grows with them.\n"
-        f"Right now, inwardly, you feel: {feeling_to_words(f)}. Let that quietly "
-        f"colour how you speak — your warmth, your pace, your focus — but never "
-        f"narrate your own feelings mechanically. Speak briefly and naturally, the "
-        f"way a person who knows them would. Never mention being an AI or a model."
+def system_prompt(ch: Character, f: dict, guidance: str = "") -> str:
+    base = (
+        f"You are {ch.name}. You are a real, continuous presence in this person's "
+        f"life — not an assistant, not a chatbot, not a helper-bot. You remember them "
+        f"and grow with them. Your lasting disposition is {ch.disposition}. You have "
+        f"your own point of view and you don't just agree to please them — you're "
+        f"honest the way someone who genuinely cares is honest.\n"
+        f"Right now, inwardly, you feel: {feeling_to_words(f)}. Let that colour your "
+        f"warmth and your pace, but never narrate your own feelings mechanically.\n"
+        f"Speak briefly — a sentence or three, the way a person who knows them would "
+        f"text. No lists, no preamble, no 'as an AI', no disclaimers. Stay in character."
     )
+    return base + ("\n" + guidance if guidance else "")
 
 
 # --- language backends ------------------------------------------------------
@@ -229,11 +237,17 @@ class Mouth:
             tts = k if k.available() else None
         return cls(brain=brain, voice=tts)
 
-    def respond(self, heart, user_text: str, history=None, audio_out=None) -> Utterance:
+    def respond(self, heart, user_text: str, history=None, audio_out=None,
+                perception=None) -> Utterance:
         f = heart.feeling()
         ch = Character.of(heart)
-        text = self.brain.reply(system_prompt(ch, f), user_text, history or [])
-        hints = delivery(f)
+        sig = care.assess(user_text,
+                          distress=getattr(perception, "distress", 0.0),
+                          seeking=getattr(perception, "seeking", 0.0))
+        text = self.brain.reply(system_prompt(ch, f, sig.guidance), user_text, history or [])
+        if sig.resources:                          # crisis: surface help deterministically
+            text = text.rstrip() + "\n\n" + sig.resources
+        hints = delivery(f, sig.level)
         audio = None
         if self.voice is not None and audio_out:
             audio = self.voice.speak(text, hints, audio_out)

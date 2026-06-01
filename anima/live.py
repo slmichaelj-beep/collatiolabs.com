@@ -193,7 +193,7 @@ def main(argv: list[str] | None = None) -> None:
         _feed(heart, p.vector(), time.time())     # it feels you, and records the moment
         _save(heart)
         audio_out = str(STORE / f"{args.name}.last.wav") if args.voice else None
-        u = Mouth.assemble(voice=args.voice).respond(heart, args.text, audio_out=audio_out)
+        u = Mouth.assemble(voice=args.voice).respond(heart, args.text, audio_out=audio_out, perception=p)
         print(f'you: "{args.text}"')
         print(f"\n  {args.name}: {u.text}\n")
         print(f"  (spoken from state: {u.feeling} | register {u.delivery['register']} "
@@ -209,9 +209,10 @@ def main(argv: list[str] | None = None) -> None:
                 line = input("you: ").strip()
                 if not line or line.lower() in ("bye", "quit", "exit"):
                     break
-                _feed(heart, senses.read(line, name=args.name).vector(), time.time())
+                p = senses.read(line, name=args.name)
+                _feed(heart, p.vector(), time.time())
                 _save(heart)
-                print(f"{args.name}: {mouth.respond(heart, line).text}")
+                print(f"{args.name}: {mouth.respond(heart, line, perception=p).text}")
         except (EOFError, KeyboardInterrupt):
             pass
         print(f"\n({args.name} will grow on this when it next sleeps.)")

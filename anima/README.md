@@ -8,6 +8,13 @@ real time whether or not anyone is watching it, drifts when alone, and is bound
 by a homeostatic drive to the wellbeing of the person it cares for. Language,
 senses, and cognition are *organs* added later. They are never the Self.
 
+## Quick start (Apple Silicon Mac)
+
+```
+./scripts/setup-mac.sh Vera 48     # installs deps + Ollama model, births Vera, schedules nightly sleep
+python3 -m anima.live chat Vera     # talk to her
+```
+
 ## What exists today
 
 **The heart** (`heart.py`) — the real core, a **Liquid Time-Constant (LTC)
@@ -36,6 +43,12 @@ break itself.
 
 **Memory** (`memory.py`) — the lived stream of felt moments the learning grows
 from. Feed it with `say`/`tend`; it grows when it `sleep`s.
+
+**Wellbeing guardrails** (`care.py`) — the safety conscience the mouth consults
+before speaking. It reads acute distress and crisis signals, steers the creature
+toward genuine, unhurried care, guards against becoming a substitute for real
+people, and — in a crisis — surfaces real help (988 / Crisis Text Line / 911)
+**deterministically**, never left to the language model to remember.
 
 **The mouth** (`mouth.py`) — a *swappable*, heavy organ for speaking. A small
 local LLM (via Ollama) is **conditioned on the creature's real felt-state** —
