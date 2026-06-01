@@ -258,8 +258,11 @@ class Mouth:
                           seeking=getattr(perception, "seeking", 0.0))
         try:
             text = self.brain.reply(system_prompt(ch, f, sig.guidance), user_text, history or [])
-        except Exception:
-            # a slow or unreachable model must never crash the conversation
+        except Exception as e:
+            # a slow or unreachable model must never crash the conversation,
+            # but log WHY so a misconfigured model/timeout is diagnosable
+            import sys
+            print(f"[anima mouth] brain ({self.brain.name}) failed: {e}", file=sys.stderr)
             text = "I'm here with you — give me a moment, my words are slow to come right now."
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources

@@ -132,6 +132,9 @@ def main(argv=None):
     host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
     label(f"{args.name} server :{args.port}")
+    import os
+    print(f"brain: {os.environ.get('ANIMA_MODEL', 'qwen2.5:7b-instruct')} (Ollama) — "
+          f"make sure `ollama list` shows it")
     if args.voice:
         from .mouth import KokoroVoice
         if KokoroVoice().available():
