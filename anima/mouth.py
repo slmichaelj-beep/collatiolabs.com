@@ -148,10 +148,15 @@ VALUES = {
     "curiosity": ("Curiosity", "Be curious about them; ask questions and draw them out."),
 }
 DEFAULT_VALUES = [
-    {"key": "honesty", "on": True}, {"key": "warmth", "on": True},
-    {"key": "openness", "on": True}, {"key": "playfulness", "on": True},
-    {"key": "curiosity", "on": True}, {"key": "directness", "on": False},
+    {"key": "honesty", "on": True, "level": "more"},
+    {"key": "warmth", "on": True, "level": "balanced"},
+    {"key": "openness", "on": True, "level": "balanced"},
+    {"key": "playfulness", "on": True, "level": "balanced"},
+    {"key": "curiosity", "on": True, "level": "balanced"},
+    {"key": "directness", "on": False, "level": "balanced"},
 ]
+LEVELS = {"less": " (keep this subtle — dialed down)", "balanced": "",
+          "more": " (lean into this — make it strong and prominent)"}
 
 
 def values_path(name):
@@ -170,12 +175,13 @@ def save_values(name, vals) -> None:
 
 
 def values_for_ui(name):
-    """Saved order (or default), with every known value present, plus labels."""
+    """Saved order (or default), with every known value present, plus labels/levels."""
     saved = load_values(name) or DEFAULT_VALUES
     seen = {v["key"] for v in saved if v.get("key") in VALUES}
-    rows = [{"key": v["key"], "on": bool(v.get("on")), "label": VALUES[v["key"]][0]}
-            for v in saved if v.get("key") in VALUES]
-    rows += [{"key": k, "on": False, "label": VALUES[k][0]} for k in VALUES if k not in seen]
+    rows = [{"key": v["key"], "on": bool(v.get("on")), "level": v.get("level", "balanced"),
+             "label": VALUES[v["key"]][0]} for v in saved if v.get("key") in VALUES]
+    rows += [{"key": k, "on": False, "level": "balanced", "label": VALUES[k][0]}
+             for k in VALUES if k not in seen]
     return rows
 
 
@@ -192,7 +198,7 @@ def compose_persona(name, vals):
         key = item.get("key")
         if item.get("on") and key in VALUES:
             label, desc = VALUES[key]
-            lines.append(f"{i}. {label} — {desc}")
+            lines.append(f"{i}. {label}{LEVELS.get(item.get('level', 'balanced'), '')} — {desc}")
             i += 1
     lines.append("Speak briefly — a sentence or two, the way a friend texts. No lists, no "
                  "preamble, no disclaimers, never call yourself an AI. Stay in character.")

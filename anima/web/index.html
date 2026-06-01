@@ -49,8 +49,11 @@ button svg{display:block;margin:auto;pointer-events:none}
 .vrow.off{opacity:.38}
 .vrow .num{width:18px;text-align:center;color:#555;font-size:13px}
 .vrow .lbl{flex:1;font-size:15px;cursor:pointer}
-.vrow .ord{display:flex;gap:5px}
-.vrow .ord button{width:32px;height:30px;font-size:11px;border-radius:7px;background:#1f2937}
+.vrow .lvl{display:flex;gap:3px}
+.vrow .lvl button{width:28px;height:28px;font-size:14px;border-radius:7px;background:#161616;color:#777}
+.vrow .lvl button.active{background:#374151;color:#fff}
+.vrow .ord{display:flex;gap:4px}
+.vrow .ord button{width:30px;height:28px;font-size:11px;border-radius:7px;background:#1f2937}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -136,7 +139,6 @@ async function send(text){
       body:JSON.stringify({text})});
     const d=await r.json();
     add(d.reply,'her');
-    stateEl.textContent=d.feeling+'  ·  '+d.register;
     if(!muted) speak(d.audio_url);
   }catch(e){add('(could not reach the server)','her');}
 }
@@ -186,12 +188,19 @@ function renderValues(){
     const num=document.createElement('span'); num.className='num'; num.textContent=i+1;
     const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=v.label;
     lbl.onclick=()=>{ v.on=!v.on; renderValues(); };
+    const lvl=document.createElement('span'); lvl.className='lvl';
+    [['less','−'],['balanced','='],['more','+']].forEach(([L,sym])=>{
+      const b=document.createElement('button'); b.textContent=sym;
+      if((v.level||'balanced')===L) b.className='active';
+      b.onclick=()=>{ v.level=L; renderValues(); };
+      lvl.appendChild(b);
+    });
     const ord=document.createElement('span'); ord.className='ord';
     const up=document.createElement('button'); up.textContent='▲';
     const dn=document.createElement('button'); dn.textContent='▼';
     up.onclick=()=>{ if(i>0){ [VALS[i-1],VALS[i]]=[VALS[i],VALS[i-1]]; renderValues(); } };
     dn.onclick=()=>{ if(i<VALS.length-1){ [VALS[i+1],VALS[i]]=[VALS[i],VALS[i+1]]; renderValues(); } };
-    ord.append(up,dn); row.append(num,lbl,ord); valuesBox.appendChild(row);
+    ord.append(up,dn); row.append(num,lbl,lvl,ord); valuesBox.appendChild(row);
   });
 }
 async function openSettings(){
@@ -203,7 +212,7 @@ document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
   await fetch('/values',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
-    body:JSON.stringify({values:VALS.map(v=>({key:v.key,on:v.on}))})});
+    body:JSON.stringify({values:VALS.map(v=>({key:v.key,on:v.on,level:v.level||'balanced'}))})});
   panel.classList.remove('open');
 };
 </script>

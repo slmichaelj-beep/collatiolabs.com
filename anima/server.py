@@ -218,7 +218,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/values":
                 from .mouth import save_values, VALUES
                 data = json.loads(self._read_body() or b"{}")
-                vals = [{"key": v.get("key"), "on": bool(v.get("on"))}
+                vals = [{"key": v.get("key"), "on": bool(v.get("on")),
+                         "level": v.get("level") if v.get("level") in ("less", "balanced", "more") else "balanced"}
                         for v in data.get("values", []) if v.get("key") in VALUES][:20]
                 save_values(self.name, vals)
                 self._send(200, "application/json", b'{"ok":true}')
