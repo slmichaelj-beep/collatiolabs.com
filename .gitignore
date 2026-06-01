@@ -1,0 +1,8 @@
+# personal creature state — each anima's life is private and machine-local
+.anima/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
