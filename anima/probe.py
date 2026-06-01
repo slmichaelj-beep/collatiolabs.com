@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from .heart import Genome
+from .heart import Genome, Heart
 from .growth import consolidate, evaluate, make_person, sample_stream
 from .memory import Replay
+from .reproduce import breed
 
 
 def _raise(seed, train, hold, epochs=60, lr=0.02):
@@ -134,6 +135,45 @@ def replay_cures_forgetting():
     print(f"       Bounded too: a life of many episodes held in just {rep.capacity} slots.")
 
 
+def _temperament(g):
+    h = Heart(name="t", genome=g, h=np.zeros(g.n), unrest=0.0, birth_ts=0.0, last_tick=0.0)
+    h.perceive(h._percept_vec(presence=1.0, attention=0.8, mood=0.5, intensity=0.4, wellbeing=0.8),
+               now=600.0)
+    f = h.feeling()
+    return np.array([f["valence"], f["arousal"], f["reaching"], f["settled"]])
+
+
+def heredity():
+    print("\n[5] Reproduction — what does a child inherit?")
+    A, B = make_person(11), make_person(29)
+    sA = [sample_stream(A, days=4) for _ in range(3)]
+    sB = [sample_stream(B, days=4) for _ in range(3)]
+
+    gA = Genome.from_seed(11)
+    tA = gA.theta(); consolidate(tA, gA.inv_tau, sA[:2], sA[2:], epochs=60, lr=0.02); gA.set_theta(tA)
+    gB = Genome.from_seed(29)
+    tB = gB.theta(); consolidate(tB, gB.inv_tau, sB[:2], sB[2:], epochs=60, lr=0.02); gB.set_theta(tB)
+    errA = evaluate(gA.theta(), gA.inv_tau, sA[2:])
+
+    # (a) temperament: bred from the parents' untrained natures
+    tmA, tmB = _temperament(Genome.from_seed(11)), _temperament(Genome.from_seed(29))
+    kids = [_temperament(breed(Genome.from_seed(11), Genome.from_seed(29), seed=1000 + i)) for i in range(5)]
+    spread = float(np.mean([np.linalg.norm(k - np.mean(kids, axis=0)) for k in kids]))
+    print(f"    nature is inherited: parents' temperaments differ by {np.linalg.norm(tmA - tmB):.3f},")
+    print(f"      and 5 children vary across a spread of {spread:.3f} — a real, varied brood.")
+
+    # (b) memory: breed the TRAINED parents, test the child cold on the mother's person
+    child = breed(gA, gB, seed=7)
+    rnd = Genome.from_seed(999)
+    errA_child = evaluate(child.theta(), child.inv_tau, sA[2:])
+    errA_rnd = evaluate(rnd.theta(), rnd.inv_tau, sA[2:])
+    print(f"    learned memory is NOT: on the mother's person, child {errA_child:.4f} vs "
+          f"mother {errA:.4f} vs stranger {errA_rnd:.4f}")
+    verdict = ("child kept the mother's knowledge" if errA_child < (errA + errA_rnd) / 2
+               else "child is a blank slate like a stranger — it must live its own life")
+    print(f"    -> {verdict}.")
+
+
 def main():
     print("=" * 64)
     print("Mapping the edges of the creature")
@@ -142,6 +182,7 @@ def main():
     capacity()
     cannot_learn_noise()
     replay_cures_forgetting()
+    heredity()
     print()
 
 

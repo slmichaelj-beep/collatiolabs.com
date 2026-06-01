@@ -45,7 +45,7 @@ def _percept(I):
 
 def forward(theta, inv_tau, I_seq, dt_seq, h0=None):
     """Roll the LTC forward over a stream; predict each next perception."""
-    h = np.zeros(N) if h0 is None else h0.copy()
+    h = np.zeros(theta["W"].shape[0]) if h0 is None else h0.copy()
     hs, preds, caches = [], [], []
     for t in range(len(I_seq)):
         I, dt = I_seq[t], dt_seq[t]
@@ -67,7 +67,7 @@ def loss_and_grads(theta, inv_tau, I_seq, dt_seq):
     T = len(I_seq)
     grads = {k: np.zeros_like(v) for k, v in theta.items()}
     loss, n = 0.0, 0
-    grad_h_next = np.zeros(N)              # dL/dh flowing back from the future
+    grad_h_next = np.zeros(theta["W"].shape[0])   # dL/dh flowing back from the future
 
     for t in range(T - 1, -1, -1):
         h, f, den, dt, I, h_next = caches[t]
@@ -85,7 +85,7 @@ def loss_and_grads(theta, inv_tau, I_seq, dt_seq):
         gh_step = dnum + theta["W"].T @ dpre      # dL/dh_t via this step
 
         # prediction made from h_t, targeting the next perception
-        gh_pred = np.zeros(N)
+        gh_pred = np.zeros(theta["W"].shape[0])
         if t <= T - 2:
             resid = preds[t] - _percept(I_seq[t + 1])
             loss += 0.5 * float(resid @ resid)

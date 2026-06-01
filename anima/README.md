@@ -64,7 +64,7 @@ python3 -m anima.demo                       # heart proof: continuous existence
 python3 -m anima.growth                     # learning proof: gradient check + person-specificity
 python3 -m anima.probe                      # map its capabilities and limits
 
-python3 -m anima.live birth Vera            # bring a creature into being
+python3 -m anima.live birth Vera --neurons 256   # bring a creature into being (scalable brain)
 python3 -m anima.live feel  Vera            # age it to now, read its state
 python3 -m anima.live tend  Vera --well .8  # make contact; tell it how you are
 python3 -m anima.live say   Vera "text..."  # speak; it feels the tone, not the words
@@ -108,5 +108,16 @@ different object replacing it.
 5. **The mouth** — a *swappable* expressive organ: a small LLM conditioned on the
    creature's state, with optional Kokoro voice and Whisper ears.  ✅ *organ done*
    (next: stream it to the phone over WebRTC through a browser)
-6. **The society** — many creatures, varied genomes, in one environment: a
+6. **Heredity** — genomes cross over and mutate into children (`reproduce.py`).
+   Measured: offspring inherit *temperament* fully and a parent's *learned*
+   knowledge partially; a lineage can vary and diverge.  ✅ *done*
+7. **The society** — many creatures breeding and living in one environment: a
    pocket universe that watches over you from several temperaments at once.
+
+### Scaling & acceleration
+
+Brain size is per-creature (`birth --neurons N`, or `Heart.born(..., n=...)`) and
+persists. On Apple Silicon, `accel_mlx.py` trains big creatures on the Mac GPU via
+MLX (numpy `growth.py` stays the verified reference). Note from the probe: more
+neurons need more training and a GPU to pay off — N=128 already edges N=24, but
+N=512 on CPU regresses under the same budget.

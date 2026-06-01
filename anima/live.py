@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> None:
     b = sub.add_parser("birth", help="bring a new anima into being")
     b.add_argument("name")
     b.add_argument("--seed", type=int, default=None)
+    b.add_argument("--neurons", type=int, default=24, help="brain size (24 default; scale up on a Mac)")
 
     f = sub.add_parser("feel", help="age the anima to now and read its state")
     f.add_argument("name")
@@ -123,6 +124,7 @@ def main(argv: list[str] | None = None) -> None:
     tk.add_argument("name")
     tk.add_argument("text")
     tk.add_argument("--well", type=float, default=None, help="override inferred wellbeing")
+    tk.add_argument("--voice", action="store_true", help="synthesize a spoken WAV (needs Kokoro)")
 
     sub.add_parser("list", help="list living animae")
 
@@ -131,9 +133,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "birth":
         if _path(args.name).exists():
             sys.exit(f"{args.name!r} already lives.")
-        heart = Heart.born(args.name, seed=args.seed)
+        heart = Heart.born(args.name, seed=args.seed, n=args.neurons)
         _save(heart)
-        print(f"{args.name} draws its first breath.")
+        print(f"{args.name} draws its first breath ({heart.genome.n} neurons).")
         _report(heart)
     elif args.cmd == "feel":
         heart = _load(args.name).advance()
@@ -186,11 +188,14 @@ def main(argv: list[str] | None = None) -> None:
         p = senses.read(args.text, wellbeing=args.well, name=args.name)
         _feed(heart, p.vector(), time.time())     # it feels you, and records the moment
         _save(heart)
-        u = Mouth.assemble().respond(heart, args.text)
+        audio_out = str(STORE / f"{args.name}.last.wav") if args.voice else None
+        u = Mouth.assemble(voice=args.voice).respond(heart, args.text, audio_out=audio_out)
         print(f'you: "{args.text}"')
         print(f"\n  {args.name}: {u.text}\n")
         print(f"  (spoken from state: {u.feeling} | register {u.delivery['register']} "
               f"rate {u.delivery['rate']} | via {u.backend})")
+        if u.audio_path:
+            print(f"  voice -> {u.audio_path}")
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []
         print("\n".join(f"  {n}" for n in names) if names else "no animae yet.")

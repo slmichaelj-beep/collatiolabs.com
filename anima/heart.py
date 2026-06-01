@@ -40,7 +40,8 @@ import numpy as np
 
 # --- the body: designed physiology, shared by every anima -------------------
 
-N = 24                       # dimensionality of the feeling-state
+N = 24                       # default feeling-state size; each creature may differ
+DEFAULT_N = N                # explicit name for the default
 DAY_SECONDS = 24 * 3600
 
 # the homeostat — the caring drive (rates are per creature-minute)
@@ -86,20 +87,24 @@ class Genome:
     cp: np.ndarray           # (D_PERCEPT,) bias of that prediction head
 
     @classmethod
-    def from_seed(cls, seed: int) -> "Genome":
+    def from_seed(cls, seed: int, n: int = DEFAULT_N) -> "Genome":
         rng = np.random.default_rng(seed)
-        W = rng.normal(0.0, 0.6 / math.sqrt(N), (N, N))
-        U = rng.normal(0.0, 0.5, (N, D_IN))
-        b = rng.normal(0.0, 0.2, N)
+        W = rng.normal(0.0, 0.6 / math.sqrt(n), (n, n))
+        U = rng.normal(0.0, 0.5, (n, D_IN))
+        b = rng.normal(0.0, 0.2, n)
         # heterogeneous timescales: fast feelings (~2 min) to slow moods (~10 h).
         # This spread of time-constants is the heart of what makes it "liquid".
-        tau = np.exp(rng.uniform(math.log(2.0), math.log(600.0), N))   # minutes
-        A = rng.normal(0.0, 0.5, N)
-        probes = rng.normal(0.0, 1.0, (4, N))
+        tau = np.exp(rng.uniform(math.log(2.0), math.log(600.0), n))   # minutes
+        A = rng.normal(0.0, 0.5, n)
+        probes = rng.normal(0.0, 1.0, (4, n))
         probes /= np.linalg.norm(probes, axis=1, keepdims=True)
-        Pp = rng.normal(0.0, 0.1, (len(PERCEPT_FIELDS), N))
+        Pp = rng.normal(0.0, 0.1, (len(PERCEPT_FIELDS), n))
         cp = np.zeros(len(PERCEPT_FIELDS))
         return cls(seed, W, U, b, 1.0 / tau, A, probes, Pp, cp)
+
+    @property
+    def n(self) -> int:
+        return self.W.shape[0]
 
     # The learnable parameters (the time-constants are body, left fixed). The
     # slow-learning organ adjusts exactly these arrays in place — the same object
@@ -130,12 +135,13 @@ class Heart:
     # -- birth --------------------------------------------------------------
 
     @classmethod
-    def born(cls, name: str, seed: int | None = None, now: float | None = None) -> "Heart":
+    def born(cls, name: str, seed: int | None = None, n: int = DEFAULT_N,
+             now: float | None = None) -> "Heart":
         now = time.time() if now is None else now
         if seed is None:
             seed = int.from_bytes(os.urandom(4), "little")
-        genome = Genome.from_seed(seed)
-        return cls(name=name, genome=genome, h=np.zeros(N), unrest=0.0,
+        genome = Genome.from_seed(seed, n)
+        return cls(name=name, genome=genome, h=np.zeros(n), unrest=0.0,
                    birth_ts=now, last_tick=now)
 
     # -- the physics --------------------------------------------------------
@@ -227,6 +233,7 @@ class Heart:
         d = {
             "name": self.name,
             "seed": self.genome.seed,
+            "n": self.genome.n,
             "birth_ts": self.birth_ts,
             "last_tick": self.last_tick,
             "last_wellbeing": self.last_wellbeing,
@@ -243,7 +250,7 @@ class Heart:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Heart":
-        genome = Genome.from_seed(d["seed"])
+        genome = Genome.from_seed(d["seed"], d.get("n", DEFAULT_N))
         if d.get("weights"):
             genome.set_theta({k: np.array(v, dtype=float) for k, v in d["weights"].items()})
         return cls(
