@@ -48,8 +48,13 @@ def _stream_loss(p, inv_tau, I, dt):
     return total / max(T - 1, 1)
 
 
-def train(theta, inv_tau, streams, epochs=60, lr=0.02, b1=0.9, b2=0.999, eps=1e-8):
-    """Adam training on the Mac GPU; returns numpy weights in theta's format."""
+def train(theta, inv_tau, streams, epochs=60, lr=0.02, b1=0.9, b2=0.999, eps=1e-8,
+          weight_decay=0.0, clip=None):
+    """Adam(W) training on the Mac GPU; returns numpy weights in theta's format.
+
+    Mirrors growth.consolidate's recipe (weight_decay, clip) so the tuned big-brain
+    settings from anima.tune carry over unchanged.
+    """
     if not HAVE_MLX:
         raise RuntimeError("MLX unavailable — use growth.consolidate (numpy) instead.")
 
@@ -67,12 +72,16 @@ def train(theta, inv_tau, streams, epochs=60, lr=0.02, b1=0.9, b2=0.999, eps=1e-
     v = {k: mx.zeros(val.shape) for k, val in p.items()}
     for step in range(1, epochs + 1):
         _, g = loss_grad(p)
+        if clip:
+            gn = mx.sqrt(sum(mx.sum(gv * gv) for gv in g.values()))
+            scale = mx.minimum(mx.array(1.0), clip / (gn + 1e-8))
+            g = {k: gv * scale for k, gv in g.items()}
         for k in p:
             m[k] = b1 * m[k] + (1 - b1) * g[k]
             v[k] = b2 * v[k] + (1 - b2) * (g[k] * g[k])
             mh = m[k] / (1 - b1 ** step)
             vh = v[k] / (1 - b2 ** step)
-            p[k] = p[k] - lr * mh / (mx.sqrt(vh) + eps)
+            p[k] = p[k] - lr * (mh / (mx.sqrt(vh) + eps) + weight_decay * p[k])
         mx.eval(p, m, v)
 
     return {k: np.array(val, dtype=float) for k, val in p.items()}

@@ -112,32 +112,39 @@ def evaluate(theta, inv_tau, streams):
 # --- optimiser & gated consolidation ----------------------------------------
 
 class Adam:
-    def __init__(self, theta, lr=0.01, b1=0.9, b2=0.999, eps=1e-8):
+    def __init__(self, theta, lr=0.01, b1=0.9, b2=0.999, eps=1e-8, weight_decay=0.0, clip=None):
         self.lr, self.b1, self.b2, self.eps = lr, b1, b2, eps
+        self.weight_decay, self.clip = weight_decay, clip
         self.m = {k: np.zeros_like(v) for k, v in theta.items()}
         self.v = {k: np.zeros_like(v) for k, v in theta.items()}
         self.t = 0
 
     def step(self, theta, grads):
+        if self.clip:                                  # global-norm gradient clipping
+            gn = float(np.sqrt(sum(float(np.sum(g * g)) for g in grads.values())))
+            if gn > self.clip:
+                grads = {k: g * (self.clip / gn) for k, g in grads.items()}
         self.t += 1
         for k in theta:
             self.m[k] = self.b1 * self.m[k] + (1 - self.b1) * grads[k]
             self.v[k] = self.b2 * self.v[k] + (1 - self.b2) * grads[k] ** 2
             mh = self.m[k] / (1 - self.b1 ** self.t)
             vh = self.v[k] / (1 - self.b2 ** self.t)
-            theta[k] -= self.lr * mh / (np.sqrt(vh) + self.eps)
+            theta[k] -= self.lr * (mh / (np.sqrt(vh) + self.eps) + self.weight_decay * theta[k])
 
 
-def consolidate(theta, inv_tau, train, holdout, epochs=40, lr=0.01):
+def consolidate(theta, inv_tau, train, holdout, epochs=40, lr=0.01,
+                weight_decay=0.0, clip=None):
     """Learn on lived experience; keep the result only if held-out error drops.
 
     Returns (accepted, error_before, error_after). On rejection, `theta` is
-    restored exactly — the creature cannot quietly damage itself.
+    restored exactly — the creature cannot quietly damage itself. weight_decay and
+    clip stabilise larger brains (see anima.tune for the tuned recipe).
     """
     before = evaluate(theta, inv_tau, holdout)
     snapshot = {k: v.copy() for k, v in theta.items()}
 
-    opt = Adam(theta, lr=lr)
+    opt = Adam(theta, lr=lr, weight_decay=weight_decay, clip=clip)
     for _ in range(epochs):
         for I_seq, dt_seq in train:
             _, grads, k = loss_and_grads(theta, inv_tau, I_seq, dt_seq)

@@ -118,6 +118,16 @@ different object replacing it.
 
 Brain size is per-creature (`birth --neurons N`, or `Heart.born(..., n=...)`) and
 persists. On Apple Silicon, `accel_mlx.py` trains big creatures on the Mac GPU via
-MLX (numpy `growth.py` stays the verified reference). Note from the probe: more
-neurons need more training and a GPU to pay off — N=128 already edges N=24, but
-N=512 on CPU regresses under the same budget.
+MLX (numpy `growth.py` stays the verified reference). The trainer has recipe knobs
+(`weight_decay`, `clip`) that carry over to MLX.
+
+Open question — does scaling neurons help? On every synthetic task tried so far,
+**it does not**: `tune.py` shows bigger brains do no better, and a diagnostic
+shows the hidden state **collapses to ~5 effective dimensions regardless of neuron
+count** (64 neurons → 4.5 used; 256 → 6.2). Slower time-constants and a wider
+48-channel sensory interface did not open it up. This is unresolved: it may be
+that the toy tasks simply have little learnable structure (a few dominant modes +
+noise), so the network correctly compresses — or it may be a real limit of the
+single-layer LTC + linear readout. It needs genuinely high-dimensional lived data
+(or a harder, well-posed benchmark) to settle. Until then, **don't scale neurons
+blindly** — the payoff is unproven.

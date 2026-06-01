@@ -113,15 +113,22 @@ def main(argv=None):
     ap.add_argument("--name", default="Vera")
     ap.add_argument("--neurons", type=int, default=64)
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--host", default="0.0.0.0")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="default localhost-only (safe). Use --expose to allow the LAN.")
+    ap.add_argument("--expose", action="store_true",
+                    help="bind 0.0.0.0 so other devices on your WiFi can reach it")
     ap.add_argument("--voice", action="store_true", help="synthesize speech with Kokoro")
     args = ap.parse_args(argv)
 
+    host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
     Handler.name, Handler.voice = args.name, args.voice
-    srv = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"{args.name} is listening at http://{args.host}:{args.port}")
-    print("open that on your phone (same WiFi), or put a tunnel in front for anywhere.")
+    srv = ThreadingHTTPServer((host, args.port), Handler)
+    print(f"{args.name} is listening at http://{host}:{args.port}")
+    if host == "0.0.0.0":
+        print("EXPOSED on your LAN (no password). Prefer a private tunnel (Tailscale) for the phone.")
+    else:
+        print("localhost-only. For your phone, front it with a tunnel (Tailscale/cloudflared).")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
