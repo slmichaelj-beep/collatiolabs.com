@@ -30,6 +30,14 @@ from . import senses
 STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
 _lock = threading.Lock()
+_MOUTH = None
+
+
+def _mouth(voice):
+    global _MOUTH
+    if _MOUTH is None:
+        _MOUTH = Mouth.assemble(voice=voice)   # built once, not per request
+    return _MOUTH
 
 
 def _path(name):
@@ -58,7 +66,7 @@ def _turn(name, text, voice=False):
         mem.save(_mem(name))
         heart.perceive(p.vector(), now=now)
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
-        u = Mouth.assemble(voice=voice).respond(heart, text, audio_out=audio_out, perception=p)
+        u = _mouth(voice).respond(heart, text, audio_out=audio_out, perception=p)
         _path(name).write_text(json.dumps(heart.to_dict()))
         return {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
@@ -124,6 +132,13 @@ def main(argv=None):
     host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
     label(f"{args.name} server :{args.port}")
+    if args.voice:
+        from .mouth import KokoroVoice
+        if KokoroVoice().available():
+            print("voice: Kokoro (natural)")
+        else:
+            print("voice: Kokoro NOT available — phone will use the robotic browser voice.\n"
+                  "  fix: pip install kokoro soundfile  &&  brew install espeak-ng")
     Handler.name, Handler.voice = args.name, args.voice
     srv = ThreadingHTTPServer((host, args.port), Handler)
     print(f"{args.name} is listening at http://{host}:{args.port}")

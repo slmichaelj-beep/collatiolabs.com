@@ -186,7 +186,9 @@ class KokoroVoice:
             audio = b"".join(chunk for _, _, chunk in self._pipe(text, voice=self.voice, speed=speed))
             sf.write(out_path, audio, 24000)
             return out_path
-        except Exception:
+        except Exception as e:
+            import sys
+            print(f"[anima voice] Kokoro could not speak: {e}", file=sys.stderr)
             return None
 
 
