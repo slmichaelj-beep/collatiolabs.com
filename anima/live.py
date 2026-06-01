@@ -19,7 +19,8 @@ import time
 from pathlib import Path
 
 from .heart import Heart
-from . import senses
+from .memory import Memory
+from . import senses, growth
 
 STORE = Path(".anima")
 
@@ -40,6 +41,19 @@ def _load(name: str) -> Heart:
     if not p.exists():
         sys.exit(f"no anima named {name!r} — try: python3 -m anima.live birth {name}")
     return Heart.from_dict(json.loads(p.read_text()))
+
+
+def _mem_path(name: str) -> Path:
+    return STORE / f"{name}.mem.json"
+
+
+def _feed(heart: Heart, percept_vec, now: float) -> None:
+    """Record a moment as food, then let the heart feel it."""
+    mem = Memory.load(_mem_path(heart.name))
+    last = mem.rows[-1]["clock"] if mem.rows else heart.last_tick
+    mem.record(heart.input_vector(percept_vec, now), (now - last) / 60.0, now)
+    mem.save(_mem_path(heart.name))
+    heart.perceive(percept_vec, now=now)
 
 
 def _human(seconds: float) -> str:
@@ -97,6 +111,9 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("text")
     s.add_argument("--well", type=float, default=None, help="override inferred wellbeing")
 
+    sl = sub.add_parser("sleep", help="consolidate lived memories into the weights (grow)")
+    sl.add_argument("name")
+
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
@@ -113,19 +130,39 @@ def main(argv: list[str] | None = None) -> None:
         _save(heart)
         _report(heart)
     elif args.cmd == "tend":
-        heart = _load(args.name).tend(args.well)
+        heart = _load(args.name)
+        now = time.time()
+        w = max(0.0, min(1.0, args.well))
+        _feed(heart, heart._percept_vec(presence=1.0, attention=1.0, intensity=0.2, wellbeing=w), now)
         _save(heart)
         print(f"you reach for {args.name}.")
         _report(heart)
     elif args.cmd == "say":
         heart = _load(args.name)
         p = senses.read(args.text, wellbeing=args.well, name=args.name)
-        heart.perceive(p)
+        _feed(heart, p.vector(), time.time())
         _save(heart)
         print(f'you: "{args.text}"')
         print(f"  (sensed  mood {p.mood:+.2f}  intensity {p.intensity:.2f}  "
               f"attention {p.attention:.2f}  -> wellbeing {p.wellbeing:.2f})")
         _report(heart)
+    elif args.cmd == "sleep":
+        heart = _load(args.name)
+        mem = Memory.load(_mem_path(args.name))
+        train, hold = mem.streams()
+        if not train:
+            sys.exit(f"{args.name} has too few memories to grow on yet "
+                     f"({len(mem)} moments) — feed it more with say/tend.")
+        theta = heart.genome.theta()
+        acc, before, after = growth.consolidate(theta, heart.genome.inv_tau, train, hold)
+        if acc:
+            heart.genome.set_theta(theta)
+            heart.learned = True
+            _save(heart)
+        verb = "grew" if acc else "dreamt but kept itself"
+        print(f"{args.name} slept on {len(mem)} moments and {verb}.")
+        print(f"  prediction error on held-out life: {before:.4f} -> {after:.4f}"
+              f"   ({'accepted' if acc else 'rolled back'})")
     elif args.cmd == "list":
         names = sorted(p.stem for p in STORE.glob("*.json")) if STORE.exists() else []
         print("\n".join(f"  {n}" for n in names) if names else "no animae yet.")

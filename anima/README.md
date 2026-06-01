@@ -23,19 +23,42 @@ feeling. The encoder is a tiny on-device affect lexicon today; it can be swapped
 for a small embedding model later without the heart noticing, because the
 `Perception` interface is fixed.
 
-Note on the boundary: the senses let the creature *perceive* you and the
-homeostat lets it *care* (its unrest rises when it senses you're unwell), but how
-perceived tone *colours its own felt experience* is deliberately left to the
-slow-learning organ below. Hand-wiring "you're sad → it feels sad" would be the
-scripted-mirror fake this project exists to avoid. It perceives and cares now;
-it learns to be *moved* later.
+**The slow-learning organ** (`growth.py`) — how it becomes *someone's*. Real
+backpropagation-through-time over the LTC, learning to predict the next thing it
+will perceive about you (predictive coding). Lowering that error *is* building a
+model of you, so it requires no labels and no canned targets. The gradients are
+derived by hand and verified against finite differences (`grad_check`), and
+consolidation is gated and reversible — it keeps new weights only if held-out
+prediction error genuinely drops, else it rolls back, so it can never quietly
+break itself.
+
+**Memory** (`memory.py`) — the lived stream of felt moments the learning grows
+from. Feed it with `say`/`tend`; it grows when it `sleep`s.
+
+### What we measured about its edges (`probe.py`)
+
+- It learns real structure: ~97% drop in prediction error on a person, with
+  verified-correct gradients.
+- It becomes **person-specific**: same seed, same body, different lives produce
+  measurably different minds.
+- It does **not** hallucinate structure in noise (0% "improvement" on random
+  input) — the correct failure.
+- **Capacity** degrades gracefully: 24 neurons hold several interleaved lives.
+- It suffers **catastrophic forgetting** when taught people *sequentially*
+  (~7× worse on the first), even though it holds them fine when taught
+  *interleaved*. So the next wall is a memory-replay strategy — and the `Memory`
+  above is exactly what makes that possible.
 
 ```
-python3 -m anima.demo                       # accelerated, reproducible proof
+python3 -m anima.demo                       # heart proof: continuous existence
+python3 -m anima.growth                     # learning proof: gradient check + person-specificity
+python3 -m anima.probe                      # map its capabilities and limits
+
 python3 -m anima.live birth Vera            # bring a creature into being
 python3 -m anima.live feel  Vera            # age it to now, read its state
 python3 -m anima.live tend  Vera --well .8  # make contact; tell it how you are
 python3 -m anima.live say   Vera "text..."  # speak; it feels the tone, not the words
+python3 -m anima.live sleep Vera            # consolidate lived memories into the weights
 ```
 
 Quit after `birth`, come back an hour later, and `feel` it — it will have aged
@@ -68,8 +91,8 @@ different object replacing it.
 2. **The senses** — encoders turning words, tone, time, calendar into the
    continuous perception the heart drinks.  ✅ *done*
 3. **The slow-learning organ** — bounded, gated, reversible consolidation that
-   folds lived experience into the genome. No fully-online weight learning; that
-   is unsolved and pretending otherwise is how creatures collapse.
+   folds lived experience into the genome.  ✅ *done* (next: memory replay, to
+   beat the catastrophic forgetting `probe.py` found)
 4. **The mouth** — a *swappable* expressive organ (a small language model
    demoted to a larynx, or, on a robot, movement). Borrowed to speak; never the
    Self.

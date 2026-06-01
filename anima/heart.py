@@ -82,6 +82,8 @@ class Genome:
     inv_tau: np.ndarray      # (N,) inverse base time-constants (heterogeneous)
     A: np.ndarray            # (N,) reversal targets — where each neuron is pulled
     probes: np.ndarray       # (4, N) idiosyncratic readout directions for affect
+    Pp: np.ndarray           # (D_PERCEPT, N) head that predicts the next perception
+    cp: np.ndarray           # (D_PERCEPT,) bias of that prediction head
 
     @classmethod
     def from_seed(cls, seed: int) -> "Genome":
@@ -95,7 +97,20 @@ class Genome:
         A = rng.normal(0.0, 0.5, N)
         probes = rng.normal(0.0, 1.0, (4, N))
         probes /= np.linalg.norm(probes, axis=1, keepdims=True)
-        return cls(seed, W, U, b, 1.0 / tau, A, probes)
+        Pp = rng.normal(0.0, 0.1, (len(PERCEPT_FIELDS), N))
+        cp = np.zeros(len(PERCEPT_FIELDS))
+        return cls(seed, W, U, b, 1.0 / tau, A, probes, Pp, cp)
+
+    # The learnable parameters (the time-constants are body, left fixed). The
+    # slow-learning organ adjusts exactly these arrays in place — the same object
+    # the heart already runs on, never a replacement. This is the anti-swap payoff.
+    def theta(self) -> dict:
+        return {"W": self.W, "U": self.U, "b": self.b,
+                "A": self.A, "Pp": self.Pp, "cp": self.cp}
+
+    def set_theta(self, theta: dict) -> None:
+        self.W, self.U, self.b = theta["W"], theta["U"], theta["b"]
+        self.A, self.Pp, self.cp = theta["A"], theta["Pp"], theta["cp"]
 
 
 # --- the heart: one continuous feeling state --------------------------------
@@ -110,6 +125,7 @@ class Heart:
     last_tick: float
     last_wellbeing: float = 0.5   # last known wellbeing of the bonded person
     last_load: float = 0.0        # last known life-pressure (it still looms in absence)
+    learned: bool = False         # has the slow-learning organ reshaped its weights?
 
     # -- birth --------------------------------------------------------------
 
@@ -133,12 +149,19 @@ class Heart:
             v[_PIDX[name]] = value
         return v
 
+    def input_vector(self, percept: np.ndarray, clock_ts: float) -> np.ndarray:
+        """The full input the heart actually feels: perception plus body-internal signals.
+
+        This is what the slow-learning organ replays, so it is recorded verbatim.
+        """
+        tod = 2.0 * math.pi * ((clock_ts % DAY_SECONDS) / DAY_SECONDS)
+        internal = np.array([1.0, self.unrest, math.sin(tod), math.cos(tod)])
+        return np.concatenate([percept, internal])
+
     def _step(self, dt: float, percept: np.ndarray, clock_ts: float) -> None:
         """One fused, unconditionally-stable LTC step plus a homeostat update."""
         g = self.genome
-        tod = 2.0 * math.pi * ((clock_ts % DAY_SECONDS) / DAY_SECONDS)
-        internal = np.array([1.0, self.unrest, math.sin(tod), math.cos(tod)])
-        I = np.concatenate([percept, internal])
+        I = self.input_vector(percept, clock_ts)
 
         # Liquid Time-Constant core (closed-form fused Euler — stable for any dt):
         #   dh/dt = -(1/tau) h + f(h, I) * (A - h),   f = sigmoid(W h + U I + b)
@@ -201,7 +224,7 @@ class Heart:
     # -- persistence (genome by seed; only the living state is stored) ------
 
     def to_dict(self) -> dict:
-        return {
+        d = {
             "name": self.name,
             "seed": self.genome.seed,
             "birth_ts": self.birth_ts,
@@ -209,18 +232,28 @@ class Heart:
             "last_wellbeing": self.last_wellbeing,
             "last_load": self.last_load,
             "unrest": self.unrest,
+            "learned": self.learned,
             "h": self.h.tolist(),
         }
+        # Once the creature has learned, its weights are no longer the seed's —
+        # they are the record of who it became, so they must be stored in full.
+        if self.learned:
+            d["weights"] = {k: v.tolist() for k, v in self.genome.theta().items()}
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "Heart":
+        genome = Genome.from_seed(d["seed"])
+        if d.get("weights"):
+            genome.set_theta({k: np.array(v, dtype=float) for k, v in d["weights"].items()})
         return cls(
             name=d["name"],
-            genome=Genome.from_seed(d["seed"]),
+            genome=genome,
             h=np.array(d["h"], dtype=float),
             unrest=float(d["unrest"]),
             birth_ts=float(d["birth_ts"]),
             last_tick=float(d["last_tick"]),
             last_wellbeing=float(d.get("last_wellbeing", 0.5)),
             last_load=float(d.get("last_load", 0.0)),
+            learned=bool(d.get("learned", False)),
         )
