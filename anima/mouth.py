@@ -227,13 +227,19 @@ def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> s
 
 # --- language backends ------------------------------------------------------
 
+# the eval-chosen default brain (see docs/anima-eval-findings.md)
+DEFAULT_MODEL = "hf.co/bartowski/L3-8B-Stheno-v3.2-GGUF"
+
+
 class OllamaBrain:
     """Real speech: a local LLM via Ollama. Falls back if Ollama isn't running."""
 
     def __init__(self, model=None, host=None, temperature=0.8):
         # model/host configurable via env so you can point at any local model:
         #   ANIMA_MODEL=qwen3:32b   ANIMA_OLLAMA_HOST=http://localhost:11434
-        self.model = model or os.environ.get("ANIMA_MODEL", "qwen2.5:7b-instruct")
+        # Default is the brain the eval battery chose: Stheno 8B won honesty,
+        # insistence, memory AND speed (rail-on, 5 runs) over Rocinante-12B/EVA-14B.
+        self.model = model or os.environ.get("ANIMA_MODEL", DEFAULT_MODEL)
         self.host = host or os.environ.get("ANIMA_OLLAMA_HOST", "http://localhost:11434")
         self.temperature = temperature
         self.name = f"ollama:{self.model}"

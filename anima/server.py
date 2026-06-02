@@ -254,7 +254,8 @@ def main(argv=None):
     label(f"{args.name} server :{args.port}")
     Handler.token = os.environ.get("ANIMA_TOKEN", "")
     from . import crypto
-    print(f"brain: {os.environ.get('ANIMA_MODEL', 'qwen2.5:7b-instruct')} (Ollama) — "
+    from .mouth import DEFAULT_MODEL
+    print(f"brain: {os.environ.get('ANIMA_MODEL', DEFAULT_MODEL)} (Ollama) — "
           f"make sure `ollama list` shows it")
     print(f"security: auth {'ON (token required)' if Handler.token else 'OFF (no token)'} · "
           f"files {'ENCRYPTED' if crypto.enabled() else 'plaintext'}")
