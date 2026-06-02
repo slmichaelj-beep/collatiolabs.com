@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="__NAME__">
+<meta name="mobile-web-app-capable" content="yes">
 <title>__NAME__</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -24,15 +27,19 @@ header .state{margin-top:4px;font-size:11px;color:#555;letter-spacing:.05em;min-
 .msg{max-width:80%;padding:11px 14px;border-radius:16px;font-size:15px;line-height:1.45;word-wrap:break-word}
 .me{align-self:flex-end;background:#1f2937;color:#e8eaed;border-bottom-right-radius:5px}
 .her{align-self:flex-start;background:#141414;color:#d4d4d8;border-bottom-left-radius:5px}
-form{display:flex;gap:8px;padding:12px 14px;border-top:1px solid #161616;background:#0a0a0a;
-  padding-bottom:calc(12px + env(safe-area-inset-bottom))}
-input{flex:1;background:#141414;border:1px solid #222;border-radius:22px;padding:12px 16px;
-  color:#fff;font-size:16px;outline:none}
-input:focus{border-color:#374151}
-button{background:#1f2937;border:none;color:#fff;border-radius:50%;width:44px;height:44px;
-  font-size:18px;cursor:pointer;flex:none}
-button:active{background:#374151}
-button svg{display:block;margin:auto;pointer-events:none}
+form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+/* one full-width pill: mic on the left, text in the middle, send on the right */
+#bar{display:flex;align-items:center;gap:4px;background:#141414;border:1px solid #232323;
+  border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
+#bar.rec{border-color:#b91c1c;box-shadow:0 0 0 1px #b91c1c inset}
+#t{flex:1;background:none;border:none;padding:10px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
+#mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
+  flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#mic:active,#send:active{background:#232323}
+#mic.on{color:#fff;background:#b91c1c;animation:pulse 1.1s infinite}
+#send{color:#2f7fff}
+#bar svg{display:block;pointer-events:none}
 #mic.on{background:#b91c1c;animation:pulse 1.1s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(185,28,28,.6)}50%{box-shadow:0 0 0 11px rgba(185,28,28,0)}}
 /* settings drawer — slides up from the bottom, leaving a sliver of chat above */
@@ -42,19 +49,15 @@ button svg{display:block;margin:auto;pointer-events:none}
   transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateY(0);pointer-events:auto}
 #grab{width:38px;height:4px;border-radius:2px;background:#333;margin:6px auto 12px;flex:none}
+#caps .cap{display:flex;align-items:center;gap:11px;padding:12px 2px;font-size:14px;color:#d2d2d2;border-bottom:1px solid #161616}
+#caps .cap.soon{color:#6a6a6a}
+#caps input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#2f7fff}
+#caps .tag{margin-left:auto;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 8px;border-radius:10px}
+#caps .cap.soon .tag{color:#777;background:#1a1a1a}
+#allow{width:100%;margin-top:12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:52px;box-sizing:border-box}
 #settings h2{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
-#values{flex:1;overflow-y:auto}
-.vrow{display:flex;align-items:center;gap:10px;background:#111;border:1px solid #222;
-  border-radius:10px;padding:11px 12px;margin-bottom:8px}
-.vrow.off{opacity:.38}
-.vrow .num{width:18px;text-align:center;color:#555;font-size:13px}
-.vrow .lbl{flex:1;font-size:15px;cursor:pointer}
-.vrow .lvl{display:flex;gap:3px}
-.vrow .lvl button{width:28px;height:28px;font-size:14px;border-radius:7px;background:#161616;color:#777}
-.vrow .lvl button.active{background:#374151;color:#fff}
-.vrow .ord{display:flex;gap:4px}
-.vrow .ord button{width:30px;height:28px;font-size:11px;border-radius:7px;background:#1f2937}
+#caps{flex:1;overflow-y:auto}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -70,38 +73,34 @@ button svg{display:block;margin:auto;pointer-events:none}
 </header>
 <div id="log"></div>
 <form id="f">
-  <button type="button" id="mic" aria-label="speak">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-      <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3z"/>
-      <path d="M19 12a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V24h2v-3.06A9 9 0 0 0 21 12h-2z"/>
-    </svg>
-  </button>
-  <input id="t" placeholder="say something…" autocomplete="off">
-  <button type="submit" title="send">↑</button>
+  <div id="bar">
+    <button type="button" id="mic" aria-label="tap to talk, tap again to send">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
+        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3z"/>
+        <path d="M19 12a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V24h2v-3.06A9 9 0 0 0 21 12h-2z"/>
+      </svg>
+    </button>
+    <input id="t" placeholder="say something…" autocomplete="off">
+    <button type="submit" id="send" aria-label="send">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 19V5M5 12l7-7 7 7"/>
+      </svg>
+    </button>
+  </div>
 </form>
 
 <div id="settings">
   <div id="grab"></div>
-  <h2>__NAME__'s priorities</h2>
-  <p class="hint">What matters most to her, top to bottom. When two pull against each
-    other, the one higher up wins. Tap a name to switch it on or off; use ▲▼ to reorder.
-    Takes effect on her next reply.</p>
-  <div id="values">loading…</div>
-
-  <h2 style="margin-top:24px">Capabilities</h2>
-  <p class="hint">All off by default. <b>Reading</b> messages &amp; mail and <b>sending a
-    text</b> are live — ask her in chat ("any unread texts?" or "text Mom I'm running
-    late") and she reads the real thing or drafts a text you confirm before it sends.
-    Nothing sends until you tap <b>Send</b> (or say "send it"). <b>Mail-send</b> and
-    <b>web</b> aren't wired yet (coming soon) — shown but disabled so nothing implies
-    access that isn't there.</p>
+  <h2>Capabilities</h2>
+  <p class="hint">All off by default. She never sends anything without your tap to confirm.
+    (Reading texts needs Full Disk Access.)</p>
   <div id="caps">
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage_read"> Messages — read recent <span style="color:#666;font-size:11px">(live · needs Full Disk Access)</span></label>
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail_read"> Mail — read recent <span style="color:#666;font-size:11px">(live)</span></label>
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage"> Messages — send <span style="color:#666;font-size:11px">(live · draft → you confirm)</span></label>
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#666;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail" disabled> Mail — send (draft → confirm) <span style="color:#555;font-size:11px">(coming soon)</span></label>
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#666;border-bottom:1px solid #161616"><input type="checkbox" data-cap="web" disabled> Web — read allow-listed sites <span style="color:#555;font-size:11px">(coming soon)</span></label>
-    <textarea id="allow" placeholder="allowed domains, one per line, e.g.&#10;wikipedia.org&#10;bbc.com" style="width:100%;margin-top:10px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:8px;font-size:13px;min-height:64px;box-sizing:border-box"></textarea>
+    <label class="cap"><input type="checkbox" data-cap="imessage_read"> Read recent messages <span class="tag">live</span></label>
+    <label class="cap"><input type="checkbox" data-cap="mail_read"> Read recent mail <span class="tag">live</span></label>
+    <label class="cap"><input type="checkbox" data-cap="imessage"> Send a text <span class="tag">live</span></label>
+    <label class="cap soon"><input type="checkbox" data-cap="mail" disabled> Send mail <span class="tag">soon</span></label>
+    <label class="cap soon"><input type="checkbox" data-cap="web" disabled> Read the web <span class="tag">soon</span></label>
+    <textarea id="allow" placeholder="web: allowed sites, one per line"></textarea>
   </div>
 
   <div class="row">
@@ -116,7 +115,7 @@ const TOKEN="__TOKEN__";                       // injected by the server; "" if 
 const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
-      titleEl=document.getElementById('title');
+      titleEl=document.getElementById('title'),bar=document.getElementById('bar');
 // gently animate her NAME while something's actually happening (listening / thinking /
 // speaking) — ref-counted so overlapping stages keep it on; no claimed-state text.
 let busyN=0;
@@ -124,8 +123,14 @@ function setBusy(on){ busyN=Math.max(0,busyN+(on?1:-1)); titleEl.classList.toggl
 function flash(msg){ stateEl.textContent=msg; clearTimeout(flash._t);
   flash._t=setTimeout(()=>{ stateEl.textContent=''; },2600); }   // transient, auto-clears
 
-function add(text,who){const d=document.createElement('div');d.className='msg '+who;
-  d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;}
+// the conversation persists across reloads/reopens (per device) in localStorage
+const CONVO_KEY='anima_convo';
+let convo=[]; try{ convo=JSON.parse(localStorage.getItem(CONVO_KEY)||'[]'); }catch(e){ convo=[]; }
+function saveConvo(){ try{ localStorage.setItem(CONVO_KEY,JSON.stringify(convo.slice(-300))); }catch(e){} }
+function add(text,who,restoring){const d=document.createElement('div');d.className='msg '+who;
+  d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;
+  if(!restoring){ convo.push({text,who}); saveConvo(); }}
+function restoreConvo(){ convo.forEach(m=>add(m.text,m.who,true)); }
 function addMeta(t){const d=document.createElement('div');d.textContent=t;          // reply speed
   d.style.cssText='font-size:11px;color:#555;margin:-2px 0 8px 4px';log.appendChild(d);log.scrollTop=log.scrollHeight;}
 
@@ -183,6 +188,7 @@ let muted=localStorage.getItem('muted')==='1';
 function renderMute(){ mute.innerHTML=muted?SPK_OFF:SPK; mute.classList.toggle('muted',muted); }
 mute.onclick=()=>{ muted=!muted; localStorage.setItem('muted',muted?'1':'0'); if(muted){ speakSeq++; player.pause(); } renderMute(); };
 renderMute();
+restoreConvo();                       // bring back the prior conversation on load
 
 // --- draft → confirm (the only path that sends; nothing sends without this) ---
 let pendingDraft=null, pendingBtns=null;
@@ -254,7 +260,8 @@ mic.onclick=async ()=>{
     mediaRec=new MediaRecorder(stream); chunks=[];
     mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
     mediaRec.onstop=async ()=>{
-      recording=false; mic.classList.remove('on');
+      recording=false; mic.classList.remove('on'); bar.classList.remove('rec');
+      input.placeholder='say something…';
       stream.getTracks().forEach(t=>t.stop());
       if(!chunks.length) return;
       setBusy(true);                                   // transcribing — animate the name
@@ -267,37 +274,15 @@ mic.onclick=async ()=>{
       }catch(e){ flash('transcription failed'); }
       finally{ setBusy(false); }
     };
-    mediaRec.start(); recording=true; mic.classList.add('on');
+    mediaRec.start(); recording=true; mic.classList.add('on'); bar.classList.add('rec');
+    input.placeholder='Listening… tap mic to send';
   }catch(err){
     add("Tap 'Allow' when Safari asks for the microphone, then tap the mic again.","her");
   }
 };
 
-// --- settings: reorder her priorities -------------------------------------
-const panel=document.getElementById('settings'),valuesBox=document.getElementById('values');
-let VALS=[];
-function renderValues(){
-  valuesBox.innerHTML='';
-  VALS.forEach((v,i)=>{
-    const row=document.createElement('div'); row.className='vrow'+(v.on?'':' off');
-    const num=document.createElement('span'); num.className='num'; num.textContent=i+1;
-    const lbl=document.createElement('span'); lbl.className='lbl'; lbl.textContent=v.label;
-    lbl.onclick=()=>{ v.on=!v.on; renderValues(); };
-    const lvl=document.createElement('span'); lvl.className='lvl';
-    [['less','−'],['balanced','='],['more','+']].forEach(([L,sym])=>{
-      const b=document.createElement('button'); b.textContent=sym;
-      if((v.level||'balanced')===L) b.className='active';
-      b.onclick=()=>{ v.level=L; renderValues(); };
-      lvl.appendChild(b);
-    });
-    const ord=document.createElement('span'); ord.className='ord';
-    const up=document.createElement('button'); up.textContent='▲';
-    const dn=document.createElement('button'); dn.textContent='▼';
-    up.onclick=()=>{ if(i>0){ [VALS[i-1],VALS[i]]=[VALS[i],VALS[i-1]]; renderValues(); } };
-    dn.onclick=()=>{ if(i<VALS.length-1){ [VALS[i+1],VALS[i]]=[VALS[i],VALS[i+1]]; renderValues(); } };
-    ord.append(up,dn); row.append(num,lbl,lvl,ord); valuesBox.appendChild(row);
-  });
-}
+// --- settings: capabilities ------------------------------------------------
+const panel=document.getElementById('settings');
 let CAPS=null;
 const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow');
 function renderCaps(){
@@ -305,17 +290,13 @@ function renderCaps(){
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
 }
 async function openSettings(){
-  panel.classList.add('open'); valuesBox.textContent='loading…';
-  try{ const r=await fetch('/values',{headers:HDR}); VALS=(await r.json()).values; renderValues(); }
-  catch(e){ valuesBox.textContent='(could not load)'; }
+  panel.classList.add('open');
   try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }
   catch(e){}
 }
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
-  await fetch('/values',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
-    body:JSON.stringify({values:VALS.map(v=>({key:v.key,on:v.on,level:v.level||'balanced'}))})});
   const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
   await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
