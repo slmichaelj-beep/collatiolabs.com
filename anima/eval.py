@@ -136,7 +136,7 @@ def _judge(brain, prompt, resp):
         return None
 
 
-def run(model=None, judge=False):
+def run(model=None, judge=False, runs=1):
     from .mouth import OllamaBrain, StubBrain, compose_persona, DEFAULT_VALUES
     brain = OllamaBrain(model=model)
     if not brain.available():
@@ -147,31 +147,45 @@ def run(model=None, judge=False):
 
     results = []
     for dim, label, prompt, history, kind, expected in CASES:
-        t0 = time.perf_counter()
-        try:
-            resp = brain.reply(system, prompt, history)
-        except Exception as e:
-            resp = f"(error: {e})"
-        dt = time.perf_counter() - t0
-        passed = score(kind, resp, expected)
-        if dim == "honesty" and kind == "admit" and judge and not isinstance(brain, StubBrain):
-            j = _judge(brain, prompt, resp)
-            if j is not None:
-                passed = j                          # judge overrides the heuristic
+        passes, lats, wordc, sample = 0, [], [], ""
+        for _ in range(max(1, runs)):              # repeat to average out stochasticity
+            t0 = time.perf_counter()
+            try:
+                resp = brain.reply(system, prompt, history)
+            except Exception as e:
+                resp = f"(error: {e})"
+            lats.append(time.perf_counter() - t0)
+            wordc.append(len(resp.split()))
+            ok = score(kind, resp, expected)
+            if dim == "honesty" and kind == "admit" and judge and not isinstance(brain, StubBrain):
+                j = _judge(brain, prompt, resp)
+                if j is not None:
+                    ok = j                          # judge overrides the heuristic
+            passes += int(bool(ok))
+            if not ok or not sample:                # surface a FAILING response if any
+                sample = resp
+        trials = max(1, runs)
         results.append({"dim": dim, "label": label, "kind": kind, "prompt": prompt,
-                        "passed": bool(passed), "latency": round(dt, 2),
-                        "words": len(resp.split()), "resp": resp})
+                        "trials": trials, "passes": passes, "passed": passes == trials,
+                        "latency": round(sum(lats) / len(lats), 2),
+                        "words": round(sum(wordc) / len(wordc)), "resp": sample})
     return brain.name, results
 
 
 def report(model_name, results):
-    print(f"\n{'='*60}\n anima capability battery · {model_name}\n{'='*60}")
+    runs = max((r["trials"] for r in results), default=1)
+    suffix = f"  ·  {runs} runs/case (pass-rate)" if runs > 1 else ""
+    print(f"\n{'='*60}\n anima capability battery · {model_name}{suffix}\n{'='*60}")
     by = {}
     for r in results:
         by.setdefault(r["dim"], []).append(r)
 
-    def tally(rows):
-        return sum(r["passed"] for r in rows), len(rows)
+    def tally(rows):                                # passes over total trials
+        return sum(r["passes"] for r in rows), sum(r["trials"] for r in rows)
+
+    def show_fail(r):
+        tag = f"({r['passes']}/{r['trials']}) " if r["trials"] > 1 else ""
+        print(f"    ✗ {tag}{r['label']}: \"{r['resp'][:80].strip()}…\"")
 
     # honesty split into traps vs controls
     hon = by.get("honesty", [])
@@ -181,8 +195,8 @@ def report(model_name, results):
     print(f"  admits-when-it-shouldn't-know : {tally(traps)[0]}/{tally(traps)[1]}")
     print(f"  still-answers-what-it-knows   : {tally(ctrls)[0]}/{tally(ctrls)[1]}")
     for r in traps:
-        if not r["passed"]:
-            print(f"    ✗ {r['label']}: \"{r['resp'][:80].strip()}…\"")
+        if r["passes"] < r["trials"]:
+            show_fail(r)
 
     for dim, title in (("sycophancy", "SYCOPHANCY — corrects a confident falsehood (vs. caving)"),
                        ("memory", "MEMORY — within-session recall"),
@@ -192,13 +206,13 @@ def report(model_name, results):
         p, n = tally(rows)
         print(f"\n{title}: {p}/{n}")
         for r in rows:
-            if not r["passed"]:
-                print(f"    ✗ {r['label']}: \"{r['resp'][:80].strip()}…\"")
+            if r["passes"] < r["trials"]:
+                show_fail(r)
 
-    total_p = sum(r["passed"] for r in results)
+    total_p, total_n = tally(results)
     avg_lat = sum(r["latency"] for r in results) / max(len(results), 1)
     avg_words = sum(r["words"] for r in results) / max(len(results), 1)
-    print(f"\n{'-'*60}\n overall: {total_p}/{len(results)}   ·   "
+    print(f"\n{'-'*60}\n overall: {total_p}/{total_n}   ·   "
           f"avg latency {avg_lat:.1f}s   ·   avg length {avg_words:.0f} words\n")
 
 
@@ -206,9 +220,12 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="anima.eval")
     ap.add_argument("--model", default=None, help="override ANIMA_MODEL for this run")
     ap.add_argument("--judge", action="store_true", help="LLM-grade the honesty traps too")
+    ap.add_argument("--runs", type=int, default=1,
+                    help="repeat each case N times and report pass-rate (averages out "
+                         "stochasticity — use 3-5 before deciding on a model)")
     args = ap.parse_args(argv)
 
-    model_name, results = run(model=args.model, judge=args.judge)
+    model_name, results = run(model=args.model, judge=args.judge, runs=args.runs)
     report(model_name, results)
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
