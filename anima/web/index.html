@@ -42,6 +42,18 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 #send{color:#2f7fff}
 #bar svg{display:block;pointer-events:none}
 @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(120,170,255,0)}50%{box-shadow:0 0 0 7px rgba(120,170,255,.12)}}
+/* press-and-hold the conversation to talk: a subtle "pressed into the surface" dimple
+   that gently breathes while held, then ripples outward like water on release */
+.ink{position:fixed;width:140px;height:140px;margin:-70px 0 0 -70px;border-radius:50%;
+  pointer-events:none;z-index:6;transform:scale(.45);opacity:0;
+  background:radial-gradient(circle at 50% 45%, rgba(0,0,0,.5) 0%, rgba(0,0,0,.28) 38%, rgba(120,170,255,.10) 60%, transparent 72%);
+  box-shadow:inset 0 6px 22px rgba(0,0,0,.55), inset 0 -2px 10px rgba(120,170,255,.10), 0 0 0 1px rgba(120,170,255,.14);
+  animation:inkin .22s ease-out forwards, inkbreathe 2.2s ease-in-out .22s infinite}
+@keyframes inkin{to{transform:scale(1);opacity:1}}
+@keyframes inkbreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.ink.release{animation:inkout .42s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes inkout{0%{opacity:.9}100%{transform:scale(1.7);opacity:0;box-shadow:inset 0 0 0 rgba(0,0,0,0),0 0 0 1px rgba(120,170,255,.0)}}
+body.pressing #log{filter:brightness(.93);transition:filter .2s}
 /* settings drawer — slides up from the bottom, leaving a sliver of chat above */
 #settings{position:fixed;left:0;right:0;bottom:0;top:46px;background:#0c0c0c;z-index:10;
   display:flex;flex-direction:column;padding:6px 18px 18px;border-radius:20px 20px 0 0;
@@ -272,12 +284,12 @@ async function send(text){
 document.getElementById('f').addEventListener('submit',e=>{
   e.preventDefault();prime();const v=input.value.trim();if(v)send(v);});
 
-// Press-to-dictate via the server's Whisper: tap to start (mic turns red),
-// speak, tap again to stop — it transcribes and sends. Needs the https address.
+// Voice in two ways: tap the mic (toggle), OR press-and-hold the conversation to talk
+// (release to send), with a subtle "press into the surface" ripple. Server-side Whisper.
 let mediaRec=null, chunks=[], recording=false;
-mic.onclick=async ()=>{
+async function startRecording(){
   prime();
-  if(recording){ if(mediaRec) mediaRec.stop(); return; }
+  if(recording) return;
   if(!navigator.mediaDevices || !window.MediaRecorder){
     add("Open my secure (https) address to use the mic.","her"); return;
   }
@@ -301,11 +313,35 @@ mic.onclick=async ()=>{
       finally{ setBusy(false); }
     };
     mediaRec.start(); recording=true; mic.classList.add('on'); bar.classList.add('rec');
-    input.placeholder='Listening… tap mic to send';
+    input.placeholder='Listening… release to send';
   }catch(err){
-    add("Tap 'Allow' when Safari asks for the microphone, then tap the mic again.","her");
+    add("Tap 'Allow' when Safari asks for the microphone, then try again.","her");
   }
-};
+}
+function stopRecording(){ if(recording && mediaRec) mediaRec.stop(); }
+mic.onclick=()=>{ if(recording) stopRecording(); else startRecording(); };
+
+// press-and-hold the conversation area to talk — looks/feels like pressing into water
+let holdTimer=null, holdAt=null, holding=false, inkEl=null;
+function makeInk(x,y){ const d=document.createElement('div'); d.className='ink';
+  d.style.left=x+'px'; d.style.top=y+'px'; document.body.appendChild(d); return d; }
+log.addEventListener('pointerdown',e=>{
+  if(e.target.closest('button,input,a,#settings')) return;     // don't hijack controls/cards
+  holdAt={x:e.clientX,y:e.clientY};
+  holdTimer=setTimeout(()=>{ holding=true; inkEl=makeInk(holdAt.x,holdAt.y);
+    document.body.classList.add('pressing'); startRecording(); },150);
+});
+log.addEventListener('pointermove',e=>{
+  if(holdAt && !holding && Math.hypot(e.clientX-holdAt.x,e.clientY-holdAt.y)>12){
+    clearTimeout(holdTimer); holdAt=null; }                    // it's a scroll, not a hold
+  if(holding && inkEl){ inkEl.style.left=e.clientX+'px'; inkEl.style.top=e.clientY+'px'; }
+});
+function endHold(){ clearTimeout(holdTimer); holdAt=null;
+  if(holding){ holding=false; document.body.classList.remove('pressing');
+    if(inkEl){ const el=inkEl; el.classList.add('release'); setTimeout(()=>el.remove(),420); inkEl=null; }
+    stopRecording(); } }
+window.addEventListener('pointerup',endHold);
+window.addEventListener('pointercancel',endHold);
 
 // --- settings: brain + capabilities ----------------------------------------
 const panel=document.getElementById('settings');
