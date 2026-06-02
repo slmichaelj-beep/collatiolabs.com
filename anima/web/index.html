@@ -11,10 +11,12 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
-body{font-family:-apple-system,'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;
-  display:flex;flex-direction:column;height:100dvh;-webkit-font-smoothing:antialiased}
-header{position:relative;padding:18px 20px 10px;text-align:center;border-bottom:1px solid #161616}
-header h1{font-size:15px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:#fff;display:inline-block}
+body{font-family:'SF Pro Text',-apple-system,'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;
+  font-weight:300;letter-spacing:.01em;
+  display:flex;flex-direction:column;height:100dvh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+header{position:relative;padding:18px 20px 10px;text-align:center;border-bottom:1px solid #141414;
+  background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3)}
+header h1{font-size:15px;font-weight:400;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;display:inline-block}
 header h1.busy{animation:breathe 1.4s ease-in-out infinite}        /* gentle motion = something's happening */
 @keyframes breathe{0%,100%{opacity:.92;letter-spacing:.22em}50%{opacity:.42;letter-spacing:.28em}}
 header .state{margin-top:4px;font-size:11px;color:#555;letter-spacing:.05em;min-height:0;transition:opacity .3s}
@@ -27,10 +29,11 @@ header .state{margin-top:4px;font-size:11px;color:#555;letter-spacing:.05em;min-
 .msg{max-width:80%;padding:11px 14px;border-radius:16px;font-size:15px;line-height:1.45;word-wrap:break-word}
 .me{align-self:flex-end;background:#1f2937;color:#e8eaed;border-bottom-right-radius:5px}
 .her{align-self:flex-start;background:#141414;color:#d4d4d8;border-bottom-left-radius:5px}
-form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
+form{padding:10px 12px;border-top:1px solid #141414;
+  background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
   padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 /* one full-width pill: mic on the left, text in the middle, send on the right */
-#bar{display:flex;align-items:center;gap:4px;background:#141414;border:1px solid #232323;
+#bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
   border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
 #bar.rec{border-color:rgba(120,170,255,.5);box-shadow:0 0 0 1px rgba(120,170,255,.22) inset}
 #t{flex:1;background:none;border:none;padding:10px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
@@ -54,20 +57,21 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 .ink.release{animation:inkout .42s cubic-bezier(.2,.7,.3,1) forwards}
 @keyframes inkout{0%{opacity:.9}100%{transform:scale(1.7);opacity:0;box-shadow:inset 0 0 0 rgba(0,0,0,0),0 0 0 1px rgba(120,170,255,.0)}}
 body.pressing #log{filter:brightness(.93);transition:filter .2s}
-/* settings drawer — slides up from the bottom, leaving a sliver of chat above */
-#settings{position:fixed;left:0;right:0;bottom:0;top:46px;background:#0c0c0c;z-index:10;
-  display:flex;flex-direction:column;padding:6px 18px 18px;border-radius:20px 20px 0 0;
-  border-top:1px solid #1d1d1d;box-shadow:0 -14px 44px rgba(0,0,0,.6);
-  transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+/* settings drawer — frosted glass that slides up, leaving a sliver of chat above */
+#settings{position:fixed;left:0;right:0;bottom:0;top:46px;z-index:10;
+  background:rgba(16,16,19,.62);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+  display:flex;flex-direction:column;padding:6px 18px 18px;border-radius:22px 22px 0 0;
+  border-top:1px solid rgba(255,255,255,.08);box-shadow:0 -16px 48px rgba(0,0,0,.5);
+  transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateY(0);pointer-events:auto}
-#grab{width:38px;height:4px;border-radius:2px;background:#333;margin:6px auto 12px;flex:none}
+#grab{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:6px auto 13px;flex:none}
 #caps .cap{display:flex;align-items:center;gap:11px;padding:12px 2px;font-size:14px;color:#d2d2d2;border-bottom:1px solid #161616}
 #caps .cap.soon{color:#6a6a6a}
 #caps input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#2f7fff}
 #caps .tag{margin-left:auto;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 8px;border-radius:10px}
 #caps .cap.soon .tag{color:#777;background:#1a1a1a}
 #allow{width:100%;margin-top:12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:52px;box-sizing:border-box}
-#settings h2{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:6px}
+#settings h2{font-size:13px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
 #sheet{flex:1;overflow-y:auto}
 #settings select,#settings #model,#settings #key{width:100%;margin-top:8px;background:#0f0f0f;
