@@ -373,7 +373,7 @@ class Mouth:
         return cls(brain=brain, voice=tts)
 
     def respond(self, heart, user_text: str, history=None, audio_out=None,
-                perception=None) -> Utterance:
+                perception=None, cap_note=None) -> Utterance:
         f = heart.feeling()
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
@@ -382,7 +382,12 @@ class Mouth:
         # structural honesty gate: on fact/personal-detail asks, prepend a calibration
         # nudge (no answer key) so she abstains instead of confabulating. Only the
         # model call is hardened — history, the Portrait, and what's shown stay raw.
-        prompt = rail.harden(user_text)
+        # provenance bridge: if the router fetched a real capability result (or an
+        # explicit no-access result), inject it as ground truth and suppress the
+        # rail's blanket capability-denial so it can't contradict real data.
+        prompt = rail.harden(user_text, capability_handled=cap_note is not None)
+        if cap_note:
+            prompt = f"{cap_note}\n\n{prompt}"
         import time as _time, sys as _sys
         _t0 = _time.perf_counter()
         try:

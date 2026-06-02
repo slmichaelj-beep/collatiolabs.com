@@ -115,8 +115,12 @@ def _turn(name, text, voice=False):
         mem.save(_mem(name))
         heart.perceive(p.vector(), now=now)
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
+        # deterministic capability router: fetch REAL live data (or an explicit
+        # no-access result) in code, so the mouth narrates only what's proven.
+        from . import route
+        cap_note = route.route(name, text)
         u = _mouth(voice).respond(heart, text, history=list(_HISTORY),
-                                  audio_out=audio_out, perception=p)
+                                  audio_out=audio_out, perception=p, cap_note=cap_note)
         _HISTORY.append((text, u.text))           # within-session memory
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
         save_json(_path(name), heart.to_dict())    # atomic — never half-written

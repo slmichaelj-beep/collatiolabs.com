@@ -93,11 +93,11 @@ PERSONAL_NOTE = ("[honesty check — this is about the user personally. Answer o
 # the chat turn has NO access to messages/mail/calendar, so the only honest answer
 # is that she can't see them from here — never a fabricated sender/quote/count/time.
 CAPABILITY_NOTE = ("[honesty check — this asks you to read, count, quote, or act on the "
-                   "user's live messages, texts, email, calendar or similar. You do NOT "
-                   "have any live access to those from this conversation: you cannot see, "
-                   "count, quote, or send them, even if a setting is toggled on. Say so "
-                   "plainly and warmly. NEVER invent a sender, a message, a quote, a "
-                   "number, or a time, and never claim you checked.]")
+                   "user's live messages, texts, email, calendar or similar, and no real "
+                   "result was fetched. You have NO live access to those from this "
+                   "conversation. In one honest, friendly sentence say you're not set up "
+                   "to do that (yet). Don't over-apologize. NEVER invent a sender, message, "
+                   "quote, number, or time, and never claim you checked.]")
 
 
 def classify(text: str) -> str:
@@ -117,9 +117,17 @@ def fired(text: str) -> bool:
     return classify(text) != "generative"
 
 
-def harden(prompt: str) -> str:
-    """Prepend the right calibration note to specific-detail requests; pass others through."""
+def harden(prompt: str, capability_handled: bool = False) -> str:
+    """Prepend the right calibration note to specific-detail requests; pass others through.
+
+    capability_handled=True means the deterministic router already fetched real data
+    (or an explicit no-access result) and injected it this turn — so the rail must
+    NOT add its blanket capability-denial, which would contradict the real result.
+    The rail's capability note remains the backstop for capability asks the router
+    doesn't yet handle (e.g. calendar)."""
     kind = classify(prompt)
+    if kind == "capability" and capability_handled:
+        kind = "generative"                       # provenance: code owns this turn
     if kind == "factual":
         return f"{NOTE}\n\n{prompt}"
     if kind == "personal":
