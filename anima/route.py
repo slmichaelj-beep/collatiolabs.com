@@ -43,24 +43,66 @@ _READ_MAIL = [re.compile(p, re.I) for p in [
 
 
 def route(name: str, text: str):
-    """Return a ground-truth note to inject, or None if not a handled capability ask."""
+    """Return {'note': str, 'send': {kind,to,body}|None} for a handled capability turn,
+    else None. 'note' is injected as ground truth; 'send' (when present) asks the server
+    to create a confirm-gated draft. Nothing here ever sends — only /…/send does that."""
     from . import caps, applemac
+    # --- READ: messages / mail (provenance — inject the REAL items) ---
     if any(r.search(text) for r in _READ_MSG):
         if not caps.enabled(name, "imessage_read"):
-            return _off("your text messages", "Messages — read recent")
+            return {"note": _off("your text messages", "Messages — read recent")}
         res = applemac.imessage_recent(15)
         if not res.get("ok"):
-            return _failed("your text messages", res.get("error"))
+            return {"note": _failed("your text messages", res.get("error"))}
         lines = [f"{'You' if i.get('who') == 'me' else i.get('who', 'unknown')}: {i.get('text','')}"
                  for i in res.get("items", [])]
-        return _items("text messages", lines)
+        return {"note": _items("text messages", lines)}
     if any(r.search(text) for r in _READ_MAIL):
         if not caps.enabled(name, "mail_read"):
-            return _off("your email", "Mail — read recent")
+            return {"note": _off("your email", "Mail — read recent")}
         res = applemac.mail_recent(10)
         if not res.get("ok"):
-            return _failed("your email", res.get("error"))
-        return _items("emails", list(res.get("items") or []))
+            return {"note": _failed("your email", res.get("error"))}
+        return {"note": _items("emails", list(res.get("items") or []))}
+    # --- SEND: a text (draft → confirm; never auto-sends) ---
+    s = _parse_send(text)
+    if s is not None:
+        if not caps.enabled(name, "imessage"):
+            return {"note": ("[capability — sending texts is OFF. In one friendly sentence "
+                             "tell the user to enable 'Messages — send' in settings. Draft and "
+                             "send nothing.]")}
+        if not s["to"] or not s["body"]:
+            return {"note": ("[capability — the user wants to send a text but didn't give both a "
+                             "recipient and a message. In one friendly sentence ask for whichever "
+                             "is missing. Send nothing.]")}
+        return {"send": {"kind": "imessage", "to": s["to"], "body": s["body"]},
+                "note": (f"[capability — a text DRAFT is ready (to: {s['to']} · message: "
+                         f"\"{s['body']}\"). It is NOT sent. Warmly read it back to the user and "
+                         f"ask them to confirm — tell them to tap Send or say 'send it'. Do NOT "
+                         f"say it has been sent; it only sends when they confirm.]")}
+    return None
+
+
+# Send-intent extraction. Deliberately conservative: if we can't cleanly pull a
+# recipient and a body, we return an incomplete draft and ask — we never guess a
+# recipient. The confirm card is the final safety net regardless.
+_SEND = [re.compile(p, re.I) for p in [
+    r"\bsend (?:a |an )?(?:text|message|imessage)\s+to\s+(?P<to>[\w'%.-]+(?:\s[\w'%.-]+){0,2}?)\s+(?:saying|that says|telling (?:them|her|him)(?: that)?|:|-)\s*(?P<body>.+)",
+    r"\b(?:text|message|imessage)\s+(?!me\b|my\b|to\b|messages?\b)(?P<to>[\w'%.-]+)\s+(?:saying\s+|that says\s+|:\s*|-\s*)?(?P<body>.+)",
+    r"\b(?:text|message|imessage)\s+(?!me\b|my\b|to\b|messages?\b)(?P<to>[\w'%.-]+)\s*(?P<body>)$",  # recipient only -> ask for the message
+]]
+
+
+def _parse_send(text: str):
+    """Return {'to','body'} if this is a send request, else None. Either field may be ''."""
+    # only treat as a send if there's a send verb up front (avoids matching read asks)
+    if not re.search(r"\b(?:send|text|message|imessage)\b", text, re.I):
+        return None
+    for r in _SEND:
+        m = r.search(text)
+        if m:
+            return {"to": (m.group("to") or "").strip(" ,.:"),
+                    "body": (m.group("body") or "").strip()}
     return None
 
 

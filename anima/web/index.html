@@ -83,15 +83,16 @@ button svg{display:block;margin:auto;pointer-events:none}
   <div id="values">loading…</div>
 
   <h2 style="margin-top:24px">Capabilities</h2>
-  <p class="hint">All off by default. <b>Reading</b> messages &amp; mail is live — turn it
-    on and ask her in chat ("any unread texts?") and she reads the real thing (or tells
-    you plainly if she can't). <b>Sending</b> and <b>web</b> aren't connected to the
-    conversation yet (coming soon) — they're shown but disabled so nothing implies access
-    that isn't there.</p>
+  <p class="hint">All off by default. <b>Reading</b> messages &amp; mail and <b>sending a
+    text</b> are live — ask her in chat ("any unread texts?" or "text Mom I'm running
+    late") and she reads the real thing or drafts a text you confirm before it sends.
+    Nothing sends until you tap <b>Send</b> (or say "send it"). <b>Mail-send</b> and
+    <b>web</b> aren't wired yet (coming soon) — shown but disabled so nothing implies
+    access that isn't there.</p>
   <div id="caps">
     <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage_read"> Messages — read recent <span style="color:#666;font-size:11px">(live · needs Full Disk Access)</span></label>
     <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail_read"> Mail — read recent <span style="color:#666;font-size:11px">(live)</span></label>
-    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#666;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage" disabled> Messages — send (draft → confirm) <span style="color:#555;font-size:11px">(coming soon)</span></label>
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage"> Messages — send <span style="color:#666;font-size:11px">(live · draft → you confirm)</span></label>
     <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#666;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail" disabled> Mail — send (draft → confirm) <span style="color:#555;font-size:11px">(coming soon)</span></label>
     <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#666;border-bottom:1px solid #161616"><input type="checkbox" data-cap="web" disabled> Web — read allow-listed sites <span style="color:#555;font-size:11px">(coming soon)</span></label>
     <textarea id="allow" placeholder="allowed domains, one per line, e.g.&#10;wikipedia.org&#10;bbc.com" style="width:100%;margin-top:10px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:8px;font-size:13px;min-height:64px;box-sizing:border-box"></textarea>
@@ -137,7 +138,44 @@ function renderMute(){ mute.innerHTML=muted?SPK_OFF:SPK; mute.classList.toggle('
 mute.onclick=()=>{ muted=!muted; localStorage.setItem('muted',muted?'1':'0'); if(muted)player.pause(); renderMute(); };
 renderMute();
 
+// --- draft → confirm (the only path that sends; nothing sends without this) ---
+let pendingDraft=null, pendingBtns=null;
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function renderDraftCard(draft){
+  pendingDraft=draft;
+  const card=document.createElement('div'); card.className='msg her';
+  card.style.cssText='border:1px solid #2a2a2a;border-radius:14px;padding:12px;background:#0f0f0f';
+  const kind=draft.kind==='mail'?'Email':'Text';
+  card.innerHTML='<div style="font-size:12px;color:#888;margin-bottom:6px">'+kind+' draft · to '+esc(draft.to)+'</div>'+
+    '<div style="margin-bottom:10px;white-space:pre-wrap">'+esc(draft.body)+'</div>';
+  const s=document.createElement('button'); s.textContent='Send';
+  s.style.cssText='background:#1f6f43;color:#fff;border:none;border-radius:18px;padding:8px 20px;margin-right:8px;font-size:14px';
+  const c=document.createElement('button'); c.textContent='Cancel';
+  c.style.cssText='background:#262626;color:#bbb;border:none;border-radius:18px;padding:8px 18px;font-size:14px';
+  pendingBtns={s,c};
+  s.onclick=doSend;
+  c.onclick=()=>{ if(!pendingDraft)return; pendingDraft=null; s.disabled=c.disabled=true; c.textContent='Cancelled'; };
+  card.appendChild(s); card.appendChild(c); log.appendChild(card); log.scrollTop=log.scrollHeight;
+}
+async function doSend(){
+  if(!pendingDraft) return;
+  const draft=pendingDraft, b=pendingBtns||{}; pendingDraft=null;
+  if(b.s){ b.s.disabled=true; b.s.textContent='Sending…'; } if(b.c) b.c.disabled=true;
+  try{
+    const r=await fetch('/'+draft.kind+'/send',{method:'POST',
+      headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({id:draft.id})});
+    const d=await r.json();
+    if(d.ok){ if(b.s)b.s.textContent='Sent ✓'; add('Sent to '+draft.to+' ✓','her'); }
+    else{ if(b.s)b.s.textContent='Failed'; add('(send failed: '+(d.error||d.detail||'unknown')+')','her'); }
+  }catch(e){ if(b.s)b.s.textContent='Failed'; add('(could not reach the server to send)','her'); }
+}
+
 async function send(text){
+  const t=text.trim();
+  // when a draft is waiting, a confirm phrase (typed OR spoken) sends it
+  if(pendingDraft && /^(send( it)?|yes,?( send( it)?| please)?|confirm|go ahead|do it)\.?$/i.test(t)){
+    add(text,'me'); input.value=''; return doSend();
+  }
   add(text,'me');input.value='';
   try{
     const r=await fetch(muted?'/say':'/talk',{method:'POST',
@@ -145,6 +183,7 @@ async function send(text){
       body:JSON.stringify({text})});
     const d=await r.json();
     add(d.reply,'her');
+    if(d.draft) renderDraftCard(d.draft);     // show the confirm card; sends nothing yet
     if(!muted) speak(d.audio_url);
   }catch(e){add('(could not reach the server)','her');}
 }

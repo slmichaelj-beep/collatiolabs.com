@@ -115,20 +115,31 @@ def _turn(name, text, voice=False):
         mem.save(_mem(name))
         heart.perceive(p.vector(), now=now)
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
-        # deterministic capability router: fetch REAL live data (or an explicit
-        # no-access result) in code, so the mouth narrates only what's proven.
+        # deterministic capability router: fetch REAL live data (read) or prepare a
+        # confirm-gated draft (send) in code, so the mouth narrates only what's proven
+        # and NOTHING sends without an explicit confirm.
         from . import route
-        cap_note = route.route(name, text)
+        routed = route.route(name, text)
+        cap_note = routed.get("note") if routed else None
         u = _mouth(voice).respond(heart, text, history=list(_HISTORY),
                                   audio_out=audio_out, perception=p, cap_note=cap_note)
         _HISTORY.append((text, u.text))           # within-session memory
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
-        return {
+        out = {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
             "rate": u.delivery["rate"], "backend": u.backend,
             "audio_url": f"/audio?name={name}&t={int(now)}" if u.audio_path else None,
         }
+        if routed and routed.get("send"):          # surface a pending draft for the UI
+            s = routed["send"]                      # to render a confirm card. Sends nothing.
+            try:
+                d = json.loads(_draft(f"/{s['kind']}/draft", {"to": s["to"], "body": s["body"]}))
+                if d.get("ok"):
+                    out["draft"] = d["draft"]       # {id, kind, to, body}
+            except Exception:
+                pass
+        return out
 
 
 # --- outward-facing actions: draft → confirm → send (NEVER auto-send) -------
