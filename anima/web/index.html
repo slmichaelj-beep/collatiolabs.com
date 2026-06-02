@@ -132,7 +132,12 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 </div>
 
 <script>
-const TOKEN="__TOKEN__";                       // injected by the server; "" if auth off
+// token comes from ?k= on the FIRST visit, then is remembered in localStorage — so a
+// home-screen/saved app keeps working without the key in the URL every launch.
+const _u=new URL(location.href);
+let TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||"";
+if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+if(_u.searchParams.has('k')){ history.replaceState(null,'',_u.pathname); }  // hide key from URL bar
 const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),

@@ -295,14 +295,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            if not self._authed():
-                return self._send(401, "text/plain", b"unauthorized")
             u = urlparse(self.path)
+            # the app SHELL is public (it holds no secrets); every DATA route below
+            # still requires the token. The page remembers the token in localStorage,
+            # so a saved/home-screen app keeps working without ?k= on every launch.
             if u.path in ("/", "/index.html"):
                 html = ((WEB / "index.html").read_text()
-                        .replace("__NAME__", self.name).replace("__TOKEN__", self.token))
-                self._send(200, "text/html; charset=utf-8", html.encode())
-            elif u.path == "/audio":
+                        .replace("__NAME__", self.name).replace("__TOKEN__", ""))
+                return self._send(200, "text/html; charset=utf-8", html.encode())
+            if not self._authed():
+                return self._send(401, "text/plain", b"unauthorized")
+            if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
                 if f.exists():
