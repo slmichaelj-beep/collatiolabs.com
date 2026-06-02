@@ -32,16 +32,16 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 /* one full-width pill: mic on the left, text in the middle, send on the right */
 #bar{display:flex;align-items:center;gap:4px;background:#141414;border:1px solid #232323;
   border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
-#bar.rec{border-color:#b91c1c;box-shadow:0 0 0 1px #b91c1c inset}
+#bar.rec{border-color:rgba(120,170,255,.5);box-shadow:0 0 0 1px rgba(120,170,255,.22) inset}
 #t{flex:1;background:none;border:none;padding:10px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
 #mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
   flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #mic:active,#send:active{background:#232323}
-#mic.on{color:#fff;background:#b91c1c;animation:pulse 1.1s infinite}
+/* recording: a soft, light-blue highlight that gently breathes — not an alarm */
+#mic.on{color:#cfe0ff;background:rgba(120,170,255,.18);animation:glow 1.8s ease-in-out infinite}
 #send{color:#2f7fff}
 #bar svg{display:block;pointer-events:none}
-#mic.on{background:#b91c1c;animation:pulse 1.1s infinite}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(185,28,28,.6)}50%{box-shadow:0 0 0 11px rgba(185,28,28,0)}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(120,170,255,0)}50%{box-shadow:0 0 0 7px rgba(120,170,255,.12)}}
 /* settings drawer — slides up from the bottom, leaving a sliver of chat above */
 #settings{position:fixed;left:0;right:0;bottom:0;top:46px;background:#0c0c0c;z-index:10;
   display:flex;flex-direction:column;padding:6px 18px 18px;border-radius:20px 20px 0 0;
