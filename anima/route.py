@@ -47,8 +47,18 @@ def route(name: str, text: str):
     else None. 'note' is injected as ground truth; 'send' (when present) asks the server
     to create a confirm-gated draft. Nothing here ever sends — only /…/send does that."""
     from . import caps, applemac
+    # PRIVACY GUARD: if a cloud brain is active, never pull the user's private inbox
+    # into the cloud stream — pause reading and say so plainly.
+    cloud_on = False
+    try:
+        from . import cloud
+        cloud_on = cloud.is_cloud()
+    except Exception:
+        cloud_on = False
     # --- READ: messages / mail (provenance — inject the REAL items) ---
     if any(r.search(text) for r in _READ_MSG):
+        if cloud_on:
+            return {"note": _cloud_paused("text messages")}
         if not caps.enabled(name, "imessage_read"):
             return {"note": _off("your text messages", "Messages — read recent")}
         res = applemac.imessage_recent(15)
@@ -58,6 +68,8 @@ def route(name: str, text: str):
                  for i in res.get("items", [])]
         return {"note": _items("text messages", lines)}
     if any(r.search(text) for r in _READ_MAIL):
+        if cloud_on:
+            return {"note": _cloud_paused("email")}
         if not caps.enabled(name, "mail_read"):
             return {"note": _off("your email", "Mail — read recent")}
         res = applemac.mail_recent(10)
@@ -104,6 +116,13 @@ def _parse_send(text: str):
             return {"to": (m.group("to") or "").strip(" ,.:"),
                     "body": (m.group("body") or "").strip()}
     return None
+
+
+def _cloud_paused(what: str) -> str:
+    return (f"[capability — reading {what} is PAUSED because a cloud brain is active, so the "
+            f"user's private messages stay on their Mac. In one friendly sentence tell them "
+            f"you won't peek at their {what} while on the cloud brain, and they can switch back "
+            f"to the Local brain in settings to read. Read or invent nothing.]")
 
 
 def _off(what: str, toggle: str) -> str:

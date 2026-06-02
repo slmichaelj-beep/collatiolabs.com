@@ -408,10 +408,20 @@ class Mouth:
 
     @classmethod
     def assemble(cls, prefer_real=True, voice=False) -> "Mouth":
-        """Pick the best available backends; degrade gracefully to the stub."""
-        brain = OllamaBrain()
-        if not (prefer_real and brain.available()):
-            brain = StubBrain()
+        """Pick the best available backends; degrade gracefully to the stub.
+        An opt-in cloud brain (settings) wins if configured; default is local Ollama."""
+        brain = None
+        try:
+            from . import cloud
+            cb = cloud.build_cloud_brain()
+            if cb is not None and cb.available():
+                brain = cb
+        except Exception:
+            brain = None
+        if brain is None:
+            brain = OllamaBrain()
+            if not (prefer_real and brain.available()):
+                brain = StubBrain()
         tts = None
         if voice:
             k = KokoroVoice()
@@ -425,6 +435,12 @@ class Mouth:
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
         mem = portrait.load(heart.name)        # lasting memory, injected whole
+        try:                                   # privacy: her personal memory of you is
+            from . import cloud                # concentrated PII — never send it to a cloud
+            if cloud.is_cloud():               # brain. Stays only with the local model.
+                mem = ""
+        except Exception:
+            pass
         # structural honesty gate: on fact/personal-detail asks, prepend a calibration
         # nudge (no answer key) so she abstains instead of confabulating. Only the
         # model call is hardened — history, the Portrait, and what's shown stay raw.

@@ -55,6 +55,13 @@ def _mouth(voice):
     return _MOUTH
 
 
+def _reset_mouth():
+    """Drop the cached mouth so the next turn rebuilds it (after a brain change)."""
+    global _MOUTH
+    with _model_lock:
+        _MOUTH = None
+
+
 def _ears():
     global _EARS
     if _EARS is None:
@@ -316,6 +323,9 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/capabilities":
                 from . import caps
                 self._send(200, "application/json", json.dumps(caps.load(self.name)).encode())
+            elif u.path == "/brain":
+                from . import cloud
+                self._send(200, "application/json", json.dumps(cloud.public()).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -363,6 +373,13 @@ class Handler(BaseHTTPRequestHandler):
                 from . import caps
                 data = json.loads(self._read_body() or b"{}")
                 self._send(200, "application/json", json.dumps(caps.save(self.name, data)).encode())
+            elif path == "/brain":
+                from . import cloud
+                data = json.loads(self._read_body() or b"{}")
+                out = cloud.save_cfg(str(data.get("provider", "local")), str(data.get("model", "")),
+                                     str(data.get("key", "")), str(data.get("base", "")))
+                _reset_mouth()                          # rebuild the mouth with the new brain
+                self._send(200, "application/json", json.dumps(out).encode())
             elif path in ("/imessage/draft", "/mail/draft"):
                 data = json.loads(self._read_body() or b"{}")
                 self._send(200, "application/json", _draft(path, data).encode())
