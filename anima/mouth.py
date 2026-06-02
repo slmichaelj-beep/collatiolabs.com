@@ -383,6 +383,8 @@ class Mouth:
         # nudge (no answer key) so she abstains instead of confabulating. Only the
         # model call is hardened — history, the Portrait, and what's shown stay raw.
         prompt = rail.harden(user_text)
+        import time as _time, sys as _sys
+        _t0 = _time.perf_counter()
         try:
             text = self.brain.reply(system_prompt(heart.name, f, sig.guidance, memory=mem),
                                     prompt, history or [])
@@ -392,11 +394,18 @@ class Mouth:
             import sys
             print(f"[anima mouth] brain ({self.brain.name}) failed: {e}", file=sys.stderr)
             text = "I'm here with you — give me a moment, my words are slow to come right now."
+        llm_s = _time.perf_counter() - _t0
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources
         hints = delivery(f, sig.level)
         audio = None
+        tts_s = 0.0
         if self.voice is not None and audio_out:
+            _t1 = _time.perf_counter()
             audio = self.voice.speak(text, hints, audio_out)
+            tts_s = _time.perf_counter() - _t1
+        # per-stage timing so a slow turn is diagnosable (which stage ate the time)
+        print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words",
+              file=_sys.stderr)
         return Utterance(text=text, delivery=hints, backend=self.brain.name,
                          feeling=feeling_to_words(f), audio_path=audio)

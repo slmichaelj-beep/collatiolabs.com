@@ -72,7 +72,12 @@ def _transcribe(audio_bytes):
         f.write(audio_bytes)
         tmp = f.name
     try:
-        return {"text": _ears().listen(tmp)}
+        import sys
+        t0 = time.perf_counter()
+        text = _ears().listen(tmp)
+        print(f"[timing] stt {time.perf_counter() - t0:.1f}s · {len(text.split())} words",
+              file=sys.stderr)
+        return {"text": text}
     except Exception as e:
         import sys
         print(f"[anima ears] transcription failed: {e}", file=sys.stderr)
