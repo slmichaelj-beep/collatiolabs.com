@@ -372,6 +372,17 @@ def main(argv=None):
     else:
         print("ears: faster-whisper not installed — mic off (pip install faster-whisper)")
     Handler.name, Handler.voice = args.name, args.voice
+    # warm the model in the background so the FIRST turn is fast (and keep_alive holds
+    # it resident after). Doesn't block listening; silent if Ollama isn't up yet.
+    def _warm():
+        try:
+            brain = getattr(_mouth(args.voice), "brain", None)
+            if brain is not None and hasattr(brain, "warm") and brain.available():
+                brain.warm()
+                print("brain: warmed (model resident — first reply won't pay the cold load)")
+        except Exception:
+            pass
+    threading.Thread(target=_warm, daemon=True).start()
     try:
         srv = ThreadingHTTPServer((host, args.port), Handler)
     except OSError:

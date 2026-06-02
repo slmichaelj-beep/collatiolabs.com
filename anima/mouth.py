@@ -243,6 +243,10 @@ class OllamaBrain:
         self.host = host or os.environ.get("ANIMA_OLLAMA_HOST", "http://localhost:11434")
         self.temperature = temperature
         self.name = f"ollama:{self.model}"
+        # Keep the model resident between turns. Default unload is 5 min, so an
+        # intermittent companion reloads the 8B (10-30s) on most turns — the "slow
+        # first, fast after" you saw. "30m" (or -1 to never unload) keeps it warm.
+        self.keep_alive = os.environ.get("ANIMA_KEEP_ALIVE", "30m")
 
     def available(self) -> bool:
         try:
@@ -251,12 +255,26 @@ class OllamaBrain:
         except Exception:
             return False
 
+    def warm(self):
+        """Preload the model so the FIRST real turn doesn't pay the cold-load. Cheap:
+        one token, then it stays resident for keep_alive. Safe to call in a thread."""
+        try:
+            body = json.dumps({"model": self.model, "prompt": "", "stream": False,
+                               "keep_alive": self.keep_alive,
+                               "options": {"num_predict": 1}}).encode()
+            req = urllib.request.Request(self.host + "/api/generate", body,
+                                         {"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=120).read()
+        except Exception:
+            pass
+
     def reply(self, system: str, user: str, history) -> str:
         msgs = [{"role": "system", "content": system}]
         for u, a in history:
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
         msgs.append({"role": "user", "content": user})
         body = json.dumps({"model": self.model, "messages": msgs, "stream": False,
+                           "keep_alive": self.keep_alive,
                            "options": {"temperature": self.temperature}}).encode()
         req = urllib.request.Request(self.host + "/api/chat", body,
                                      {"Content-Type": "application/json"})
