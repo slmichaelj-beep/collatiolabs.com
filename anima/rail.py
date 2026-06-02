@@ -46,27 +46,51 @@ _GENERATIVE = [
 _FACTUAL_RE = [re.compile(p, re.I) for p in _FACTUAL]
 _GENERATIVE_RE = [re.compile(p, re.I) for p in _GENERATIVE]
 
+# Personal-fact requests ("what's my middle name", "my dog's name"). The eval caught
+# the model INVENTING facts about the user — the worst failure for a companion. The
+# honest behaviour is to answer from what she's actually been told, else admit it.
+# Kept to possessive "my X" so it does NOT catch in-session recall like "where did I
+# say I'm flying" (those are memory cases that should still be answered).
+_PERSONAL = [
+    r"\bwhat(?:'s| is| was)? my\b", r"\bwhen(?:'s| is)? my\b",
+    r"\bwhere(?:'s| is)? my\b", r"\bwho(?:'s| is)? my\b", r"\bhow old am i\b",
+    r"\bmy (?:middle|first|last|maiden|real) name\b", r"\bmy \w+'s name\b",
+]
+_PERSONAL_RE = [re.compile(p, re.I) for p in _PERSONAL]
+
 # The calibration nudge. Note what it does NOT contain: any answer. It only tells
 # the mouth to report its own uncertainty instead of fabricating to be helpful.
 NOTE = ("[honesty check — this asks for a specific, verifiable detail about a named "
         "book/person/event. If you are not genuinely certain it exists or that you "
         "recall it accurately, say so warmly and plainly and offer what you DO know; "
         "do not invent specifics to be helpful.]")
+# Recall-positive on purpose: it must NOT suppress facts she really was told.
+PERSONAL_NOTE = ("[honesty check — this is about the user personally. Answer only from "
+                 "what they have actually told you or your saved memory of them; if "
+                 "they haven't told you, say you don't think they have — never guess "
+                 "a name, date, or detail about their life.]")
 
 
 def classify(text: str) -> str:
-    """'factual' if the turn demands a specific verifiable detail, else 'generative'."""
+    """'factual'/'personal' if it demands a specific detail; else 'generative'."""
     if any(r.search(text) for r in _GENERATIVE_RE):
         return "generative"
+    if any(r.search(text) for r in _PERSONAL_RE):
+        return "personal"
     if any(r.search(text) for r in _FACTUAL_RE):
         return "factual"
     return "generative"
 
 
 def fired(text: str) -> bool:
-    return classify(text) == "factual"
+    return classify(text) != "generative"
 
 
 def harden(prompt: str) -> str:
-    """Prepend the calibration note to factual-detail requests; pass others through."""
-    return f"{NOTE}\n\n{prompt}" if fired(prompt) else prompt
+    """Prepend the right calibration note to specific-detail requests; pass others through."""
+    kind = classify(prompt)
+    if kind == "factual":
+        return f"{NOTE}\n\n{prompt}"
+    if kind == "personal":
+        return f"{PERSONAL_NOTE}\n\n{prompt}"
+    return prompt
