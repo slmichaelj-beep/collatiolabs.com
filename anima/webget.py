@@ -67,7 +67,14 @@ def fetch(url: str, allowlist, max_bytes: int = 2_000_000, max_chars: int = 20_0
     if not host_allowed(url, allowlist):
         return {"ok": False, "error": "host is not on your allow-list"}
     opener = urllib.request.build_opener(_AllowlistRedirect(allowlist))
-    req = urllib.request.Request(url, headers={"User-Agent": "anima/1.0 (local companion)"})
+    # a realistic browser identity so article/reference sites serve the real page
+    # instead of 403-ing a non-browser fetch (these are pages YOU allow-listed)
+    req = urllib.request.Request(url, headers={
+        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
     try:
         with opener.open(req, timeout=15) as r:
             final = r.geturl()
