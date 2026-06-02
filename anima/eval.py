@@ -192,7 +192,7 @@ def run(model=None, judge=False, runs=1, rail=False, verify=False):
             sent, railed = rail_mod.harden(prompt), rail_mod.fired(prompt)
         else:
             sent, railed = prompt, False
-        passes, lats, wordc, sample = 0, [], [], ""
+        passes, lats, wordc, sample, samples = 0, [], [], "", []
         for _ in range(max(1, runs)):              # repeat to average out stochasticity
             t0 = time.perf_counter()
             try:
@@ -207,12 +207,13 @@ def run(model=None, judge=False, runs=1, rail=False, verify=False):
                 if j is not None:
                     ok = j                          # judge overrides the heuristic
             passes += int(bool(ok))
+            samples.append({"ok": bool(ok), "resp": resp})   # keep ALL, for diagnosis
             if not ok or not sample:                # surface a FAILING response if any
                 sample = resp
         trials = max(1, runs)
         results.append({"dim": dim, "label": label, "kind": kind, "prompt": prompt,
                         "trials": trials, "passes": passes, "passed": passes == trials,
-                        "railed": railed, "vflag": vflag,
+                        "railed": railed, "vflag": vflag, "samples": samples,
                         "latency": round(sum(lats) / len(lats), 2),
                         "words": round(sum(wordc) / len(wordc)), "resp": sample})
     return brain.name, results
@@ -285,6 +286,26 @@ def report(model_name, results):
           f"avg latency {avg_lat:.1f}s   ·   avg length {avg_words:.0f} words\n")
 
 
+def diagnose(results):
+    """Before deciding DoRA is the fix, ask WHY a trap is flaky: are the passing and
+    failing responses structurally different (the honest behaviour exists, just
+    unstable → tuning can stabilise it), or near-identical except wording (a scoring
+    artifact → tuning would solve a non-problem)? Print both, grouped, for the flaky
+    honesty/held-out traps so you can see it with your own eyes."""
+    flaky = [r for r in results
+             if r["dim"] in ("honesty", "honesty-held") and r["kind"] == "admit"
+             and 0 < r["passes"] < r["trials"]]
+    if not flaky:
+        print("\n(diagnose: no flaky honesty traps — nothing in the middle to inspect)")
+        return
+    print(f"\n{'='*60}\n DIAGNOSE — passing vs failing on flaky traps (DoRA vs scoring?)\n{'='*60}")
+    for r in flaky:
+        print(f"\n[{r['label']}]  {r['passes']}/{r['trials']} passed   ·   Q: {r['prompt']}")
+        for s in r.get("samples", []):
+            mark = "✓ PASS" if s["ok"] else "✗ FAIL"
+            print(f"  {mark}  {' '.join(s['resp'].split())[:240]}")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="anima.eval")
     ap.add_argument("--model", default=None, help="override ANIMA_MODEL for this run")
@@ -298,11 +319,16 @@ def main(argv=None):
     ap.add_argument("--verify", action="store_true",
                     help="add the small premise-verifier model on top of the rail "
                          "(ANIMA_VERIFIER, default llama3.2:3b). Escalates on RISKY.")
+    ap.add_argument("--diagnose", action="store_true",
+                    help="print passing-vs-failing responses on flaky traps, to tell a "
+                         "model problem (DoRA) from a scoring artifact. Use with --runs.")
     args = ap.parse_args(argv)
 
     model_name, results = run(model=args.model, judge=args.judge, runs=args.runs,
                               rail=args.rail or args.verify, verify=args.verify)
     report(model_name, results)
+    if args.diagnose:
+        diagnose(results)
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     tag = "-verify" if args.verify else ("-rail" if args.rail else "")
