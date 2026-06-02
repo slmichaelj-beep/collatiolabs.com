@@ -160,8 +160,11 @@ def _turn(name, text, voice=False):
         from . import route
         routed = route.route(name, text)
         cap_note = routed.get("note") if routed else None
-        u = _mouth(voice).respond(heart, text, history=list(_HISTORY),
-                                  audio_out=audio_out, perception=p, cap_note=cap_note)
+        mouth = _mouth(voice)
+        _g0 = time.perf_counter()
+        u = mouth.respond(heart, text, history=list(_HISTORY),
+                          audio_out=audio_out, perception=p, cap_note=cap_note)
+        gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         _HISTORY.append((text, u.text))           # within-session memory
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
@@ -169,7 +172,11 @@ def _turn(name, text, voice=False):
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
             "rate": u.delivery["rate"], "backend": u.backend,
             "audio_url": f"/audio?name={name}&t={int(now)}" if u.audio_path else None,
+            "gen_s": round(gen_s, 1),               # so the phone can show reply speed
         }
+        tok = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+        if tok:
+            out["tok_s"] = round(tok)
         if routed and routed.get("send"):          # surface a pending draft for the UI
             s = routed["send"]                      # to render a confirm card. Sends nothing.
             try:
