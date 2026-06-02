@@ -122,10 +122,41 @@ function prime(){
   if(primed)return; primed=true;
   try{ player.src=SILENT; player.play().catch(()=>{}); }catch(e){}
 }
-function speak(audioUrl){           // play the Mac's natural (Kokoro) voice only
-  if(!audioUrl)return;
-  player.src=audioUrl+(TOKEN?'&k='+encodeURIComponent(TOKEN):'');
-  player.play().catch(()=>{});
+// Streaming voice: play her reply sentence-by-sentence (Kokoro), prefetching the
+// next clip while the current one plays — so she starts speaking after the FIRST
+// sentence instead of waiting for the whole reply to synthesize.
+function splitSentences(t){
+  const parts=(t.match(/[^.!?…]+[.!?…]*/g)||[t]);
+  const out=[]; let buf='';
+  for(const p of parts){ buf+=p; if(buf.trim().length>=24){ out.push(buf.trim()); buf=''; } }
+  if(buf.trim()) out.push(buf.trim());
+  return out.length?out:[t.trim()];
+}
+let speakSeq=0;                                  // a newer reply cancels an older stream
+async function ttsClip(text,rate){
+  const r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify({text,rate})});
+  if(!r.ok) throw new Error('tts '+r.status);
+  return URL.createObjectURL(await r.blob());
+}
+function playClip(url){
+  return new Promise(res=>{ player.src=url; player.onended=res; player.onerror=res;
+    player.onpause=res; player.play().catch(()=>res()); });
+}
+async function speak(text,rate){
+  if(!text) return;
+  const my=++speakSeq, segs=splitSentences(text); rate=rate||1.0;
+  let next=ttsClip(segs[0],rate).catch(()=>null);
+  for(let i=0;i<segs.length;i++){
+    const url=await next; if(my!==speakSeq){ if(url)URL.revokeObjectURL(url); return; }
+    const after=(i+1<segs.length)?ttsClip(segs[i+1],rate).catch(()=>null):null;
+    if(url){ await playClip(url); URL.revokeObjectURL(url); }
+    else if(i===0 && 'speechSynthesis' in window){     // server voice down → browser fallback
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text)); return;
+    }
+    if(my!==speakSeq) return;
+    next=after;
+  }
 }
 // tap the speaker (top-right) to mute — that also cuts her off mid-sentence
 
@@ -135,7 +166,7 @@ const SPK='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><
 const SPK_OFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
 let muted=localStorage.getItem('muted')==='1';
 function renderMute(){ mute.innerHTML=muted?SPK_OFF:SPK; mute.classList.toggle('muted',muted); }
-mute.onclick=()=>{ muted=!muted; localStorage.setItem('muted',muted?'1':'0'); if(muted)player.pause(); renderMute(); };
+mute.onclick=()=>{ muted=!muted; localStorage.setItem('muted',muted?'1':'0'); if(muted){ speakSeq++; player.pause(); } renderMute(); };
 renderMute();
 
 // --- draft → confirm (the only path that sends; nothing sends without this) ---
@@ -184,7 +215,7 @@ async function send(text){
     const d=await r.json();
     add(d.reply,'her');
     if(d.draft) renderDraftCard(d.draft);     // show the confirm card; sends nothing yet
-    if(!muted) speak(d.audio_url);
+    if(!muted) speak(d.reply, d.rate);     // stream her voice, sentence by sentence
   }catch(e){add('(could not reach the server)','her');}
 }
 

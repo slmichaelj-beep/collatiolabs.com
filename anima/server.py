@@ -89,6 +89,45 @@ def _transcribe(audio_bytes):
             pass
 
 
+def _tts(data):
+    """Synthesise ONE chunk of text to a WAV with Kokoro and return the bytes. The
+    phone calls this per sentence and plays them in order, so speech starts after the
+    first sentence instead of waiting for the whole reply to be voiced."""
+    import os as _os
+    import sys
+    import tempfile
+    import time as _time
+    text = str(data.get("text", ""))[:2000].strip()
+    if not text:
+        return (400, "text/plain", b"empty")
+    v = getattr(_mouth(True), "voice", None)
+    if v is None:
+        return (503, "text/plain", b"voice unavailable")
+    try:
+        rate = float(data.get("rate", 1.0))
+    except (TypeError, ValueError):
+        rate = 1.0
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
+        tmp = f.name
+    try:
+        t0 = _time.perf_counter()
+        out = v.speak(text, {"rate": rate}, tmp)
+        print(f"[timing] tts {(_time.perf_counter() - t0):.1f}s · {len(text.split())} words",
+              file=sys.stderr)
+        if not out:
+            return (503, "text/plain", b"synth failed")
+        with open(tmp, "rb") as fh:
+            return (200, "audio/wav", fh.read())
+    except Exception as e:
+        print(f"[anima tts] {e}", file=sys.stderr)
+        return (503, "text/plain", b"synth error")
+    finally:
+        try:
+            _os.unlink(tmp)
+        except OSError:
+            pass
+
+
 def _path(name):
     return STORE / f"{name}.json"
 
@@ -282,8 +321,13 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input
+                # text only — the phone streams the voice sentence-by-sentence via /tts,
+                # so she starts speaking after the first sentence, not the whole reply
                 self._send(200, "application/json",
-                           json.dumps(_turn(self.name, text, self.voice)).encode())
+                           json.dumps(_turn(self.name, text, voice=False)).encode())
+            elif path == "/tts":
+                data = json.loads(self._read_body() or b"{}")
+                self._send(*_tts(data))
             elif path == "/say":
                 # text-only turn (no server-side voice synth) — for the Action Button
                 # shortcut, which speaks her reply with the phone's own voice

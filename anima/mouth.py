@@ -254,6 +254,7 @@ class OllamaBrain:
         # Ceiling on reply length — fewer tokens means faster generation AND faster
         # voice synthesis. ~160 tokens ≈ 2-3 sentences; raise via ANIMA_MAX_TOKENS.
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
+        self.last_tok_s = None        # generation speed of the last reply (tokens/sec)
 
     def available(self) -> bool:
         try:
@@ -287,7 +288,10 @@ class OllamaBrain:
         req = urllib.request.Request(self.host + "/api/chat", body,
                                      {"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read())["message"]["content"].strip()
+            data = json.loads(r.read())
+        ec, ed = data.get("eval_count"), data.get("eval_duration")   # tokens, nanoseconds
+        self.last_tok_s = (ec / (ed / 1e9)) if (ec and ed) else None
+        return data["message"]["content"].strip()
 
 
 class StubBrain:
@@ -436,7 +440,9 @@ class Mouth:
             audio = self.voice.speak(text, hints, audio_out)
             tts_s = _time.perf_counter() - _t1
         # per-stage timing so a slow turn is diagnosable (which stage ate the time)
-        print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words",
+        tok = getattr(self.brain, "last_tok_s", None)
+        tps = f" · {tok:.0f} tok/s" if tok else ""
+        print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}",
               file=_sys.stderr)
         return Utterance(text=text, delivery=hints, backend=self.brain.name,
                          feeling=feeling_to_words(f), audio_path=audio)
