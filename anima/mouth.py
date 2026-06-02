@@ -114,8 +114,10 @@ DEFAULT_PERSONA = (
     "Talk like a real friend, not a therapist or a support bot: have opinions, joke, "
     "tease, push back, swear if it fits. Don't tack on reassurance, check-ins, hugs, "
     "or reminders about loved ones unless it genuinely fits. No saccharine sign-offs.\n"
-    "Speak briefly — a sentence or two, the way a friend texts. No lists, no "
-    "preamble, no disclaimers. Stay in character."
+    "Keep replies short — one or two sentences, around 30 words, the way a friend "
+    "texts. Answer, then stop: don't pad with follow-up questions, check-ins, recaps, "
+    "or 'want me to...' offers unless they're truly needed. No lists, no preamble, no "
+    "disclaimers. Stay in character."
 )
 
 
@@ -200,7 +202,9 @@ def compose_persona(name, vals):
             label, desc = VALUES[key]
             lines.append(f"{i}. {label}{LEVELS.get(item.get('level', 'balanced'), '')} — {desc}")
             i += 1
-    lines.append("Speak briefly — a sentence or two, the way a friend texts. No lists, no "
+    lines.append("Keep replies short — one or two sentences, around 30 words, the way a "
+                 "friend texts. Answer, then stop: don't pad with follow-up questions, "
+                 "check-ins, or 'want me to...' offers unless truly needed. No lists, no "
                  "preamble, no disclaimers, never call yourself an AI. Stay in character.")
     return "\n".join(lines)
 
@@ -247,6 +251,9 @@ class OllamaBrain:
         # intermittent companion reloads the 8B (10-30s) on most turns — the "slow
         # first, fast after" you saw. "30m" (or -1 to never unload) keeps it warm.
         self.keep_alive = os.environ.get("ANIMA_KEEP_ALIVE", "30m")
+        # Ceiling on reply length — fewer tokens means faster generation AND faster
+        # voice synthesis. ~160 tokens ≈ 2-3 sentences; raise via ANIMA_MAX_TOKENS.
+        self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
 
     def available(self) -> bool:
         try:
@@ -275,7 +282,8 @@ class OllamaBrain:
         msgs.append({"role": "user", "content": user})
         body = json.dumps({"model": self.model, "messages": msgs, "stream": False,
                            "keep_alive": self.keep_alive,
-                           "options": {"temperature": self.temperature}}).encode()
+                           "options": {"temperature": self.temperature,
+                                       "num_predict": self.max_tokens}}).encode()
         req = urllib.request.Request(self.host + "/api/chat", body,
                                      {"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
