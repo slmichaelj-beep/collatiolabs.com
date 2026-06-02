@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from . import care, portrait
+from . import care, portrait, rail
 
 STORE = Path(".anima")
 
@@ -373,9 +373,13 @@ class Mouth:
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
         mem = portrait.load(heart.name)        # lasting memory, injected whole
+        # structural honesty gate: on fact/personal-detail asks, prepend a calibration
+        # nudge (no answer key) so she abstains instead of confabulating. Only the
+        # model call is hardened — history, the Portrait, and what's shown stay raw.
+        prompt = rail.harden(user_text)
         try:
             text = self.brain.reply(system_prompt(heart.name, f, sig.guidance, memory=mem),
-                                    user_text, history or [])
+                                    prompt, history or [])
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable
