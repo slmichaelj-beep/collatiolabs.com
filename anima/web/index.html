@@ -86,6 +86,20 @@ button svg{display:block;margin:auto;pointer-events:none}
     other, the one higher up wins. Tap a name to switch it on or off; use ▲▼ to reorder.
     Takes effect on her next reply.</p>
   <div id="values">loading…</div>
+
+  <h2 style="margin-top:24px">Capabilities</h2>
+  <p class="hint">All off by default. Sending a text or email always shows you a draft
+    first — nothing sends until you tap Send (or say "send it"). Web access is limited
+    to the domains you list below; an empty list means no web at all.</p>
+  <div id="caps">
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage"> Messages — send (draft → confirm)</label>
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="imessage_read"> Messages — read recent <span style="color:#666;font-size:11px">(needs Full Disk Access)</span></label>
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail"> Mail — send (draft → confirm)</label>
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="mail_read"> Mail — read recent</label>
+    <label class="cap" style="display:flex;align-items:center;gap:10px;padding:9px 2px;font-size:14px;color:#ccc;border-bottom:1px solid #161616"><input type="checkbox" data-cap="web"> Web — read allow-listed sites</label>
+    <textarea id="allow" placeholder="allowed domains, one per line, e.g.&#10;wikipedia.org&#10;bbc.com" style="width:100%;margin-top:10px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:8px;font-size:13px;min-height:64px;box-sizing:border-box"></textarea>
+  </div>
+
   <div class="row">
     <button type="button" id="cancel" class="txt">Cancel</button>
     <span style="flex:1"></span>
@@ -203,16 +217,28 @@ function renderValues(){
     ord.append(up,dn); row.append(num,lbl,lvl,ord); valuesBox.appendChild(row);
   });
 }
+let CAPS=null;
+const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow');
+function renderCaps(){
+  capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
+  allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
+}
 async function openSettings(){
   panel.classList.add('open'); valuesBox.textContent='loading…';
   try{ const r=await fetch('/values',{headers:HDR}); VALS=(await r.json()).values; renderValues(); }
   catch(e){ valuesBox.textContent='(could not load)'; }
+  try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }
+  catch(e){}
 }
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
   await fetch('/values',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
     body:JSON.stringify({values:VALS.map(v=>({key:v.key,on:v.on,level:v.level||'balanced'}))})});
+  const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
+  capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
+  await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify(caps)});
   panel.classList.remove('open');
 };
 </script>

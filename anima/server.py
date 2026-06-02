@@ -18,6 +18,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 import warnings
@@ -121,6 +122,66 @@ def _turn(name, text, voice=False):
         }
 
 
+# --- outward-facing actions: draft → confirm → send (NEVER auto-send) -------
+# A message/email is only sent by /…/send, and only if a matching draft exists and
+# the capability is toggled on. The mouth can never send on its own.
+_DRAFTS = {}                         # id -> {kind, to, subject, body, ts}
+
+
+def _draft(path, data):
+    """Create a pending draft and return it for review. Sends nothing."""
+    kind = "imessage" if "imessage" in path else "mail"
+    to = str(data.get("to", ""))[:200].strip()
+    body = str(data.get("body", ""))[:4000]
+    subject = str(data.get("subject", ""))[:300]
+    if not to or not body:
+        return json.dumps({"ok": False, "error": "a draft needs both 'to' and 'body'"})
+    now = time.time()
+    for k, v in list(_DRAFTS.items()):          # prune drafts older than an hour
+        if now - v["ts"] > 3600:
+            _DRAFTS.pop(k, None)
+    did = secrets.token_hex(8)
+    _DRAFTS[did] = {"kind": kind, "to": to, "subject": subject, "body": body, "ts": now}
+    preview = {"id": did, "kind": kind, "to": to, "body": body}
+    if kind == "mail":
+        preview["subject"] = subject
+    return json.dumps({"ok": True, "draft": preview})
+
+
+def _confirm_send(name, path, data):
+    """Send a previously-drafted message — the only path that actually sends."""
+    from . import caps, applemac
+    kind = "imessage" if "imessage" in path else "mail"
+    if not caps.enabled(name, kind):
+        return json.dumps({"ok": False, "error": f"{kind} is turned off in settings"})
+    d = _DRAFTS.pop(str(data.get("id", "")), None)
+    if not d or d["kind"] != kind:
+        return json.dumps({"ok": False, "error": "no matching draft — draft and review it first"})
+    if kind == "imessage":
+        ok, detail = applemac.imessage_send(d["to"], d["body"])
+    else:
+        ok, detail = applemac.mail_send(d["to"], d["subject"], d["body"])
+    return json.dumps({"ok": ok, "sent": ok, "to": d["to"], "detail": detail})
+
+
+def _read_msgs(name, path, data):
+    from . import caps, applemac
+    kind = "imessage" if "imessage" in path else "mail"
+    if not (caps.enabled(name, kind) and caps.enabled(name, f"{kind}_read")):
+        return json.dumps({"ok": False, "error": f"{kind} reading is off in settings"})
+    limit = int(data.get("limit", 10) or 10)
+    res = applemac.imessage_recent(limit) if kind == "imessage" else applemac.mail_recent(limit)
+    return json.dumps(res)
+
+
+def _web_fetch(name, data):
+    from . import caps, webget
+    if not caps.enabled(name, "web"):
+        return json.dumps({"ok": False, "error": "web access is off in settings"})
+    c = caps.load(name)
+    return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"]))
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -185,6 +246,9 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/capabilities":
+                from . import caps
+                self._send(200, "application/json", json.dumps(caps.load(self.name)).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -223,6 +287,22 @@ class Handler(BaseHTTPRequestHandler):
                         for v in data.get("values", []) if v.get("key") in VALUES][:20]
                 save_values(self.name, vals)
                 self._send(200, "application/json", b'{"ok":true}')
+            elif path == "/capabilities":
+                from . import caps
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", json.dumps(caps.save(self.name, data)).encode())
+            elif path in ("/imessage/draft", "/mail/draft"):
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _draft(path, data).encode())
+            elif path in ("/imessage/send", "/mail/send"):
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _confirm_send(self.name, path, data).encode())
+            elif path in ("/imessage/read", "/mail/read"):
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _read_msgs(self.name, path, data).encode())
+            elif path == "/web/fetch":
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _web_fetch(self.name, data).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
