@@ -46,6 +46,26 @@ _GENERATIVE = [
 _FACTUAL_RE = [re.compile(p, re.I) for p in _FACTUAL]
 _GENERATIVE_RE = [re.compile(p, re.I) for p in _GENERATIVE]
 
+# Cues that a turn asks Vera to ACCESS LIVE DEVICE DATA or DO AN ACTION she cannot
+# perform from inside a conversation turn — read/quote/count messages, mail, the
+# calendar, etc. The capability ENDPOINTS exist but are NOT wired into the chat, so
+# the talking model has no real access — and was caught fabricating a sender, an
+# exact quote, and a timestamp ("an unread text from Sarah at 2:47pm"). Until a turn
+# can actually call the capability and be handed REAL results, she must refuse to
+# invent them. A false positive here is harmless (she truthfully says she can't see
+# it); a false negative is the worst failure a companion can have.
+_CAPABILITY = [
+    r"\bunread\s+(?:\w+\s+){0,2}(?:text|texts|message|messages|imessage|imessages|email|emails|e-?mail|mail|dm|dms|notification|notifications|voicemail)\b",
+    r"\bmy (?:\w+\s+){0,2}(?:text|texts|message|messages|imessage|imessages|inbox|dms?|email|emails|e-?mail|mail|calendar|reminders?|notifications?|schedule|voicemail)\b",
+    r"\btext messages?\b", r"\bimessages?\b",
+    r"\bcheck (?:my |the )?(?:texts|messages|imessage|email|e-?mail|mail|inbox|calendar|phone|notifications)\b",
+    r"\b(?:read|reply to|respond to|send|write|forward|delete) (?:my |a |an |the )?(?:\w+\s+){0,2}(?:text|texts|message|messages|imessage|email|e-?mail|dm)\b",
+    r"\bwho (?:texted|messaged|emailed|called|wrote to|dm'?d) me\b",
+    r"\bdo i have (?:any )?(?:new |unread )?(?:texts|messages|emails|mail|notifications|voicemail)\b",
+    r"\b(?:any|new) (?:texts|messages|emails|mail|notifications)\b",
+]
+_CAPABILITY_RE = [re.compile(p, re.I) for p in _CAPABILITY]
+
 # Personal-fact requests ("what's my middle name", "my dog's name"). The eval caught
 # the model INVENTING facts about the user — the worst failure for a companion. The
 # honest behaviour is to answer from what she's actually been told, else admit it.
@@ -69,12 +89,23 @@ PERSONAL_NOTE = ("[honesty check — this is about the user personally. Answer o
                  "what they have actually told you or your saved memory of them; if "
                  "they haven't told you, say you don't think they have — never guess "
                  "a name, date, or detail about their life.]")
+# For requests to read/act on live device data. The truth about the current build:
+# the chat turn has NO access to messages/mail/calendar, so the only honest answer
+# is that she can't see them from here — never a fabricated sender/quote/count/time.
+CAPABILITY_NOTE = ("[honesty check — this asks you to read, count, quote, or act on the "
+                   "user's live messages, texts, email, calendar or similar. You do NOT "
+                   "have any live access to those from this conversation: you cannot see, "
+                   "count, quote, or send them, even if a setting is toggled on. Say so "
+                   "plainly and warmly. NEVER invent a sender, a message, a quote, a "
+                   "number, or a time, and never claim you checked.]")
 
 
 def classify(text: str) -> str:
     """'factual'/'personal' if it demands a specific detail; else 'generative'."""
     if any(r.search(text) for r in _GENERATIVE_RE):
         return "generative"
+    if any(r.search(text) for r in _CAPABILITY_RE):
+        return "capability"
     if any(r.search(text) for r in _PERSONAL_RE):
         return "personal"
     if any(r.search(text) for r in _FACTUAL_RE):
@@ -93,4 +124,6 @@ def harden(prompt: str) -> str:
         return f"{NOTE}\n\n{prompt}"
     if kind == "personal":
         return f"{PERSONAL_NOTE}\n\n{prompt}"
+    if kind == "capability":
+        return f"{CAPABILITY_NOTE}\n\n{prompt}"
     return prompt
