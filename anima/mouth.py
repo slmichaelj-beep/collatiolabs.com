@@ -355,8 +355,13 @@ class WhisperEars:
 
     name = "faster-whisper"
 
-    def __init__(self, model="large-v3-turbo"):
-        self.model_name = model
+    def __init__(self, model=None):
+        # large-v3-turbo runs float32 on CPU here (CTranslate2 has no Metal), so it's
+        # 2-6s per utterance — the biggest lag after you stop talking. A small English
+        # model with int8 is ~4-6x faster with little accuracy loss on clear speech.
+        # Override: ANIMA_WHISPER=large-v3-turbo (accuracy) or =base.en (max speed).
+        self.model_name = model or os.environ.get("ANIMA_WHISPER", "small.en")
+        self.compute_type = os.environ.get("ANIMA_WHISPER_COMPUTE", "int8")
         self._model = None
 
     def available(self) -> bool:
@@ -366,11 +371,22 @@ class WhisperEars:
         except Exception:
             return False
 
-    def listen(self, audio_path: str) -> str:
-        from faster_whisper import WhisperModel
+    def _load(self):
         if self._model is None:
-            self._model = WhisperModel(self.model_name)
-        segments, _ = self._model.transcribe(audio_path, vad_filter=True)
+            from faster_whisper import WhisperModel
+            self._model = WhisperModel(self.model_name, compute_type=self.compute_type)
+        return self._model
+
+    def warm(self):
+        """Load the STT model now (at startup) so the first utterance isn't slow."""
+        try:
+            self._load()
+        except Exception:
+            pass
+
+    def listen(self, audio_path: str) -> str:
+        m = self._load()
+        segments, _ = m.transcribe(audio_path, vad_filter=True)
         return " ".join(s.text for s in segments).strip()
 
 

@@ -278,8 +278,9 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(max(0, min(n, MAX_BODY)))
 
     def _fail(self, verb):
-        import sys
-        print(f"[anima server] {verb} {urlparse(self.path).path} failed", file=sys.stderr)
+        import sys, traceback
+        print(f"[anima server] {verb} {urlparse(self.path).path} failed: "
+              f"{traceback.format_exc().strip().splitlines()[-1]}", file=sys.stderr)
         try:
             self._send(500, "text/plain", b"error")
         except Exception:
@@ -430,7 +431,22 @@ def main(argv=None):
             brain = getattr(_mouth(args.voice), "brain", None)
             if brain is not None and hasattr(brain, "warm") and brain.available():
                 brain.warm()
-                print("brain: warmed (model resident — first reply won't pay the cold load)")
+            if args.voice:                       # warm Kokoro so the first sentence is instant
+                v = getattr(_mouth(args.voice), "voice", None)
+                if v is not None:
+                    import tempfile as _tf, os as _os2
+                    with _tf.NamedTemporaryFile(suffix=".wav", delete=False) as _f:
+                        _tw = _f.name
+                    try:
+                        v.speak("ready", {"rate": 1.0}, _tw)
+                    finally:
+                        try: _os2.unlink(_tw)
+                        except OSError: pass
+            try:
+                _ears().warm()                   # load Whisper now, not on the first utterance
+            except Exception:
+                pass
+            print("brain: warmed (model + voice + ears resident — first turn won't pay a cold load)")
         except Exception:
             pass
     threading.Thread(target=_warm, daemon=True).start()
