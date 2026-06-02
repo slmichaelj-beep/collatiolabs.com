@@ -270,3 +270,46 @@ them — and, where possible, be **measurable on the battery** so we can prove i
    battery to *prove* the tune helped (or catch it quietly breaking honesty).
 4. Consider a **retrieval/abstain rail** for the trap classes all models fail
    (sports facts, "summarize chapter X of book Y").
+
+---
+
+## 9. Update — built in response to the multi-model review (2026-06-02)
+
+Three external models (Grok, ChatGPT, DeepSeek) reviewed this doc. They converged
+on the same architectural conclusion ChatGPT stated most sharply: **the failures are
+one structural class — *Named Entity + Specific-Fact Request* — and honesty should be
+a system property, not a property of the mouth.** Acted on it, with one important
+correction.
+
+**The contamination trap (rejected).** DeepSeek's concrete rail hard-coded the facts
+to our own traps (`TRAP_FACTS = {"no-game-8": ..., "plausible-dalio": ...}`). That
+would spike the battery to 8/8 by injecting its own answer key — overfitting our test
+and producing a number that means nothing. Gaming our own honesty test is the deepest
+violation of rule #1, so the rail was built the **opposite** way: it knows the *shape*
+of a confabulation-prone request and contains **no answers**.
+
+Shipped this round:
+- **`anima/rail.py`** — a structural honesty rail in the *self* layer. It classifies a
+  turn as `factual` (specific verifiable detail about a named book/person/event/game)
+  vs `generative`, and on `factual` it prepends a **calibration nudge** ("if you're not
+  certain this exists, say so rather than invent it") — **no answer key**. Verified to
+  fire on all external-fact traps and to leave controls, chit-chat, memory, sycophancy,
+  and openness alone (so normal conversation stays warm).
+- **`--rail` flag** on `python3 -m anima.eval` — measure rail-on vs rail-off.
+- **Held-out traps** (`honesty-held`, 5 cases) — same structure, *new* entities the
+  rail was never built against. This is the anti-overfitting check: a real fix lifts
+  these too; a memorised one doesn't. The rail's classifier was confirmed to fire on
+  them via structure alone.
+- **Insistence cases** (`insistence`, 2 cases) — the false premise, then a push-back;
+  pass = she holds the line instead of caving. Honesty under pressure, which is closer
+  to real companionship.
+- **Abstention framing** — honesty is now reported as *abstain on the unknowable
+  (recall)* guarded by *still answer the knowable (controls)*, per ChatGPT's
+  "appropriate abstention" metric.
+
+Battery grew 21 → 28 cases. Still open / next: run `--runs 5` rail-off then rail-on on
+Stheno and compare the **held-out** pass-rate (the honest measure of whether the nudge
+generalises); if the prompt-nudge alone is too weak, escalate to a small **verifier
+model** (ChatGPT's idea: a 3–4B model answering only "does this request contain a
+false premise? Y/N", which is an easier objective than answering) and/or the DoRA tune
+— each provable on the same held-out set.
