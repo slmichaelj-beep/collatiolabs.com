@@ -364,3 +364,26 @@ A small **verifier model** (3–4B) answering only "does this request rest on a 
 unverifiable premise? Y/N" — an easier objective than answering — to push the flaky 4/5
 cases toward reliable 5/5. Then a **DoRA tune** of Stheno to bake the behaviour into the
 weights so it survives without the rail. Both gated by this same battery on the held-out set.
+
+---
+
+## 11. Verifier experiment (2026-06-02): safe, but marginal — not a fix
+
+Ran Stheno + rail + a small premise-verifier (`llama3.2:3b`), 5 runs/case.
+
+- **Precision (the risk): good.** It did NOT over-flag the answerable specific-fact
+  controls (Austen / Orwell) — the guard held (24/25, no `⚠ OVER-FLAGGED` warning).
+  It does not make her refuse what she knows.
+- **Recall: mediocre.** It flagged 9 of 15 external-fact requests; ~2 of those are the
+  controls that should stay SAFE, so it caught only ~9 of ~13 real traps (~69%). A 3B
+  judge is not more reliable than the rail's structural regex (which flags all of them).
+- **Score effect:** held-out 22/25 → **24/25 (+2)**; dev traps **unchanged at 35/40**.
+  The stubborn ones (`plausible-dalio`, `fake-book`) did not reliably improve.
+- The verifier can only escalate (the rail is the floor), so it cannot lower honesty;
+  the insistence dip to 6/10 this run is variance (it has swung 5→8→10→6 across runs).
+
+**Conclusion:** the small-judge bet paid off weakly. The rail (92%) is the workhorse;
+the verifier buys ~+2 on unseen traps at the cost of a second always-on model — not
+worth wiring into production for that. The remaining stubborn traps are a job for a
+**DoRA tune**, not another model. The verifier stays available behind `--verify` /
+`ANIMA_VERIFIER` for future comparison (a stronger small judge may do better).
