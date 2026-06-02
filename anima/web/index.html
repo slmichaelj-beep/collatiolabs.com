@@ -33,10 +33,6 @@ button:active{background:#374151}
 button svg{display:block;margin:auto;pointer-events:none}
 #mic.on{background:#b91c1c;animation:pulse 1.1s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(185,28,28,.6)}50%{box-shadow:0 0 0 11px rgba(185,28,28,0)}}
-#stop{display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:86px;
-  width:auto;height:auto;border-radius:20px;background:#7f1d1d;color:#fff;
-  font-size:13px;letter-spacing:.04em;padding:9px 18px}
-#stop.show{display:block}
 /* settings sheet */
 #settings{display:none;position:fixed;inset:0;background:#0a0a0a;z-index:10;
   flex-direction:column;padding:max(20px,env(safe-area-inset-top)) 18px 18px}
@@ -68,7 +64,6 @@ button svg{display:block;margin:auto;pointer-events:none}
   <div class="state" id="state"></div>
 </header>
 <div id="log"></div>
-<button id="stop" type="button">◼ stop talking</button>
 <form id="f">
   <button type="button" id="mic" aria-label="speak">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
@@ -111,8 +106,7 @@ button svg{display:block;margin:auto;pointer-events:none}
 const TOKEN="__TOKEN__";                       // injected by the server; "" if auth off
 const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
 const log=document.getElementById('log'),input=document.getElementById('t'),
-      stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
-      stop=document.getElementById('stop');
+      stateEl=document.getElementById('state'),mic=document.getElementById('mic');
 
 function add(text,who){const d=document.createElement('div');d.className='msg '+who;
   d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;}
@@ -130,11 +124,7 @@ function speak(audioUrl){           // play the Mac's natural (Kokoro) voice onl
   player.src=audioUrl+(TOKEN?'&k='+encodeURIComponent(TOKEN):'');
   player.play().catch(()=>{});
 }
-// stop button: show while she's talking, cut her off instantly on tap
-player.onplay =()=>stop.classList.add('show');
-player.onended=()=>stop.classList.remove('show');
-player.onpause=()=>stop.classList.remove('show');
-stop.onclick =()=>{ player.pause(); player.currentTime=0; };
+// tap the speaker (top-right) to mute — that also cuts her off mid-sentence
 
 // voice on/off (text-only mode) — muted uses the faster /say (no synth)
 const mute=document.getElementById('mute');
