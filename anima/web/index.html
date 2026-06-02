@@ -57,8 +57,10 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 #allow{width:100%;margin-top:12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:52px;box-sizing:border-box}
 #settings h2{font-size:14px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
-#caps{flex:1;overflow-y:auto}
-.row{display:flex;align-items:center;gap:10px;margin-top:14px}
+#sheet{flex:1;overflow-y:auto}
+#settings select,#settings #model,#settings #key{width:100%;margin-top:8px;background:#0f0f0f;
+  border:1px solid #222;color:#ddd;border-radius:8px;padding:11px;font-size:14px;box-sizing:border-box}
+.row{display:flex;align-items:center;gap:10px;margin-top:14px;flex:none}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
 .primary{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:11px 22px;border-radius:22px}
@@ -91,7 +93,25 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
 
 <div id="settings">
   <div id="grab"></div>
-  <h2>Capabilities</h2>
+  <div id="sheet">
+  <h2>Brain</h2>
+  <p class="hint"><b>Local</b> is private — nothing leaves your Mac. A <b>cloud</b> brain is
+    smarter but sends the conversation to that provider; her memory of you and your inbox
+    are withheld, and PII is hashed before it goes.</p>
+  <select id="provider">
+    <option value="local">Local — Stheno (private)</option>
+    <option value="openai">OpenAI</option>
+    <option value="deepseek">DeepSeek</option>
+    <option value="mistral">Mistral</option>
+    <option value="grok">Grok (xAI)</option>
+    <option value="anthropic">Anthropic</option>
+  </select>
+  <div id="cloudFields" style="display:none">
+    <input id="model" placeholder="model (optional)" autocomplete="off">
+    <input id="key" type="password" placeholder="API key — stays on your Mac" autocomplete="off">
+  </div>
+
+  <h2 style="margin-top:22px">Capabilities</h2>
   <p class="hint">All off by default. She never sends anything without your tap to confirm.
     (Reading texts needs Full Disk Access.)</p>
   <div id="caps">
@@ -101,6 +121,7 @@ form{padding:10px 12px;border-top:1px solid #161616;background:#0a0a0a;
     <label class="cap soon"><input type="checkbox" data-cap="mail" disabled> Send mail <span class="tag">soon</span></label>
     <label class="cap soon"><input type="checkbox" data-cap="web" disabled> Read the web <span class="tag">soon</span></label>
     <textarea id="allow" placeholder="web: allowed sites, one per line"></textarea>
+  </div>
   </div>
 
   <div class="row">
@@ -281,22 +302,40 @@ mic.onclick=async ()=>{
   }
 };
 
-// --- settings: capabilities ------------------------------------------------
+// --- settings: brain + capabilities ----------------------------------------
 const panel=document.getElementById('settings');
-let CAPS=null;
-const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow');
+let CAPS=null, BRAIN=null;
+const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow'),
+      providerSel=document.getElementById('provider'),modelBox=document.getElementById('model'),
+      keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields');
 function renderCaps(){
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
 }
+function applyProvider(p){
+  cloudFields.style.display = (p&&p!=='local') ? 'block':'none';
+  const preset=BRAIN&&BRAIN.presets&&BRAIN.presets[p];
+  modelBox.placeholder = preset ? preset.model : 'model (optional)';
+}
+function renderBrain(){
+  if(!BRAIN) return;
+  providerSel.value=BRAIN.provider;
+  modelBox.value=BRAIN.model||'';
+  keyBox.value='';
+  keyBox.placeholder = BRAIN.has_key ? 'key saved — leave blank to keep' : 'API key — stays on your Mac';
+  applyProvider(BRAIN.provider);
+}
+providerSel.onchange=()=>{ modelBox.value=''; applyProvider(providerSel.value); };
 async function openSettings(){
   panel.classList.add('open');
-  try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }
-  catch(e){}
+  try{ const b=await fetch('/brain',{headers:HDR}); BRAIN=await b.json(); renderBrain(); }catch(e){}
+  try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }catch(e){}
 }
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
+  await fetch('/brain',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value})});
   const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
   await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
