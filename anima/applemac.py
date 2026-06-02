@@ -15,9 +15,59 @@ read and send are both via AppleScript. None of this runs or is testable off a M
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import subprocess
+import time
 from pathlib import Path
+
+_CONTACTS = {"map": None, "at": 0.0}        # cached phone/email -> name (Full Disk Access)
+
+
+def _norm_phone(s: str) -> str:
+    """Last 10 digits — robust to '+1 (555) 123-4567' vs '5551234567' formatting."""
+    d = re.sub(r"\D", "", s or "")
+    return d[-10:] if len(d) >= 10 else d
+
+
+def _contacts_map() -> dict:
+    """Map a normalized phone number / email -> the person's name, read from the macOS
+    AddressBook (needs Full Disk Access). Cached for 5 min. Returns {} if unavailable."""
+    now = time.time()
+    if _CONTACTS["map"] is not None and now - _CONTACTS["at"] < 300:
+        return _CONTACTS["map"]
+    base = Path.home() / "Library" / "Application Support" / "AddressBook"
+    dbs = list(base.glob("AddressBook-v22.abcddb")) + list(base.glob("Sources/*/AddressBook-v22.abcddb"))
+    m = {}
+    for db in dbs:
+        try:
+            con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+            names = {}
+            for pk, fn, ln, org in con.execute(
+                    "SELECT Z_PK, ZFIRSTNAME, ZLASTNAME, ZORGANIZATION FROM ZABCDRECORD"):
+                nm = " ".join(x for x in (fn, ln) if x) or (org or "")
+                if nm:
+                    names[pk] = nm.strip()
+            for owner, num in con.execute("SELECT ZOWNER, ZFULLNUMBER FROM ZABCDPHONENUMBER"):
+                if owner in names and num:
+                    m[_norm_phone(num)] = names[owner]
+            for owner, addr in con.execute("SELECT ZOWNER, ZADDRESS FROM ZABCDEMAILADDRESS"):
+                if owner in names and addr:
+                    m[addr.lower().strip()] = names[owner]
+            con.close()
+        except Exception:
+            continue
+    _CONTACTS["map"], _CONTACTS["at"] = m, now
+    return m
+
+
+def _name_for(handle: str, contacts: dict) -> str:
+    """Resolve a chat.db handle (phone or email) to a contact name, else the handle."""
+    if not handle:
+        return "unknown"
+    if "@" in handle:
+        return contacts.get(handle.lower().strip(), handle)
+    return contacts.get(_norm_phone(handle), handle)
 
 
 def _osa(script: str):
@@ -94,6 +144,7 @@ def imessage_recent(limit: int = 10):
     except Exception as e:
         # the most common cause is missing Full Disk Access for the host process
         return {"ok": False, "items": [], "error": f"{e} (grant Full Disk Access?)"}
-    items = [{"who": "me" if me else (who or "unknown"), "text": txt}
+    contacts = _contacts_map()       # resolve phone/email -> name (so it's "Mom", not +1555…)
+    items = [{"who": "me" if me else _name_for(who, contacts), "text": txt}
              for who, txt, me in rows]
     return {"ok": True, "items": items, "error": None}
