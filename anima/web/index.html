@@ -79,6 +79,7 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
   padding:11px;font-size:14px;box-sizing:border-box}
 #spend{font-size:12px;color:#8a8a8a;margin-top:9px}
 #brainNote{font-size:12px;color:#d6a23a;margin-top:9px;line-height:1.45}
+#sysinfo{font-size:12px;color:#8a8a8a;margin:2px 0 4px;line-height:1.5}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px;flex:none}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -117,6 +118,7 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
   <p class="hint"><b>Local</b> is private — nothing leaves your Mac. A <b>cloud</b> brain is
     smarter but sends the conversation to that provider; her memory of you and your inbox
     are withheld, and PII is hashed before it goes.</p>
+  <div id="sysinfo"></div>
   <select id="provider">
     <option value="local">Local — Stheno (private)</option>
     <option value="openai">OpenAI</option>
@@ -360,7 +362,7 @@ const capsBox=document.getElementById('caps'),allowBox=document.getElementById('
       providerSel=document.getElementById('provider'),modelBox=document.getElementById('model'),
       keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields'),
       budgetBox=document.getElementById('budget'),spendEl=document.getElementById('spend'),
-      brainNote=document.getElementById('brainNote');
+      brainNote=document.getElementById('brainNote'),sysEl=document.getElementById('sysinfo');
 function renderCaps(){
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
@@ -372,6 +374,14 @@ function applyProvider(p){
 }
 function renderBrain(){
   if(!BRAIN) return;
+  const s=BRAIN.system||{};
+  if(s.ram_gb){
+    const vm={comfortable:['#46b27a','fits comfortably'],tight:['#d6a23a','tight — may be slow'],
+              'too big':['#d05a5a',"won't fit"],unknown:['#8a8a8a','—']};
+    const v=vm[s.verdict]||vm.unknown;
+    sysEl.innerHTML='🖥 '+esc(s.chip||'this Mac')+' · '+s.ram_gb+' GB — comfortably runs up to ~'+s.comfy_b+'B local.'
+      + (s.params_b? ' Current model ~'+s.params_b+'B (~'+s.need_gb+' GB): <span style="color:'+v[0]+'">'+v[1]+'</span>.' : '');
+  } else sysEl.textContent='';
   providerSel.value=BRAIN.provider;
   modelBox.value=BRAIN.model||'';
   keyBox.value='';

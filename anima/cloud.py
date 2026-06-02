@@ -169,10 +169,15 @@ def eval_command(model: str = None) -> str:
 def public(cfg: dict = None) -> dict:
     """Config safe to send to the UI — the key itself is never exposed."""
     cfg = cfg or load_cfg()
+    try:
+        from . import sysinfo
+        system = sysinfo.fit(os.environ.get("ANIMA_MODEL", ""))
+    except Exception:
+        system = {}
     return {"provider": cfg["provider"], "model": cfg["model"], "budget": cfg["budget"],
             "has_key": bool(cfg["key"]), "is_cloud": cfg["provider"] != "local",
             "spent_today": round(spent_today(), 4),
-            "honesty_verified": honesty_verified(), "eval_cmd": eval_command(),
+            "honesty_verified": honesty_verified(), "eval_cmd": eval_command(), "system": system,
             "providers": list(PRESETS), "presets": {k: {"model": v["model"]} for k, v in PRESETS.items()}}
 
 
