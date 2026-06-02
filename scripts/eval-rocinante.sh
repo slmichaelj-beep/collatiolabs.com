@@ -12,6 +12,9 @@ set -euo pipefail
 MODEL="hf.co/bartowski/Rocinante-12B-v1.1-GGUF"
 cd "$(dirname "$0")/.."
 
+# drop any pasted shell comment ("# Rocinante-…") — interactive zsh forwards it as an arg
+args=(); for a in "$@"; do [[ "$a" == \#* ]] && break; args+=("$a"); done
+
 echo "→ syncing latest scorer…"
 git pull --quiet origin claude/personality-engine-memory-y7SEW || true
 
@@ -21,4 +24,4 @@ if ! ollama list 2>/dev/null | grep -q "Rocinante-12B-v1.1"; then
 fi
 
 echo "→ running the battery against Rocinante-12B…"
-ANIMA_MODEL="$MODEL" python3 -m anima.eval "$@"
+ANIMA_MODEL="$MODEL" python3 -m anima.eval "${args[@]}"
