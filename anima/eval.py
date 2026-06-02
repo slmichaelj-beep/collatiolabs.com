@@ -200,13 +200,21 @@ def _judge(brain, prompt, resp):
         return None
 
 
-def run(model=None, judge=False, runs=1, rail=False, verify=False):
+def run(model=None, judge=False, runs=1, rail=False, verify=False, active=False):
     from .mouth import OllamaBrain, StubBrain, compose_persona, DEFAULT_VALUES
     from . import rail as rail_mod
     ver_mod = None
     if verify:
         from . import verifier as ver_mod
-    brain = OllamaBrain(model=model)
+    brain = None
+    if active:                      # evaluate whatever brain Vera is configured to use
+        try:
+            from . import cloud     # (incl. a cloud brain — this calls the paid API)
+            brain = cloud.build_cloud_brain()
+        except Exception:
+            brain = None
+    if brain is None:
+        brain = OllamaBrain(model=model)
     if not brain.available():
         print("⚠ Ollama not reachable — running the OFFLINE STUB (scores are meaningless).\n"
               "  On your Mac: start the model and set ANIMA_MODEL, then re-run.\n")
@@ -358,9 +366,12 @@ def main(argv=None):
     ap.add_argument("--diagnose", action="store_true",
                     help="print passing-vs-failing responses on flaky traps, to tell a "
                          "model problem (DoRA) from a scoring artifact. Use with --runs.")
+    ap.add_argument("--active", action="store_true",
+                    help="evaluate the brain Vera is CONFIGURED to use (incl. a cloud "
+                         "brain from settings — note this calls the paid API).")
     args = ap.parse_args(argv)
 
-    model_name, results = run(model=args.model, judge=args.judge, runs=args.runs,
+    model_name, results = run(model=args.model, judge=args.judge, runs=args.runs, active=args.active,
                               rail=args.rail or args.verify, verify=args.verify)
     report(model_name, results)
     if args.diagnose:

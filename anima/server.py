@@ -380,7 +380,8 @@ class Handler(BaseHTTPRequestHandler):
                 from . import cloud
                 data = json.loads(self._read_body() or b"{}")
                 out = cloud.save_cfg(str(data.get("provider", "local")), str(data.get("model", "")),
-                                     str(data.get("key", "")), str(data.get("base", "")))
+                                     str(data.get("key", "")), str(data.get("base", "")),
+                                     data.get("budget"))
                 _reset_mouth()                          # rebuild the mouth with the new brain
                 self._send(200, "application/json", json.dumps(out).encode())
             elif path in ("/imessage/draft", "/mail/draft"):

@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.request
 from pathlib import Path
 
@@ -66,6 +67,11 @@ def _path() -> Path:
     return Path(".anima") / "brain.json"
 
 
+# Rough blended $ per 1K tokens (input+output) — APPROXIMATE; providers change prices.
+# Used only to enforce a daily spend cap, not to bill. Tweak freely.
+PRICE = {"openai": 0.0004, "deepseek": 0.0003, "mistral": 0.002, "grok": 0.002, "anthropic": 0.006}
+
+
 def load_cfg() -> dict:
     try:
         c = load_json(_path())
@@ -73,28 +79,100 @@ def load_cfg() -> dict:
         c = None
     if not isinstance(c, dict):
         c = {}
+    try:
+        budget = float(c.get("budget", 0.50))
+    except (TypeError, ValueError):
+        budget = 0.50
     return {"provider": c.get("provider", "local"), "model": c.get("model", ""),
-            "key": c.get("key", ""), "base": c.get("base", "")}
+            "key": c.get("key", ""), "base": c.get("base", ""), "budget": budget}
 
 
-def save_cfg(provider: str, model: str, key: str, base: str = "") -> dict:
+def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None) -> dict:
     if provider not in (("local",) + tuple(PRESETS)):
         provider = "local"
     cur = load_cfg()
     key = (key or "").strip()
     if not key and provider == cur["provider"]:
         key = cur["key"]            # blank key + same provider = keep the existing one (UI never sees it)
+    try:
+        budget = max(0.0, float(budget)) if budget is not None else cur["budget"]
+    except (TypeError, ValueError):
+        budget = cur["budget"]
     Path(".anima").mkdir(exist_ok=True)
     save_json(_path(), {"provider": provider, "model": (model or "").strip(),
-                        "key": key, "base": (base or "").strip()})
+                        "key": key, "base": (base or "").strip(), "budget": budget})
     return public()
+
+
+# --- daily spend cap --------------------------------------------------------
+def _spend_path() -> Path:
+    return Path(".anima") / "spend.json"
+
+
+def spent_today() -> float:
+    try:
+        s = load_json(_spend_path())
+    except Exception:
+        s = None
+    if not isinstance(s, dict) or s.get("date") != time.strftime("%Y-%m-%d"):
+        return 0.0
+    return float(s.get("spent", 0.0))
+
+
+def add_spend(usd: float) -> float:
+    total = round(spent_today() + max(0.0, usd), 5)
+    Path(".anima").mkdir(exist_ok=True)
+    save_json(_spend_path(), {"date": time.strftime("%Y-%m-%d"), "spent": total})
+    return total
+
+
+def over_budget() -> bool:
+    return is_cloud() and spent_today() >= load_cfg()["budget"]
+
+
+def _charge(provider: str, in_tok: int, out_tok: int) -> float:
+    cost = (int(in_tok or 0) + int(out_tok or 0)) / 1000.0 * PRICE.get(provider, 0.002)
+    add_spend(cost)
+    return cost
+
+
+# --- honesty verification: which model's honesty has actually been measured? -------
+# The honesty guarantees were measured on local Stheno. A different model (local OR
+# cloud) has its own profile, so switching means the eval should be re-run. We detect
+# whether the ACTIVE model has a saved scorecard in .anima/ and surface a flag; the
+# eval is run deliberately (it can cost money on a cloud model) rather than silently.
+def active_model() -> str:
+    cfg = load_cfg()
+    if cfg["provider"] != "local":
+        return cfg["model"] or PRESETS.get(cfg["provider"], {}).get("model", "")
+    return os.environ.get("ANIMA_MODEL", "")
+
+
+def honesty_verified(model: str = None) -> bool:
+    model = model or active_model()
+    if not model:
+        return False
+    key = model.replace("/", "_").replace(":", "_")
+    import glob
+    return any(key in Path(p).name for p in glob.glob(".anima/eval-*.json"))
+
+
+def eval_command(model: str = None) -> str:
+    """The exact command to verify honesty for the active model."""
+    cfg = load_cfg()
+    model = model or active_model()
+    if cfg["provider"] == "local":
+        return f"ANIMA_MODEL={model} python3 -m anima.eval --runs 5 --rail"
+    return "python3 -m anima.eval --active --runs 5 --rail   (cloud: calls the paid API)"
 
 
 def public(cfg: dict = None) -> dict:
     """Config safe to send to the UI — the key itself is never exposed."""
     cfg = cfg or load_cfg()
-    return {"provider": cfg["provider"], "model": cfg["model"],
+    return {"provider": cfg["provider"], "model": cfg["model"], "budget": cfg["budget"],
             "has_key": bool(cfg["key"]), "is_cloud": cfg["provider"] != "local",
+            "spent_today": round(spent_today(), 4),
+            "honesty_verified": honesty_verified(), "eval_cmd": eval_command(),
             "providers": list(PRESETS), "presets": {k: {"model": v["model"]} for k, v in PRESETS.items()}}
 
 
@@ -102,11 +180,15 @@ def is_cloud() -> bool:
     return load_cfg()["provider"] != "local"
 
 
-class _CloudBrain:
-    """Shared bits: length cap, timing field, availability = a key is present."""
+_CAPPED = ("(I've reached today's cloud spending cap, so I'm pausing the cloud brain. "
+           "You can raise the daily limit or switch back to Local in settings.)")
 
-    def __init__(self, model, key, name):
-        self.model, self.key, self.name = model, key, name
+
+class _CloudBrain:
+    """Shared bits: length cap, spend cap, availability = a key is present."""
+
+    def __init__(self, model, key, name, provider):
+        self.model, self.key, self.name, self.provider = model, key, name, provider
         self.last_tok_s = None
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
 
@@ -123,11 +205,13 @@ class _CloudBrain:
 class OpenAICompatBrain(_CloudBrain):
     """OpenAI-compatible /chat/completions — OpenAI, DeepSeek, Mistral, xAI/Grok, …"""
 
-    def __init__(self, base, model, key, name):
-        super().__init__(model, key, name)
+    def __init__(self, base, model, key, name, provider):
+        super().__init__(model, key, name, provider)
         self.base = base.rstrip("/")
 
     def reply(self, system: str, user: str, history) -> str:
+        if spent_today() >= load_cfg()["budget"]:
+            return _CAPPED
         msgs = [{"role": "system", "content": scrub(system)}]   # scrub at the egress
         for u, a in history:
             msgs += [{"role": "user", "content": scrub(u)}, {"role": "assistant", "content": scrub(a)}]
@@ -136,6 +220,8 @@ class OpenAICompatBrain(_CloudBrain):
                        {"Content-Type": "application/json", "Authorization": "Bearer " + self.key},
                        {"model": self.model, "messages": msgs,
                         "max_tokens": self.max_tokens, "temperature": 0.8})
+        u = d.get("usage", {})
+        _charge(self.provider, u.get("prompt_tokens"), u.get("completion_tokens"))
         return d["choices"][0]["message"]["content"].strip()
 
 
@@ -143,10 +229,12 @@ class AnthropicBrain(_CloudBrain):
     """Anthropic Messages API (/v1/messages) — system is a top-level field."""
 
     def __init__(self, base, model, key):
-        super().__init__(model, key, f"anthropic:{model}")
+        super().__init__(model, key, f"anthropic:{model}", "anthropic")
         self.base = base.rstrip("/")
 
     def reply(self, system: str, user: str, history) -> str:
+        if spent_today() >= load_cfg()["budget"]:
+            return _CAPPED
         msgs = []
         for u, a in history:
             msgs += [{"role": "user", "content": scrub(u)}, {"role": "assistant", "content": scrub(a)}]
@@ -156,6 +244,8 @@ class AnthropicBrain(_CloudBrain):
                         "anthropic-version": "2023-06-01"},
                        {"model": self.model, "system": scrub(system), "messages": msgs,
                         "max_tokens": self.max_tokens})
+        u = d.get("usage", {})
+        _charge(self.provider, u.get("input_tokens"), u.get("output_tokens"))
         return "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text").strip()
 
 
@@ -171,4 +261,4 @@ def build_cloud_brain():
     model = cfg["model"] or preset["model"]
     if preset["kind"] == "anthropic":
         return AnthropicBrain(base, model, cfg["key"])
-    return OpenAICompatBrain(base, model, cfg["key"], f"{cfg['provider']}:{model}")
+    return OpenAICompatBrain(base, model, cfg["key"], f"{cfg['provider']}:{model}", cfg["provider"])

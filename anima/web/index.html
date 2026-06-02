@@ -74,8 +74,11 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
 #settings h2{font-size:13px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
 #sheet{flex:1;overflow-y:auto}
-#settings select,#settings #model,#settings #key{width:100%;margin-top:8px;background:#0f0f0f;
-  border:1px solid #222;color:#ddd;border-radius:8px;padding:11px;font-size:14px;box-sizing:border-box}
+#settings select,#settings #model,#settings #key,#settings #budget{width:100%;margin-top:8px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#ddd;border-radius:9px;
+  padding:11px;font-size:14px;box-sizing:border-box}
+#spend{font-size:12px;color:#8a8a8a;margin-top:9px}
+#brainNote{font-size:12px;color:#d6a23a;margin-top:9px;line-height:1.45}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px;flex:none}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -125,7 +128,10 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
   <div id="cloudFields" style="display:none">
     <input id="model" placeholder="model (optional)" autocomplete="off">
     <input id="key" type="password" placeholder="API key — stays on your Mac" autocomplete="off">
+    <input id="budget" type="number" step="0.25" min="0" placeholder="daily spend cap (USD)" autocomplete="off">
+    <div id="spend"></div>
   </div>
+  <div id="brainNote"></div>
 
   <h2 style="margin-top:22px">Capabilities</h2>
   <p class="hint">All off by default. She never sends anything without your tap to confirm.
@@ -352,7 +358,9 @@ const panel=document.getElementById('settings');
 let CAPS=null, BRAIN=null;
 const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow'),
       providerSel=document.getElementById('provider'),modelBox=document.getElementById('model'),
-      keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields');
+      keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields'),
+      budgetBox=document.getElementById('budget'),spendEl=document.getElementById('spend'),
+      brainNote=document.getElementById('brainNote');
 function renderCaps(){
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
@@ -368,6 +376,10 @@ function renderBrain(){
   modelBox.value=BRAIN.model||'';
   keyBox.value='';
   keyBox.placeholder = BRAIN.has_key ? 'key saved — leave blank to keep' : 'API key — stays on your Mac';
+  budgetBox.value = (BRAIN.budget!=null) ? BRAIN.budget : 0.50;
+  spendEl.textContent = 'spent today: $'+(BRAIN.spent_today||0).toFixed(2)+' of $'+Number(BRAIN.budget||0).toFixed(2)+' cap';
+  brainNote.textContent = BRAIN.honesty_verified ? ''
+    : '⚠ Honesty not yet verified for this model. Re-run the eval on your Mac before trusting it for honesty-critical chats.';
   applyProvider(BRAIN.provider);
 }
 providerSel.onchange=()=>{ modelBox.value=''; applyProvider(providerSel.value); };
@@ -380,7 +392,8 @@ document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
   await fetch('/brain',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
-    body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value})});
+    body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value,
+      budget:parseFloat(budgetBox.value)||0})});
   const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
   await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
