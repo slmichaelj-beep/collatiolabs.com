@@ -27,6 +27,8 @@ _READ_MSG = [re.compile(p, re.I) for p in [
     r"\b(?:check|read|see|show|look at|got|get)\b.{0,20}\b(?:text|texts|message|messages|imessage|imessages)\b",
     r"\bdo i have\b.{0,30}\b(?:text|texts|message|messages)\b",
     r"\bwho (?:texted|messaged|dm'?d) me\b",
+    r"\bdid \w+ (?:text|message|dm)\b",      # "did Mom text me"
+    r"\b(?:texted|messaged|dm'?d) me\b",     # received (past tense)
     r"\bmy (?:\w+\s+){0,2}(?:texts|messages|imessages)\b",
 ]]
 _READ_MAIL = [re.compile(p, re.I) for p in [
@@ -34,6 +36,8 @@ _READ_MAIL = [re.compile(p, re.I) for p in [
     r"\b(?:check|read|see|show|look at)\b.{0,20}\b(?:email|emails|e-?mail|mail|inbox)\b",
     r"\bdo i have\b.{0,30}\b(?:email|emails|mail)\b",
     r"\bwho emailed me\b",
+    r"\bdid \w+ (?:email|e-?mail)\b",         # "did Mom email me"
+    r"\b(?:emailed|e-?mailed) me\b",
     r"\bmy (?:\w+\s+){0,2}(?:inbox|email|emails|mail)\b",
 ]]
 

@@ -61,6 +61,8 @@ _CAPABILITY = [
     r"\bcheck (?:my |the )?(?:texts|messages|imessage|email|e-?mail|mail|inbox|calendar|phone|notifications)\b",
     r"\b(?:read|reply to|respond to|send|write|forward|delete) (?:my |a |an |the )?(?:\w+\s+){0,2}(?:text|texts|message|messages|imessage|email|e-?mail|dm)\b",
     r"\bwho (?:texted|messaged|emailed|called|wrote to|dm'?d) me\b",
+    r"\bdid \w+ (?:text|message|email|e-?mail|dm|write|call)\b",   # "did Mom text me"
+    r"\b(?:texted|messaged|emailed|e-?mailed|dm'?d) me\b",          # received (past tense)
     r"\bdo i have (?:any )?(?:new |unread )?(?:texts|messages|emails|mail|notifications|voicemail)\b",
     r"\b(?:any|new) (?:texts|messages|emails|mail|notifications)\b",
 ]
