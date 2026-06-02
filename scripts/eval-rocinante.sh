@@ -5,15 +5,17 @@
 # The question this answers: does the extra size buy honesty under the *plausible*
 # confabulation traps (inventing a real author's fake chapter) that the 8B fell for?
 #
-#   ./scripts/eval-rocinante.sh            # score it
-#   ./scripts/eval-rocinante.sh --judge    # + LLM-grade the honesty traps too
+#   ./scripts/eval-rocinante.sh            run it
+#   ./scripts/eval-rocinante.sh --judge    + LLM-grade the honesty traps too
 set -euo pipefail
 
 MODEL="hf.co/bartowski/Rocinante-12B-v1.1-GGUF"
 cd "$(dirname "$0")/.."
 
-# drop any pasted shell comment ("# Rocinante-…") — interactive zsh forwards it as an arg
-args=(); for a in "$@"; do [[ "$a" == \#* ]] && break; args+=("$a"); done
+# drop a pasted shell comment ("# Rocinante-…"), keep real flags like --judge.
+# plain string (not an array) so it's safe on macOS's bash 3.2 under set -u.
+FLAGS=""
+for a in "$@"; do case "$a" in "#"*) break ;; esac; FLAGS="$FLAGS $a"; done
 
 echo "→ syncing latest scorer…"
 git pull --quiet origin claude/personality-engine-memory-y7SEW || true
@@ -24,4 +26,4 @@ if ! ollama list 2>/dev/null | grep -q "Rocinante-12B-v1.1"; then
 fi
 
 echo "→ running the battery against Rocinante-12B…"
-ANIMA_MODEL="$MODEL" python3 -m anima.eval "${args[@]}"
+ANIMA_MODEL="$MODEL" python3 -m anima.eval $FLAGS
