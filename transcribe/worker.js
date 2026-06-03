@@ -89,6 +89,12 @@ self.addEventListener("message", async (e) => {
       task,
       return_timestamps: true,
       force_full_sequences: false,
+      // Anti-hallucination guards: stop the model from getting stuck
+      // repeating a phrase ("allowed to be allowed to be…") on hard audio,
+      // and don't let a bad chunk poison the chunks that follow it.
+      no_repeat_ngram_size: 3,
+      repetition_penalty: 1.1,
+      condition_on_prev_tokens: false,
       streamer,
     });
 
