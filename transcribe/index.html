@@ -23,6 +23,8 @@ h1{font-size:clamp(26px,4vw,36px);font-weight:600;letter-spacing:-.01em;margin-t
 .field label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 select{appearance:none;background:#111114;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px 34px 9px 12px;font:inherit;font-size:14px;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 11px center}
 select:focus{outline:none;border-color:var(--accent)}
+optgroup{background:#111114;color:var(--muted);font-style:normal;font-size:12px;letter-spacing:.08em}
+option{background:#111114;color:var(--fg)}
 
 #drop{border:1.5px dashed var(--dim);border-radius:16px;padding:56px 24px;text-align:center;transition:border-color .2s,background .2s;cursor:pointer;background:#0d0d10}
 #drop.over{border-color:var(--accent);background:#101018}
@@ -81,19 +83,28 @@ select:focus{outline:none;border-color:var(--accent)}
       <label for="lang">Language</label>
       <select id="lang">
         <option value="auto" selected>Auto-detect</option>
-        <option value="english">English</option>
-        <option value="spanish">Spanish</option>
-        <option value="french">French</option>
-        <option value="german">German</option>
-        <option value="italian">Italian</option>
-        <option value="portuguese">Portuguese</option>
-        <option value="dutch">Dutch</option>
-        <option value="russian">Russian</option>
-        <option value="chinese">Chinese</option>
-        <option value="japanese">Japanese</option>
-        <option value="korean">Korean</option>
-        <option value="arabic">Arabic</option>
-        <option value="hindi">Hindi</option>
+        <optgroup label="Primary">
+          <option value="english">English</option>
+        </optgroup>
+        <optgroup label="Spoken in Bali">
+          <option value="indonesian">Indonesian (Bahasa Indonesia)</option>
+          <option value="javanese">Javanese</option>
+          <option value="sundanese">Sundanese</option>
+        </optgroup>
+        <optgroup label="Other">
+          <option value="spanish">Spanish</option>
+          <option value="french">French</option>
+          <option value="german">German</option>
+          <option value="italian">Italian</option>
+          <option value="portuguese">Portuguese</option>
+          <option value="dutch">Dutch</option>
+          <option value="russian">Russian</option>
+          <option value="chinese">Chinese</option>
+          <option value="japanese">Japanese</option>
+          <option value="korean">Korean</option>
+          <option value="arabic">Arabic</option>
+          <option value="hindi">Hindi</option>
+        </optgroup>
       </select>
     </div>
     <div class="field">
@@ -135,6 +146,7 @@ select:focus{outline:none;border-color:var(--accent)}
 
   <div class="note">
     <b>How it works.</b> The first run downloads the chosen model into your browser cache (one-time per model), then transcribes on your device. A modern GPU (WebGPU) is dramatically faster; without one it falls back to CPU and long files can take a while. <b>Long audiobooks</b> are memory-heavy to decode in a browser — if a multi-hour file stalls, try a shorter clip or split it first.
+    <br><br><b>Languages.</b> <b>Translate</b> mode always outputs <b>English</b> (any supported language → English); it can't translate <i>into</i> other languages. For Bali, the model handles <b>Indonesian, Javanese, and Sundanese</b> well. <b>Balinese (Basa Bali)</b> and Sasak are <b>not</b> languages this model was trained on — it can't transcribe them reliably and will likely mistake them for Indonesian. For best results on bigger languages, pick the <b>Small</b> or <b>Large-v3 Turbo</b> model.
   </div>
 
   <div class="foot">collatiolabs.com — runs offline after the model loads</div>
