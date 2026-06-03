@@ -154,8 +154,9 @@ access to the GoDaddy/Cloudflare/DigitalOcean accounts**. The dashboard/account 
   `tailscale serve`, generates a token, and prints the phone URL + QR. (Start from
   `scripts/setup-mac.sh`.) This is the right way to ship to non-technical users at $0 (Tailscale
   personal tier is free; don't make users self-host).
-- **Scheduled nightly sleep** — a `launchd` job so `anima.live sleep` runs automatically
-  (the creature learns without manual triggering).
+- **Scheduled nightly sleep** — **DONE**: `scripts/install-nightly-sleep.sh` installs a
+  macOS `launchd` job so `anima.live sleep` runs nightly (the creature consolidates the
+  Portrait + grows weights without manual triggering).
 - **Headscale + Caddy** end-to-end (the §7 tasks) for the sovereign setup.
 
 ## 9. Known limitations / honest caveats (don't let these surprise you)
