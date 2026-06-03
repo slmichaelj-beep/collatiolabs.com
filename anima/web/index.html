@@ -161,7 +161,8 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
 const _u=new URL(location.href);
 let TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||"";
 if(TOKEN) localStorage.setItem('anima_token',TOKEN);
-if(_u.searchParams.has('k')){ history.replaceState(null,'',_u.pathname); }  // hide key from URL bar
+// keep ?k= IN the url: iOS home-screen apps have their own storage, so the key in the
+// saved URL is what makes a standalone (added-to-home-screen) app keep working.
 const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
@@ -284,13 +285,14 @@ async function send(text){
     const r=await fetch(muted?'/say':'/talk',{method:'POST',
       headers:{'Content-Type':'application/json',...HDR},
       body:JSON.stringify({text})});
+    if(r.status===401){ add(TOKEN?'(not signed in — reopen your link with ?k=… once)':'(open your link with ?k=vera… to sign in)','her'); setBusy(false); return; }
     const d=await r.json();
     add(d.reply,'her');
     if(d.gen_s) addMeta(d.gen_s+'s'+(d.tok_s?' · '+d.tok_s+' tok/s':''));  // reply speed, on-screen
     if(d.draft) renderDraftCard(d.draft);     // show the confirm card; sends nothing yet
     if(!muted) speak(d.reply, d.rate).finally(()=>setBusy(false));   // animate name while speaking
     else setBusy(false);
-  }catch(e){ add('(could not reach the server)','her'); setBusy(false); }
+  }catch(e){ add('(could not reach the server — is it running on your Mac?)','her'); setBusy(false); }
 }
 
 document.getElementById('f').addEventListener('submit',e=>{
