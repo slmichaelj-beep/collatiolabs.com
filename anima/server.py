@@ -320,7 +320,7 @@ class Handler(BaseHTTPRequestHandler):
             # still requires the token. The page remembers the token in localStorage,
             # so a saved/home-screen app keeps working without ?k= on every launch.
             if u.path in ("/", "/index.html"):
-                html = ((WEB / "index.html").read_text()
+                html = ((WEB / "index.html").read_text(encoding="utf-8")
                         .replace("__NAME__", self.name).replace("__TOKEN__", ""))
                 return self._send(200, "text/html; charset=utf-8", html.encode())
             if not self._authed():
