@@ -45,7 +45,30 @@ _MOUTH = None
 _EARS = None
 _VOICE = False                       # server voice mode (set at startup); the single mouth
                                      # always loads Kokoro when True, regardless of caller
-_HISTORY = deque(maxlen=6)           # recent (you, vera) turns — within-session memory
+_HISTMAX = int(os.environ.get("ANIMA_HISTORY", "24"))   # how many recent turns she keeps
+_HISTORY = deque(maxlen=_HISTMAX)    # recent (you, her) turns — persisted so a restart
+                                     # doesn't wipe her short-term memory
+
+
+def _hist_path(name):
+    return STORE / f"{name}.history.json"
+
+
+def _load_history(name):
+    """Restore the recent conversation so a server restart doesn't erase her memory."""
+    try:
+        rows = load_json(_hist_path(name))
+        if isinstance(rows, list):
+            _HISTORY.extend((u, a) for u, a in rows[-_HISTMAX:])
+    except Exception:
+        pass
+
+
+def _save_history(name):
+    try:
+        save_json(_hist_path(name), [[u, a] for u, a in _HISTORY])
+    except Exception:
+        pass
 
 
 def _mouth():
@@ -175,6 +198,7 @@ def _turn(name, text, voice=False):
                           audio_out=audio_out, perception=p, cap_note=cap_note)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         _HISTORY.append((text, u.text))           # within-session memory
+        _save_history(name)                        # survive a restart
         try:                                       # record model use for the cleanup routine
             from . import models, cloud
             if not cloud.is_cloud():
@@ -481,6 +505,7 @@ def main(argv=None):
 
     host = "0.0.0.0" if args.expose else args.host
     _ensure(args.name, args.neurons)
+    _load_history(args.name)              # bring back her recent conversation across restarts
     try:                                  # verify the key fits before serving
         load_json(_path(args.name))
     except RuntimeError as e:
