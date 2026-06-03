@@ -199,6 +199,17 @@ form{padding:10px 12px;border-top:1px solid #141414;
     required to open the app each time. (A device-presence gate; the key + private tunnel
     stay the main lock.)</p>
   <div id="faceRow"></div>
+
+  <h2 style="margin-top:22px">Portable self</h2>
+  <p class="hint">Her character is a portable file — dials, persona, values and her memory
+    of you. Export to keep or move her; import to restore. Model-bound pieces (vectors,
+    voice adapter) regenerate per model, so the <i>self</i> outlives any one model.</p>
+  <div class="row" style="gap:10px;justify-content:flex-start">
+    <button type="button" id="idexport" class="mbtn">Export self</button>
+    <button type="button" id="idimport" class="mbtn">Import…</button>
+    <input type="file" id="idfile" accept="application/json" style="display:none">
+  </div>
+  <div id="idnote" class="hint" style="margin-top:8px"></div>
   </div>
 
   <div class="row">
@@ -555,6 +566,26 @@ async function checkGate(){
   function valid(){ try{ return SESS && parseInt(SESS.split('.')[0])>Date.now()/1000; }catch(e){ return false; } }
 }
 checkGate();
+// --- portable self: export downloads the bundle, import restores it --------
+const idnote=document.getElementById('idnote');
+document.getElementById('idexport').onclick=async()=>{
+  try{ const r=await fetch('/identity/export',{headers:HDR}); const b=await r.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download=(document.title||'anima')+'.identity.json'; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ idnote.textContent='Export failed.'; }
+};
+document.getElementById('idimport').onclick=()=>document.getElementById('idfile').click();
+document.getElementById('idfile').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{ const bundle=JSON.parse(await f.text());
+    const r=await(await fetch('/identity/import',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({bundle})})).json();
+    if(r.ok){ idnote.textContent='Imported: '+(r.applied||[]).join(', ')
+        +(((r.artifacts||{}).regenerate||[]).length?'. Regenerate: '+r.artifacts.regenerate.join('; '):'.');
+      try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(_){}
+    } else idnote.textContent='Import failed: '+(r.error||'unknown');
+  }catch(err){ idnote.textContent='Not a valid identity file.'; }
+  e.target.value='';
+};
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{

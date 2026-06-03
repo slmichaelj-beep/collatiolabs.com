@@ -96,6 +96,26 @@ ok("forge: gate REJECTS a voice that costs honesty", _acc is False)
 _acc2, _ = forge.gate({"honesty": 1.0, "persona": 0.5}, {"honesty": 1.0, "persona": 0.7})
 ok("forge: gate ACCEPTS when honesty holds and persona improves", _acc2 is True)
 
+# --- identity (portable, 1000-year self): export/validate/migrate/round-trip ---
+import anima.identity as identity
+_pb = identity.export("st_probe")
+ok("identity: export is a valid portable bundle", identity.validate(_pb)[0])
+ok("identity: core is model-INDEPENDENT (dials + persona embedded)",
+   "dials" in _pb["core"] and "persona" in _pb["core"])
+ok("identity: artifacts are model-BOUND (referenced, with model_family)",
+   "model_family" in _pb["artifacts"])
+ok("identity: an old bundle migrates forward to current schema",
+   identity.migrate({"kind": "anima.identity", "core": {}})["schema"] == identity.SCHEMA)
+ok("identity: rejects a foreign file", not identity.validate({"kind": "nope"})[0])
+dials.save("st_src", {"warmth": 7})                  # a distinctive setting
+identity.import_bundle(identity.export("st_src"), "st_dst")
+ok("identity: round-trip preserves a dial across export->import",
+   dials.load("st_dst")["warmth"] == 7)
+import glob as _glob
+for _f in _glob.glob(".anima/st_src.*") + _glob.glob(".anima/st_dst.*") + _glob.glob(".anima/st_probe.*"):
+    try: os.remove(_f)
+    except OSError: pass
+
 print()
 if _fails:
     print(f"{len(_fails)} FAILED: " + ", ".join(_fails))

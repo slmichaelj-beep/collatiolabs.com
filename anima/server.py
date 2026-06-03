@@ -376,6 +376,16 @@ class Handler(BaseHTTPRequestHandler):
                 from . import dials
                 self._send(200, "application/json",
                            json.dumps({"dials": dials.ui(self.name)}).encode())
+            elif u.path == "/identity/export":
+                from . import identity
+                body = json.dumps(identity.export(self.name), ensure_ascii=False).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Disposition",
+                                 f'attachment; filename="{self.name}.identity.json"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif u.path == "/capabilities":
                 from . import caps
                 self._send(200, "application/json", json.dumps(caps.load(self.name)).encode())
@@ -454,6 +464,12 @@ class Handler(BaseHTTPRequestHandler):
                 _reset_mouth()                       # so the new manner takes effect at once
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "dials": saved}).encode())
+            elif path == "/identity/import":
+                from . import identity
+                data = json.loads(self._read_body() or b"{}")
+                out = identity.import_bundle(data.get("bundle") or data, self.name)
+                _reset_mouth()                       # adopt the imported character at once
+                self._send(200, "application/json", json.dumps(out).encode())
             elif path == "/capabilities":
                 from . import caps
                 data = json.loads(self._read_body() or b"{}")
