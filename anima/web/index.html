@@ -65,6 +65,15 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #caps .cap.soon{color:#6f6f6f}
 #caps .tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 7px;border-radius:9px}
 #caps .cap.soon .tag{color:#777;background:#1f1f1f}
+/* personality dials — frosted sliders that float on the glass */
+.dial{padding:11px 2px 13px;border-bottom:1px solid rgba(255,255,255,.05)}
+.dial:last-child{border-bottom:none}
+.dial .dl{display:flex;justify-content:space-between;font-size:13px;color:#d2d2d2;margin-bottom:9px}
+.dial .dv{color:#8b8b93;font-variant-numeric:tabular-nums;font-size:12px}
+.dial input[type=range]{width:100%;height:3px;-webkit-appearance:none;appearance:none;
+  background:rgba(255,255,255,.14);border-radius:2px;outline:none}
+.dial input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;
+  border-radius:50%;background:#e8e8ee;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer}
 .sw{appearance:none;-webkit-appearance:none;width:42px;height:26px;border-radius:13px;background:#3a3a3a;position:relative;flex:none;transition:background .2s;cursor:pointer;margin:0}
 .sw:checked{background:#2f7fff}
 .sw:disabled{opacity:.4;cursor:default}
@@ -157,6 +166,12 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
   <div id="localModels"></div>
   <div id="brainNote"></div>
+
+  <h2 style="margin-top:22px">Personality</h2>
+  <p class="hint">Tune how she comes across. These shape her <i>manner</i> — never her
+    honesty, which is fixed in code and can't be turned down. Live now; once you generate
+    control vectors on the Mac they steer the model itself, not just the prompt.</p>
+  <div id="dials"></div>
 
   <h2 style="margin-top:22px">Access</h2>
   <p class="hint">All off by default. She never sends anything without your tap to confirm.
@@ -469,10 +484,24 @@ function renderBrain(){
   applyProvider(BRAIN.provider);
 }
 providerSel.onchange=()=>{ modelBox.value=''; applyProvider(providerSel.value); };
+// --- personality dials (0–100 sliders) -------------------------------------
+const dialsBox=document.getElementById('dials');
+function renderDials(rows){
+  dialsBox.innerHTML='';
+  (rows||[]).forEach(r=>{
+    const d=document.createElement('div'); d.className='dial';
+    d.innerHTML='<div class="dl"><span>'+r.label+'</span><span class="dv">'+r.value+'</span></div>'
+      +'<input type="range" min="0" max="100" value="'+r.value+'" data-dial="'+r.key+'">';
+    const out=d.querySelector('.dv'), inp=d.querySelector('input');
+    inp.oninput=()=>{ out.textContent=inp.value; };
+    dialsBox.appendChild(d);
+  });
+}
 async function openSettings(){
   panel.classList.add('open');
   try{ const b=await fetch('/brain',{headers:HDR}); BRAIN=await b.json(); renderBrain(); }catch(e){}
   try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }catch(e){}
+  try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(e){}
   renderFaceRow();
 }
 
@@ -536,6 +565,10 @@ document.getElementById('save').onclick=async()=>{
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
   await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
     body:JSON.stringify(caps)});
+  const dvals={};
+  dialsBox.querySelectorAll('input[data-dial]').forEach(s=>{dvals[s.dataset.dial]=parseInt(s.value);});
+  await fetch('/dials',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify({dials:dvals})});
   panel.classList.remove('open');
 };
 </script>

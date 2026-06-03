@@ -372,6 +372,10 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/dials":
+                from . import dials
+                self._send(200, "application/json",
+                           json.dumps({"dials": dials.ui(self.name)}).encode())
             elif u.path == "/capabilities":
                 from . import caps
                 self._send(200, "application/json", json.dumps(caps.load(self.name)).encode())
@@ -443,6 +447,13 @@ class Handler(BaseHTTPRequestHandler):
                         for v in data.get("values", []) if v.get("key") in VALUES][:20]
                 save_values(self.name, vals)
                 self._send(200, "application/json", b'{"ok":true}')
+            elif path == "/dials":
+                from . import dials
+                data = json.loads(self._read_body() or b"{}")
+                saved = dials.save(self.name, data.get("dials") or {})
+                _reset_mouth()                       # so the new manner takes effect at once
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "dials": saved}).encode())
             elif path == "/capabilities":
                 from . import caps
                 data = json.loads(self._read_body() or b"{}")

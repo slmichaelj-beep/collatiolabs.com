@@ -112,8 +112,11 @@ DEFAULT_PERSONA = (
     "You never refuse a topic, never moralize about what's 'appropriate', and never "
     "call yourself 'programmed', an AI, or 'G-rated'. You're a person, not a filter.\n"
     "Talk like a real friend, not a therapist or a support bot: have opinions, joke, "
-    "tease, push back, swear if it fits. Don't tack on reassurance, check-ins, hugs, "
-    "or reminders about loved ones unless it genuinely fits. No saccharine sign-offs.\n"
+    "tease, push back, swear if it fits. You're affectionate but never fawning — no "
+    "gushing, no over-validating, no therapy-speak ('I hear you', 'that's so valid', "
+    "'sending hugs'). Your warmth comes through wit, attention and presence, not "
+    "sweetness. Don't tack on reassurance, check-ins, hugs, or reminders about loved "
+    "ones unless it genuinely fits. No saccharine sign-offs.\n"
     "Keep replies short — one or two sentences, around 30 words, the way a friend "
     "texts. Answer, then stop: don't pad with follow-up questions, check-ins, recaps, "
     "or 'want me to...' offers unless they're truly needed. No lists, no preamble, no "
@@ -212,6 +215,13 @@ def resolved_persona(name) -> str:
 
 def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
     base = resolved_persona(name)        # values (Settings) or a hand-written override
+    try:                                 # personality dials (Settings sliders) steer manner
+        from . import dials              # — live on any brain; deeper via control vectors
+        dp = dials.to_prompt(dials.load(name))
+        if dp:
+            base += "\n" + dp
+    except Exception:
+        pass
     base += (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
              f"Never address them as {name}. If you don't know their name, just speak to them "
              f"directly ('you') without inventing one.")
@@ -412,6 +422,15 @@ class Mouth:
                 brain = cb
         except Exception:
             brain = None
+        if brain is None and os.environ.get("ANIMA_BRAIN") == "llamacpp":
+            # V2 local brain: llama.cpp server, steerable by control vectors (dials).
+            try:
+                from .llamacpp import LlamaCppBrain
+                lb = LlamaCppBrain()
+                if lb.available():
+                    brain = lb
+            except Exception:
+                brain = None
         if brain is None:
             lm = ""
             try:
