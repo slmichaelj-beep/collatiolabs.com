@@ -175,6 +175,12 @@ def _turn(name, text, voice=False):
                           audio_out=audio_out, perception=p, cap_note=cap_note)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         _HISTORY.append((text, u.text))           # within-session memory
+        try:                                       # record model use for the cleanup routine
+            from . import models, cloud
+            if not cloud.is_cloud():
+                models.touch(models.active_local())
+        except Exception:
+            pass
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
         out = {
@@ -331,6 +337,9 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/brain":
                 from . import cloud
                 self._send(200, "application/json", json.dumps(cloud.public()).encode())
+            elif u.path == "/models":
+                from . import models
+                self._send(200, "application/json", json.dumps(models.listing()).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -385,6 +394,21 @@ class Handler(BaseHTTPRequestHandler):
                                      str(data.get("key", "")), str(data.get("base", "")),
                                      data.get("budget"))
                 _reset_mouth()                          # rebuild the mouth with the new brain
+                self._send(200, "application/json", json.dumps(out).encode())
+            elif path in ("/models/select", "/models/pull", "/models/remove", "/models/cleanup"):
+                from . import models
+                data = json.loads(self._read_body() or b"{}")
+                ref = str(data.get("ref", ""))
+                if path == "/models/select":
+                    out = models.select(ref)
+                    if out.get("ok"):
+                        _reset_mouth()                  # switch to the chosen local model
+                elif path == "/models/pull":
+                    out = models.start_pull(ref)
+                elif path == "/models/remove":
+                    out = models.remove(ref)
+                else:
+                    out = models.cleanup_unused()
                 self._send(200, "application/json", json.dumps(out).encode())
             elif path in ("/imessage/draft", "/mail/draft"):
                 data = json.loads(self._read_body() or b"{}")

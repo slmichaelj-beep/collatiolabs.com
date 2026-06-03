@@ -95,10 +95,11 @@ def load_cfg() -> dict:
     except (TypeError, ValueError):
         budget = 0.50
     return {"provider": c.get("provider", "local"), "model": c.get("model", ""),
-            "key": c.get("key", ""), "base": c.get("base", ""), "budget": budget}
+            "key": c.get("key", ""), "base": c.get("base", ""), "budget": budget,
+            "local_model": c.get("local_model", "")}
 
 
-def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None) -> dict:
+def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None, local_model=None) -> dict:
     if provider not in (("local",) + tuple(PRESETS)):
         provider = "local"
     cur = load_cfg()
@@ -109,9 +110,11 @@ def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None) -
         budget = max(0.0, float(budget)) if budget is not None else cur["budget"]
     except (TypeError, ValueError):
         budget = cur["budget"]
+    local_model = cur["local_model"] if local_model is None else (local_model or "").strip()
     Path(".anima").mkdir(exist_ok=True)
     save_json(_path(), {"provider": provider, "model": (model or "").strip(),
-                        "key": key, "base": (base or "").strip(), "budget": budget})
+                        "key": key, "base": (base or "").strip(), "budget": budget,
+                        "local_model": local_model})
     return public()
 
 

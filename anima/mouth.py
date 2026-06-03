@@ -419,7 +419,13 @@ class Mouth:
         except Exception:
             brain = None
         if brain is None:
-            brain = OllamaBrain()
+            lm = ""
+            try:
+                from . import cloud
+                lm = cloud.load_cfg().get("local_model", "")   # the model chosen in settings
+            except Exception:
+                lm = ""
+            brain = OllamaBrain(model=lm or None)
             if not (prefer_real and brain.available()):
                 brain = StubBrain()
         tts = None

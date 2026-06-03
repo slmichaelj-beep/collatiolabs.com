@@ -80,6 +80,11 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #spend{font-size:12px;color:#8a8a8a;margin-top:9px}
 #brainNote{font-size:12px;color:#d6a23a;margin-top:9px;line-height:1.45}
 #sysinfo{font-size:12px;color:#8a8a8a;margin:2px 0 4px;line-height:1.5}
+#localModels{margin-top:6px}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.mbtn{background:rgba(255,255,255,.08);border:none;color:#cfe0ff;font-size:13px;padding:7px 13px;border-radius:16px;cursor:pointer;width:auto;height:auto}
+.mbtn:active{background:rgba(255,255,255,.16)}
+.mclean{margin-top:12px;font-size:12px;color:#d6a23a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .row{display:flex;align-items:center;gap:10px;margin-top:14px;flex:none}
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
@@ -137,6 +142,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
     <input id="budget" type="number" step="0.25" min="0" placeholder="daily spend cap (USD)" autocomplete="off">
     <div id="spend"></div>
   </div>
+  <div id="localModels"></div>
   <div id="brainNote"></div>
 
   <h2 style="margin-top:22px">Access</h2>
@@ -361,7 +367,42 @@ const capsBox=document.getElementById('caps'),allowBox=document.getElementById('
       providerSel=document.getElementById('provider'),modelBox=document.getElementById('model'),
       keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields'),
       budgetBox=document.getElementById('budget'),spendEl=document.getElementById('spend'),
-      brainNote=document.getElementById('brainNote'),sysEl=document.getElementById('sysinfo');
+      brainNote=document.getElementById('brainNote'),sysEl=document.getElementById('sysinfo'),
+      localModels=document.getElementById('localModels');
+function fitBadge(v){const m={comfortable:['#46b27a','fits'],tight:['#d6a23a','tight'],'too big':['#d05a5a','too big'],unknown:['#888','?']};
+  const x=m[v]||m.unknown; return '<span style="color:'+x[0]+';font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-left:6px">'+x[1]+'</span>';}
+function renderLocalModels(L){
+  let h='';
+  (L.models||[]).forEach(m=>{
+    let act;
+    if(m.active) act='<span style="color:#46b27a;font-size:13px">✓ active</span>';
+    else if(m.fit==='too big') act='<span style="color:#666;font-size:12px">won’t fit</span>';
+    else if(m.installed) act='<button class="mbtn" data-sel="'+esc(m.ref)+'">Use</button>';
+    else if(L.pull&&L.pull.ref===m.ref&&!L.pull.done) act='<span style="color:#8ab4ff;font-size:13px">'+(L.pull.pct||0)+'%</span>';
+    else act='<button class="mbtn" data-pull="'+esc(m.ref)+'">Download</button>';
+    h+='<div class="mrow"><div><div>'+esc(m.label)+fitBadge(m.fit)+'</div>'+
+       '<div style="font-size:11px;color:#777">'+esc(m.note||'')+' · ~'+m.need_gb+' GB</div></div><div>'+act+'</div></div>';
+  });
+  const c=L.cleanup;
+  if(c&&c.candidates&&c.candidates.length)
+    h+='<div class="mclean"><span>'+c.candidates.length+' unused model'+(c.candidates.length>1?'s':'')+' using ~'+c.free_gb+' GB.</span><button class="mbtn" id="cleanbtn">Clean up</button></div>';
+  localModels.innerHTML=h;
+  localModels.querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>modelAction('/models/select',b.dataset.sel));
+  localModels.querySelectorAll('[data-pull]').forEach(b=>b.onclick=()=>modelAction('/models/pull',b.dataset.pull));
+  const cb=document.getElementById('cleanbtn');
+  if(cb) cb.onclick=()=>{ if(confirm('Remove all unused models? This frees the disk space.')) modelAction('/models/cleanup',''); };
+}
+async function fetchModels(){
+  try{ const r=await fetch('/models',{headers:HDR}); const L=await r.json(); renderLocalModels(L);
+    if(L.pull&&L.pull.ref&&!L.pull.done) setTimeout(fetchModels,1200);   // poll download progress
+  }catch(e){}
+}
+async function modelAction(path,ref){
+  try{ const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({ref})});
+    const d=await r.json(); if(d&&d.error) flash(d.error);
+  }catch(e){}
+  fetchModels();
+}
 function renderCaps(){
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
@@ -370,6 +411,7 @@ function applyProvider(p){
   const cloud=(p&&p!=='local');
   cloudFields.style.display = cloud ? 'block':'none';
   if(sysEl) sysEl.style.display = cloud ? 'none':'block';   // RAM/fit only matters for local
+  if(localModels){ localModels.style.display = cloud ? 'none':'block'; if(!cloud) fetchModels(); }
   const preset=BRAIN&&BRAIN.presets&&BRAIN.presets[p];
   modelBox.placeholder = preset ? preset.model : 'model';
   const opts=document.getElementById('modelopts');
