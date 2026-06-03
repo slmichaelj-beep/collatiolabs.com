@@ -174,6 +174,8 @@ access to the GoDaddy/Cloudflare/DigitalOcean accounts**. The dashboard/account 
 
 ## 10. Docs index
 - `docs/HANDOFF.md` — this file.
+- `docs/TECH-SPECS.md` — **complete technical spec sheet** (every engine, model, lib, param, endpoint, env var, file).
+- `docs/CHROME-SESSION-TASKS.md` — executable brief for the browser-capable session (the dashboard/account work).
 - `docs/anima-eval-findings.md` — the full eval story + measured results.
 - `docs/capability-honesty-incident.md` — the fabricated-iMessage incident + the fix.
 - `docs/anima-operator-notes.md` — external state (Tailscale, run commands, gotchas).
