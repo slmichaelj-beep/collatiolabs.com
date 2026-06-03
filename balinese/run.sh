@@ -13,12 +13,32 @@ source .venv/bin/activate
 echo ""
 echo "  Balinese transcriber"
 echo "  --------------------"
-echo "  Tip: you can drag an audio file from Finder into this window to paste its path."
-echo ""
-read -r -p "  Audio file path: " AUDIO
-# Strip surrounding quotes/spaces that drag-and-drop sometimes adds.
+
+# Accept the file as an argument (best: drag the file after './run.sh ' so the
+# shell handles spaces), otherwise ask for it.
+if [ "$#" -ge 1 ]; then
+  AUDIO="$1"
+else
+  echo "  Tip: drag an audio file from Finder into this window, then press Enter."
+  echo ""
+  read -r -p "  Audio file path: " AUDIO
+fi
+
+# Clean up the path: strip surrounding quotes and leading/trailing spaces, then
+# un-escape the backslashes Finder adds when you drag a file (\  \: \& \~ etc.).
+AUDIO="${AUDIO#"${AUDIO%%[![:space:]]*}"}"   # trim leading whitespace
+AUDIO="${AUDIO%"${AUDIO##*[![:space:]]}"}"   # trim trailing whitespace
 AUDIO="${AUDIO%\"}"; AUDIO="${AUDIO#\"}"; AUDIO="${AUDIO%\'}"; AUDIO="${AUDIO#\'}"
-AUDIO="$(echo "$AUDIO" | sed -e 's/^ *//' -e 's/ *$//')"
+AUDIO="$(printf '%s' "$AUDIO" | sed 's/\\\(.\)/\1/g')"
+
+if [ ! -f "$AUDIO" ]; then
+  echo ""
+  echo "  Still can't find that file:"
+  echo "    $AUDIO"
+  echo "  Easiest fix: run it like this and DRAG the file in after the space:"
+  echo "    ./run.sh "
+  exit 1
+fi
 
 echo ""
 echo "  Language mode:"
