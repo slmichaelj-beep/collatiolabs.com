@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transcribe — Collatio Labs</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0a;--fg:#e4e4e7;--muted:#71717a;--dim:#3f3f46;--line:#1f1f23;--accent:#6366f1;--ok:#34d399;--err:#f87171}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;-webkit-font-smoothing:antialiased;line-height:1.6;padding:48px 24px 96px}
+a{color:inherit}
+.wrap{max-width:760px;margin:0 auto}
+header{margin-bottom:40px}
+.eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.eyebrow a{text-decoration:none;color:var(--muted);transition:color .2s}
+.eyebrow a:hover{color:var(--fg)}
+h1{font-size:clamp(26px,4vw,36px);font-weight:600;letter-spacing:-.01em;margin-top:14px;color:#fff}
+.sub{margin-top:12px;color:var(--muted);font-weight:300;font-size:15px;max-width:56ch}
+
+.controls{display:flex;flex-wrap:wrap;gap:14px;margin:28px 0 20px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+select{appearance:none;background:#111114;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:9px 34px 9px 12px;font:inherit;font-size:14px;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>");background-repeat:no-repeat;background-position:right 11px center}
+select:focus{outline:none;border-color:var(--accent)}
+
+#drop{border:1.5px dashed var(--dim);border-radius:16px;padding:56px 24px;text-align:center;transition:border-color .2s,background .2s;cursor:pointer;background:#0d0d10}
+#drop.over{border-color:var(--accent);background:#101018}
+#drop.busy{cursor:default;opacity:.85}
+.drop-icon{width:40px;height:40px;margin:0 auto 16px;color:var(--dim)}
+#drop h2{font-size:17px;font-weight:500;color:var(--fg)}
+#drop p{margin-top:8px;font-size:13px;color:var(--muted);font-weight:300}
+#fileInput{display:none}
+
+.status{margin-top:24px;display:none}
+.status.show{display:block}
+.bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin-top:10px}
+.bar > i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s ease}
+.status-line{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:12px}
+.files-prog{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.fp{font-size:12px;color:var(--muted)}
+.fp .bar{margin-top:5px}
+
+.result{margin-top:32px;display:none}
+.result.show{display:block}
+.result-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.result-head h3{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{background:#141418;color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer;transition:border-color .2s,background .2s}
+.btn:hover{border-color:var(--accent);background:#17171d}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+#out{white-space:pre-wrap;word-break:break-word;background:#0d0d10;border:1px solid var(--line);border-radius:14px;padding:20px 22px;font-size:15px;line-height:1.8;min-height:120px;max-height:60vh;overflow:auto;color:#d4d4d8}
+.live-cursor::after{content:"▋";color:var(--accent);animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+.note{margin-top:40px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:#0c0c0f;font-size:13px;color:var(--muted);font-weight:300;line-height:1.7}
+.note b{color:var(--fg);font-weight:500}
+.err{color:var(--err)}
+.foot{margin-top:48px;font-size:12px;color:var(--dim);text-align:center;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><a href="/">Collatio Labs</a> &nbsp;/&nbsp; Transcribe</div>
+    <h1>Audio Transcription</h1>
+    <p class="sub">Drag in an audio file and get a text transcript. Everything runs locally in your browser — your audio is never uploaded anywhere.</p>
+  </header>
+
+  <div class="controls">
+    <div class="field">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="onnx-community/whisper-tiny">Tiny — fastest, basic accuracy (~75 MB)</option>
+        <option value="onnx-community/whisper-base" selected>Base — balanced (~145 MB)</option>
+        <option value="onnx-community/whisper-small">Small — better accuracy, slower (~480 MB)</option>
+        <option value="onnx-community/whisper-large-v3-turbo">Large-v3 Turbo — best, needs a GPU (~800 MB)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="lang">Language</label>
+      <select id="lang">
+        <option value="auto" selected>Auto-detect</option>
+        <option value="english">English</option>
+        <option value="spanish">Spanish</option>
+        <option value="french">French</option>
+        <option value="german">German</option>
+        <option value="italian">Italian</option>
+        <option value="portuguese">Portuguese</option>
+        <option value="dutch">Dutch</option>
+        <option value="russian">Russian</option>
+        <option value="chinese">Chinese</option>
+        <option value="japanese">Japanese</option>
+        <option value="korean">Korean</option>
+        <option value="arabic">Arabic</option>
+        <option value="hindi">Hindi</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="task">Task</label>
+      <select id="task">
+        <option value="transcribe" selected>Transcribe (same language)</option>
+        <option value="translate">Translate to English</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="drop">
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/>
+    </svg>
+    <h2 id="dropTitle">Drag an audio file here</h2>
+    <p id="dropHint">or click to choose — mp3, m4a, wav, ogg, flac, webm, and more</p>
+    <input type="file" id="fileInput" accept="audio/*,video/*,.mp3,.m4a,.wav,.ogg,.flac,.aac,.webm,.opus">
+  </div>
+
+  <div class="status" id="status">
+    <div class="status-line"><span id="statusText">Working…</span><span id="statusTime"></span></div>
+    <div class="bar"><i id="statusBar"></i></div>
+    <div class="files-prog" id="filesProg"></div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-head">
+      <h3 id="resultTitle">Transcript</h3>
+      <div class="actions">
+        <button class="btn" id="copyBtn">Copy</button>
+        <button class="btn" id="txtBtn">Download .txt</button>
+        <button class="btn" id="srtBtn">Download .srt</button>
+        <button class="btn" id="resetBtn">New file</button>
+      </div>
+    </div>
+    <div id="out"></div>
+  </div>
+
+  <div class="note">
+    <b>How it works.</b> The first run downloads the chosen model into your browser cache (one-time per model), then transcribes on your device. A modern GPU (WebGPU) is dramatically faster; without one it falls back to CPU and long files can take a while. <b>Long audiobooks</b> are memory-heavy to decode in a browser — if a multi-hour file stalls, try a shorter clip or split it first.
+  </div>
+
+  <div class="foot">collatiolabs.com — runs offline after the model loads</div>
+</div>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const drop = $("drop"), fileInput = $("fileInput");
+const statusEl = $("status"), statusText = $("statusText"), statusTime = $("statusTime"), statusBar = $("statusBar"), filesProg = $("filesProg");
+const resultEl = $("result"), out = $("out"), resultTitle = $("resultTitle");
+const modelSel = $("model"), langSel = $("lang"), taskSel = $("task");
+
+let worker = null;
+let busy = false;
+let currentName = "transcript";
+let lastOutput = null;
+let timer = null, startedAt = 0;
+const fileBars = new Map(); // model file -> element
+
+function fmtTime(s){const m=Math.floor(s/60),sec=Math.floor(s%60);return `${m}:${String(sec).padStart(2,"0")}`;}
+
+function setBusy(b){
+  busy = b;
+  drop.classList.toggle("busy", b);
+  [modelSel,langSel,taskSel].forEach(el=>el.disabled=b);
+}
+
+function startTimer(){startedAt=Date.now();timer=setInterval(()=>{statusTime.textContent=fmtTime((Date.now()-startedAt)/1000)+" elapsed";},500);}
+function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+
+function ensureWorker(){
+  if(worker) return worker;
+  worker = new Worker(new URL("./worker.js", import.meta.url), {type:"module"});
+  worker.addEventListener("message", onWorkerMessage);
+  worker.addEventListener("error", (e)=>showError(e.message||"Worker error. Your browser may not support this."));
+  return worker;
+}
+
+function onWorkerMessage(e){
+  const m = e.data;
+  if(m.type==="progress"){
+    handleProgress(m.data);
+  } else if(m.type==="status"){
+    if(m.data==="transcribing"){
+      filesProg.innerHTML="";
+      statusBar.style.width="100%";
+      statusText.textContent = m.device==="webgpu" ? "Transcribing on GPU…" : "Transcribing on CPU…";
+      out.classList.add("live-cursor");
+      resultEl.classList.add("show");
+    } else {
+      statusText.textContent = m.data;
+    }
+  } else if(m.type==="update"){
+    out.textContent = m.data;
+    out.scrollTop = out.scrollHeight;
+  } else if(m.type==="complete"){
+    finish(m.data);
+  } else if(m.type==="error"){
+    showError(m.data);
+  }
+}
+
+function handleProgress(p){
+  // p.status: initiate | download | progress | done | ready
+  if(p.status==="progress" && p.file){
+    let el = fileBars.get(p.file);
+    if(!el){
+      el = document.createElement("div");
+      el.className="fp";
+      el.innerHTML = `<span></span><div class="bar"><i></i></div>`;
+      filesProg.appendChild(el);
+      fileBars.set(p.file, el);
+    }
+    const pct = Math.round(p.progress||0);
+    el.querySelector("span").textContent = `${p.file.split("/").pop()} — ${pct}%`;
+    el.querySelector("i").style.width = pct+"%";
+    statusText.textContent = "Downloading model (one-time)…";
+    statusBar.style.width = "100%";
+  } else if(p.status==="done" && p.file){
+    const el = fileBars.get(p.file);
+    if(el){ el.querySelector("i").style.width="100%"; el.querySelector("span").textContent = `${p.file.split("/").pop()} — done`; }
+  }
+}
+
+async function handleFile(file){
+  if(busy || !file) return;
+  resultEl.classList.remove("show");
+  out.textContent=""; out.classList.remove("live-cursor");
+  lastOutput=null;
+  currentName = file.name.replace(/\.[^.]+$/,"") || "transcript";
+  resultTitle.textContent = `Transcript — ${file.name}`;
+  fileBars.clear(); filesProg.innerHTML="";
+
+  setBusy(true);
+  statusEl.classList.add("show");
+  statusText.textContent="Reading & decoding audio…";
+  statusBar.style.width="15%";
+  startTimer();
+
+  let audio;
+  try{
+    audio = await decodeToMono16k(file);
+  }catch(err){
+    showError("Couldn't decode that file. Try a standard audio format (mp3, m4a, wav, ogg, flac). "+(err.message||""));
+    return;
+  }
+
+  try{
+    ensureWorker().postMessage({audio, model:modelSel.value, language:langSel.value, task:taskSel.value}, [audio.buffer]);
+  }catch(err){
+    showError(err.message||"Failed to start transcription.");
+  }
+}
+
+async function decodeToMono16k(file){
+  const buf = await file.arrayBuffer();
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  let decoded;
+  try{ decoded = await ctx.decodeAudioData(buf); }
+  finally{ ctx.close && ctx.close(); }
+  const targetRate = 16000;
+  const offline = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration*targetRate)), targetRate);
+  const src = offline.createBufferSource();
+  src.buffer = decoded;
+  src.connect(offline.destination);
+  src.start();
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0); // Float32Array, mono, 16k
+}
+
+function finish(output){
+  stopTimer();
+  lastOutput = output;
+  out.textContent = (output.text||"").trim();
+  out.classList.remove("live-cursor");
+  statusText.textContent = "Done.";
+  statusEl.classList.remove("show");
+  resultEl.classList.add("show");
+  setBusy(false);
+}
+
+function showError(msg){
+  stopTimer();
+  setBusy(false);
+  statusEl.classList.add("show");
+  statusBar.style.width="0";
+  statusText.innerHTML = `<span class="err">${msg}</span>`;
+  statusTime.textContent="";
+  out.classList.remove("live-cursor");
+}
+
+// ---- SRT helpers ----
+function srtTime(t){
+  const ms = Math.floor((t%1)*1000);
+  const s = Math.floor(t)%60, m = Math.floor(t/60)%60, h = Math.floor(t/3600);
+  const p=(n,l=2)=>String(n).padStart(l,"0");
+  return `${p(h)}:${p(m)}:${p(s)},${p(ms,3)}`;
+}
+function toSRT(output){
+  const chunks = (output&&output.chunks)||[];
+  if(!chunks.length) return output.text||"";
+  return chunks.map((c,i)=>{
+    const [a,b] = c.timestamp||[0,0];
+    return `${i+1}\n${srtTime(a||0)} --> ${srtTime(b!=null?b:(a||0)+2)}\n${(c.text||"").trim()}\n`;
+  }).join("\n");
+}
+function download(name, text){
+  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+// ---- wiring ----
+drop.addEventListener("click", ()=>{ if(!busy) fileInput.click(); });
+fileInput.addEventListener("change", (e)=>{ if(e.target.files[0]) handleFile(e.target.files[0]); fileInput.value=""; });
+
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,(e)=>{e.preventDefault();if(!busy)drop.classList.add("over");}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,(e)=>{e.preventDefault();drop.classList.remove("over");}));
+drop.addEventListener("drop",(e)=>{ const f=e.dataTransfer.files[0]; if(f) handleFile(f); });
+window.addEventListener("dragover",(e)=>e.preventDefault());
+window.addEventListener("drop",(e)=>e.preventDefault());
+
+$("copyBtn").addEventListener("click", async ()=>{
+  try{ await navigator.clipboard.writeText(out.textContent); $("copyBtn").textContent="Copied"; setTimeout(()=>$("copyBtn").textContent="Copy",1500);}catch{}
+});
+$("txtBtn").addEventListener("click", ()=> download(currentName+".txt", out.textContent));
+$("srtBtn").addEventListener("click", ()=> download(currentName+".srt", lastOutput?toSRT(lastOutput):out.textContent));
+$("resetBtn").addEventListener("click", ()=>{ resultEl.classList.remove("show"); statusEl.classList.remove("show"); out.textContent=""; });
+</script>
+</body>
+</html>
