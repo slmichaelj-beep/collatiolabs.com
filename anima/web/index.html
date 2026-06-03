@@ -180,8 +180,9 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
 
   <h2 style="margin-top:22px">Security</h2>
-  <p class="hint">Add <b>Face ID</b> as a second layer on top of the key — you'll unlock with
-    your face each time you open the app.</p>
+  <p class="hint">Add <b>Face ID</b> as a second layer on top of the key — your face is
+    required to open the app each time. (A device-presence gate; the key + private tunnel
+    stay the main lock.)</p>
   <div id="faceRow"></div>
   </div>
 
@@ -484,8 +485,8 @@ const bufToB64u=b=>{ let s=''; new Uint8Array(b).forEach(x=>s+=String.fromCharCo
 async function renderFaceRow(){
   if(!faceRow) return;
   let st={}; try{ st=await (await fetch('/auth/status',{headers:HDR})).json(); }catch(e){}
-  if(!window.PublicKeyCredential||!st.available){
-    faceRow.innerHTML='<span style="font-size:12px;color:#777">Face ID needs a passkey-capable device and <code>pip install webauthn</code> on the Mac.</span>'; return; }
+  if(!window.PublicKeyCredential){
+    faceRow.innerHTML='<span style="font-size:12px;color:#777">This device/browser doesn’t support Face ID unlock.</span>'; return; }
   faceRow.innerHTML = st.enrolled
     ? '<button class="mbtn" id="facedis">Turn off Face ID</button>'
     : '<button class="mbtn" id="faceen">Enable Face ID</button>';

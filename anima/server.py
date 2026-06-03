@@ -374,11 +374,11 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/auth/register/begin":
                     out = passkey.register_begin(rp_id)
                 elif path == "/auth/register/finish":
-                    out = json.dumps(passkey.register_finish(json.dumps(data.get("cred")), rp_id, origin))
+                    out = json.dumps(passkey.register_finish(data.get("cred") or {}, rp_id, origin))
                 elif path == "/auth/login/begin":
                     out = passkey.auth_begin(rp_id) or '{"error":"not enrolled"}'
                 elif path == "/auth/login/finish":
-                    out = json.dumps(passkey.auth_finish(json.dumps(data.get("cred")), rp_id, origin))
+                    out = json.dumps(passkey.auth_finish(data.get("cred") or {}, rp_id, origin))
                 elif path == "/auth/disable" and self._passed():
                     out = json.dumps(passkey.disable())
                 else:

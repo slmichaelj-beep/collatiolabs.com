@@ -1,4 +1,1 @@
 numpy>=1.24
-
-# Optional — Face ID / Touch ID unlock (WebAuthn). Install on the Mac to enable:
-#   pip install webauthn

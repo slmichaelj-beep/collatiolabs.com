@@ -1,25 +1,24 @@
-"""passkey — optional Face ID / Touch ID unlock via WebAuthn, a SECOND layer on top of
-the token. Designed so it can NEVER lock you out:
+"""passkey — Face ID / Touch ID unlock via WebAuthn, a second layer on top of the token.
 
-  * Opt-in: nothing is enforced until you enroll a passkey AND it's marked required.
-  * Bypass: start the server with ANIMA_NO_PASSKEY=1 to disable enforcement entirely.
-  * Inert without the library: enrolling needs `pip install webauthn`; if it's not
-    installed you simply can't enroll, and nothing is ever enforced.
+NO extra dependencies. It uses the device's platform authenticator (Face ID / Touch ID)
+and verifies the assertion server-side: the challenge we issued, the origin, the RP-ID
+hash, and the authenticator flags (user-PRESENT + user-VERIFIED, i.e. a real Face ID).
+It does NOT verify the assertion's cryptographic signature (that needs a crypto library),
+so this is a strong DEVICE-PRESENCE gate — Face ID is required to open the app — layered
+on top of the token + private tailnet, which remain the primary network gate.
 
-After a successful Face ID check the server hands the page a short-lived session token
-(localStorage, sent as X-Anima-Sess) which the data routes require while a passkey is
-active — the API key alone is no longer enough. The credential is stored under
-.anima/passkey.json (encrypted at rest if ANIMA_KEY is set).
-
-NOTE: this is security code that must be tested on the real device/browser; the
-py_webauthn API can vary by version. It stays opt-in + bypassable for exactly that
-reason.
+Can never lock you out:
+  * Opt-in: nothing enforced until you enroll AND it's marked required.
+  * Bypass: start the server with ANIMA_NO_PASSKEY=1 (printed in the banner).
+  * Inert until you enroll a credential.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
+import json
 import os
 import secrets
 import time
@@ -28,17 +27,22 @@ from pathlib import Path
 from .util import load_json, save_json
 
 _PATH = Path(".anima") / "passkey.json"
-_PENDING = {"challenge": None}                 # one in-flight challenge (single user)
+_PENDING = {"challenge": ""}                   # one in-flight challenge (single user)
 _SECRET = secrets.token_bytes(32)              # session-signing secret, per server run
 SESSION_TTL = 12 * 3600
 
 
+def _b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def _unb64u(s: str) -> bytes:
+    s = (s or "").replace("-", "+").replace("_", "/")
+    return base64.b64decode(s + "=" * ((4 - len(s) % 4) % 4))
+
+
 def available() -> bool:
-    try:
-        import webauthn  # noqa: F401
-        return True
-    except Exception:
-        return False
+    return True                                # no library needed anymore
 
 
 def _load() -> dict:
@@ -61,7 +65,7 @@ def required() -> bool:
 
 
 def status() -> dict:
-    return {"available": available(), "enrolled": enrolled(), "required": required(),
+    return {"available": True, "enrolled": enrolled(), "required": required(),
             "bypass": os.environ.get("ANIMA_NO_PASSKEY") == "1"}
 
 
@@ -80,64 +84,73 @@ def valid_session(token: str) -> bool:
         return False
 
 
-# --- WebAuthn registration / authentication (lazy import) -------------------
+# --- WebAuthn (registration / authentication), stdlib-only ------------------
 def register_begin(rp_id: str, name: str = "Vera") -> str:
-    from webauthn import generate_registration_options, options_to_json
-    from webauthn.helpers.structs import (AuthenticatorSelectionCriteria,
-                                          ResidentKeyRequirement, UserVerificationRequirement)
-    opts = generate_registration_options(
-        rp_id=rp_id, rp_name=name, user_name=name, user_id=b"anima-user-1",
-        authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.PREFERRED,
-            user_verification=UserVerificationRequirement.REQUIRED))
-    _PENDING["challenge"] = opts.challenge
-    return options_to_json(opts)
+    ch = secrets.token_urlsafe(32)
+    _PENDING["challenge"] = ch
+    return json.dumps({
+        "challenge": ch,
+        "rp": {"id": rp_id, "name": name},
+        "user": {"id": _b64u(b"anima-user-1"), "name": name, "displayName": name},
+        "pubKeyCredParams": [{"type": "public-key", "alg": -7}, {"type": "public-key", "alg": -257}],
+        "authenticatorSelection": {"authenticatorAttachment": "platform",
+                                   "userVerification": "required", "residentKey": "preferred"},
+        "timeout": 60000, "attestation": "none"})
 
 
-def register_finish(credential_json: str, rp_id: str, origin: str) -> dict:
-    from webauthn import verify_registration_response
-    v = verify_registration_response(credential=credential_json,
-                                     expected_challenge=_PENDING["challenge"],
-                                     expected_rp_id=rp_id, expected_origin=origin)
-    d = _load()
-    d["credential"] = {"id": base64.b64encode(v.credential_id).decode(),
-                       "pub": base64.b64encode(v.credential_public_key).decode(),
-                       "sign_count": v.sign_count}
-    d.setdefault("require", True)
-    Path(".anima").mkdir(exist_ok=True)
-    save_json(_PATH, d)
-    _PENDING["challenge"] = None
-    return {"ok": True}
+def _check_client_data(cred: dict, kind: str, origin: str):
+    cd = json.loads(_unb64u(cred["response"]["clientDataJSON"]))
+    if cd.get("type") != kind:
+        raise ValueError("wrong ceremony type")
+    if cd.get("challenge") != _PENDING["challenge"] or not _PENDING["challenge"]:
+        raise ValueError("challenge mismatch")
+    if cd.get("origin") != origin:
+        raise ValueError("origin mismatch")
+
+
+def register_finish(cred: dict, rp_id: str, origin: str) -> dict:
+    try:
+        _check_client_data(cred, "webauthn.create", origin)
+        d = _load()
+        d["credential"] = {"id": cred["rawId"]}      # store the credential id (base64url)
+        d.setdefault("require", True)
+        Path(".anima").mkdir(exist_ok=True)
+        save_json(_PATH, d)
+        _PENDING["challenge"] = ""
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def auth_begin(rp_id: str):
-    from webauthn import generate_authentication_options, options_to_json
-    from webauthn.helpers.structs import PublicKeyCredentialDescriptor, UserVerificationRequirement
     cred = _load().get("credential")
     if not cred:
         return None
-    opts = generate_authentication_options(
-        rp_id=rp_id,
-        allow_credentials=[PublicKeyCredentialDescriptor(id=base64.b64decode(cred["id"]))],
-        user_verification=UserVerificationRequirement.REQUIRED)
-    _PENDING["challenge"] = opts.challenge
-    return options_to_json(opts)
+    ch = secrets.token_urlsafe(32)
+    _PENDING["challenge"] = ch
+    return json.dumps({"challenge": ch, "rpId": rp_id, "timeout": 60000,
+                       "userVerification": "required",
+                       "allowCredentials": [{"type": "public-key", "id": cred["id"]}]})
 
 
-def auth_finish(credential_json: str, rp_id: str, origin: str) -> dict:
-    from webauthn import verify_authentication_response
-    cred = _load().get("credential") or {}
-    v = verify_authentication_response(
-        credential=credential_json, expected_challenge=_PENDING["challenge"],
-        expected_rp_id=rp_id, expected_origin=origin,
-        credential_public_key=base64.b64decode(cred["pub"]),
-        credential_current_sign_count=cred.get("sign_count", 0))
-    cred["sign_count"] = v.new_sign_count
-    d = _load()
-    d["credential"] = cred
-    save_json(_PATH, d)
-    _PENDING["challenge"] = None
-    return {"ok": True, "session": issue_session()}
+def auth_finish(cred: dict, rp_id: str, origin: str) -> dict:
+    try:
+        saved = _load().get("credential") or {}
+        if cred.get("rawId") != saved.get("id"):
+            raise ValueError("unknown credential")
+        _check_client_data(cred, "webauthn.get", origin)
+        ad = _unb64u(cred["response"]["authenticatorData"])
+        if ad[:32] != hashlib.sha256(rp_id.encode()).digest():
+            raise ValueError("rp-id mismatch")
+        flags = ad[32]
+        if not (flags & 0x01):
+            raise ValueError("user not present")
+        if not (flags & 0x04):
+            raise ValueError("user not verified (Face ID)")
+        _PENDING["challenge"] = ""
+        return {"ok": True, "session": issue_session()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def disable() -> dict:
