@@ -278,6 +278,18 @@ class Handler(BaseHTTPRequestHandler):
             given = auth[7:]
         return hmac.compare_digest(given, self.token)   # constant-time
 
+    def _origin(self):
+        host = self.headers.get("Host", "")
+        return host.split(":")[0], f"https://{host}"     # (rp_id, origin) for WebAuthn
+
+    def _passed(self) -> bool:
+        """Second layer: when a passkey (Face ID) is required, a valid Face-ID session is
+        needed on top of the token. Inert/opt-in — returns True unless required."""
+        from . import passkey
+        if not passkey.required():
+            return True
+        return passkey.valid_session(self.headers.get("X-Anima-Sess", ""))
+
     def _send(self, code, ctype, body):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -313,6 +325,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "text/html; charset=utf-8", html.encode())
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
+            if u.path == "/auth/status":
+                from . import passkey
+                return self._send(200, "application/json", json.dumps(passkey.status()).encode())
+            if not self._passed():               # Face ID required but not unlocked this session
+                return self._send(401, "application/json", b'{"need_face_id":true}')
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
@@ -350,6 +367,25 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
             path = urlparse(self.path).path
+            if path.startswith("/auth/"):
+                from . import passkey
+                rp_id, origin = self._origin()
+                data = json.loads(self._read_body() or b"{}")
+                if path == "/auth/register/begin":
+                    out = passkey.register_begin(rp_id)
+                elif path == "/auth/register/finish":
+                    out = json.dumps(passkey.register_finish(json.dumps(data.get("cred")), rp_id, origin))
+                elif path == "/auth/login/begin":
+                    out = passkey.auth_begin(rp_id) or '{"error":"not enrolled"}'
+                elif path == "/auth/login/finish":
+                    out = json.dumps(passkey.auth_finish(json.dumps(data.get("cred")), rp_id, origin))
+                elif path == "/auth/disable" and self._passed():
+                    out = json.dumps(passkey.disable())
+                else:
+                    out = '{"ok":false,"error":"bad auth request"}'
+                return self._send(200, "application/json", out.encode())
+            if not self._passed():
+                return self._send(401, "application/json", b'{"need_face_id":true}')
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input
@@ -458,6 +494,13 @@ def main(argv=None):
           f"make sure `ollama list` shows it")
     print(f"security: auth {'ON (token required)' if Handler.token else 'OFF (no token)'} · "
           f"files {'ENCRYPTED' if crypto.enabled() else 'plaintext'}")
+    from . import passkey
+    if os.environ.get("ANIMA_NO_PASSKEY") == "1":
+        print("face id: BYPASSED (ANIMA_NO_PASSKEY=1)")
+    elif passkey.required():
+        print("face id: ON (unlock required) — bypass with ANIMA_NO_PASSKEY=1 if locked out")
+    elif passkey.enrolled():
+        print("face id: enrolled but not required")
     if args.voice:
         from .mouth import KokoroVoice
         if KokoroVoice().available():

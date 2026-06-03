@@ -89,9 +89,22 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
 .txt:active{background:#161616}
 .primary{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:11px 22px;border-radius:22px}
+#gate{display:none;position:fixed;inset:0;z-index:30;background:rgba(8,8,10,.86);
+  backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  flex-direction:column;align-items:center;justify-content:center;gap:18px}
+#gate.show{display:flex}
+#gate-face{font-size:46px}
+#gate-name{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;font-weight:400}
+#gate-btn{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:13px 26px;border-radius:24px}
+#faceRow .mbtn{margin-top:2px}
 </style>
 </head>
 <body>
+<div id="gate">
+  <div id="gate-face">🔒</div>
+  <div id="gate-name">__NAME__</div>
+  <button type="button" id="gate-btn">Unlock with Face ID</button>
+</div>
 <header>
   <button id="mute" aria-label="voice on/off"></button>
   <button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -165,6 +178,11 @@ form{padding:10px 12px;border-top:1px solid #141414;
       <textarea id="allow" placeholder="allowed sites, one per line"></textarea>
     </div>
   </div>
+
+  <h2 style="margin-top:22px">Security</h2>
+  <p class="hint">Add <b>Face ID</b> as a second layer on top of the key — you'll unlock with
+    your face each time you open the app.</p>
+  <div id="faceRow"></div>
   </div>
 
   <div class="row">
@@ -182,7 +200,9 @@ let TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||"";
 if(TOKEN) localStorage.setItem('anima_token',TOKEN);
 // keep ?k= IN the url: iOS home-screen apps have their own storage, so the key in the
 // saved URL is what makes a standalone (added-to-home-screen) app keep working.
-const HDR=TOKEN?{'X-Anima-Key':TOKEN}:{};
+// mutable so the Face-ID session can be added live after unlock (every fetch spreads ...HDR)
+const HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+let SESS=localStorage.getItem('anima_sess')||''; if(SESS) HDR['X-Anima-Sess']=SESS;
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
       titleEl=document.getElementById('title'),bar=document.getElementById('bar');
@@ -443,7 +463,59 @@ async function openSettings(){
   panel.classList.add('open');
   try{ const b=await fetch('/brain',{headers:HDR}); BRAIN=await b.json(); renderBrain(); }catch(e){}
   try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }catch(e){}
+  renderFaceRow();
 }
+
+// --- Face ID (WebAuthn passkey) — a second layer on top of the key ---------
+const faceRow=document.getElementById('faceRow'),gate=document.getElementById('gate');
+const b64uToBuf=s=>{ s=s.replace(/-/g,'+').replace(/_/g,'/'); s+='='.repeat((4-s.length%4)%4);
+  const b=atob(s),u=new Uint8Array(b.length); for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i); return u.buffer; };
+const bufToB64u=b=>{ let s=''; new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+async function renderFaceRow(){
+  if(!faceRow) return;
+  let st={}; try{ st=await (await fetch('/auth/status',{headers:HDR})).json(); }catch(e){}
+  if(!window.PublicKeyCredential||!st.available){
+    faceRow.innerHTML='<span style="font-size:12px;color:#777">Face ID needs a passkey-capable device and <code>pip install webauthn</code> on the Mac.</span>'; return; }
+  faceRow.innerHTML = st.enrolled
+    ? '<button class="mbtn" id="facedis">Turn off Face ID</button>'
+    : '<button class="mbtn" id="faceen">Enable Face ID</button>';
+  const en=document.getElementById('faceen'); if(en) en.onclick=enrollFace;
+  const dis=document.getElementById('facedis'); if(dis) dis.onclick=async()=>{ await fetch('/auth/disable',{method:'POST',headers:HDR}); renderFaceRow(); };
+}
+async function enrollFace(){
+  try{
+    const o=await (await fetch('/auth/register/begin',{method:'POST',headers:HDR})).json();
+    o.challenge=b64uToBuf(o.challenge); o.user.id=b64uToBuf(o.user.id);
+    (o.excludeCredentials||[]).forEach(c=>c.id=b64uToBuf(c.id));
+    const c=await navigator.credentials.create({publicKey:o});
+    const cred={id:c.id,rawId:bufToB64u(c.rawId),type:c.type,clientExtensionResults:{},
+      response:{attestationObject:bufToB64u(c.response.attestationObject),clientDataJSON:bufToB64u(c.response.clientDataJSON)}};
+    const r=await (await fetch('/auth/register/finish',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({cred})})).json();
+    flash(r.ok?'Face ID enabled':(r.error||'enroll failed')); renderFaceRow();
+  }catch(e){ flash('Face ID setup cancelled'); }
+}
+async function unlockFace(){
+  try{
+    const o=await (await fetch('/auth/login/begin',{method:'POST',headers:HDR})).json();
+    if(o.error){ flash(o.error); return; }
+    o.challenge=b64uToBuf(o.challenge); (o.allowCredentials||[]).forEach(c=>c.id=b64uToBuf(c.id));
+    const c=await navigator.credentials.get({publicKey:o});
+    const cred={id:c.id,rawId:bufToB64u(c.rawId),type:c.type,clientExtensionResults:{},
+      response:{authenticatorData:bufToB64u(c.response.authenticatorData),clientDataJSON:bufToB64u(c.response.clientDataJSON),
+        signature:bufToB64u(c.response.signature),userHandle:c.response.userHandle?bufToB64u(c.response.userHandle):null}};
+    const r=await (await fetch('/auth/login/finish',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({cred})})).json();
+    if(r.ok&&r.session){ SESS=r.session; HDR['X-Anima-Sess']=SESS; localStorage.setItem('anima_sess',SESS); gate.classList.remove('show'); }
+    else flash('unlock failed');
+  }catch(e){ flash('Face ID cancelled'); }
+}
+document.getElementById('gate-btn').onclick=unlockFace;
+async function checkGate(){
+  try{ const st=await (await fetch('/auth/status',{headers:HDR})).json();
+    if(st.required && !valid()){ gate.classList.add('show'); } }catch(e){}
+  function valid(){ try{ return SESS && parseInt(SESS.split('.')[0])>Date.now()/1000; }catch(e){ return false; } }
+}
+checkGate();
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
