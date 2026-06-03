@@ -13,9 +13,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 if [ ! -x ./caddy ]; then
-  echo "Building Caddy with the Cloudflare DNS plugin (one-time)…"
-  command -v xcaddy >/dev/null 2>&1 || brew install xcaddy
-  xcaddy build --with github.com/caddy-dns/cloudflare
+  echo "Downloading Caddy with the Cloudflare DNS plugin (one-time, no build tools needed)…"
+  case "$(uname -m)" in arm64) A=arm64 ;; x86_64) A=amd64 ;; *) A=amd64 ;; esac
+  curl -fsSL "https://caddyserver.com/api/download?os=darwin&arch=${A}&p=github.com/caddy-dns/cloudflare" -o caddy
+  chmod +x caddy
 fi
 
 echo "Freeing port 443 from tailscale serve (Caddy takes over)…"
