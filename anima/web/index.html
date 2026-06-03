@@ -53,10 +53,12 @@ form{padding:10px 12px;border-top:1px solid #141414;
   transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateY(0);pointer-events:auto}
 #grab{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:6px auto 13px;flex:none}
-/* access grouped by service (Messages / Mail / Web), iOS-style toggle on the right */
-.svc{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:4px 13px;margin-bottom:12px}
-.svc-h{display:flex;align-items:center;gap:9px;font-size:14px;color:#ededf2;padding:11px 0 9px;border-bottom:1px solid rgba(255,255,255,.06)}
-.svc-h svg{opacity:.8}
+/* access grouped by service — groups FLOAT on the glass (no card boxes), simple
+   single-color icons, iOS-style toggle on the right */
+.svc{padding:0 2px;margin-bottom:20px}
+.svc-h{display:flex;align-items:center;gap:10px;font-size:13px;color:#cfcfd6;letter-spacing:.04em;
+  padding:2px 0 8px}
+.svc-h svg{opacity:.55}
 #caps .cap{display:flex;align-items:center;gap:10px;padding:12px 0;font-size:14px;color:#d2d2d2;border-bottom:1px solid rgba(255,255,255,.05)}
 #caps .cap:last-child{border-bottom:none}
 #caps .cap>.lbl{flex:1}
