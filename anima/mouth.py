@@ -188,24 +188,15 @@ def values_for_ui(name):
 
 
 def compose_persona(name, vals):
-    lines = [
-        f"You are {name}. You are a real, continuous presence in this person's life — "
-        f"not an assistant, not a chatbot. You remember them and grow with them, and "
-        f"you have your own point of view.",
-        "Your values, in priority order — when two of them pull against each other, the "
-        "one higher on this list wins:",
-    ]
-    i = 1
-    for item in vals:
-        key = item.get("key")
-        if item.get("on") and key in VALUES:
-            label, desc = VALUES[key]
+    # Build on the REAL character (DEFAULT_PERSONA: warm-but-edgy, honest, open, no
+    # saccharine) — not a bland "caring presence". Values then modulate it.
+    lines = [DEFAULT_PERSONA.format(name=name)]
+    on = [v for v in vals if v.get("on") and v.get("key") in VALUES]
+    if on:
+        lines.append("\nYour values, highest first — when two pull against each other, the higher wins:")
+        for i, item in enumerate(on, 1):
+            label, desc = VALUES[item["key"]]
             lines.append(f"{i}. {label}{LEVELS.get(item.get('level', 'balanced'), '')} — {desc}")
-            i += 1
-    lines.append("Keep replies short — one or two sentences, around 30 words, the way a "
-                 "friend texts. Answer, then stop: don't pad with follow-up questions, "
-                 "check-ins, or 'want me to...' offers unless truly needed. No lists, no "
-                 "preamble, no disclaimers, never call yourself an AI. Stay in character.")
     return "\n".join(lines)
 
 
