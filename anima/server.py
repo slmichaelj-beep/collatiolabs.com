@@ -510,7 +510,7 @@ def main(argv=None):
                   "  fix: pip install kokoro soundfile  &&  brew install espeak-ng")
     from .mouth import WhisperEars
     if WhisperEars().available():
-        print("ears: Whisper large-v3-turbo (mic dictation ready)")
+        print(f"ears: Whisper {WhisperEars().model_name} (mic dictation ready)")
     else:
         print("ears: faster-whisper not installed — mic off (pip install faster-whisper)")
     Handler.name, Handler.voice = args.name, args.voice
