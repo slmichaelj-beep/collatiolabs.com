@@ -212,6 +212,14 @@ let busyN=0;
 function setBusy(on){ busyN=Math.max(0,busyN+(on?1:-1)); titleEl.classList.toggle('busy',busyN>0); }
 function flash(msg){ stateEl.textContent=msg; clearTimeout(flash._t);
   flash._t=setTimeout(()=>{ stateEl.textContent=''; },2600); }   // transient, auto-clears
+// one place to surface auth failures: 401 = either Face ID gate or a missing key
+async function authMiss(r){
+  if(!r || r.status!==401) return false;
+  let b={}; try{ b=await r.clone().json(); }catch(e){}
+  if(b.need_face_id){ const g=document.getElementById('gate'); if(g) g.classList.add('show'); }
+  else flash(TOKEN?'Not signed in — reopen your ?k=… link once':'Open your link with ?k=vera2026 to sign in');
+  return true;
+}
 
 // the conversation persists across reloads/reopens (per device) in localStorage
 const CONVO_KEY='anima_convo';
@@ -325,7 +333,7 @@ async function send(text){
     const r=await fetch(muted?'/say':'/talk',{method:'POST',
       headers:{'Content-Type':'application/json',...HDR},
       body:JSON.stringify({text})});
-    if(r.status===401){ add(TOKEN?'(not signed in — reopen your link with ?k=… once)':'(open your link with ?k=vera… to sign in)','her'); setBusy(false); return; }
+    if(await authMiss(r)){ setBusy(false); return; }
     const d=await r.json();
     add(d.reply,'her');
     if(d.gen_s) addMeta(d.gen_s+'s'+(d.tok_s?' · '+d.tok_s+' tok/s':''));  // reply speed, on-screen
@@ -362,6 +370,7 @@ async function startRecording(){
       try{
         const blob=new Blob(chunks,{type:mediaRec.mimeType||'audio/mp4'});
         const r=await fetch('/stt',{method:'POST',headers:HDR,body:blob});
+        if(await authMiss(r)) return;
         const d=await r.json();
         if(d.text && d.text.trim()) send(d.text.trim());
         else flash("didn't catch that — try again");
