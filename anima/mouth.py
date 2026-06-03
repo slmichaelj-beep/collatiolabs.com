@@ -469,6 +469,16 @@ class Mouth:
         prompt = rail.harden(user_text, capability_handled=cap_note is not None)
         if cap_note:
             prompt = f"{cap_note}\n\n{prompt}"
+        # Reply length (and therefore latency) tracks the Length dial. Short by
+        # default so she texts like a friend and finishes fast, instead of padding
+        # to a fixed 160-token cap. The slider now visibly trades speed for length.
+        try:
+            from . import dials as _dials
+            vb = _dials.load(heart.name).get("verbosity", 35)
+            if hasattr(self.brain, "max_tokens"):
+                self.brain.max_tokens = max(48, int(40 + vb * 1.2))   # v35→82, v100→160
+        except Exception:
+            pass
         import time as _time, sys as _sys
         _t0 = _time.perf_counter()
         try:
