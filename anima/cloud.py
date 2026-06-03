@@ -62,6 +62,17 @@ PRESETS = {
     "anthropic": {"base": "https://api.anthropic.com",   "model": "claude-3-5-sonnet-latest",   "kind": "anthropic"},
 }
 
+# Common model names per provider (a CAPABILITY tier you pick, not a compute size you
+# control — the provider runs it). Suggestions only; the field stays free-text since
+# providers add/rename models often.
+MODELS = {
+    "openai":    ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
+    "deepseek":  ["deepseek-chat", "deepseek-reasoner"],
+    "mistral":   ["mistral-large-latest", "mistral-small-latest"],
+    "grok":      ["grok-2-latest", "grok-2"],
+    "anthropic": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"],
+}
+
 
 def _path() -> Path:
     return Path(".anima") / "brain.json"
@@ -191,7 +202,8 @@ def public(cfg: dict = None) -> dict:
             "has_key": bool(cfg["key"]), "is_cloud": cfg["provider"] != "local",
             "spent_today": round(spent_today(), 4),
             "honesty_verified": honesty_verified(), "eval_cmd": eval_command(), "system": system,
-            "providers": list(PRESETS), "presets": {k: {"model": v["model"]} for k, v in PRESETS.items()}}
+            "providers": list(PRESETS),
+            "presets": {k: {"model": v["model"], "models": MODELS.get(k, [])} for k, v in PRESETS.items()}}
 
 
 def is_cloud() -> bool:

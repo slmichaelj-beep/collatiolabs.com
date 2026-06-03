@@ -45,18 +45,6 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #send{color:#2f7fff}
 #bar svg{display:block;pointer-events:none}
 @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(120,170,255,0)}50%{box-shadow:0 0 0 7px rgba(120,170,255,.12)}}
-/* press-and-hold the conversation to talk: a subtle "pressed into the surface" dimple
-   that gently breathes while held, then ripples outward like water on release */
-.ink{position:fixed;width:140px;height:140px;margin:-70px 0 0 -70px;border-radius:50%;
-  pointer-events:none;z-index:6;transform:scale(.45);opacity:0;
-  background:radial-gradient(circle at 50% 45%, rgba(0,0,0,.5) 0%, rgba(0,0,0,.28) 38%, rgba(120,170,255,.10) 60%, transparent 72%);
-  box-shadow:inset 0 6px 22px rgba(0,0,0,.55), inset 0 -2px 10px rgba(120,170,255,.10), 0 0 0 1px rgba(120,170,255,.14);
-  animation:inkin .22s ease-out forwards, inkbreathe 2.2s ease-in-out .22s infinite}
-@keyframes inkin{to{transform:scale(1);opacity:1}}
-@keyframes inkbreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-.ink.release{animation:inkout .42s cubic-bezier(.2,.7,.3,1) forwards}
-@keyframes inkout{0%{opacity:.9}100%{transform:scale(1.7);opacity:0;box-shadow:inset 0 0 0 rgba(0,0,0,0),0 0 0 1px rgba(120,170,255,.0)}}
-body.pressing #log{filter:brightness(.93);transition:filter .2s}
 /* settings drawer — frosted glass that slides up, leaving a sliver of chat above */
 #settings{position:fixed;left:0;right:0;bottom:0;top:46px;z-index:10;
   background:rgba(16,16,19,.62);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
@@ -65,12 +53,22 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
   transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateY(0);pointer-events:auto}
 #grab{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);margin:6px auto 13px;flex:none}
-#caps .cap{display:flex;align-items:center;gap:11px;padding:12px 2px;font-size:14px;color:#d2d2d2;border-bottom:1px solid #161616}
-#caps .cap.soon{color:#6a6a6a}
-#caps input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#2f7fff}
-#caps .tag{margin-left:auto;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 8px;border-radius:10px}
-#caps .cap.soon .tag{color:#777;background:#1a1a1a}
-#allow{width:100%;margin-top:12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:52px;box-sizing:border-box}
+/* access grouped by service (Messages / Mail / Web), iOS-style toggle on the right */
+.svc{background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:4px 13px;margin-bottom:12px}
+.svc-h{display:flex;align-items:center;gap:9px;font-size:14px;color:#ededf2;padding:11px 0 9px;border-bottom:1px solid rgba(255,255,255,.06)}
+.svc-h svg{opacity:.8}
+#caps .cap{display:flex;align-items:center;gap:10px;padding:12px 0;font-size:14px;color:#d2d2d2;border-bottom:1px solid rgba(255,255,255,.05)}
+#caps .cap:last-child{border-bottom:none}
+#caps .cap>.lbl{flex:1}
+#caps .cap.soon{color:#6f6f6f}
+#caps .tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 7px;border-radius:9px}
+#caps .cap.soon .tag{color:#777;background:#1f1f1f}
+.sw{appearance:none;-webkit-appearance:none;width:42px;height:26px;border-radius:13px;background:#3a3a3a;position:relative;flex:none;transition:background .2s;cursor:pointer;margin:0}
+.sw:checked{background:#2f7fff}
+.sw:disabled{opacity:.4;cursor:default}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw:checked::after{transform:translateX(16px)}
+#allow{width:100%;margin:4px 0 12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:50px;box-sizing:border-box}
 #settings h2{font-size:13px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:6px}
 #settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
 #sheet{flex:1;overflow-y:auto}
@@ -102,7 +100,8 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
         <path d="M19 12a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V24h2v-3.06A9 9 0 0 0 21 12h-2z"/>
       </svg>
     </button>
-    <input id="t" placeholder="say something…" autocomplete="off">
+    <input id="t" placeholder="say something…" enterkeyhint="send"
+      autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true">
     <button type="submit" id="send" aria-label="send">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M12 19V5M5 12l7-7 7 7"/>
@@ -128,23 +127,35 @@ body.pressing #log{filter:brightness(.93);transition:filter .2s}
     <option value="anthropic">Anthropic</option>
   </select>
   <div id="cloudFields" style="display:none">
-    <input id="model" placeholder="model (optional)" autocomplete="off">
+    <p class="hint" style="margin:10px 0 0">You pick the provider's <b>model</b> (a capability tier
+      like <i>gpt-4o-mini</i> vs <i>gpt-4o</i>) — not a compute size; the provider runs it.</p>
+    <input id="model" list="modelopts" placeholder="model" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <datalist id="modelopts"></datalist>
     <input id="key" type="password" placeholder="API key — stays on your Mac" autocomplete="off">
     <input id="budget" type="number" step="0.25" min="0" placeholder="daily spend cap (USD)" autocomplete="off">
     <div id="spend"></div>
   </div>
   <div id="brainNote"></div>
 
-  <h2 style="margin-top:22px">Capabilities</h2>
+  <h2 style="margin-top:22px">Access</h2>
   <p class="hint">All off by default. She never sends anything without your tap to confirm.
     (Reading texts needs Full Disk Access.)</p>
   <div id="caps">
-    <label class="cap"><input type="checkbox" data-cap="imessage_read"> Read recent messages <span class="tag">live</span></label>
-    <label class="cap"><input type="checkbox" data-cap="mail_read"> Read recent mail <span class="tag">live</span></label>
-    <label class="cap"><input type="checkbox" data-cap="imessage"> Send a text <span class="tag">live</span></label>
-    <label class="cap soon"><input type="checkbox" data-cap="mail" disabled> Send mail <span class="tag">soon</span></label>
-    <label class="cap soon"><input type="checkbox" data-cap="web" disabled> Read the web <span class="tag">soon</span></label>
-    <textarea id="allow" placeholder="web: allowed sites, one per line"></textarea>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9.6 9.6 0 0 1-4-.9L3 21l1.9-5.5a8.5 8.5 0 0 1-.9-3.9A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg> Messages</div>
+      <label class="cap"><span class="lbl">Read recent</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="imessage_read"></label>
+      <label class="cap"><span class="lbl">Send <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="imessage"></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg> Mail</div>
+      <label class="cap"><span class="lbl">Read recent</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="mail_read"></label>
+      <label class="cap soon"><span class="lbl">Send <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">soon</span> <input type="checkbox" class="sw" data-cap="mail" disabled></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Web</div>
+      <label class="cap soon"><span class="lbl">Read allow-listed sites</span> <span class="tag">soon</span> <input type="checkbox" class="sw" data-cap="web" disabled></label>
+      <textarea id="allow" placeholder="allowed sites, one per line"></textarea>
+    </div>
   </div>
   </div>
 
@@ -338,28 +349,8 @@ async function startRecording(){
 }
 function stopRecording(){ wantRec=false; if(recording && mediaRec) mediaRec.stop(); }
 mic.onclick=()=>{ if(recording) stopRecording(); else startRecording(); };
-
-// press-and-hold the conversation area to talk — looks/feels like pressing into water
-let holdTimer=null, holdAt=null, holding=false, inkEl=null;
-function makeInk(x,y){ const d=document.createElement('div'); d.className='ink';
-  d.style.left=x+'px'; d.style.top=y+'px'; document.body.appendChild(d); return d; }
-log.addEventListener('pointerdown',e=>{
-  if(e.target.closest('button,input,a,#settings')) return;     // don't hijack controls/cards
-  holdAt={x:e.clientX,y:e.clientY};
-  holdTimer=setTimeout(()=>{ holding=true; inkEl=makeInk(holdAt.x,holdAt.y);
-    document.body.classList.add('pressing'); startRecording(); },150);
-});
-log.addEventListener('pointermove',e=>{
-  if(holdAt && !holding && Math.hypot(e.clientX-holdAt.x,e.clientY-holdAt.y)>12){
-    clearTimeout(holdTimer); holdAt=null; }                    // it's a scroll, not a hold
-  if(holding && inkEl){ inkEl.style.left=e.clientX+'px'; inkEl.style.top=e.clientY+'px'; }
-});
-function endHold(){ clearTimeout(holdTimer); holdAt=null;
-  if(holding){ holding=false; document.body.classList.remove('pressing');
-    if(inkEl){ const el=inkEl; el.classList.add('release'); setTimeout(()=>el.remove(),420); inkEl=null; }
-    stopRecording(); } }
-window.addEventListener('pointerup',endHold);
-window.addEventListener('pointercancel',endHold);
+// (the press-and-hold-screen gesture was removed — it collided with iOS text
+//  selection/copy; the mic button on the left of the input is the way to talk)
 
 // --- settings: brain + capabilities ----------------------------------------
 const panel=document.getElementById('settings');
@@ -374,9 +365,14 @@ function renderCaps(){
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
 }
 function applyProvider(p){
-  cloudFields.style.display = (p&&p!=='local') ? 'block':'none';
+  const cloud=(p&&p!=='local');
+  cloudFields.style.display = cloud ? 'block':'none';
+  if(sysEl) sysEl.style.display = cloud ? 'none':'block';   // RAM/fit only matters for local
   const preset=BRAIN&&BRAIN.presets&&BRAIN.presets[p];
-  modelBox.placeholder = preset ? preset.model : 'model (optional)';
+  modelBox.placeholder = preset ? preset.model : 'model';
+  const opts=document.getElementById('modelopts');
+  if(opts){ opts.innerHTML=''; ((preset&&preset.models)||[]).forEach(m=>{
+    const o=document.createElement('option'); o.value=m; opts.appendChild(o); }); }
 }
 function renderBrain(){
   if(!BRAIN||!BRAIN.providers) return;     // guard against a partial/error /brain payload
