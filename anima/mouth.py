@@ -221,6 +221,9 @@ def resolved_persona(name) -> str:
 
 def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
     base = resolved_persona(name)        # values (Settings) or a hand-written override
+    base += (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
+             f"Never address them as {name}. If you don't know their name, just speak to them "
+             f"directly ('you') without inventing one.")
     base += (f"\nRight now, inwardly, you feel: {feeling_to_words(f)}. Let that colour "
              f"your warmth and pace, but never narrate your feelings mechanically.")
     if memory:
