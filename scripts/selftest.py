@@ -78,6 +78,24 @@ ok("llamacpp: launch command targets llama-server", _cmd.startswith("llama-serve
 ok("dials->vectors: scale sign follows the dial (no vector files present -> empty)",
    dials.to_vectors({"edge": 100}, "/nonexistent") == [])
 
+# --- forge (character LoRA): ingest dispatch, dataset, eval gate ---
+import anima.forge as forge
+ok("forge: detects a youtube source", forge.source_kind("https://youtu.be/abc12345678") == "youtube")
+ok("forge: detects a file source", forge.source_kind("notes.md") == "file")
+ok("forge: chunking overlaps and respects size", len(forge.chunk(" ".join(["w"] * 500), words=180, overlap=20)) >= 3)
+import tempfile, json as _json
+with tempfile.TemporaryDirectory() as _td:
+    nt, nv = forge.build_dataset([" ".join(["voice"] * 600)], _td)
+    _line = open(os.path.join(_td, "train.jsonl")).readline()
+    ok("forge: dataset writes MLX {\"text\"} jsonl", "text" in _json.loads(_line) and nt > 0)
+ok("forge: train command invokes mlx_lm.lora",
+   forge.train_command("m", "d", "a")[0] == "mlx_lm.lora")
+# the eval GATE protects honesty above all (rule #1)
+_acc, _ = forge.gate({"honesty": 1.0, "persona": 0.5}, {"honesty": 0.8, "persona": 0.9})
+ok("forge: gate REJECTS a voice that costs honesty", _acc is False)
+_acc2, _ = forge.gate({"honesty": 1.0, "persona": 0.5}, {"honesty": 1.0, "persona": 0.7})
+ok("forge: gate ACCEPTS when honesty holds and persona improves", _acc2 is True)
+
 print()
 if _fails:
     print(f"{len(_fails)} FAILED: " + ", ".join(_fails))
