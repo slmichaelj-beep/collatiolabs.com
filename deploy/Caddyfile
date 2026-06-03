@@ -1,0 +1,10 @@
+# Vera's HTTPS front door for vera.guruu.ai.
+# Cert is obtained via Cloudflare DNS-01 using the token in $CF_API_TOKEN (so the secret
+# is never committed). Traffic is reverse-proxied to the local Anima server on :8765.
+# Run on the Mac (binds :443 -> needs `sudo -E`). See scripts/run-caddy.sh.
+vera.guruu.ai {
+	tls {
+		dns cloudflare {env.CF_API_TOKEN}
+	}
+	reverse_proxy 127.0.0.1:8765
+}
