@@ -172,6 +172,46 @@ access to the GoDaddy/Cloudflare/DigitalOcean accounts**. The dashboard/account 
 - **Web fetch + mail-send** exist as endpoints but are **not wired into the conversation** (UI
   shows them disabled). Don't claim otherwise.
 
+## 9b. Personality engine — Builds 1–3 (the dials/forge/identity stack)
+
+The decision that ties these together: **the dials are the stable contract; the
+backend underneath is swappable.** A person's character is portable and
+model-independent; only the heavy artifacts (vectors, adapter) are model-bound and
+regenerated when the model changes. Honesty is never a dial — it stays a code rail.
+
+**Build 1 — Personality dials (`anima/dials.py`).** 8 axes (warmth, edge,
+playfulness, flirtiness, directness, openness, length, mood), 0–100, persisted to
+`.anima/<name>.dials.json`. One contract, two compilers:
+- `to_prompt()` → graded system-prompt directives. **Live now on any brain** (Ollama/
+  cloud); wired into `mouth.system_prompt`. Empathy is **down by default** (warmth 35,
+  edge 68) and the base persona gained an anti-fawning clause.
+- `to_vectors()` → `[(vector.gguf, scale)]` for **llama.cpp** control vectors (V2).
+  `anima/llamacpp.py` is the vector-aware brain (drop-in for `OllamaBrain`, selected
+  with `ANIMA_BRAIN=llamacpp`); `scripts/make_vectors.py` generates per-model vectors
+  with `repeng` (run on the Mac; needs the HF weights of the GGUF you serve).
+  Honest constraint: llama.cpp applies vectors at **model-load**, so committing a
+  slider relaunches `llama-server` (`launch_command`) — live feel still comes from the
+  prompt path. UI: sliders in the Settings drawer (`/dials` GET/POST).
+
+**Build 2 — Character Forge (`anima/forge.py`, `scripts/forge.py`).** Corpus → voice.
+Ingest **files / URLs / YouTube** → chunk → MLX-LM LoRA dataset → `mlx_lm.lora` train
+(Mac) → **eval gate** (`forge.gate`): accept the adapter **only if honesty held and
+persona didn't regress** — same accept-only-if-better discipline as sleep-learning.
+Shifts **voice/style, not knowledge and not IQ**; knowledge still belongs in
+`anima/memory.py`. Stage 1 (dataset) needs no model; stages 2–3 need MLX + the model.
+
+**Build 3 — Portable identity (`anima/identity.py`).** The "1000-year" layer. A
+versioned bundle (`SCHEMA`, `migrate()`): **portable core** = dials + persona + values
++ Portrait (plain JSON, model-independent); **artifacts** = vectors + adapter, recorded
+by **hash + model_family**, never embedded. Export/import via `/identity/export`
+(downloads `<name>.identity.json`) and `/identity/import`; UI has Export/Import in the
+"Portable self" section. On import, model-bound artifacts that don't match the current
+model are reported as **regenerate** steps — never silent breakage.
+
+All three are covered by `scripts/selftest.py` (now **36 offline checks**, CI-gated).
+**Not yet validated on hardware** (no GPU/model in the code sandbox): the actual vector
+steering, the MLX train, and the live eval gate must be exercised on the Mac.
+
 ## 10. Docs index
 - `docs/HANDOFF.md` — this file.
 - `docs/TECH-SPECS.md` — **complete technical spec sheet** (every engine, model, lib, param, endpoint, env var, file).

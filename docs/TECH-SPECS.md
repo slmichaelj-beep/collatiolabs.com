@@ -100,15 +100,28 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **App mode** | `apple-mobile-web-app-*` meta → **Add to Home Screen** runs standalone (keeps mic permission) |
 | **Face ID** | full WebAuthn client (base64url helpers, create/get), glass unlock gate overlay |
 
+## Personality engine (Builds 1–3)
+| | |
+|---|---|
+| **Dials** | `anima/dials.py` — 8 axes 0–100; `to_prompt()` (live, any brain) + `to_vectors()` (llama.cpp control vectors). Wired into `mouth.system_prompt`. Empathy **down by default** (warmth 35, edge 68). |
+| **llama.cpp brain** | `anima/llamacpp.py` — OpenAI-compat `/v1/chat/completions`; control vectors via `launch_command` (`--control-vector-scaled FILE SCALE`, applied at load). Select with `ANIMA_BRAIN=llamacpp`. |
+| **Vector gen** | `scripts/make_vectors.py` — `repeng` per-model vectors (one `.gguf` per axis) → `$ANIMA_VECTOR_DIR`. Mac-run; needs HF weights of the served GGUF. |
+| **Character Forge** | `anima/forge.py` + `scripts/forge.py` — ingest (file/URL/YouTube) → chunk → MLX-LM LoRA dataset → `mlx_lm.lora` train → **honesty-first eval gate**. Voice, not knowledge/IQ. |
+| **Portable identity** | `anima/identity.py` — versioned bundle (`SCHEMA`+`migrate()`): portable core (dials/persona/values/portrait) + model-bound artifacts by hash+family. `/identity/export`, `/identity/import`. |
+| **Tests** | `scripts/selftest.py` — **36 offline checks**. Hardware-bound steps (vector steering, MLX train, live eval) validated on the Mac only. |
+
 ## State files (`.anima/`, gitignored — local + private)
-`<name>.json` (heart) · `<name>.mem.json` (vector memory) · `<name>.history.json` (24-turn conversation) · portrait · persona · values · caps · `brain.json` (provider/model/key/budget/local_model) · `passkey.json` · `spend.json` · `model-usage.json` · `<name>.last.wav` · `sleep.log`
+`<name>.json` (heart) · `<name>.mem.json` (vector memory) · `<name>.history.json` (24-turn conversation) · portrait · persona · values · `<name>.dials.json` (personality dials) · caps · `brain.json` (provider/model/key/budget/local_model) · `passkey.json` · `spend.json` · `model-usage.json` · `<name>.last.wav` · `sleep.log` · `vectors/<axis>.gguf` (control vectors) · `forge/<name>/` (LoRA dataset + adapter + verdict)
 
 ## Environment variables (all of them)
 `ANIMA_TOKEN` (access token) · `ANIMA_MODEL` (local brain) · `ANIMA_OLLAMA_HOST` ·
 `ANIMA_KEEP_ALIVE` (model resident time) · `ANIMA_MAX_TOKENS` (reply cap) ·
 `ANIMA_WHISPER` / `ANIMA_WHISPER_COMPUTE` (STT model/precision) ·
 `ANIMA_HISTORY` (turns kept) · `ANIMA_NO_PASSKEY` (Face-ID bypass) ·
-`ANIMA_VERIFIER` (eval verifier model) · `ANIMA_KEY` (at-rest encryption of `.anima/`)
+`ANIMA_VERIFIER` (eval verifier model) · `ANIMA_KEY` (at-rest encryption of `.anima/`) ·
+`ANIMA_BRAIN` (`llamacpp` to use the vector-steerable brain) · `ANIMA_LLAMACPP_HOST` ·
+`ANIMA_VECTOR_DIR` (control-vector store) · `ANIMA_CTX` (llama.cpp context) ·
+`ANIMA_NAME` / `FORGE_ITERS` / `MODEL` (forge + vector generation)
 
 ## Networking / infra
 - **Tunnel:** Tailscale (free) + `tailscale serve` → free `*.ts.net` HTTPS cert. **Data plane = WireGuard.**
