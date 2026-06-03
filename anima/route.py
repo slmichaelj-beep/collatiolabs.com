@@ -95,21 +95,21 @@ def route(name: str, text: str):
     return None
 
 
-# Send-intent extraction. Deliberately conservative: if we can't cleanly pull a
-# recipient and a body, we return an incomplete draft and ask — we never guess a
-# recipient. The confirm card is the final safety net regardless.
+# Send-intent extraction. Anchored to an imperative at the START of the turn so the
+# nouns "message"/"text" mid-sentence ("I got your message", "the latest text from
+# work") don't fabricate a draft. Conservative: if we can't cleanly pull a recipient
+# and a body we ask rather than guess; the confirm card is the final safety net.
+_LEAD = r"^\s*(?:hey[,\s]+)?(?:can you|could you|would you|please|pls|plz)?[,\s]*"
+_NOTNAME = r"(?!me\b|my\b|to\b|the\b|that\b|this\b|a\b|an\b|some\b|messages?\b|texts?\b)"
 _SEND = [re.compile(p, re.I) for p in [
-    r"\bsend (?:a |an )?(?:text|message|imessage)\s+to\s+(?P<to>[\w'%.-]+(?:\s[\w'%.-]+){0,2}?)\s+(?:saying|that says|telling (?:them|her|him)(?: that)?|:|-)\s*(?P<body>.+)",
-    r"\b(?:text|message|imessage)\s+(?!me\b|my\b|to\b|messages?\b)(?P<to>[\w'%.-]+)\s+(?:saying\s+|that says\s+|:\s*|-\s*)?(?P<body>.+)",
-    r"\b(?:text|message|imessage)\s+(?!me\b|my\b|to\b|messages?\b)(?P<to>[\w'%.-]+)\s*(?P<body>)$",  # recipient only -> ask for the message
+    _LEAD + r"send (?:a |an )?(?:text|message|imessage|sms)\s+to\s+(?P<to>[\w'%.+-]+(?:\s[\w'%.+-]+){0,2}?)\s+(?:saying|that says|telling (?:them|her|him)(?: that)?|:|-)\s*(?P<body>.+)$",
+    _LEAD + r"(?:text|message|imessage|sms)\s+" + _NOTNAME + r"(?P<to>[\w'%.+-]+)\s+(?:saying\s+|that says\s+|:\s*|-\s*)?(?P<body>.+)$",
+    _LEAD + r"(?:text|message|imessage|sms)\s+" + _NOTNAME + r"(?P<to>[\w'%.+-]+)\s*(?P<body>)$",   # recipient only -> ask
 ]]
 
 
 def _parse_send(text: str):
     """Return {'to','body'} if this is a send request, else None. Either field may be ''."""
-    # only treat as a send if there's a send verb up front (avoids matching read asks)
-    if not re.search(r"\b(?:send|text|message|imessage)\b", text, re.I):
-        return None
     for r in _SEND:
         m = r.search(text)
         if m:

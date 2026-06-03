@@ -225,7 +225,7 @@ async function speak(text,rate){
     else if(i===0 && 'speechSynthesis' in window){     // server voice down → browser fallback
       speechSynthesis.speak(new SpeechSynthesisUtterance(text)); return;
     }
-    if(my!==speakSeq) return;
+    if(my!==speakSeq){ if(after) after.then(u=>{ if(u) URL.revokeObjectURL(u); }); return; }  // don't leak the prefetched clip
     next=after;
   }
 }
@@ -256,13 +256,14 @@ function renderDraftCard(draft){
   const c=document.createElement('button'); c.textContent='Cancel';
   c.style.cssText='background:#262626;color:#bbb;border:none;border-radius:18px;padding:8px 18px;font-size:14px';
   pendingBtns={s,c};
-  s.onclick=doSend;
-  c.onclick=()=>{ if(!pendingDraft)return; pendingDraft=null; s.disabled=c.disabled=true; c.textContent='Cancelled'; };
+  s.onclick=()=>doSend(draft,{s,c});       // each card sends ITS OWN draft (no cross-talk)
+  c.onclick=()=>{ if(pendingDraft===draft) pendingDraft=null; s.disabled=c.disabled=true; c.textContent='Cancelled'; };
   card.appendChild(s); card.appendChild(c); log.appendChild(card); log.scrollTop=log.scrollHeight;
 }
-async function doSend(){
-  if(!pendingDraft) return;
-  const draft=pendingDraft, b=pendingBtns||{}; pendingDraft=null;
+async function doSend(draft, b){
+  draft=draft||pendingDraft; b=b||pendingBtns||{};   // no args = the latest (spoken "send it")
+  if(!draft) return;
+  if(pendingDraft===draft) pendingDraft=null;
   if(b.s){ b.s.disabled=true; b.s.textContent='Sending…'; } if(b.c) b.c.disabled=true;
   try{
     const r=await fetch('/'+draft.kind+'/send',{method:'POST',
@@ -300,19 +301,21 @@ document.getElementById('f').addEventListener('submit',e=>{
 
 // Voice in two ways: tap the mic (toggle), OR press-and-hold the conversation to talk
 // (release to send), with a subtle "press into the surface" ripple. Server-side Whisper.
-let mediaRec=null, chunks=[], recording=false;
+let mediaRec=null, chunks=[], recording=false, wantRec=false;
 async function startRecording(){
   prime();
-  if(recording) return;
+  if(recording||wantRec) return;
   if(!navigator.mediaDevices || !window.MediaRecorder){
     add("Open my secure (https) address to use the mic.","her"); return;
   }
+  wantRec=true;
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    if(!wantRec){ stream.getTracks().forEach(t=>t.stop()); return; }   // released during the await — don't start
     mediaRec=new MediaRecorder(stream); chunks=[];
     mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
     mediaRec.onstop=async ()=>{
-      recording=false; mic.classList.remove('on'); bar.classList.remove('rec');
+      recording=false; wantRec=false; mic.classList.remove('on'); bar.classList.remove('rec');
       input.placeholder='say something…';
       stream.getTracks().forEach(t=>t.stop());
       if(!chunks.length) return;
@@ -329,10 +332,11 @@ async function startRecording(){
     mediaRec.start(); recording=true; mic.classList.add('on'); bar.classList.add('rec');
     input.placeholder='Listening… release to send';
   }catch(err){
+    wantRec=false;
     add("Tap 'Allow' when Safari asks for the microphone, then try again.","her");
   }
 }
-function stopRecording(){ if(recording && mediaRec) mediaRec.stop(); }
+function stopRecording(){ wantRec=false; if(recording && mediaRec) mediaRec.stop(); }
 mic.onclick=()=>{ if(recording) stopRecording(); else startRecording(); };
 
 // press-and-hold the conversation area to talk — looks/feels like pressing into water
@@ -375,7 +379,7 @@ function applyProvider(p){
   modelBox.placeholder = preset ? preset.model : 'model (optional)';
 }
 function renderBrain(){
-  if(!BRAIN) return;
+  if(!BRAIN||!BRAIN.providers) return;     // guard against a partial/error /brain payload
   const s=BRAIN.system||{};
   if(s.ram_gb){
     const vm={comfortable:['#46b27a','fits comfortably'],tight:['#d6a23a','tight — may be slow'],

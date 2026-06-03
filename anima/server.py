@@ -43,15 +43,17 @@ _lock = threading.Lock()             # serialises a turn (state read-modify-writ
 _model_lock = threading.Lock()       # guards one-time model loads
 _MOUTH = None
 _EARS = None
+_VOICE = False                       # server voice mode (set at startup); the single mouth
+                                     # always loads Kokoro when True, regardless of caller
 _HISTORY = deque(maxlen=6)           # recent (you, vera) turns — within-session memory
 
 
-def _mouth(voice):
+def _mouth():
     global _MOUTH
     if _MOUTH is None:
         with _model_lock:
             if _MOUTH is None:
-                _MOUTH = Mouth.assemble(voice=voice)   # built once, not per request
+                _MOUTH = Mouth.assemble(voice=_VOICE)   # built once with the server's voice mode
     return _MOUTH
 
 
@@ -107,7 +109,7 @@ def _tts(data):
     text = str(data.get("text", ""))[:2000].strip()
     if not text:
         return (400, "text/plain", b"empty")
-    v = getattr(_mouth(True), "voice", None)
+    v = getattr(_mouth(), "voice", None)
     if v is None:
         return (503, "text/plain", b"voice unavailable")
     try:
@@ -167,7 +169,7 @@ def _turn(name, text, voice=False):
         from . import route
         routed = route.route(name, text)
         cap_note = routed.get("note") if routed else None
-        mouth = _mouth(voice)
+        mouth = _mouth()
         _g0 = time.perf_counter()
         u = mouth.respond(heart, text, history=list(_HISTORY),
                           audio_out=audio_out, perception=p, cap_note=cap_note)
@@ -445,15 +447,17 @@ def main(argv=None):
     else:
         print("ears: faster-whisper not installed — mic off (pip install faster-whisper)")
     Handler.name, Handler.voice = args.name, args.voice
+    global _VOICE
+    _VOICE = args.voice                  # the single mouth loads Kokoro iff started with --voice
     # warm the model in the background so the FIRST turn is fast (and keep_alive holds
     # it resident after). Doesn't block listening; silent if Ollama isn't up yet.
     def _warm():
         try:
-            brain = getattr(_mouth(args.voice), "brain", None)
+            brain = getattr(_mouth(), "brain", None)
             if brain is not None and hasattr(brain, "warm") and brain.available():
                 brain.warm()
             if args.voice:                       # warm Kokoro so the first sentence is instant
-                v = getattr(_mouth(args.voice), "voice", None)
+                v = getattr(_mouth(), "voice", None)
                 if v is not None:
                     import tempfile as _tf, os as _os2
                     with _tf.NamedTemporaryFile(suffix=".wav", delete=False) as _f:

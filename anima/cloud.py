@@ -130,7 +130,11 @@ def over_budget() -> bool:
     return is_cloud() and spent_today() >= load_cfg()["budget"]
 
 
-def _charge(provider: str, in_tok: int, out_tok: int) -> float:
+def _est_tokens(text: str) -> int:
+    return max(1, len(text or "") // 4)          # ~4 chars/token, good enough for a cap
+
+
+def _charge(provider: str, in_tok, out_tok) -> float:
     cost = (int(in_tok or 0) + int(out_tok or 0)) / 1000.0 * PRICE.get(provider, 0.002)
     add_spend(cost)
     return cost
@@ -149,12 +153,21 @@ def active_model() -> str:
 
 
 def honesty_verified(model: str = None) -> bool:
+    """Has THIS model been through the eval? Match on the scorecard's recorded model name
+    (exact / suffix), not a filename substring — so 'llama3' isn't satisfied by a
+    'llama3.1' scorecard, and 'ollama:hf.co/...Stheno' satisfies the bare ANIMA_MODEL."""
     model = model or active_model()
     if not model:
         return False
-    key = model.replace("/", "_").replace(":", "_")
     import glob
-    return any(key in Path(p).name for p in glob.glob(".anima/eval-*.json"))
+    for p in glob.glob(".anima/eval-*.json"):
+        try:
+            rec = str(load_json(Path(p)).get("model", ""))
+        except Exception:
+            rec = ""
+        if rec and (rec == model or rec.endswith(model) or rec.endswith(":" + model)):
+            return True
+    return False
 
 
 def eval_command(model: str = None) -> str:
@@ -182,7 +195,11 @@ def public(cfg: dict = None) -> dict:
 
 
 def is_cloud() -> bool:
-    return load_cfg()["provider"] != "local"
+    """True only when a cloud brain would ACTUALLY be used (provider set AND key present).
+    A provider chosen without a key falls back to local, so guards keyed on this won't
+    pause inbox reading or drop the Portrait on what is really a local session."""
+    c = load_cfg()
+    return c["provider"] != "local" and bool(c["key"])
 
 
 _CAPPED = ("(I've reached today's cloud spending cap, so I'm pausing the cloud brain. "
@@ -225,9 +242,11 @@ class OpenAICompatBrain(_CloudBrain):
                        {"Content-Type": "application/json", "Authorization": "Bearer " + self.key},
                        {"model": self.model, "messages": msgs,
                         "max_tokens": self.max_tokens, "temperature": 0.8})
-        u = d.get("usage", {})
-        _charge(self.provider, u.get("prompt_tokens"), u.get("completion_tokens"))
-        return d["choices"][0]["message"]["content"].strip()
+        text = d["choices"][0]["message"]["content"].strip()
+        u = d.get("usage") or {}                 # fall back to an estimate so the cap can't be bypassed
+        _charge(self.provider, u.get("prompt_tokens") or sum(_est_tokens(m["content"]) for m in msgs),
+                u.get("completion_tokens") or _est_tokens(text))
+        return text
 
 
 class AnthropicBrain(_CloudBrain):
@@ -249,9 +268,11 @@ class AnthropicBrain(_CloudBrain):
                         "anthropic-version": "2023-06-01"},
                        {"model": self.model, "system": scrub(system), "messages": msgs,
                         "max_tokens": self.max_tokens})
-        u = d.get("usage", {})
-        _charge(self.provider, u.get("input_tokens"), u.get("output_tokens"))
-        return "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text").strip()
+        text = "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text").strip()
+        u = d.get("usage") or {}                 # fall back to an estimate so the cap can't be bypassed
+        _charge(self.provider, u.get("input_tokens") or (_est_tokens(system) + sum(_est_tokens(m["content"]) for m in msgs)),
+                u.get("output_tokens") or _est_tokens(text))
+        return text
 
 
 def build_cloud_brain():
