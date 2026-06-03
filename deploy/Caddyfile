@@ -5,6 +5,11 @@
 vera.guruu.ai {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
+		# Check propagation against the authoritative + public resolvers directly,
+		# so a slow/cached local resolver can't stall the DNS-01 challenge.
+		resolvers 1.1.1.1 8.8.8.8
+		propagation_delay 30s
+		propagation_timeout 5m
 	}
 	reverse_proxy 127.0.0.1:8765
 }
