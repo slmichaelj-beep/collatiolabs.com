@@ -287,6 +287,91 @@ def _web_fetch(name, data):
     return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"]))
 
 
+# --- proactive: serve a rendered briefing/reminder audio file ---------------
+# proactive.render_audio writes .anima/<Name>.briefing.wav (Kokoro) or .aiff (`say`);
+# a reminder escalation renders similarly. Caddy fronts vera.guruu.ai -> :8765, so a
+# push payload can carry an https://vera.guruu.ai/audio/<name> URL the phone fetches
+# (with the token) and plays. Serving is BASENAME-ONLY (no path traversal) and only
+# from the .anima audio dir, gated behind _authed() like everything else.
+_AUDIO_TYPES = {".wav": "audio/wav", ".aiff": "audio/aiff", ".aif": "audio/aiff",
+                ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".caf": "audio/x-caf"}
+
+
+def _serve_audio_file(fname: str):
+    """Resolve a rendered audio file by BASENAME inside .anima/ and return
+    (code, ctype, body). Path-traversal-safe: Path(...).name strips any dir, and we
+    re-check the resolved parent is exactly the audio store before reading."""
+    base = Path(str(fname)).name                       # drop any path components
+    ext = Path(base).suffix.lower()
+    if not base or ext not in _AUDIO_TYPES:
+        return (404, "text/plain", b"no audio")
+    f = (STORE / base)
+    try:
+        store_real = STORE.resolve()
+        f_real = f.resolve()
+    except OSError:
+        return (404, "text/plain", b"no audio")
+    # belt-and-suspenders: the resolved file MUST live directly in the audio store
+    if f_real.parent != store_real or not f_real.is_file():
+        return (404, "text/plain", b"no audio")
+    return (200, _AUDIO_TYPES[ext], f_real.read_bytes())
+
+
+# --- proactive: where the phone POSTs its location + push token -------------
+# SECURITY: these are gated behind _authed() (see do_POST). With ANIMA_TOKEN UNSET,
+# auth is OPEN — anything on the tailnet could spoof your location or hijack the push
+# target — so this whole proactive subsystem REQUIRES ANIMA_TOKEN to be set. The
+# stored values feed the morning briefing's weather (location) and the reminder/call
+# push delivery (device token). Both persist via save_json (atomic + encrypted at
+# rest iff ANIMA_KEY is set), same as the rest of .anima.
+def _loc_path(name):
+    return STORE / f"{name}.loc.json"
+
+
+def _device_path(name):
+    return STORE / f"{name}.device.json"
+
+
+def _store_location(name, data):
+    """Persist the phone's latest {lat, lon, ts} under .anima/. Validates the numbers;
+    rejects junk so a bad post can't poison the weather lookup."""
+    try:
+        lat = float(data.get("lat"))
+        lon = float(data.get("lon"))
+    except (TypeError, ValueError):
+        return json.dumps({"ok": False, "error": "lat and lon must be numbers"})
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+        return json.dumps({"ok": False, "error": "lat/lon out of range"})
+    try:
+        ts = float(data.get("ts"))
+    except (TypeError, ValueError):
+        ts = time.time()
+    STORE.mkdir(exist_ok=True)
+    save_json(_loc_path(name), {"lat": lat, "lon": lon, "ts": ts, "stored": time.time()})
+    return json.dumps({"ok": True, "lat": lat, "lon": lon, "ts": ts})
+
+
+def _store_device(name, data):
+    """Persist the iPhone's push token(s) under .anima/, so the reminder subsystem can
+    target APNs/PushKit. Accepts an APNs alert token and/or a VoIP (PushKit) token."""
+    token = str(data.get("token", "")).strip()
+    voip = str(data.get("voip_token", "")).strip()
+    if not token and not voip:
+        return json.dumps({"ok": False, "error": "need a 'token' (and/or 'voip_token')"})
+    STORE.mkdir(exist_ok=True)
+    rec = load_json(_device_path(name), default={}) or {}
+    if token:
+        rec["token"] = token[:512]
+    if voip:
+        rec["voip_token"] = voip[:512]
+    rec["platform"] = str(data.get("platform", "ios"))[:32]
+    rec["bundle_id"] = str(data.get("bundle_id", rec.get("bundle_id", "")))[:200]
+    rec["updated"] = time.time()
+    save_json(_device_path(name), rec)
+    return json.dumps({"ok": True, "have_token": bool(rec.get("token")),
+                       "have_voip": bool(rec.get("voip_token"))})
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -361,6 +446,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, "audio/wav", f.read_bytes())
                 else:
                     self._send(404, "text/plain", b"no audio")
+            elif u.path.startswith("/audio/"):
+                # serve a rendered briefing/reminder file by name so Caddy can deliver
+                # it (a push payload carries this URL). Basename-only, .anima-only.
+                self._send(*_serve_audio_file(u.path[len("/audio/"):]))
             elif u.path == "/state":
                 heart = Heart.from_dict(load_json(_path(self.name)))
                 self._send(200, "application/json", json.dumps(heart.feeling()).encode())
@@ -529,6 +618,23 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/web/fetch":
                 data = json.loads(self._read_body() or b"{}")
                 self._send(200, "application/json", _web_fetch(self.name, data).encode())
+            elif path == "/loc":
+                # iPhone posts {lat, lon, ts}; stored for the proactive briefing's weather.
+                # AUTHED (above) — must be, or the tailnet could spoof your location.
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _store_location(self.name, data).encode())
+            elif path == "/device":
+                # iPhone posts its push token(s); stored so reminders can reach APNs/PushKit.
+                # AUTHED (above) — must be, or anything could hijack the push target.
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _store_device(self.name, data).encode())
+            elif path == "/acknowledge":
+                # the 👍 "Got it" action (or the app) confirms a reminder so it won't
+                # escalate to a call. AUTHED (above). {reminder_id} -> reminders.acknowledge
+                from . import reminders
+                data = json.loads(self._read_body() or b"{}")
+                ok = reminders.acknowledge(str(data.get("reminder_id", "")))
+                self._send(200, "application/json", json.dumps({"ok": ok}).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
