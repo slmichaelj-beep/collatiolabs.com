@@ -225,8 +225,21 @@ def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> s
     base += (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
              f"Never address them as {name}. If you don't know their name, just speak to them "
              f"directly ('you') without inventing one.")
-    base += (f"\nRight now, inwardly, you feel: {feeling_to_words(f)}. Let that colour "
+    try:                                  # the bridge: speak FROM the heart's full 5-signal state
+        from .bridge import to_words as _bridge_words
+        feel = _bridge_words(f)
+    except Exception:
+        feel = feeling_to_words(f)        # fallback: the original (lossy) collapse
+    base += (f"\nRight now, inwardly, you feel: {feel}. Let that colour "
              f"your warmth and pace, but never narrate your feelings mechanically.")
+    try:                                  # her own evolving story (written in sleep) — quiet continuity
+        from . import narrative as _narrative
+        nar = _narrative.load(name)
+        if nar:
+            base += ("\nWho you've been becoming lately, in your own words (carry it as "
+                     "quiet continuity — never recite or quote it back):\n" + nar)
+    except Exception:
+        pass
     if memory:
         base += (f"\nWhat you know about them (your memory of who they are):\n{memory}\n"
                  f"Draw on it naturally when it fits — don't recite it or list it back.")
@@ -505,5 +518,10 @@ class Mouth:
         tps = f" · {tok:.0f} tok/s" if tok else ""
         print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}",
               file=_sys.stderr)
+        try:                                  # report the SAME full-state voice the model spoke from
+            from .bridge import to_words as _bw
+            feel_str = _bw(f)
+        except Exception:
+            feel_str = feeling_to_words(f)
         return Utterance(text=text, delivery=hints, backend=self.brain.name,
-                         feeling=feeling_to_words(f), audio_path=audio)
+                         feeling=feel_str, audio_path=audio)

@@ -173,8 +173,13 @@ def main(argv: list[str] | None = None) -> None:
         # 1) lasting memory: distil the day's conversation into the Portrait
         from .mouth import OllamaBrain
         brain = OllamaBrain()
-        if brain.available() and portrait.consolidate(args.name, brain):
-            print(f"{args.name} consolidated what she's learned about you (see: portrait).")
+        if brain.available():
+            from . import narrative
+            transcript = portrait.read_transcript(args.name)        # read once, BEFORE portrait clears it
+            if narrative.reflect(args.name, brain, transcript):
+                print(f"{args.name} reflected on who she's becoming (see: narrative).")
+            if portrait.consolidate(args.name, brain):
+                print(f"{args.name} consolidated what she's learned about you (see: portrait).")
         # 2) feeling: fold lived moments into long-term replay, then learn on them
         mem = Memory.load(_mem_path(args.name))
         replay = Replay.load(_replay_path(args.name))
