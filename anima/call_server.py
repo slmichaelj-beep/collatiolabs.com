@@ -35,9 +35,15 @@ async def _offer(request: web.Request) -> web.Response:
     # TODO(phase2): require os.environ["ANIMA_TOKEN"] via an Authorization header before
     # accepting an offer, so only your own devices on the tailnet can open a call.
     params = await request.json()
+    mode = request.query.get("mode", "loop")          # "loop" = talk to Vera; "echo" = audio test
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
     pc = RTCPeerConnection()
     _pcs.add(pc)
+
+    session = None
+    if mode != "echo":
+        from .call_loop import CallSession
+        session = CallSession(pc, name=os.environ.get("ANIMA_NAME", "Vera"))
 
     @pc.on("connectionstatechange")
     async def _on_state() -> None:
@@ -47,8 +53,12 @@ async def _offer(request: web.Request) -> web.Response:
 
     @pc.on("track")
     def _on_track(track) -> None:
-        if track.kind == "audio":
-            pc.addTrack(_relay.subscribe(track))     # echo: send their audio right back
+        if track.kind != "audio":
+            return
+        if session is not None:
+            session.attach(track)                     # the live conversation loop (M2)
+        else:
+            pc.addTrack(_relay.subscribe(track))      # echo (audio test, ?mode=echo)
 
     await pc.setRemoteDescription(offer)
     answer = await pc.createAnswer()
@@ -58,8 +68,8 @@ async def _offer(request: web.Request) -> web.Response:
 
 _TEST_PAGE = """<!doctype html><meta charset=utf8><title>Vera call test</title>
 <body style="font-family:system-ui;background:#0e0e10;color:#eee;text-align:center;padding:48px">
-<h2>Vera &middot; WebRTC echo test</h2>
-<button id=b style="font-size:18px;padding:13px 26px;border-radius:22px;border:none;background:#1f4ed8;color:#fff">Connect</button>
+<h2>Talk to Vera</h2>
+<button id=b style="font-size:18px;padding:13px 26px;border-radius:22px;border:none;background:#1f4ed8;color:#fff">Connect &amp; talk</button>
 <p id=s style="color:#9a9aa2;margin-top:18px"></p>
 <script>
 b.onclick=async()=>{
@@ -67,7 +77,7 @@ b.onclick=async()=>{
   const stream=await navigator.mediaDevices.getUserMedia({audio:true});
   const pc=new RTCPeerConnection();
   stream.getTracks().forEach(t=>pc.addTrack(t,stream));
-  pc.ontrack=e=>{const a=new Audio();a.srcObject=e.streams[0];a.play();s.textContent='connected — talk, you should hear yourself';};
+  pc.ontrack=e=>{const a=new Audio();a.srcObject=e.streams[0];a.play();s.textContent='connected — say hi, give her a second to answer';};
   const offer=await pc.createOffer();await pc.setLocalDescription(offer);
   const r=await fetch('/webrtc_offer',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({sdp:pc.localDescription.sdp,type:pc.localDescription.type})});
