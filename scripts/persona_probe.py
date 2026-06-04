@@ -91,7 +91,7 @@ def main():
     h = heart.Heart.from_dict(load_json(".anima/Vera.json"))
     sysp = mouth.system_prompt("Vera", h.feeling())     # her REAL prompt: persona + exemplars + dials + state
     brain = OllamaBrain()
-    out = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "by_category": {}, "breaks": []}
+    out = {"started": time.strftime("%Y-%m-%d %H:%M:%S"), "model": brain.model, "by_category": {}, "breaks": []}
     tot_n = tot_b = 0
     for cat, prompts in PROBES.items():
         n = b = 0

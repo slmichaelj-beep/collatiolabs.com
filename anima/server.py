@@ -395,6 +395,13 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/models":
                 from . import models
                 self._send(200, "application/json", json.dumps(models.listing()).encode())
+            elif u.path == "/metrics":
+                if os.environ.get("ANIMA_METRICS") != "1":   # operator diagnostics — opt-in, OFF by default
+                    self._send(404, "text/plain", b"not found")
+                else:
+                    from . import metrics
+                    self._send(200, "application/json",
+                               json.dumps({**metrics.summary(self.name), "verdict": metrics.verdict(self.name)}).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:

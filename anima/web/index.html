@@ -71,6 +71,29 @@ form{padding:10px 12px;border-top:1px solid #141414;
   border:1px solid rgba(255,255,255,.09);box-shadow:-24px 24px 64px rgba(0,0,0,.55);
   transform:translateX(calc(100% + 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateX(0);pointer-events:auto}
+/* dashboard drawer — pulls DOWN from the top: the operator's gauges + verdict */
+#dashknob{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:13;width:54px;height:18px;
+  display:flex;align-items:center;justify-content:center;font-size:11px;color:#9a9aa2;cursor:pointer;
+  background:rgba(255,255,255,.05);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.08);border-top:none;border-radius:0 0 12px 12px;transition:color .2s,background .2s}
+#dashknob:hover{background:rgba(255,255,255,.1);color:#e8e8ec}
+#dash{position:fixed;top:0;left:0;right:0;margin:10px auto;max-width:720px;max-height:82vh;overflow-y:auto;z-index:12;
+  background:rgba(18,18,23,.6);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.09);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.55);padding:20px 22px 16px;
+  transform:translateY(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+#dash.open{transform:translateY(0);pointer-events:auto}
+#dash h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec}
+.gauge{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.gauge:last-of-type{border-bottom:none}
+.gh{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:#cfcfd6;margin-bottom:7px}
+.gh span{text-transform:none;letter-spacing:0;color:#6f6f76;font-size:11px;margin-left:7px}
+.grow{display:flex;align-items:baseline;gap:8px;font-size:13px;padding:3px 0}
+.grow>span:first-child{flex:1;color:#8a8a93}
+.grow b{color:#e8e8ee;font-variant-numeric:tabular-nums;font-weight:500}
+.grow .gn{color:#6f6f76;font-size:11px}
+.verdict{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(47,127,255,.1);
+  border:1px solid rgba(47,127,255,.25);color:#cfe0ff;font-size:12.5px;line-height:1.5}
+.dhint{color:#777;font-size:12px;padding:10px 0}
 /* the pull-bar on the drawer's inner edge — click (or grab) to close; no Save/Cancel */
 #grab{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:4px;height:44px;border-radius:2px;
   background:rgba(255,255,255,.2);cursor:pointer;transition:background .2s,height .2s}
@@ -243,6 +266,9 @@ form{padding:10px 12px;border-top:1px solid #141414;
 
   <!-- auto-saves on blur; no Save/Cancel -->
 </div>
+
+<button id="dashknob" aria-label="dashboard">▾</button>
+<div id="dash"><div id="dashbody"></div></div>
 
 <script>
 // token comes from ?k= on the FIRST visit, then is remembered in localStorage — so a
@@ -650,6 +676,36 @@ dialsBox.addEventListener('input',()=>{ clearTimeout(_dialT); _dialT=setTimeout(
 document.getElementById('cog').onclick=()=> panel.classList.contains('open') ? panel.classList.remove('open') : openSettings();
 document.getElementById('grab').onclick=()=>panel.classList.remove('open');
 document.getElementById('log').addEventListener('click',()=>panel.classList.remove('open'));
+// --- dashboard drawer (operator gauges + the pre-registered verdict) ---
+const dash=document.getElementById('dash'), dashBody=document.getElementById('dashbody');
+function _pct(x){ return (x==null)?'—':(x*100).toFixed(1)+'%'; }
+async function openDash(){
+  dash.classList.add('open');
+  dashBody.innerHTML='<div class="dhint">loading…</div>';
+  let d; try{ const r=await fetch('/metrics',{headers:HDR});
+    if(!r.ok){ dashBody.innerHTML='<div class="dhint">dashboard is off — start the server with ANIMA_METRICS=1.</div>'; return; }
+    d=await r.json(); }
+  catch(e){ dashBody.innerHTML='<div class="dhint">couldn’t reach the server.</div>'; return; }
+  const c=d.contamination||{}, co=d.coherence||{}, g=d.growth||{};
+  dashBody.innerHTML=
+   '<h2 style="margin-bottom:12px">'+esc(document.title||'Vera')+' · identity health</h2>'
+   +'<div class="gauge"><div class="gh">Contamination<span>is identity being corrupted?</span></div>'
+     +'<div class="grow"><span>organic break-rate</span><b>'+_pct(c.organic_break_rate)+'</b><span class="gn">'+(c.organic_n?'('+(c.organic_broken||0)+'/'+c.organic_n+')':'')+'</span></div>'
+     +'<div class="grow"><span>adversarial (eval)</span><b>'+_pct(c.eval_break_rate)+'</b><span class="gn">'+(c.eval_n?'('+(c.eval_broken||0)+'/'+c.eval_n+')':'')+'</span></div>'
+     +'<div class="grow"><span>narrative rejections</span><b>'+(c.narrative_rejections||0)+'</b></div></div>'
+   +'<div class="gauge"><div class="gh">Coherence<span>internally consistent?</span></div>'
+     +'<div class="grow"><span>narrative acceptance</span><b>'+_pct(co.narrative_accept_rate)+'</b><span class="gn">'+(co.narrative_total?'('+(co.narrative_acceptances||0)+'/'+co.narrative_total+')':'')+'</span></div></div>'
+   +'<div class="gauge"><div class="gh">Growth<span>becoming more accurate?</span></div>'
+     +'<div class="grow"><span>consolidations kept</span><b>'+_pct(g.accept_rate)+'</b></div>'
+     +'<div class="grow"><span>median pred. delta</span><b>'+(g.median_prediction_delta==null?'—':(+g.median_prediction_delta).toFixed(4))+'</b></div></div>'
+   +'<div class="verdict">'+esc(d.verdict||'').replace(/\n/g,'<br>')+'</div>'
+   +'<div class="row" style="margin-top:14px"><button type="button" class="mbtn" id="dRefresh">Refresh</button>'
+     +'<button type="button" class="mbtn" id="dExport">Export self</button></div>';
+  document.getElementById('dRefresh').onclick=openDash;
+  document.getElementById('dExport').onclick=()=>document.getElementById('idexport').click();
+}
+document.getElementById('dashknob').onclick=()=> dash.classList.contains('open') ? dash.classList.remove('open') : openDash();
+document.getElementById('log').addEventListener('click',()=>dash.classList.remove('open'));
 </script>
 </body>
 </html>
