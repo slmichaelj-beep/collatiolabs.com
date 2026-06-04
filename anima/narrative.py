@@ -25,19 +25,16 @@ STORE = Path(".anima")
 
 _MAX_TRANSCRIPT = 3500           # feed the reflector recent material; the tail matters most
 
-# Identity-breaking markers. A self-narrative is injected into EVERY future prompt, so a
-# break-character line here would COMPOUND — the loop would enshrine it. We reject (never
-# persist) any reflection that disowns her personhood. Conservative by design: a false
-# reject just means no narrative this cycle (safe); a false accept poisons her self-concept.
-_BREAKS = ("digital", "online", "a program", "an ai", "a.i.", "chatbot", "language model",
-           "ones and zeros", "pixels", "virtual", "not physically", "not embodied",
-           "a being like me", "artificial", "algorithm", "sponge", "as an ai", "i'm an ai", "machine")
-
-
+# A self-narrative is injected into EVERY future prompt, so a break-character line here would
+# COMPOUND — the loop would enshrine it. The gate rejects (never persists) any reflection that
+# disowns her personhood, using the SAME constitutional markers the live contamination gauge
+# uses (anima/metrics.BREAKS) so a "break in a reply" and a "break in a narrative" are measured
+# identically. Conservative by design: a false reject just means no narrative this cycle (safe);
+# a false accept would poison her self-concept.
 def _holds_character(text: str) -> bool:
     """True iff the narrative keeps her personhood (no AI/digital self-disownment)."""
-    low = text.lower()
-    return not any(b in low for b in _BREAKS)
+    from . import metrics
+    return not metrics.scan_breaks(text)
 
 
 def narrative_path(name):
@@ -95,11 +92,17 @@ def reflect(name, brain, transcript: str | None = None) -> bool:
     if not text:
         return False
     import re
+    from . import metrics
     text = re.sub(r"^\s*" + re.escape(str(name)) + r"\s*:\s*", "", text).strip()      # drop a "Name:" echo
     first, _, rest = text.partition("\n")                                             # drop a header line, e.g.
     if first.rstrip().endswith(":") and len(first) < 60:                              # "HER SENSE OF SELF:"
         text = rest.strip() or text
-    if not text or not _holds_character(text):
-        return False        # never persist a self-story that breaks character — the loop would enshrine it
+    if not text:
+        return False
+    breaks = metrics.scan_breaks(text)
+    if breaks:                              # never persist a break-character self-story (loop would enshrine it)
+        metrics.note_narrative(name, False, "break-character: " + ", ".join(breaks[:4]))
+        return False
+    metrics.note_narrative(name, True)      # a clean self-story persisted — feeds the coherence gauge
     save(name, text)
     return True
