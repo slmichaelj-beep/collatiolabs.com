@@ -1,6 +1,9 @@
 # personal creature state — each anima's life is private and machine-local
 .anima/
 
+# the Caddy binary (48MB Mach-O; downloaded per-machine, not source)
+/caddy
+
 # python
 __pycache__/
 *.py[cod]

@@ -87,34 +87,61 @@ didn't** (the "Sarah" incident, §4).
 ## 5. Running & operating
 - **Local (Mac browser):** `http://localhost:8765/?k=<token>` — localhost is a secure context,
   so mic + Touch ID work with no cert.
-- **Phone:** needs valid HTTPS (mic + Face ID require it). Today via `tailscale serve` (free
-  `.ts.net` cert). Token rides in the URL `?k=` (remembered in localStorage; public app shell).
+- **Phone:** needs valid HTTPS (mic + Face ID require it). **As of 2026-06-03: `https://vera.guruu.ai/`**
+  (Caddy launchd daemon, real Let's Encrypt cert over the Tailscale tunnel — see §6). Auth is
+  currently OFF, so no `?k=` token; when on, the token rides in the URL `?k=` (remembered in
+  localStorage; public app shell). The old `tailscale serve` `.ts.net` cert is superseded.
 - **Sleep/learn is manual:** `python3 -m anima.live sleep Vera` (consolidates the Portrait +
   may grow LTC weights). Not scheduled — see future work.
 - **Operator state** (Tailscale devices, run commands, gotchas) is in `docs/anima-operator-notes.md`.
 
 ## 6. Infrastructure (current + the chosen direction)
-- **Today:** Tailscale (free tier) + `tailscale serve` for the HTTPS tunnel.
-- **Chosen direction (sovereignty):** Headscale on a **DigitalOcean** droplet (own the
-  coordination metadata) + **Caddy** on the Mac for the cert. Domain chosen: **`vera.guruu.ai`**.
+- **Today (DONE 2026-06-03 — Track A complete):** `https://vera.guruu.ai/` is **live with a
+  real Let's Encrypt cert.** **Caddy** on the Mac terminates TLS (cert via Cloudflare
+  **DNS-01**, required because the `vera` A-record is the Mac's private Tailscale IP) and
+  reverse-proxies to Vera on `127.0.0.1:8765`. Caddy runs as a **root launchd daemon**
+  (`ai.vera.caddy`, plist at `/Library/LaunchDaemons/`, wrapper `scripts/caddy-daemon.sh`,
+  config `deploy/Caddyfile`) → survives reboots, auto-renews. **Tailscale is still the
+  tunnel** — Caddy only replaced `tailscale serve`. DNS is on Cloudflare (Free zone,
+  nameservers `edward`/`leanna.ns.cloudflare.com`); the token lives only in
+  `~/.cf-vera-token` (0600). **Phone URL:** `https://vera.guruu.ai/` (auth OFF → no `?k=`);
+  **on the Mac:** `http://localhost:8765/` (the Mac can't reach its own tailnet IP). The
+  earlier `tailscale serve` `.ts.net` URL is now superseded.
+- **Optional next step (sovereignty), NOT done — "Track B":** Headscale on a **DigitalOcean**
+  droplet to own the coordination metadata too. Still purely optional; Vera works fully
+  without it. (`docs/self-hosting-digitalocean.md`.)
 - **Latency is NOT a networking concern** — the tunnel is ~tens of ms; Vera's STT+LLM+TTS is
   seconds. The model dominates.
-- Step-by-step guides (everything the other session needs to click/run):
-  - `docs/vera-domain-setup.md` — GoDaddy → Cloudflare DNS → Caddy → valid HTTPS.
-  - `docs/self-hosting-network.md` — Headscale vs Tailscale, the honest tradeoffs.
-  - `docs/self-hosting-digitalocean.md` — Headscale + DERP on a droplet.
+- **The 3 gotchas that bit us (see `docs/vera-domain-setup.md` §7 / operator notes):**
+  (1) NordVPN on the Mac breaks the Tailscale path — pause it; (2) the Mac can't reach its
+  own tailnet IP, so test from the phone; (3) launchd has no `$HOME` → `export
+  HOME=/var/root` in the wrapper. Cloudflare's auto-scan also missed the Clerk DNS records
+  (re-added manually).
+- Step-by-step guides:
+  - `docs/vera-domain-setup.md` — **AS-BUILT** GoDaddy → Cloudflare DNS → Caddy launchd
+    daemon → valid HTTPS, plus the 3 gotchas.
+  - `docs/self-hosting-network.md` — Headscale vs Tailscale, the honest tradeoffs (Track B).
+  - `docs/self-hosting-digitalocean.md` — Headscale + DERP on a droplet (Track B, optional).
 
 ## 7. What the OTHER (Chrome/Cowork) session must do — this code session can't
-This "Claude Code on the web" session runs in a cloud sandbox with **no browser** and **no
-access to the GoDaddy/Cloudflare/DigitalOcean accounts**. The dashboard/account work is for a
-**local browser-capable session**:
-1. **GoDaddy** → point `guruu.ai` nameservers at Cloudflare. (`docs/vera-domain-setup.md` §1–2)
-2. **Cloudflare** → add `guruu.ai`, add `vera` A-record → Mac's tailnet IP (grey cloud),
-   create a scoped API token. (§2–3)
-3. **Mac Terminal** → build/run **Caddy** with that token; `tailscale serve --https=443 off`. (§4–5)
-4. (Optional, sovereignty) **DigitalOcean** → droplet + Headscale + DERP per
-   `docs/self-hosting-digitalocean.md`; re-point clients with `--login-server`.
-5. Open `https://vera.guruu.ai/?k=<token>` → mic + Face ID work.
+**Track A is COMPLETE (2026-06-03) — items 1–3 and 5 below are DONE; `vera.guruu.ai` is
+live.** Nothing here is outstanding except the *optional* Track B (item 4).
+1. ~~**GoDaddy** → point `guruu.ai` nameservers at Cloudflare.~~ **DONE** — nameservers are
+   `edward`/`leanna.ns.cloudflare.com`. (`docs/vera-domain-setup.md` §1–2)
+2. ~~**Cloudflare** → add `guruu.ai`, add `vera` A-record → Mac's tailnet IP (grey cloud),
+   create a scoped API token.~~ **DONE** — `vera` A → `100.97.182.66` (DNS-only); token
+   scoped to `guruu.ai`, stored in `~/.cf-vera-token`. **The auto-scan missed the Clerk DNS
+   records — they were re-added manually** (`accounts`/`clerk`/`clkmail`/`clk._domainkey`/
+   `clk2._domainkey`). (§2–3)
+3. ~~**Mac Terminal** → build/run **Caddy** with that token; `tailscale serve --https=443
+   off`.~~ **DONE** — Caddy runs as the **`ai.vera.caddy` launchd daemon** (not a manual
+   run); `tailscale serve` is off but Tailscale is still the tunnel. (§4–5)
+4. **(STILL OPTIONAL — Track B, NOT done)** **DigitalOcean** → droplet + Headscale + DERP per
+   `docs/self-hosting-digitalocean.md`; re-point clients with `--login-server`. Only if you
+   want to own the coordination metadata too; Vera is fully working without it.
+5. ~~Open `https://vera.guruu.ai/?k=<token>` → mic + Face ID work.~~ **DONE** — live at
+   `https://vera.guruu.ai/` (auth is OFF, so **no `?k=`**). Test from the **phone** (the Mac
+   can't reach its own tailnet IP); on the Mac use `http://localhost:8765/`.
 
 ## 8. FUTURE WORK roadmap (prioritized; un-built)
 **App / model manager (Lamar's latest asks):**

@@ -1,5 +1,37 @@
 # Task brief for the browser-capable session (Claude-in-Chrome / Cowork)
 
+> ## STATUS (2026-06-03): TRACK A COMPLETE — `vera.guruu.ai` is live with valid HTTPS
+> **Track A below is DONE.** `guruu.ai` nameservers now point to Cloudflare
+> (`edward`/`leanna.ns.cloudflare.com`), Cloudflare hosts the DNS (Free zone), and
+> `vera` A → `100.97.182.66` (the Mac's Tailscale IP, DNS-only / grey cloud). **Caddy**
+> terminates TLS with a real Let's Encrypt cert (Cloudflare **DNS-01**, required because
+> the A-record is a private IP) and reverse-proxies to Vera on `127.0.0.1:8765`. Caddy
+> runs as a **root launchd daemon** (`ai.vera.caddy`), not a manual `caddy run` —
+> survives reboots and auto-renews the cert.
+> - **Phone (Tailscale ON):** `https://vera.guruu.ai/` — auth is currently OFF, so **no
+>   `?k=` token** is needed.
+> - **On the Mac itself:** use `http://localhost:8765/` (the Mac can't reach its own
+>   tailnet IP — see gotcha 2).
+> - **Tailscale is still the tunnel** — Caddy only replaced `tailscale serve`, not the
+>   network. **Track B (Headscale on DigitalOcean) was NOT done — still optional.**
+>
+> **The 3 gotchas that cost hours (carry these forward):**
+> 1. **NordVPN on the Mac breaks the Tailscale path** — it hijacks the default route and
+>    its kill-switch drops the tunnel's return traffic, so the phone gets a
+>    blank/"not secure" page. **Fix: pause NordVPN, or split-tunnel Tailscale to bypass it.**
+> 2. **The Mac cannot reach its OWN tailnet IP** (`100.97.182.66`) — a hairpin quirk, so
+>    `vera.guruu.ai` always times out *from the Mac*. **Test from the phone**; on the Mac
+>    use `http://localhost:8765/` (or `curl --resolve vera.guruu.ai:443:127.0.0.1`).
+> 3. **launchd runs daemons with no `$HOME`** → Caddy used a relative storage path that
+>    collided with the `./caddy` binary. **Fix: `export HOME=/var/root` in the wrapper.**
+>
+> **Cloudflare also missed the Clerk auth records on its auto-scan** — `accounts`,
+> `clerk`, `clkmail`, `clk._domainkey`, `clk2._domainkey` had to be **re-added manually**
+> (along with the pre-existing Vercel apex/www + GoDaddy `pay` + `_domainconnect`/`_dmarc`).
+> Re-check these if the zone is ever re-migrated.
+>
+> The history below is kept for reference; you don't need to re-run Track A.
+
 You have a **browser tool** and access to Lamar's **logged-in Chrome** and accounts. The
 prior *code* session (Claude Code on the web) built and shipped all of Vera's code but
 **has no browser** — so the **dashboard/account work below was left for you.** Everything

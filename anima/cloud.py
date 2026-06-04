@@ -58,8 +58,8 @@ PRESETS = {
     "openai":    {"base": "https://api.openai.com/v1",   "model": "gpt-4o-mini",                "kind": "openai"},
     "deepseek":  {"base": "https://api.deepseek.com/v1", "model": "deepseek-chat",              "kind": "openai"},
     "mistral":   {"base": "https://api.mistral.ai/v1",   "model": "mistral-large-latest",       "kind": "openai"},
-    "grok":      {"base": "https://api.x.ai/v1",         "model": "grok-2-latest",              "kind": "openai"},
-    "anthropic": {"base": "https://api.anthropic.com",   "model": "claude-3-5-sonnet-latest",   "kind": "anthropic"},
+    "grok":      {"base": "https://api.x.ai/v1",         "model": "grok-4.3",                   "kind": "openai"},
+    "anthropic": {"base": "https://api.anthropic.com",   "model": "claude-sonnet-4-6",          "kind": "anthropic"},
 }
 
 # Common model names per provider (a CAPABILITY tier you pick, not a compute size you
@@ -69,8 +69,8 @@ MODELS = {
     "openai":    ["gpt-4o-mini", "gpt-4o", "gpt-4.1-mini", "gpt-4.1"],
     "deepseek":  ["deepseek-chat", "deepseek-reasoner"],
     "mistral":   ["mistral-large-latest", "mistral-small-latest"],
-    "grok":      ["grok-2-latest", "grok-2"],
-    "anthropic": ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest"],
+    "grok":      ["grok-4.3", "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning"],
+    "anthropic": ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5-20251001"],
 }
 
 
@@ -94,26 +94,45 @@ def load_cfg() -> dict:
         budget = float(c.get("budget", 0.50))
     except (TypeError, ValueError):
         budget = 0.50
-    return {"provider": c.get("provider", "local"), "model": c.get("model", ""),
-            "key": c.get("key", ""), "base": c.get("base", ""), "budget": budget,
+    provider = c.get("provider", "local")
+    keys = c.get("keys") if isinstance(c.get("keys"), dict) else {}
+    keys = {k: v for k, v in keys.items() if v}            # only providers that actually have a key
+    if c.get("key") and provider != "local":               # migrate the old single-key layout forward
+        keys.setdefault(provider, c.get("key"))
+    model_opts = c.get("model_opts") if isinstance(c.get("model_opts"), dict) else {}   # live model lists, per provider
+    return {"provider": provider, "model": c.get("model", ""),
+            "key": keys.get(provider, ""), "keys": keys, "model_opts": model_opts,
+            "base": c.get("base", ""), "budget": budget,
             "local_model": c.get("local_model", "")}
 
 
-def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None, local_model=None) -> dict:
+def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None,
+             local_model=None, model_opts_list=None) -> dict:
     if provider not in (("local",) + tuple(PRESETS)):
         provider = "local"
     cur = load_cfg()
+    keys = dict(cur["keys"])         # preserve EVERY provider's previously-saved key
+    model_opts = dict(cur["model_opts"])
     key = (key or "").strip()
-    if not key and provider == cur["provider"]:
-        key = cur["key"]            # blank key + same provider = keep the existing one (UI never sees it)
+    if provider != "local":
+        if key:
+            keys[provider] = key                     # a new/updated key for this provider
+        elif provider in keys:
+            key = keys[provider]                     # blank field + already saved = keep it
+    if model_opts_list:                              # fresh live model list from a probe
+        model_opts[provider] = [m for m in model_opts_list if m]
+    model = (model or "").strip()
+    if provider != "local" and not model:            # no model chosen -> pick one from the LIVE list (never hard-code)
+        model = pick_default(provider, model_opts.get(provider) or [])
     try:
         budget = max(0.0, float(budget)) if budget is not None else cur["budget"]
     except (TypeError, ValueError):
         budget = cur["budget"]
     local_model = cur["local_model"] if local_model is None else (local_model or "").strip()
     Path(".anima").mkdir(exist_ok=True)
-    save_json(_path(), {"provider": provider, "model": (model or "").strip(),
-                        "key": key, "base": (base or "").strip(), "budget": budget,
+    save_json(_path(), {"provider": provider, "model": model,
+                        "keys": keys, "model_opts": model_opts,
+                        "base": (base or "").strip(), "budget": budget,
                         "local_model": local_model})
     return public()
 
@@ -203,10 +222,13 @@ def public(cfg: dict = None) -> dict:
         system = {}
     return {"provider": cfg["provider"], "model": cfg["model"], "budget": cfg["budget"],
             "has_key": bool(cfg["key"]), "is_cloud": cfg["provider"] != "local",
+            "configured": sorted(cfg.get("keys", {}).keys()),   # which providers have a saved key
             "spent_today": round(spent_today(), 4),
             "honesty_verified": honesty_verified(), "eval_cmd": eval_command(), "system": system,
             "providers": list(PRESETS),
-            "presets": {k: {"model": v["model"], "models": MODELS.get(k, [])} for k, v in PRESETS.items()}}
+            "presets": {k: {"model": pick_default(k, cfg.get("model_opts", {}).get(k) or MODELS.get(k, [])),
+                            "models": cfg.get("model_opts", {}).get(k) or MODELS.get(k, [])}   # LIVE list if we have it, else fallback
+                        for k, v in PRESETS.items()}}
 
 
 def is_cloud() -> bool:
@@ -288,6 +310,69 @@ class AnthropicBrain(_CloudBrain):
         _charge(self.provider, u.get("input_tokens") or (_est_tokens(system) + sum(_est_tokens(m["content"]) for m in msgs)),
                 u.get("output_tokens") or _est_tokens(text))
         return text
+
+
+def verify_key(provider: str, key: str, model: str = "", base: str = "") -> tuple:
+    """Hit the provider's /models endpoint to (a) verify the key and (b) read its LIVE model list.
+    Returns (ok, detail, models). No tokens spent. Lets the UI confirm a key immediately, never
+    persist a bad one, and populate the model picker from REAL models instead of hard-coded names."""
+    import json, urllib.request, urllib.error
+    preset = PRESETS.get(provider)
+    if not preset:
+        return False, f"unknown provider '{provider}'", []
+    key = (key or "").strip()
+    if not key:
+        return False, "no API key provided", []
+    b = (base or preset["base"]).rstrip("/")
+    if preset["kind"] == "anthropic":
+        url, headers = b + "/v1/models", {"x-api-key": key, "anthropic-version": "2023-06-01"}
+    else:
+        url, headers = b + "/models", {"Authorization": "Bearer " + key}
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers, method="GET"), timeout=15) as r:
+            data = json.load(r)
+        ids = [m.get("id") for m in (data.get("data") or data.get("models") or [])
+               if isinstance(m, dict) and m.get("id")]
+        return True, "", ids
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read()[:300].decode("utf-8", "ignore")
+        except Exception:
+            pass
+        msg = body
+        try:
+            j = json.loads(body); err = j.get("error")
+            if isinstance(err, dict):
+                msg = err.get("message") or err.get("type") or body
+            elif isinstance(err, str):
+                msg = err
+            elif j.get("message"):
+                msg = j.get("message")
+        except Exception:
+            pass
+        return False, f"HTTP {e.code}: {msg}".strip()[:300], []
+    except Exception as e:
+        return False, f"could not reach {provider}: {e}"[:200], []
+
+
+_NON_CHAT = ("embed", "whisper", "tts", "audio", "image", "video", "imagine", "dall", "moderation",
+             "rerank", "guard", "codex", "coder", "realtime", "transcribe", "computer-use")
+_TINY = ("flash", "mini", "nano", "tiny", "lite", "-1b", "-3b", "ministral", "haiku", "small")
+def pick_default(provider: str, models) -> str:
+    """Choose a sensible default CHAT model from a LIVE model list, so we never depend on a
+    hard-coded name the provider might retire. Skips non-chat and tiny/'flash' variants when
+    fuller models exist, then prefers a balanced/flagship tier."""
+    chat = [m for m in (models or []) if m and not any(x in m.lower() for x in _NON_CHAT)] or list(models or [])
+    if not chat:
+        return (PRESETS.get(provider) or {}).get("model", "")
+    pool = [m for m in chat if not any(t in m.lower() for t in _TINY)] or chat
+    # top tier first: flagship/most-capable families, then balanced fallbacks
+    for pref in ("opus", "large", "pro", "flagship", "sonnet", "medium", "chat", "latest"):
+        for m in pool:
+            if pref in m.lower():
+                return m
+    return pool[0]
 
 
 def build_cloud_brain():

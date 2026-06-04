@@ -1,5 +1,10 @@
 # Self-hosting the network (Headscale) — owning the whole stack
 
+> **STATUS NOTE (2026-06-03):** This is **Track B** and is **optional / NOT done.** The
+> app-HTTPS half ("Track A" — `vera.guruu.ai` via Caddy over Tailscale) is **already
+> complete** (`docs/vera-domain-setup.md`); Vera works fully today. This doc only matters if
+> you also want to replace Tailscale's coordination server with your own Headscale.
+
 _Goal: reach Vera on your phone from anywhere, with the same WireGuard encryption as
 Tailscale, but with **no third-party coordination server**. You run the control plane._
 

@@ -1,6 +1,6 @@
 # Anima — Operator Notes (state that lives OUTSIDE the code)
 
-_Last updated: 2026-06-02._
+_Last updated: 2026-06-03._
 
 This file exists because each Claude Code session runs in a fresh container whose
 only durable memory is this repo. Anything done on the **Mac itself** (installing
@@ -38,6 +38,51 @@ it's used, not its value.
   `https://lamars-macbook-pro.tailb51e2f.ts.net/` (tailnet `tailb51e2f.ts.net`),
   proxying to `127.0.0.1:8765`. Reach it with `?k=<ANIMA_TOKEN>` appended.
 - Undo the bridge: `tailscale serve --https=443 off`.
+- **NOTE (2026-06-03):** this `tailscale serve` `.ts.net` path has been **superseded by
+  Caddy on the owned domain `vera.guruu.ai`** (next section). `tailscale serve` for :443
+  is now OFF; Tailscale itself is still the tunnel.
+
+## vera.guruu.ai operations — DONE (built 2026-06-03)
+Vera now has a real, publicly-trusted HTTPS cert at **`https://vera.guruu.ai/`**, reached
+from the phone over Tailscale. **Caddy** terminates TLS (Let's Encrypt via Cloudflare
+**DNS-01** — required because the `vera` A-record is the Mac's private Tailscale IP) and
+reverse-proxies to Vera on `127.0.0.1:8765`. Full build steps + concepts:
+`docs/vera-domain-setup.md`. DNS lives in Cloudflare (Free zone; nameservers
+`edward`/`leanna.ns.cloudflare.com`); Tailscale is still the tunnel (Caddy only replaced
+`tailscale serve`). **Track B (Headscale on DigitalOcean) was NOT done — optional.**
+
+- **Files (all in the repo):**
+  - `deploy/Caddyfile` — the front-door config (reads `{env.CF_API_TOKEN}`; HTTP/3
+    disabled via `protocols h1 h2`; access log → `.anima/caddy-access.log`).
+  - `scripts/caddy-daemon.sh` — the daemon wrapper: exports `HOME=/var/root`, reads the
+    token from `~/.cf-vera-token`, then `exec ./caddy run --config deploy/Caddyfile`.
+  - `deploy/ai.vera.caddy.plist` — source for the LaunchDaemon (installed copy at
+    `/Library/LaunchDaemons/ai.vera.caddy.plist`); `RunAtLoad` + `KeepAlive` → survives
+    reboots and auto-renews the cert. Daemon log → `.anima/caddy.log`.
+- **Restart command:** `sudo launchctl kickstart -k system/ai.vera.caddy`
+- **Cloudflare token:** "Edit zone DNS" scoped to `guruu.ai` only; stored **ONLY** in
+  `~/.cf-vera-token` (chmod 600). Never in git or the plist.
+- **URLs:** phone (Tailscale ON) → `https://vera.guruu.ai/` — **auth is currently OFF, so
+  no `?k=` token needed.** On the **Mac itself**, use `http://localhost:8765/` (the Mac
+  can't reach its own tailnet IP — see gotcha 2 below).
+- **DNS records preserved alongside `vera`** (all DNS-only / grey cloud): apex A →
+  `76.76.21.21` (Vercel), `www` → `cname.vercel-dns.com`, `pay` →
+  `paylinks.commerce.godaddy.com`, `_domainconnect`, `_dmarc`, and the Clerk auth records
+  `accounts`/`clerk`/`clkmail`/`clk._domainkey`/`clk2._domainkey`. **Cloudflare's auto-scan
+  MISSED the Clerk records — they were re-added by hand. Re-check them if the zone is ever
+  re-migrated.**
+
+### vera.guruu.ai gotchas (each cost real time)
+1. **NordVPN on the Mac breaks the Tailscale path** — it hijacks the default route and its
+   kill-switch drops the tunnel's return traffic, so the phone gets a blank/"not secure"
+   page even though Caddy is fine. **Fix: pause NordVPN, or split-tunnel Tailscale to
+   bypass it.**
+2. **The Mac cannot reach its OWN tailnet IP (`100.97.182.66`)** — a hairpin quirk, so
+   `vera.guruu.ai` always times out *from the Mac*. **Test from the phone**; on the Mac use
+   `http://localhost:8765/` (or `curl --resolve vera.guruu.ai:443:127.0.0.1 ...`).
+3. **launchd runs daemons with no `$HOME`** → Caddy used a relative storage path that
+   collided with the `./caddy` binary. **Fix: `export HOME=/var/root` in
+   `scripts/caddy-daemon.sh`** (already in place).
 
 ## Gotchas learned
 - In this Mac's **zsh**, pasting lines like `# 2) do a thing` throws

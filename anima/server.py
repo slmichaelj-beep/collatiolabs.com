@@ -477,11 +477,24 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/brain":
                 from . import cloud
                 data = json.loads(self._read_body() or b"{}")
-                out = cloud.save_cfg(str(data.get("provider", "local")), str(data.get("model", "")),
-                                     str(data.get("key", "")), str(data.get("base", "")),
-                                     data.get("budget"))
-                _reset_mouth()                          # rebuild the mouth with the new brain
-                self._send(200, "application/json", json.dumps(out).encode())
+                provider = str(data.get("provider", "local"))
+                key = str(data.get("key", "")).strip()
+                ok, detail, opts = True, "", None
+                if provider != "local" and key:         # verify the new key AND fetch its live model list
+                    ok, detail, opts = cloud.verify_key(provider, key, str(data.get("model", "")),
+                                                        str(data.get("base", "")))
+                if not ok:                               # bad key: report it, do NOT persist
+                    self._send(200, "application/json",
+                               json.dumps({"ok": False, "error": detail}).encode())
+                else:
+                    out = cloud.save_cfg(provider, str(data.get("model", "")), key,
+                                         str(data.get("base", "")), data.get("budget"),
+                                         model_opts_list=opts)
+                    _reset_mouth()                       # rebuild the mouth with the new brain
+                    out["ok"] = True
+                    if provider != "local" and key:
+                        out["verified"] = True
+                    self._send(200, "application/json", json.dumps(out).encode())
             elif path in ("/models/select", "/models/pull", "/models/remove", "/models/cleanup"):
                 from . import models
                 data = json.loads(self._read_body() or b"{}")

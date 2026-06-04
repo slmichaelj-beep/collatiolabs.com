@@ -1,5 +1,11 @@
 # Own the network: Headscale + DERP on a DigitalOcean droplet
 
+> **STATUS NOTE (2026-06-03):** This is **Track B** and is **optional / NOT done.** Track A
+> (`vera.guruu.ai` HTTPS via Caddy over Tailscale) is **already complete** —
+> `docs/vera-domain-setup.md`. Nothing here is required for Vera to work; do it only if you
+> want to own the coordination metadata too. (If you ever do, note the `vera` A-record will
+> need updating to the Mac's *new* tailnet IP — see step 7.)
+
 This replaces Tailscale-the-company's coordination cloud with your own, on a small
 DigitalOcean droplet. The droplet only ever handles **encrypted coordination + relay**
 — it never sees your traffic. Vera and all your data stay on the Mac.

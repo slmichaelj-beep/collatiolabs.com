@@ -11,6 +11,16 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
+/* Full auto-hide scrollbars: invisible until you hover a scrollable surface (chat or drawer),
+   then a thin translucent thumb fades in. The 9px gutter stays reserved so nothing shifts. */
+html{scrollbar-width:thin;scrollbar-color:transparent transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:transparent;border-radius:10px;border:2.5px solid transparent;background-clip:padding-box}
+#log:hover,#settings:hover{scrollbar-color:rgba(255,255,255,.22) transparent}
+#log:hover::-webkit-scrollbar-thumb,#settings:hover::-webkit-scrollbar-thumb,#log:active::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22)}
+#log:hover::-webkit-scrollbar-thumb:hover,#settings:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.34)}
+::-webkit-scrollbar-corner{background:transparent}
 body{font-family:'SF Pro Text',-apple-system,'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;
   font-weight:300;letter-spacing:.01em;
   display:flex;flex-direction:column;height:100dvh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
@@ -45,6 +55,9 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #send{color:#2f7fff}
 #bar svg{display:block;pointer-events:none}
 @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(120,170,255,0)}50%{box-shadow:0 0 0 7px rgba(120,170,255,.12)}}
+/* On a wide laptop screen, keep the conversation a centered, readable column instead of
+   stretching edge-to-edge. No effect on phones — the screen is narrower than the cap. */
+#log,#bar{width:100%;max-width:1400px;margin-inline:auto}
 /* settings drawer — frosted glass that slides up, leaving a sliver of chat above */
 #settings{position:fixed;left:0;right:0;bottom:0;top:46px;z-index:10;
   background:rgba(16,16,19,.62);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
@@ -466,6 +479,11 @@ function renderCaps(){
 function applyProvider(p){
   const cloud=(p&&p!=='local');
   cloudFields.style.display = cloud ? 'block':'none';
+  if(keyBox){                                          // per-provider key: reflect whether THIS provider already has one saved
+    const set=cloud&&BRAIN&&BRAIN.configured&&BRAIN.configured.includes(p);
+    keyBox.value='';
+    keyBox.placeholder=set?'✓ key saved — leave blank to keep, or paste to replace':'API key — stays on your Mac';
+  }
   if(sysEl) sysEl.style.display = cloud ? 'none':'block';   // RAM/fit only matters for local
   if(localModels){ localModels.style.display = cloud ? 'none':'block'; if(!cloud) fetchModels(); }
   const preset=BRAIN&&BRAIN.presets&&BRAIN.presets[p];
@@ -589,9 +607,17 @@ document.getElementById('idfile').onchange=async(e)=>{
 document.getElementById('cog').onclick=openSettings;
 document.getElementById('cancel').onclick=()=>panel.classList.remove('open');
 document.getElementById('save').onclick=async()=>{
-  await fetch('/brain',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
-    body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value,
-      budget:parseFloat(budgetBox.value)||0})});
+  const bn=document.getElementById('brainNote');
+  const testing=providerSel.value!=='local'&&keyBox.value.trim();
+  if(testing) bn.textContent='Testing '+providerSel.value+' key…';
+  let bj={};
+  try{
+    const br=await fetch('/brain',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+      body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value,
+        budget:parseFloat(budgetBox.value)||0})});
+    bj=await br.json();
+  }catch(e){ bn.textContent='✗ Could not reach the server.'; return; }
+  if(bj.error){ bn.textContent='✗ '+providerSel.value+' key rejected — '+bj.error+'  (not saved)'; return; }
   const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
   await fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
@@ -600,7 +626,8 @@ document.getElementById('save').onclick=async()=>{
   dialsBox.querySelectorAll('input[data-dial]').forEach(s=>{dvals[s.dataset.dial]=parseInt(s.value);});
   await fetch('/dials',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
     body:JSON.stringify({dials:dvals})});
-  panel.classList.remove('open');
+  if(bj.verified){ bn.textContent='✓ '+providerSel.value+' key verified and saved.'; keyBox.value=''; }
+  else panel.classList.remove('open');
 };
 </script>
 </body>

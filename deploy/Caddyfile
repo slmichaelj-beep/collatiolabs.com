@@ -2,6 +2,14 @@
 # Cert is obtained via Cloudflare DNS-01 using the token in $CF_API_TOKEN (so the secret
 # is never committed). Traffic is reverse-proxied to the local Anima server on :8765.
 # Run on the Mac (binds :443 -> needs `sudo -E`). See scripts/run-caddy.sh.
+{
+	# Serve only over TCP (HTTP/1.1 + HTTP/2). HTTP/3 (QUIC/UDP) is unreliable across the
+	# Tailscale tunnel — iOS Safari would prefer h3 and get a blank page. TCP carries fine.
+	servers {
+		protocols h1 h2
+	}
+}
+
 vera.guruu.ai {
 	tls {
 		dns cloudflare {env.CF_API_TOKEN}
@@ -12,4 +20,7 @@ vera.guruu.ai {
 		propagation_timeout 5m
 	}
 	reverse_proxy 127.0.0.1:8765
+	log {
+		output file /Users/lamarmichael/collatiolabs.com/.anima/caddy-access.log
+	}
 }
