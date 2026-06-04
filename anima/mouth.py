@@ -498,15 +498,17 @@ class Mouth:
         return cls(brain=brain, voice=tts)
 
     def respond(self, heart, user_text: str, history=None, audio_out=None,
-                perception=None, cap_note=None) -> Utterance:
+                perception=None, cap_note=None, fact_block=None) -> Utterance:
         f = heart.feeling()
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
         mem = portrait.load(heart.name)        # lasting memory (prose USER profile), injected whole
-        try:                                   # + the structured LIRF facts (birthday, dog…) so a
-            from .memory_lirf import Facts      # fact she's actually been told is answered FROM RECORD,
-            _fb = Facts.load(heart.name).block()  # not model-luck. The cloud guard below blanks it too.
+        try:                                   # + structured LIRF facts. When the Router (Organ 3) passes
+            _fb = fact_block                    # a QUERY-AWARE block (only facts relevant to THIS turn),
+            if _fb is None:                     # use it; else fall back to the full ledger block. Either
+                from .memory_lirf import Facts   # way a fact she's been told is answered FROM RECORD, not
+                _fb = Facts.load(heart.name).block()  # model-luck. The cloud guard below blanks it too.
             if _fb:
                 mem = (mem + "\n\n" + _fb) if mem.strip() else _fb
         except Exception:

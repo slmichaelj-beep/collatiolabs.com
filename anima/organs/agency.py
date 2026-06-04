@@ -32,6 +32,9 @@ class AgencyProvider(Organ):
     """
 
     name = "agency"
+    #: True when the organ contributes; the held DormantAgency sets this False.
+    #: Lets the server/telemetry report dormant-vs-active without import gymnastics.
+    active = True
 
     @abstractmethod
     def evaluate(self, options: list) -> list[dict]:
@@ -123,3 +126,27 @@ class StubAgency(AgencyProvider):
             weight=STUB_CONF,
             note="stub agency: preferred action",
         )
+
+
+class DormantAgency(AgencyProvider):
+    """The default. Active=False — no deliberation, no preference, nothing on the bus.
+
+    Held counterpart to :class:`StubAgency`, handed back by ``agency_provider`` when
+    the per-creature ``identity_agency`` capability is OFF (the default). It honours
+    the contract but never scores an option and never emits, so while the switch is
+    OFF no agency signal reaches the Coordinator. Flip the switch ON and the stub
+    (later, the live organ) takes over.
+    """
+
+    name = "agency"
+    active = False
+
+    def evaluate(self, options: list) -> list[dict]:
+        return []
+
+    def preferred_action(self, options: list):  # no preference while held
+        return None
+
+    async def on_question(self, bus, event) -> None:
+        """Held: contribute nothing. The bus stays untouched by agency."""
+        return None

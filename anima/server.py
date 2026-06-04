@@ -198,11 +198,35 @@ def _turn(name, text, voice=False):
             _telem.get(name).begin(_tid)           # can never break a turn.
         except Exception:
             pass
+        # Organ 3 (Router): query-aware memory selection — inject ONLY the facts relevant
+        # to THIS turn (not the blanket top-N), and decide the cheapest-sufficient path.
+        # PII guard: blank the fact block on a cloud brain so private facts never leave.
+        _route_dec, _fact_block = None, None
+        try:
+            from .organs import router
+            from . import cloud as _cl
+            _route_dec = router.route(name, text, {"cloud_on": _cl.is_cloud()})
+            if not _cl.is_cloud():
+                _fact_block = _route_dec.selected_block
+        except Exception:
+            pass
         mouth = _mouth()
         _g0 = time.perf_counter()
         u = mouth.respond(heart, text, history=list(_HISTORY),
-                          audio_out=audio_out, perception=p, cap_note=cap_note)
+                          audio_out=audio_out, perception=p, cap_note=cap_note,
+                          fact_block=_fact_block)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
+        # Organ 4 (Verifier): check the draft against its evidence (facts in play + the
+        # capability result) BEFORE it ships. MEASURE-FIRST — record the verdict in
+        # telemetry; the override-action (suppress/regenerate) lights up once we've seen
+        # the flag rate isn't noisy. Never blocks a turn.
+        _verdict = None
+        try:
+            from .organs.verifier import verify
+            from .memory_lirf import Facts as _VF, SELF as _VSELF
+            _verdict = verify(text, u.text, _VF.load(name).about(_VSELF), cap_note=cap_note)
+        except Exception:
+            pass
         _HISTORY.append((text, u.text))           # within-session memory
         _save_history(name)                        # survive a restart
         try:                                       # record model use for the cleanup routine
@@ -218,20 +242,28 @@ def _turn(name, text, voice=False):
         except Exception:
             pass
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
-        try:                                       # telemetry: record what crossed each edge this turn
-            import types as _t                     # — model that answered, memory facts in play, whether
-            from . import telemetry as _telem      # a capability fired. The "see the edge, don't guess
-            _fids = []                             # it" layer; read back via telemetry.last/replay.
-            try:
-                from .memory_lirf import Facts as _Facts
-                _fids = [f.get("id") for f in (_Facts.load(name).about() or []) if isinstance(f, dict)][:40]
-            except Exception:
-                pass
-            _dec = _t.SimpleNamespace(
-                model=getattr(u, "backend", ""), memory_ids=_fids,
-                contributing_organs=(["capability"] if cap_note else []) + (["memory"] if _fids else []),
-                escalation=("capability" if cap_note else ""), answer_plan="")
-            _telem.get(name).note_decision(_tid, _dec)
+        try:                                       # telemetry: record what crossed each edge this turn —
+            import types as _t                     # the model, the memory facts in play, the routing
+            from . import telemetry as _telem      # decision, and the verifier's verdict. "See the edge,
+            if _route_dec is not None:             # don't guess it." Read back via telemetry.last/replay.
+                _telem.get(name).note_decision(_tid, _route_dec.as_decision())   # the REAL routing verdict
+            else:
+                _fids = []
+                try:
+                    from .memory_lirf import Facts as _Facts
+                    _fids = [f.get("id") for f in (_Facts.load(name).about() or []) if isinstance(f, dict)][:40]
+                except Exception:
+                    pass
+                _telem.get(name).note_decision(_tid, _t.SimpleNamespace(
+                    model=getattr(u, "backend", ""), memory_ids=_fids,
+                    contributing_organs=(["capability"] if cap_note else []) + (["memory"] if _fids else []),
+                    escalation=("capability" if cap_note else ""), answer_plan=""))
+            if _verdict is not None:               # the verifier's verdict, as its own observation
+                _ov = getattr(_verdict, "override", False)
+                _telem.get(name).note_observation(_tid, _t.SimpleNamespace(
+                    organ="verifier", weight=1.0,
+                    memory={"id": None, "confidence": getattr(_verdict, "confidence", None)},
+                    note=("override: " + "; ".join(getattr(_verdict, "issues", []))) if _ov else "ok"))
             _telem.get(name).commit(_tid)
         except Exception:
             pass

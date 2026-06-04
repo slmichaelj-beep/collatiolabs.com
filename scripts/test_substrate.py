@@ -170,34 +170,51 @@ def main() -> int:
     print("substrate end-to-end interlock test")
     print("=" * 64)
 
-    # ---- FREEZE check: the real organs are STUBS, interfaces present, nothing live.
-    #      (ANIMA_ORGANS_LIVE off by default — the held line until 2026-07-03.)
-    os.environ.pop("ANIMA_ORGANS_LIVE", None)
-    ident = identity_provider()
-    agcy = agency_provider()
-    ok("FREEZE: identity provider is the StubIdentity seam (no real organ)",
-       isinstance(ident, StubIdentity))
-    ok("FREEZE: agency provider is the StubAgency seam (no real organ)",
-       isinstance(agcy, StubAgency))
-    ok("FREEZE: the stub still SATISFIES the IdentityProvider interface",
-       isinstance(ident, IdentityProvider))
-    ok("FREEZE: the stub still SATISFIES the AgencyProvider interface",
-       isinstance(agcy, AgencyProvider))
-    # The interface is real (abstract) — it cannot be instantiated directly, proving
-    # "interface present, no implementation" rather than an empty placeholder class.
-    abstract_enforced = False
-    try:
-        IdentityProvider()  # type: ignore[abstract]
-    except TypeError:
-        abstract_enforced = True
-    ok("FREEZE: IdentityProvider is abstract (can't instantiate the bare interface)",
-       abstract_enforced)
-    # And the stub's contributions are LOW-confidence placeholders — they could never
-    # be mistaken for a real conviction (this is what keeps the freeze honest on-bus).
-    cs = ident.current_state("test_substrate")
-    ok("FREEZE: stub identity emits a schema-valid placeholder", memory_schema.validate(cs)[0])
-    ok("FREEZE: stub confidence <= 0.3 (a placeholder, never a conviction)",
-       cs["confidence"] <= 0.3 and cs["sources"] == ["stub"])
+    # ---- FREEZE check: Identity/Agency are HELD behind the per-creature
+    #      `identity_agency` switch (default OFF, until 2026-07-03). OFF => the
+    #      DORMANT organ that emits nothing; ON => the low-confidence STUB seam.
+    from pathlib import Path as _Path
+    from anima import caps as _caps
+    from anima.organs import DormantIdentity, DormantAgency, is_enabled
+    _orig_caps_store = _caps.STORE
+    with tempfile.TemporaryDirectory() as _ctmp:
+        _caps.STORE = _Path(_ctmp)
+        try:
+            NM = "freeze_probe"
+            ok("FREEZE: identity_agency switch defaults OFF", not is_enabled(NM))
+            ident = identity_provider(NM)
+            agcy = agency_provider(NM)
+            ok("FREEZE: OFF -> identity provider is DORMANT (no organ active)",
+               isinstance(ident, DormantIdentity))
+            ok("FREEZE: OFF -> agency provider is DORMANT (no organ active)",
+               isinstance(agcy, DormantAgency))
+            ok("FREEZE: dormant identity emits NOTHING (current_state is empty)",
+               not ident.current_state(NM))
+            ok("FREEZE: the provider still SATISFIES the IdentityProvider interface",
+               isinstance(ident, IdentityProvider))
+            ok("FREEZE: the provider still SATISFIES the AgencyProvider interface",
+               isinstance(agcy, AgencyProvider))
+            abstract_enforced = False
+            try:
+                IdentityProvider()  # type: ignore[abstract]
+            except TypeError:
+                abstract_enforced = True
+            ok("FREEZE: IdentityProvider is abstract (can't instantiate the bare interface)",
+               abstract_enforced)
+            # flip the switch ON -> the STUB seam: a schema-valid, LOW-confidence placeholder
+            _caps.save(NM, {"identity_agency": True})
+            ok("FREEZE: switch reads ON after enabling", is_enabled(NM))
+            sident = identity_provider(NM)
+            ok("FREEZE: ON -> identity provider is the StubIdentity seam",
+               isinstance(sident, StubIdentity))
+            ok("FREEZE: ON -> agency provider is the StubAgency seam",
+               isinstance(agency_provider(NM), StubAgency))
+            cs = sident.current_state(NM)
+            ok("FREEZE: stub identity emits a schema-valid placeholder", memory_schema.validate(cs)[0])
+            ok("FREEZE: stub confidence <= 0.3 (a placeholder, never a conviction)",
+               cs["confidence"] <= 0.3 and cs["sources"] == ["stub"])
+        finally:
+            _caps.STORE = _orig_caps_store
 
     # ---- the end-to-end turn, in a throwaway .anima so we never touch real state ----
     with tempfile.TemporaryDirectory() as tmp:

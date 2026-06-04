@@ -14,57 +14,94 @@ exercised end-to-end with nothing real behind them.
 
 The three blessed entrypoints:
 
-* :func:`identity_provider` — the flag-selected Identity organ.
-* :func:`agency_provider`   — the flag-selected Agency organ.
+* :func:`identity_provider` — the switch-selected Identity organ.
+* :func:`agency_provider`   — the switch-selected Agency organ.
 * :func:`register_all`      — instantiate both and subscribe them to the bus. The
   single call the server makes to wire organs onto the substrate.
 
-Flag note (flagged for the founder, per the design): this uses an env-var gate to
-match the "held until 2026-07-03" framing. To persist it per-creature instead,
-swap :func:`_organs_live` for ``caps.enabled(name, "organs_live")`` (a new key in
-``.anima/{name}.caps.json``) — a one-line change, no other call site moves.
+The switch (per the founder's design): a per-creature capability flag,
+``identity_agency``, persisted default-OFF in ``.anima/{name}.caps.json`` exactly
+like every other cap. :func:`is_enabled` reads it. While it is OFF — the default,
+and the line the 2026-07-03 observation window holds — the providers return the
+DORMANT organs: wired onto the bus but contributing NOTHING, so no identity- or
+agency-shaping signal runs. The founder flips it ON in Settings if/when they
+choose; the same switch will govern the real Identity Core / Agency once those are
+built (the live path below is a no-op until then).
+
+A second, orthogonal env gate (``ANIMA_ORGANS_LIVE``) only chooses LIVE-vs-stub
+*once the switch is ON*; it is irrelevant while the switch is OFF.
 """
 
 from __future__ import annotations
 
 import os
 
-from .agency import AgencyProvider, StubAgency
+from .agency import AgencyProvider, DormantAgency, StubAgency
 from .base import Organ
-from .identity import IdentityProvider, StubIdentity
+from .identity import DormantIdentity, IdentityProvider, StubIdentity
 
 __all__ = [
     "Organ",
     "IdentityProvider",
     "StubIdentity",
+    "DormantIdentity",
     "AgencyProvider",
     "StubAgency",
+    "DormantAgency",
     "ORGAN_FLAG",
+    "CAP_FLAG",
+    "is_enabled",
     "identity_provider",
     "agency_provider",
     "register_all",
 ]
 
-#: env flag; "" / unset / "0" / "false" -> stubs (the default, pre-2026-07-03).
+#: per-creature capability key (in .anima/{name}.caps.json) — the user-facing ON/OFF
+#: switch for the Identity & Agency organs. Default-OFF; held until 2026-07-03.
+CAP_FLAG = "identity_agency"
+
+#: env flag; only consulted when the switch is ON, to pick LIVE vs stub.
 ORGAN_FLAG = "ANIMA_ORGANS_LIVE"
 
 
-def _organs_live() -> bool:
-    """True iff the organ feature flag is explicitly turned on.
+def is_enabled(name: str) -> bool:
+    """True iff this creature's ``identity_agency`` capability is turned ON.
 
-    Mirrors caps' default-OFF posture: anything other than a clearly-truthy value
-    keeps the stubs in place.
+    Reads the per-creature caps file via :mod:`anima.caps` (default-OFF). This is
+    THE switch: OFF -> dormant organs (nothing runs); ON -> the stub seam (later,
+    the live core). Fails closed — any read error is treated as OFF, so the
+    observation-window freeze can never be lifted by accident.
+    """
+    try:
+        from .. import caps
+
+        return bool(caps.enabled(name, CAP_FLAG))
+    except Exception:
+        return False
+
+
+def _organs_live() -> bool:
+    """True iff the LIVE-organ env flag is explicitly turned on.
+
+    Orthogonal to :func:`is_enabled`: this only selects LIVE-vs-stub once the
+    per-creature switch is already ON. Mirrors caps' default-OFF posture.
     """
     return os.environ.get(ORGAN_FLAG, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def identity_provider() -> IdentityProvider:
-    """Return the LIVE Identity Core iff the flag is on AND it is importable;
-    otherwise the :class:`StubIdentity` seam.
+def identity_provider(name: str = "vera") -> IdentityProvider:
+    """The switch-selected Identity organ for ``name``.
 
-    The 2026-07-03 observation window is what flips the flag on. The import is
-    attempted lazily so a missing/held live module never breaks the default path.
+    * switch OFF (default) -> :class:`DormantIdentity` (active=False, emits nothing).
+    * switch ON            -> the LIVE Identity Core iff the env flag is on AND it
+      is importable, else the :class:`StubIdentity` seam.
+
+    The 2026-07-03 observation window is what the founder waits on before flipping
+    the switch ON. The live import is attempted lazily so a held live module never
+    breaks the path.
     """
+    if not is_enabled(name):
+        return DormantIdentity()
     if _organs_live():
         try:  # pragma: no cover - live organ is HELD until 2026-07-03
             from .identity_live import LiveIdentity  # type: ignore
@@ -75,9 +112,12 @@ def identity_provider() -> IdentityProvider:
     return StubIdentity()
 
 
-def agency_provider() -> AgencyProvider:
-    """Return the LIVE Agency iff the flag is on AND it is importable; otherwise
-    the :class:`StubAgency` seam. Same gate as :func:`identity_provider`."""
+def agency_provider(name: str = "vera") -> AgencyProvider:
+    """The switch-selected Agency organ for ``name``. Same gate as
+    :func:`identity_provider`: switch OFF -> :class:`DormantAgency`; switch ON ->
+    live iff available, else :class:`StubAgency`."""
+    if not is_enabled(name):
+        return DormantAgency()
     if _organs_live():
         try:  # pragma: no cover - live organ is HELD until 2026-07-03
             from .agency_live import LiveAgency  # type: ignore
@@ -101,7 +141,7 @@ def register_all(bus, name: str) -> list[Organ]:
     """
     from .base import Topic
 
-    organs: list[Organ] = [identity_provider(), agency_provider()]
+    organs: list[Organ] = [identity_provider(name), agency_provider(name)]
     for organ in organs:
         def _handler(event, _organ=organ):
             return _organ.on_question(bus, event)
@@ -130,20 +170,60 @@ def _selftest() -> int:  # pragma: no cover - exercised via __main__
     print("organs selftest")
     print("-" * 60)
 
-    # 1. Flag default-OFF -> stub providers.
-    os.environ.pop(ORGAN_FLAG, None)
-    ident = identity_provider()
-    agcy = agency_provider()
-    check(isinstance(ident, StubIdentity), "flag OFF -> StubIdentity")
-    check(isinstance(agcy, StubAgency), "flag OFF -> StubAgency")
-    check(isinstance(ident, IdentityProvider), "StubIdentity satisfies IdentityProvider")
-    check(isinstance(agcy, AgencyProvider), "StubAgency satisfies AgencyProvider")
+    # Hermetic caps store so the switch can be toggled without touching real files.
+    import tempfile
+    from pathlib import Path as _Path
 
-    # 2. Truthy flag still falls back to stubs when no live module exists (held).
-    os.environ[ORGAN_FLAG] = "1"
-    check(isinstance(identity_provider(), StubIdentity), "flag ON, live held -> StubIdentity")
-    check(isinstance(agency_provider(), StubAgency), "flag ON, live held -> StubAgency")
+    from .. import caps as _caps
+
+    _tmp = tempfile.mkdtemp(prefix="organs_selftest_")
+    _orig_store = _caps.STORE
+    _caps.STORE = _Path(_tmp)
     os.environ.pop(ORGAN_FLAG, None)
+    NM = "selftest_creature"
+
+    try:
+        # 1. Switch default-OFF -> DORMANT organs (nothing identity-shaping runs).
+        check(not is_enabled(NM), "identity_agency defaults OFF (never persisted)")
+        d_id = identity_provider(NM)
+        d_ag = agency_provider(NM)
+        check(isinstance(d_id, DormantIdentity), "switch OFF -> DormantIdentity")
+        check(isinstance(d_ag, DormantAgency), "switch OFF -> DormantAgency")
+        check(d_id.active is False and d_ag.active is False, "dormant organs report active=False")
+        check(d_id.values(NM) == [] and d_ag.evaluate(["x"]) == [], "dormant organs contribute nothing")
+
+        # Dormant on_question emits NOTHING onto the bus.
+        class _NoBus:
+            published = 0
+
+            async def publish(self, *a, **k):
+                self.published += 1
+
+        _nb = _NoBus()
+
+        class _Q0:
+            turn_id = "f_dormantturn"
+
+        asyncio.run(d_id.on_question(_nb, _Q0))
+        asyncio.run(d_ag.on_question(_nb, _Q0))
+        check(_nb.published == 0, "dormant organs publish 0 Observations")
+
+        # 2. Switch ON (persisted) -> stub seam; with live held, env flag still stubs.
+        _caps.save(NM, {"identity_agency": True})
+        check(is_enabled(NM), "identity_agency reads back ON after save")
+        ident = identity_provider(NM)
+        agcy = agency_provider(NM)
+        check(isinstance(ident, StubIdentity), "switch ON -> StubIdentity")
+        check(isinstance(agcy, StubAgency), "switch ON -> StubAgency")
+        check(ident.active and agcy.active, "stub organs report active=True")
+        check(isinstance(ident, IdentityProvider), "StubIdentity satisfies IdentityProvider")
+        check(isinstance(agcy, AgencyProvider), "StubAgency satisfies AgencyProvider")
+        os.environ[ORGAN_FLAG] = "1"
+        check(isinstance(identity_provider(NM), StubIdentity), "switch ON, env ON, live held -> StubIdentity")
+        check(isinstance(agency_provider(NM), StubAgency), "switch ON, env ON, live held -> StubAgency")
+        os.environ.pop(ORGAN_FLAG, None)
+    finally:
+        _caps.STORE = _orig_store
 
     # 3. Every reader method returns schema-valid canonical Memories.
     cs = ident.current_state("vera")
@@ -227,8 +307,15 @@ def _selftest() -> int:  # pragma: no cover - exercised via __main__
         async def publish(self, topic, payload, *, turn_id, source=""):
             await fake3.publish(topic, payload, turn_id=turn_id, source=source)
 
-    organs = register_all(WiringBus(), "vera")
+    # Re-enter the hermetic store with the switch ON so register_all wires stubs.
+    _caps.STORE = _Path(_tmp)
+    try:
+        _caps.save(NM, {"identity_agency": True})
+        organs = register_all(WiringBus(), NM)
+    finally:
+        _caps.STORE = _orig_store
     check(len(organs) == 2, "register_all returns 2 organs")
+    check(all(getattr(o, "active", True) for o in organs), "switch ON -> register_all wires ACTIVE organs")
     check(
         len(collected) == 2 and all(t == Topic.QUESTION for t, _ in collected),
         "both organs subscribed to Topic.QUESTION",
@@ -254,6 +341,30 @@ def _selftest() -> int:  # pragma: no cover - exercised via __main__
         all(isinstance(o, Observation) and schema_validate(o.memory)[0] for o in captured),
         "handler-driven emissions are valid Observations",
     )
+
+    # 6. THE FREEZE: register_all with the switch OFF wires dormant organs whose
+    #    handlers publish NOTHING — the default path runs the whole bus silently.
+    off_collected: list = []
+    off_published = 0
+
+    class OffBus:
+        def subscribe(self, topic, handler):
+            off_collected.append((topic, handler))
+
+        async def publish(self, *a, **k):
+            nonlocal off_published
+            off_published += 1
+
+    _caps.STORE = _Path(_tmp)
+    try:
+        off_organs = register_all(OffBus(), "switched_off_creature")  # never persisted -> OFF
+    finally:
+        _caps.STORE = _orig_store
+    check(len(off_organs) == 2 and not any(getattr(o, "active", True) for o in off_organs),
+          "switch OFF -> register_all wires 2 DORMANT organs")
+    for _topic, handler in off_collected:
+        asyncio.run(handler(Q))
+    check(off_published == 0, "switch OFF -> registered handlers emit 0 Observations (freeze holds)")
 
     print("-" * 60)
     if failures:

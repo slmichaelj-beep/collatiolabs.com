@@ -37,6 +37,9 @@ class IdentityProvider(Organ):
     """
 
     name = "identity"
+    #: True when the organ contributes; the held DormantIdentity sets this False.
+    #: Lets the server/telemetry report dormant-vs-active without import gymnastics.
+    active = True
 
     @abstractmethod
     def current_state(self, name: str) -> dict:
@@ -163,3 +166,35 @@ class StubIdentity(IdentityProvider):
                 weight=STUB_CONF,
                 note="stub identity: held value",
             )
+
+
+class DormantIdentity(IdentityProvider):
+    """The default. Active=False — nothing identity-shaping runs.
+
+    When the per-creature ``identity_agency`` capability is OFF (the default, and
+    the line the 2026-07-03 observation window holds), ``identity_provider`` hands
+    back this organ instead of the stub. It satisfies the contract but contributes
+    NOTHING: every reader returns an empty list / ``None`` and ``on_question`` emits
+    no Observation onto the bus. The seam is wired but silent, so the freeze is
+    respected by construction — flip the switch ON and the stub (later, the live
+    core) takes over with no other call site moving.
+    """
+
+    name = "identity"
+    active = False
+
+    def current_state(self, name: str):  # no felt state while held
+        return None
+
+    def values(self, name: str) -> list[dict]:
+        return []
+
+    def narrative(self, name: str):
+        return None
+
+    def relationships(self, name: str) -> list[dict]:
+        return []
+
+    async def on_question(self, bus, event) -> None:
+        """Held: contribute nothing. The bus stays untouched by identity."""
+        return None

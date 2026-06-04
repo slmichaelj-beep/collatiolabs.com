@@ -122,6 +122,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #caps .cap.soon{color:#6f6f6f}
 #caps .tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 7px;border-radius:9px}
 #caps .cap.soon .tag{color:#777;background:#1f1f1f}
+#caps .tag.exp{color:#d9a23b;background:#332408}
 /* personality dials — frosted sliders that float on the glass */
 .dial{padding:11px 2px 13px;border-bottom:1px solid rgba(255,255,255,.05)}
 .dial:last-child{border-bottom:none}
@@ -246,6 +247,15 @@ form{padding:10px 12px;border-top:1px solid #141414;
       <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Web</div>
       <label class="cap soon"><span class="lbl">Read allow-listed sites</span> <span class="tag">soon</span> <input type="checkbox" class="sw" data-cap="web" disabled></label>
       <textarea id="allow" placeholder="allowed sites, one per line"></textarea>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg> Inner life</div>
+      <label class="cap" title="Experimental. Held until the observation window closes (2026-07-03). Off by default; turn it on only when you choose. While off, nothing identity- or agency-shaping runs.">
+        <span class="lbl">Identity &amp; Agency <span style="opacity:.6">— held until the observation window (2026-07-03)</span></span>
+        <span class="tag exp">experimental</span>
+        <input type="checkbox" class="sw" data-cap="identity_agency">
+      </label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Lets her form a sense of self and weigh her own actions. Held until the observation window closes; leave off unless you mean to turn it on.</p>
     </div>
   </div>
 

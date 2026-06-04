@@ -592,6 +592,20 @@ class Facts:
             del self._by_key[(r["entity"], r["trait"])]
         return r
 
+    # --- canonical-schema view (additive bridge to the event bus) -----------
+    def as_memories(self, name=None) -> list:
+        """Project the ACTIVE ledger rows onto canonical `memory_schema` Memories.
+
+        Returns a list of validated Memory dicts — one per active row (retracted
+        rows are excluded, exactly like lookup()/block()) — each produced via
+        `memory_schema.make()` and already asserted through
+        `memory_schema.validate()` by `_row_to_memory`. This is the read-side seam
+        that lets the LIRF ledger publish what it knows onto the universal bus
+        without changing a single byte of its on-disk format. `name` is accepted
+        for call-site symmetry with the rest of the module's `(name, …)` API and
+        is not otherwise required (the rows already live on this instance)."""
+        return [_row_to_memory(r) for r in self.rows if r.get("status") == "active"]
+
 
 # --- ranking / value helpers (module-level so tests can reach them) ----------
 def _salience(r) -> float:
@@ -627,6 +641,148 @@ def _fmt_value(v) -> str:
     if isinstance(v, list):
         return ", ".join(str(x) for x in v)
     return str(v)
+
+
+# ---------------------------------------------------------------------------
+# Universal Memory Schema bridge — ADDITIVE. Folds a live LIRF ledger row onto
+# the canonical `memory_schema.Memory` (the interlingua spoken on the event bus)
+# WITHOUT touching the on-disk row format or any capture/merge/lookup behaviour.
+#
+# The ledger row and the canonical Memory disagree on two fields, reconciled here:
+#   * the row's `support` is an INT count; the canon `support` is a LIST of
+#     corroboration evidence ids -> the int is expanded into N synthetic string ids
+#     derived from the row id (`{id}#c0 … {id}#c{N-1}`), so the ledger keeps its
+#     cheap counter on disk while the bus carries a real list;
+#   * the row's provenance is a single `source` str plus a verbatim `evidence`
+#     snippet; the canon `sources` is a LIST -> we emit `[source, evidence]`
+#     (evidence only when present and distinct), preserving the audit trail.
+# Type is inferred the same way memory_schema does: a non-SELF entity is a
+# relationship, everything else a fact. EVERY produced Memory is run through
+# `memory_schema.validate()` and asserted before it leaves this module, so a
+# malformed object can never reach the bus.
+#
+# memory_schema imports a handful of names FROM this module at its top level, so
+# the schema import here is done lazily inside each function to stay free of any
+# import-order cycle and keep this module importable in isolation.
+# ---------------------------------------------------------------------------
+
+def _row_to_memory(row: dict) -> dict:
+    """Map ONE live LIRF ledger row -> a validated canonical `memory_schema` Memory.
+
+        entity        -> subject
+        trait         -> predicate
+        value         -> value
+        confidence    -> confidence
+        type          := "relationship" if subject != SELF else "fact"
+        source(+ev)   -> sources       (source first; verbatim evidence appended)
+        support:int   -> support:list  (N corroboration ids derived from the row id)
+        updated       -> updated
+        (row id reused so the SAME memory is addressable in both worlds; `lirf`
+         is stamped by make() via to_lirf, then re-rendered by validate-time)
+
+    Asserts `memory_schema.validate()` on the result: a row can only ever leave
+    here as a schema-valid Memory.
+    """
+    from . import memory_schema as _ms
+
+    rid = row.get("id") or _new_id()
+    subject = row.get("entity", SELF) or SELF
+    mem_type = "relationship" if subject != SELF else "fact"
+
+    # provenance: source first, then the verbatim evidence snippet if it adds info.
+    src = row.get("source")
+    sources: list = []
+    if isinstance(src, str) and src:
+        sources.append(src)
+    elif isinstance(src, list):
+        sources.extend(str(x) for x in src if x)
+    ev = row.get("evidence")
+    if isinstance(ev, str) and ev.strip() and ev not in sources:
+        sources.append(ev)
+
+    # corroboration: int count -> list of synthetic string ids tied to the row id.
+    raw_support = row.get("support", 0)
+    try:
+        n = int(raw_support)
+    except (TypeError, ValueError):
+        n = 0
+    if n < 0:
+        n = 0
+    support = [f"{rid}#c{i}" for i in range(n)]
+
+    mem = _ms.make(
+        type=mem_type,
+        subject=subject,
+        predicate=row.get("trait", "") or "",
+        value=row.get("value"),
+        confidence=row.get("confidence", 0.0),
+        sources=sources,
+        support=support,
+        id=rid,
+        updated=row.get("updated"),
+    )
+    ok, why = _ms.validate(mem)
+    assert ok, f"memory_lirf._row_to_memory produced an invalid Memory: {why} ({mem!r})"
+    return mem
+
+
+def from_memory(mem: dict) -> dict:
+    """Best-effort INVERSE: a canonical `memory_schema` Memory -> a LIRF ledger row.
+
+    The forward map is lossy at the boundary (support int<->list, evidence folded
+    into sources), so this reconstructs a *plausible* on-disk row rather than a
+    byte-identical one:
+
+        subject     -> entity            (None/blank -> SELF, honouring the invariant)
+        predicate   -> trait             (re-run through canon_trait)
+        value       -> value
+        confidence  -> confidence        (clamped into [0,1])
+        sources[0]  -> source            (primary provenance)
+        sources[1:] -> evidence          ("; "-joined verbatim trail)
+        support:list-> support:int       (len of the corroboration list, >=1)
+        updated     -> created & updated
+
+    Produces a fully-formed `active` row (stable id, empty history[]) suitable for
+    seeding a `Facts` ledger or feeding `Facts.merge` semantics. It does NOT
+    persist and does NOT mutate any store — purely a value transform.
+    """
+    sources = mem.get("sources") or []
+    source = sources[0] if sources else ""
+    evidence = "; ".join(str(x) for x in sources[1:]) if len(sources) > 1 else ""
+
+    entity = mem.get("subject", SELF) or SELF
+    if entity in ("vera", "assistant", "me", "i", "myself", None, ""):
+        entity = SELF
+
+    try:
+        conf = float(mem.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        conf = 0.0
+    conf = 0.0 if conf < 0.0 else (1.0 if conf > 1.0 else conf)
+
+    support_list = mem.get("support") or []
+    support = max(1, len(support_list)) if support_list else 1
+
+    ts = mem.get("updated") or _now()
+    trait = canon_trait(mem.get("predicate", "") or "")
+
+    row = {
+        "id": mem.get("id") or _new_id(),
+        "entity": entity,
+        "trait": trait,
+        "value": mem.get("value"),
+        "confidence": conf,
+        "support": support,
+        "source": source,
+        "evidence": evidence,
+        "created": ts,
+        "updated": ts,
+        "status": "active",
+        "history": [],
+    }
+    if trait in NEAR_IMMUTABLE:
+        row["needs_reconfirm"] = False
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -749,6 +905,15 @@ def render(name) -> str:
         for r in rows:
             out.append(f"    • {r['trait'].replace('_', ' ')}: {_fmt_value(r['value'])}")
     return "\n".join(out)
+
+
+def as_memories(name) -> list:
+    """Load `{name}`'s ledger and project its ACTIVE rows onto validated canonical
+    `memory_schema` Memories. Module-level convenience over `Facts.as_memories`,
+    mirroring `capture`/`retrieve`/`render` — the one call a bus publisher needs to
+    turn everything LIRF knows about a creature's user into schema-valid Memory
+    dicts. Read-only: never mutates or persists the store."""
+    return Facts.load(name).as_memories(name)
 
 
 # ---------------------------------------------------------------------------
@@ -917,6 +1082,78 @@ def _selftest() -> int:
         # render is human-readable and shows provenance + history
         rep = render(name)
         ok("render: shows a corroboration count", "corroborated" in rep)
+
+        # --- canonical Memory bridge (additive; on-disk format unchanged) ---
+        from . import memory_schema as _ms
+
+        # a hand-built row exercises every mapped field (incl. evidence + support int)
+        sample_row = {
+            "id": "f_abc123",
+            "entity": SELF,
+            "trait": "birthday",
+            "value": "June 12",
+            "confidence": 0.93,
+            "support": 3,                 # INT on disk -> must become a 3-element list
+            "source": "chat 2026-06-04",
+            "evidence": "my birthday is June 12",
+            "created": "2026-06-04T12:00:00Z",
+            "updated": "2026-06-04T12:00:00Z",
+            "status": "active",
+            "history": [],
+        }
+        mem = _row_to_memory(sample_row)
+        ok("bridge: _row_to_memory result passes memory_schema.validate()",
+           _ms.validate(mem)[0])
+        ok("bridge: exactly the 10 canonical keys",
+           set(mem.keys()) == set(_ms.KEYS))
+        ok("bridge: entity->subject, trait->predicate, value->value",
+           mem["subject"] == SELF and mem["predicate"] == "birthday"
+           and mem["value"] == "June 12")
+        ok("bridge: row id reused (same memory both worlds)", mem["id"] == "f_abc123")
+        ok("bridge: support int(3) -> list of 3 corroboration ids",
+           isinstance(mem["support"], list) and len(mem["support"]) == 3
+           and mem["support"][0] == "f_abc123#c0")
+        ok("bridge: source + evidence both land in sources",
+           mem["sources"] == ["chat 2026-06-04", "my birthday is June 12"])
+        ok("bridge: SELF entity -> type 'fact'", mem["type"] == "fact")
+        ok("bridge: non-SELF entity -> type 'relationship'",
+           _row_to_memory({**sample_row, "entity": "mom"})["type"] == "relationship")
+
+        # from_memory: best-effort inverse, round-trips the essentials back to a row
+        back = from_memory(mem)
+        ok("from_memory: rebuilds a well-formed active row",
+           back["status"] == "active" and back["entity"] == SELF
+           and back["trait"] == "birthday" and back["value"] == "June 12")
+        ok("from_memory: support list -> int count",
+           isinstance(back["support"], int) and back["support"] == 3)
+        ok("from_memory: sources[0] -> source", back["source"] == "chat 2026-06-04")
+        ok("from_memory: sources[1:] -> evidence trail",
+           back["evidence"] == "my birthday is June 12")
+        ok("round-trip: row -> Memory -> row preserves entity/trait/value/conf",
+           back["entity"] == sample_row["entity"] and back["trait"] == sample_row["trait"]
+           and back["value"] == sample_row["value"]
+           and abs(back["confidence"] - sample_row["confidence"]) < 1e-9)
+
+        # as_memories(): EVERY active fact projects to a validated Memory; retracted
+        # rows are excluded (mirrors lookup()/block()). The ledger here still holds
+        # the captured battery from above (dislikes, lives, …) minus the retracted
+        # birthday.
+        mems = f.as_memories(name)
+        ok("as_memories: returns a non-empty list of Memories", len(mems) > 0)
+        ok("as_memories: EVERY produced Memory passes validate()",
+           all(_ms.validate(mm)[0] for mm in mems))
+        ok("as_memories: count == active rows (retracted excluded)",
+           len(mems) == len([r for r in f.rows if r.get("status") == "active"]))
+        ok("as_memories: retracted birthday is NOT projected",
+           all(mm["predicate"] != "birthday" for mm in mems))
+        ok("as_memories: a known active fact (dislikes) is present",
+           any(mm["predicate"] == "dislikes" for mm in mems))
+
+        # module-level convenience wrapper agrees with the instance method (reloads
+        # from the same on-disk ledger saved earlier in this test).
+        ok("as_memories(module): loads + validates from disk",
+           all(_ms.validate(mm)[0] for mm in as_memories(name))
+           and len(as_memories(name)) > 0)
 
         # STEP-0 migration detector (non-destructive: dry-run plans only)
         from .util import save_text

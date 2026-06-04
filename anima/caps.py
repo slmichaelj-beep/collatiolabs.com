@@ -16,9 +16,15 @@ from .util import load_json, save_json
 
 STORE = Path(".anima")
 KEYS = ("imessage", "mail", "web")
+# Every boolean capability flag, persisted per-creature and default-OFF. Listed
+# once so load()/save() stay in lockstep; "allowlist" is handled separately below.
+#
+# identity_agency — the held switch for Vera's Identity & Agency organs. OFF until
+# the founder turns it on; while OFF the organs stay dormant (organs/__init__.py
+# reads this via is_enabled()), honouring the 2026-07-03 observation-window freeze.
+BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency")
 # capability sub-permissions default to the safe subset; UI can widen them
-DEFAULT = {"imessage": False, "mail": False, "web": False,
-           "imessage_read": False, "mail_read": False, "allowlist": []}
+DEFAULT = {**{k: False for k in BOOL_KEYS}, "allowlist": []}
 
 
 def _path(name):
@@ -40,7 +46,7 @@ def load(name) -> dict:
     raw = load_json(_path(name)) if _path(name).exists() else {}
     out = dict(DEFAULT)
     if isinstance(raw, dict):
-        for k in ("imessage", "mail", "web", "imessage_read", "mail_read"):
+        for k in BOOL_KEYS:
             out[k] = bool(raw.get(k, False))
         al = raw.get("allowlist", [])
         if isinstance(al, list):
@@ -50,7 +56,7 @@ def load(name) -> dict:
 
 def save(name, caps) -> dict:
     out = dict(DEFAULT)
-    for k in ("imessage", "mail", "web", "imessage_read", "mail_read"):
+    for k in BOOL_KEYS:
         out[k] = bool(caps.get(k, False))
     al = caps.get("allowlist", [])
     if isinstance(al, list):
