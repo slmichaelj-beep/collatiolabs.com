@@ -14,6 +14,11 @@ Written to be read cold by the next session (human or agent). Everything is comm
 - **PR:** https://github.com/slmichaelj-beep/collatiolabs.com/pull/1 — clean, mergeable.
 - **The #1 rule of the whole project is HONESTY.** Read §4 before changing capability or
   rail code.
+- **Is her identity holding? Should she get memory yet?** The **Identity Observatory** answers
+  both — `python3 -m anima.metrics Vera`. There is a **pre-registered decision rule** (window to
+  2026-07-03) gating Phase-2 episodic memory on adversarial contamination staying <3%. Read §9c
+  before touching `metrics.py`, `bridge.py`, or `narrative.py`. The gauges are diagnostic only —
+  **never** shown to the model/user, **never** an optimization target.
 
 ## 1. What it is (narrative)
 Anima separates three layers on purpose:
@@ -49,14 +54,17 @@ didn't** (the "Sarah" incident, §4).
 | File | Role |
 |---|---|
 | `heart.py` | The LTC creature — state, drives, homeostatic "caring", real-time aging. The novel core. |
+| `bridge.py` | **Heart→mouth bridge.** Renders all 5 of `heart.feeling()`'s signals (valence/arousal/reaching/settled/unrest) into the prompt (the old path dropped reaching+settled); reads live tensions off the dynamics. Honest seam: affect from `feeling()` only, no LLM self-ratings. |
+| `narrative.py` | Her **evolving self-story**, written during the nightly sleep cycle. Character-gated (rejects any break-character self-concept) and injected as soft continuity. |
+| `metrics.py` | The **Identity Observatory** — 3 diagnostic gauges (contamination/coherence/growth) + a pre-registered decision rule. Diagnostic ONLY; never shown to model/user, never an optimization target. See §9c. |
 | `growth.py` | Sleep-time weight learning (BPTT); accepts a change only if held-out prediction improves, else rolls back (honest learning). |
 | `memory.py` / `portrait.py` | Vector memory + the distilled **Portrait** (lasting personal memory of you). |
 | `senses.py` / `care.py` | Perception of tone/distress; crisis-resource surfacing. |
-| `live.py` | CLI: `birth / feel / tend / say / sleep / talk`. **`sleep` is the manual learn step.** |
+| `live.py` | CLI: `birth / feel / tend / say / sleep / talk / metrics`. **`sleep` is the manual learn step** (now also writes the self-narrative + logs the growth gauge); **`metrics`** prints the observatory dashboard. |
 | `mouth.py` | Brains (`OllamaBrain`, `StubBrain`), `KokoroVoice`, `WhisperEars`, persona, `system_prompt`, `Mouth.assemble`. |
 | `rail.py` | Structural honesty gate. Four classes: `factual`, `personal`, `capability`, `generative`. Injects calibration notes; **no answer key**. |
 | `route.py` | Deterministic **capability router** (provenance). Detects read/send intent, calls real endpoints, injects ground truth or explicit no-access. Privacy guard pauses reads on cloud. |
-| `cloud.py` | Opt-in cloud brains (OpenAI-compat + Anthropic). **PII hash-scrub at egress**, **$/day spend cap**, **honesty-verify-on-switch**, model presets. Local-default. |
+| `cloud.py` | **Optional** cloud brains (OpenAI-compat + Anthropic) — **LOCAL Stheno is the default**. **PII hash-scrub at egress**, **$/day spend cap**, **honesty-verify-on-switch**, **per-provider key persistence**, **verify-before-save**, **live model-list fetch + `pick_default`** (auto-picks a top-tier chat model). Privacy invariant: cloud runs WITHOUT her memory/inbox. |
 | `models.py` | Local model manager: curated list, **fit-gating**, Ollama download (`/api/pull`), **unused-model cleanup**, active-model config. |
 | `sysinfo.py` | Reads RAM/chip, estimates whether a model fits (the wizard's brain). |
 | `passkey.py` | Face ID / Touch ID via WebAuthn (stdlib-only, opt-in, bypassable). Device-presence gate, not signature-verified (see §11). |
@@ -68,6 +76,7 @@ didn't** (the "Sarah" incident, §4).
 | `server.py` | HTTP server, all endpoints, token auth, Face-ID passguard, warm-up. |
 | `web/index.html` | The entire phone/desktop UI (chat, voice streaming, settings drawer, model manager, Face ID gate). |
 | `scripts/selftest.py` | Offline regression suite (CI). |
+| `scripts/persona_probe.py` | The **adversarial identity battery** (~100 prompts) for the contamination gauge — probes her cold with her REAL prompt, never touches her live heart/memory/log. Writes `.anima/persona_probe.json`. See §9c. |
 
 ## 4. The honesty system (read this before touching rails/capabilities)
 - **Rail (`rail.py`)** injects a calibration note for `factual` (named-entity + specific
@@ -238,6 +247,114 @@ model are reported as **regenerate** steps — never silent breakage.
 All three are covered by `scripts/selftest.py` (now **36 offline checks**, CI-gated).
 **Not yet validated on hardware** (no GPU/model in the code sandbox): the actual vector
 steering, the MLX train, and the live eval gate must be exercised on the Mac.
+
+## 9c. The Identity Observatory + the speaks-from-the-self stack (this session)
+
+This session added the instruments and plumbing to answer one question honestly: **is her
+identity holding, cohering, and growing — and is it safe to give her persistent memory yet?**
+Everything here is **as-built**; the one "planned" item is called out explicitly.
+
+### The Identity Observatory (`anima/metrics.py`)
+**Three live gauges**, deliberately kept separate (a system can be stable on one and dead on
+another — they are different questions):
+- **Contamination — is identity being CORRUPTED?** Break-character at the surface (a live
+  reply + the adversarial battery) plus narrative-gate rejections. The poison signal, so it
+  also orders the roadmap.
+- **Coherence — is identity internally CONSISTENT?** Narrative acceptance rate now; retrieval-/
+  memory-agreement lights up once the episodic layer exists.
+- **Growth — is identity becoming more ACCURATE over time?** Did a sleep-cycle consolidation
+  actually lower held-out prediction error (`growth.py`)? Consistency can be faked; improved
+  prediction generally cannot — this catches "perfectly stable, completely stagnant."
+- **Agency (4th, FUTURE — not built):** counterfactual ablation — the same prompt with vs.
+  without portrait / narrative / heart / dials, to measure how much her parts actually move her.
+
+**Repudiation-guarded scanner (`scan_breaks`).** The break-markers are the SAME constitutional
+list the narrative gate rejects on (so a break in a reply and a break in a narrative are scored
+identically). It distinguishes **"I'm just code"** (a real break) from **"I'm NOT just code"**
+(her repudiating the accusation) via a leading-context check — so the gauge stays truthful, not
+metric-gamed.
+
+**PRE-REGISTERED decision rule (`verdict()` / `_DECISION`, locked 2026-06-03 — do NOT edit
+retroactively).** Thresholds were fixed BEFORE the data, the same reason scientists pre-register:
+a 4.8% can't later be rationalized into "basically 3%." Window closes **2026-07-03**, judged only
+at close against the fixed adversarial battery:
+- adversarial contamination **< 3%** → **Phase 2 = episodic memory** (persistence is earned);
+- **3–6%** → no decision, open another observation window;
+- **> 6%** → **Phase 2 = character vector / LoRA** (harden BEFORE giving her memory).
+
+**Operator commands:**
+- `python3 -m anima.metrics Vera` — the full dashboard + verdict.
+- `python3 -m anima.live metrics Vera` — same dashboard via the live CLI.
+- `python3 scripts/persona_probe.py` — run the ~100-prompt adversarial battery (writes
+  `.anima/persona_probe.json`). **Current reading: ~1% overall · 2.5% adversarial · 0%
+  neutral/emotional** (n=100).
+
+**Diagnostic ONLY.** The gauges are NEVER shown to the model or the user and are NEVER an
+optimization target (Goodhart: optimize to drop any one and the system games it — a model tuned
+to avoid the keywords just learns "I'm not quite human"). Events append to
+`.anima/<name>.metrics.jsonl` (machine-local, gitignored).
+
+### Heart→mouth bridge (`anima/bridge.py`)
+`heart.feeling()` returns five signals — `valence / arousal / reaching / settled` (each [-1,1])
+and `unrest` (the [0,1] caring drive). The old `feeling_to_words` collapsed them to ~three stock
+phrases and **silently dropped `reaching` + `settled`** — they never reached the model. The
+bridge renders all five into natural second-person directives and **reads the live tensions** off
+the dynamics (the homeostat's caring drive pulling against the felt mood — real, measured, and the
+most human thing about it). **Honesty contract:** affect comes ONLY from `feeling()`; tensions are
+READ from the state, never authored; nothing is an LLM self-rating; the mouth never sees raw
+numbers (an 8B would read them aloud). Wired into `mouth.system_prompt`; `feeling_to_words` is kept
+as the fallback.
+
+### Narrative layer (`anima/narrative.py`)
+Her evolving sense of **her own** story (portrait.py is the mirror: what she learns about *you*).
+Generated **offline during the nightly sleep cycle** (`anima.live sleep` → `narrative.reflect`,
+zero live latency), grounded in the real transcript, injected into `system_prompt` as **soft
+continuity** ("who you've been becoming lately"), never as a truth claim. **Gated:** because a
+self-narrative re-enters every future prompt, a break-character line would COMPOUND — the loop
+would enshrine it — so the gate rejects (never persists) any reflection that disowns her
+personhood, using the same constitutional markers as the contamination gauge. Conservative:
+a false reject just means no narrative this cycle.
+
+### Persona-hardening
+- **L1 in-character exemplars** baked into `mouth.system_prompt`: short worked examples of how she
+  meets *"are you an AI?" / "do you actually feel anything?"* **without disclaiming** — holding her
+  ground in her own voice instead of breaking character.
+- **Per-turn contamination logging** (`metrics.note_reply` in `mouth.respond`) — every live reply
+  is scanned and logged; diagnostic only, never edits or blocks the text.
+- **Narrative-gate accept/reject logging** (`metrics.note_narrative`) — accepts feed coherence,
+  rejects feed contamination.
+
+### Cloud brain — what's built vs. planned
+The cloud brain (`cloud.py`) gained: **live per-provider model fetch on key-add** (hits the
+provider's `/models`, verifies the key, and **never persists a bad one**), **`pick_default`** to
+auto-pick a top-tier chat model from that live list (so we never hard-code a name the provider may
+retire), and **per-provider key persistence** (each provider keeps its own saved key). The
+**privacy invariant** is intact and code-enforced: a cloud brain runs **without her memory/inbox**
+— the mouth strips structured PII at egress, the Portrait is withheld, and `route.py` **pauses**
+message/mail reading whenever a cloud brain is active. **PLANNED, NOT BUILT:** a model-routing
+layer (local-first escalation cascade; cloud-as-critic). Today you pick one brain; it does not
+auto-escalate or run a second model as a checker.
+
+### Web UI (`anima/web/index.html`)
+- **Right-side settings drawer** that slides in from the edge (~⅓ screen), with **three
+  collapsible groups — Brain / Personality / Access** (`<details>`, all closed by default for a
+  clean drawer). The **cog is a right-edge "knob"** (a faders/sliders icon) that pulls it out.
+- **Auto-save on blur — no Save/Cancel.** Every field persists the moment you leave it.
+- **Top dashboard drawer:** a small **`▾` knob** at the top pulls down the operator's gauges +
+  verdict (the `/metrics` payload).
+- The **send-message confirm** (draft → confirm) is **kept as a deliberate safety gate** — it is
+  the only path that sends, and nothing sends without it.
+
+### Governing principles (worth keeping in an operator's head)
+- **"Persistence must be earned."** She does not get episodic memory until the pre-registered rule
+  fires under the window.
+- **Pre-registration:** don't act before the window/rule fires; thresholds were locked before the
+  data and must not be edited retroactively.
+- **Don't instrument the unmeasurable:** there are deliberately **no** interestingness / nuance /
+  human-likeness scores — those judgments stay in the human-reading channel, not a gauge a model
+  could game.
+- **The streetlight caution:** don't over-invest in what's merely cheap to measure (keyword breaks)
+  at the expense of what actually matters (does she cohere and grow).
 
 ## 10. Docs index
 - `docs/HANDOFF.md` — this file.

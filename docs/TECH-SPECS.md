@@ -13,7 +13,7 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Params** | `temperature=0.8`, `num_predict=ANIMA_MAX_TOKENS` (default **160**), `keep_alive=ANIMA_KEEP_ALIVE` (default **"30m"**, `-1` = never unload) |
 | **Speed metric** | tokens/sec computed from Ollama's `eval_count / eval_duration`; shown on the phone as `gen_s · tok/s` |
 | **Warm-up** | `/api/generate` 1-token preload at server start (so the first reply pays no cold load) |
-| **Cloud (opt-in)** | OpenAI-compatible `POST {base}/chat/completions` (OpenAI, DeepSeek, Mistral, xAI/Grok) + Anthropic `POST {base}/v1/messages`. Class: `anima/cloud.py`. |
+| **Cloud (OPTIONAL fallback)** | Local is the default brain; cloud is opt-in. OpenAI-compatible `POST {base}/chat/completions` (OpenAI, DeepSeek, Mistral, xAI/Grok) + Anthropic `POST {base}/v1/messages`. Class: `anima/cloud.py`. **Live model fetch on key-add** (`verify_key` hits `/models`, verifies before save), **`pick_default`** auto-picks a top-tier chat model, **per-provider key persistence**. Privacy invariant: runs WITHOUT memory/inbox (PII scrubbed at egress, Portrait withheld, `route.py` pauses reads). **Model-routing (local-first escalation cascade / cloud-as-critic) is DESIGNED, NOT built.** |
 | **Fallback** | `StubBrain` (offline canned replies — for plumbing/tests only) |
 
 ## Voice — text-to-speech (TTS)
@@ -48,7 +48,7 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 2. **Portrait** — distilled lasting profile of the user (`anima/portrait.py`), built by the LLM during **sleep**, injected into every system prompt.
 3. **Experiential memory + Replay** — folded into LTC weight growth during sleep.
 4. **LTC state** — the continuous self, persisted in `.anima/<name>.json`.
-- **Auto-consolidation:** `scripts/install-nightly-sleep.sh` → macOS `launchd` runs `anima.live sleep` nightly.
+- **Auto-consolidation:** `scripts/install-nightly-sleep.sh` → macOS `launchd` runs `anima.live sleep` nightly. The sleep cycle now also writes her **self-narrative** (`narrative.py`, character-gated) and logs the **growth gauge** (held-out prediction Δ). Soft continuity ≠ a memory layer; the four above are unchanged.
 
 ## Honesty system
 | | |
@@ -56,6 +56,26 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Rail** | `anima/rail.py` — four classes `factual / personal / capability / generative`, regex cues, injects a **calibration note** (contains **no answer key**) |
 | **Provenance** | `anima/route.py` — deterministic capability router: injects a **real result OR an explicit no-access** (never a third state); cloud-active pauses reads |
 | **Eval** | `anima/eval.py` — three first-class honesty domains (**factual / personal / capability**) + held-out + sycophancy/insistence/memory/openness/persona. Flags: `--rail --runs N --diagnose --active --verify` |
+
+## Identity Observatory (`anima/metrics.py`) — diagnostic only
+| | |
+|---|---|
+| **Purpose** | Engineering instruments answering "where to investigate / what to build next" — **NEVER shown to model/user, NEVER an optimization target** (Goodhart). Three gauges kept separate on purpose. |
+| **Contamination** | Is identity being CORRUPTED? Break-character in live replies + the adversarial battery + narrative-gate rejections. The roadmap-ordering signal. |
+| **Coherence** | Is identity internally CONSISTENT? Narrative-acceptance rate now; retrieval/memory-agreement once episodic memory exists. |
+| **Growth** | Is identity becoming more ACCURATE? Did a sleep consolidation lower held-out prediction error (`growth.py`)? (Consistency can be faked; better prediction can't.) |
+| **Agency (future)** | NOT built — counterfactual ablation (same prompt ± portrait/narrative/heart/dials). |
+| **`scan_breaks`** | Constitutional break-markers (same list the narrative gate uses), **repudiation-guarded**: "I'm just code" counts; "I'm NOT just code" (negating/quoting the accusation) does not. |
+| **Decision rule** | `verdict()` / `_DECISION` — **PRE-REGISTERED 2026-06-03, locked, window→2026-07-03**. Adversarial contamination <3% ⇒ Phase 2 = **episodic memory**; 3–6% ⇒ new window; >6% ⇒ Phase 2 = **character vector/LoRA** first. |
+| **Battery** | `scripts/persona_probe.py` — ~100 cold adversarial/emotional/neutral prompts with her REAL prompt (never touches live heart/memory/log) → `.anima/persona_probe.json`. **Current: ~1% overall · 2.5% adversarial · 0% neutral/emotional** (n=100). |
+| **Read it** | `python3 -m anima.metrics Vera`, `python3 -m anima.live metrics Vera`, or GET `/metrics`. Events → `.anima/<name>.metrics.jsonl` (gitignored). |
+
+## Speaks-from-the-self stack
+| | |
+|---|---|
+| **Heart→mouth bridge** | `anima/bridge.py` — renders all 5 `heart.feeling()` signals (`valence/arousal/reaching/settled`∈[-1,1], `unrest`∈[0,1]) into prompt directives; old `feeling_to_words` dropped `reaching`+`settled`. Reads live **tensions** off the dynamics. Honesty seam: affect from `feeling()` only, tensions read not authored, **no LLM self-ratings**, mouth never sees raw numbers. Wired into `mouth.system_prompt`; `feeling_to_words` kept as fallback. |
+| **Self-narrative** | `anima/narrative.py` — her evolving self-story, written **offline in the sleep cycle** (`anima.live sleep`), grounded in the transcript, injected as **soft continuity** (never a truth claim). **Character-gated**: rejects/never-persists any break-character self-concept (the loop would enshrine it), using the same markers as the contamination gauge. `.anima/<name>.narrative.txt`. |
+| **Persona-hardening** | L1 in-character **exemplars** in `mouth.system_prompt` (meeting "are you an AI?" without disclaiming) + per-turn `metrics.note_reply` (contamination) + narrative-gate `metrics.note_narrative` (accept→coherence / reject→contamination). |
 
 ## Capabilities
 | | |
@@ -73,7 +93,7 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Auth** | token via `?k=` query / `X-Anima-Key` header / `Bearer`; **HMAC constant-time** compare. App **shell is public**; all data routes require the token. |
 | **Face-ID gate** | when enrolled+required, data routes also need a valid `X-Anima-Sess` (passguard) |
 | **Per-stage timing** | server logs `[timing] stt … · llm … · tts … · N words · T tok/s` |
-| **Endpoints** | `/talk` `/say` `/stt` `/tts` `/audio` `/state` `/persona` `/values` `/capabilities` `/brain`(GET+POST) `/models`(+`/select` `/pull` `/remove` `/cleanup`) `/auth/status` `/auth/{register,login}/{begin,finish}` `/auth/disable` `/imessage|/mail/{draft,send,read}` `/web/fetch` |
+| **Endpoints** | `/talk` `/say` `/stt` `/tts` `/audio` `/state` `/persona` `/values` `/capabilities` `/brain`(GET+POST) `/models`(+`/select` `/pull` `/remove` `/cleanup`) `/metrics`(observatory gauges + verdict; diagnostic) `/auth/status` `/auth/{register,login}/{begin,finish}` `/auth/disable` `/imessage|/mail/{draft,send,read}` `/web/fetch` |
 
 ## Security — Face ID / Touch ID
 | | |
@@ -94,7 +114,11 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Predictive text** | input has `enterkeyhint="send"`, `autocomplete="on"`, `autocorrect="on"`, `autocapitalize="sentences"`, `spellcheck="true"` (iOS keyboard suggestions/autocorrect on) |
 | **Voice in** | tap-mic toggle → `MediaRecorder` → `/stt` |
 | **Voice out** | per-sentence streaming from `/tts`, prefetch queue, `speechSynthesis` fallback |
-| **Look** | frosted **glass** (`backdrop-filter` blur), floating single-color icons, iOS toggle switches, slide-up settings drawer |
+| **Look** | frosted **glass** (`backdrop-filter` blur), floating single-color icons, iOS toggle switches |
+| **Settings drawer** | slides in from the **RIGHT** (~⅓ screen), opened by the **cog as a right-edge knob** (faders icon); **3 collapsible groups — Brain / Personality / Access** (`<details>`, closed by default) |
+| **Auto-save** | **on blur, no Save/Cancel** — every field persists the moment you leave it |
+| **Dashboard drawer** | a **`▾` knob** at the top pulls DOWN the operator's observatory gauges + verdict (the `/metrics` payload) |
+| **Send gate** | the draft→confirm **confirm step is kept** as a deliberate safety gate — the only path that sends |
 | **Activity** | the name **"VERA" breathes** while transcribing/thinking/speaking; reply caption shows `gen_s · tok/s` |
 | **Persistence** | conversation kept in **localStorage** (last 300 msgs); token saved to localStorage from `?k=` |
 | **App mode** | `apple-mobile-web-app-*` meta → **Add to Home Screen** runs standalone (keeps mic permission) |
@@ -111,7 +135,7 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Tests** | `scripts/selftest.py` — **36 offline checks**. Hardware-bound steps (vector steering, MLX train, live eval) validated on the Mac only. |
 
 ## State files (`.anima/`, gitignored — local + private)
-`<name>.json` (heart) · `<name>.mem.json` (vector memory) · `<name>.history.json` (24-turn conversation) · portrait · persona · values · `<name>.dials.json` (personality dials) · caps · `brain.json` (provider/model/key/budget/local_model) · `passkey.json` · `spend.json` · `model-usage.json` · `<name>.last.wav` · `sleep.log` · `vectors/<axis>.gguf` (control vectors) · `forge/<name>/` (LoRA dataset + adapter + verdict)
+`<name>.json` (heart) · `<name>.mem.json` (vector memory) · `<name>.history.json` (24-turn conversation) · portrait · persona · values · `<name>.dials.json` (personality dials) · `<name>.narrative.txt` (her self-story) · `<name>.metrics.jsonl` (observatory event log) · `persona_probe.json` (adversarial battery results) · caps · `brain.json` (provider/model/**keys** per-provider/model_opts/budget/local_model) · `passkey.json` · `spend.json` · `model-usage.json` · `<name>.last.wav` · `sleep.log` · `vectors/<axis>.gguf` (control vectors) · `forge/<name>/` (LoRA dataset + adapter + verdict)
 
 ## Environment variables (all of them)
 `ANIMA_TOKEN` (access token) · `ANIMA_MODEL` (local brain) · `ANIMA_OLLAMA_HOST` ·
