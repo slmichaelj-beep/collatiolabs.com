@@ -135,6 +135,9 @@ def main(argv: list[str] | None = None) -> None:
     pt = sub.add_parser("portrait", help="show what she remembers about you (editable)")
     pt.add_argument("name")
 
+    me = sub.add_parser("metrics", help="character & identity health dashboard (diagnostic)")
+    me.add_argument("name")
+
     sub.add_parser("list", help="list living animae")
 
     args = ap.parse_args(argv)
@@ -168,6 +171,9 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  (sensed  mood {p.mood:+.2f}  intensity {p.intensity:.2f}  "
               f"attention {p.attention:.2f}  -> wellbeing {p.wellbeing:.2f})")
         _report(heart)
+    elif args.cmd == "metrics":
+        from . import metrics
+        print(metrics.dashboard(args.name))
     elif args.cmd == "sleep":
         heart = _load(args.name)
         # 1) lasting memory: distil the day's conversation into the Portrait
@@ -193,6 +199,8 @@ def main(argv: list[str] | None = None) -> None:
         train, hold = replay.train_holdout()
         theta = heart.genome.theta()
         acc, before, after = growth.consolidate(theta, heart.genome.inv_tau, train, hold)
+        from . import metrics                       # log the consolidation for the growth gauge
+        metrics.note_growth(args.name, acc, before, after)
         if acc:
             heart.genome.set_theta(theta)
             heart.learned = True
