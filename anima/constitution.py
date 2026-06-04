@@ -35,6 +35,9 @@ STORE = Path(os.environ.get("ANIMA_STORE", ".anima"))
 LAW_ID = "ANIMA LAW 001"
 LAW_TITLE = "NEVER LOSE CONTINUITY"
 
+LAW_002_ID = "ANIMA LAW 002"
+LAW_002_TITLE = "NEVER MAKE THE SAME DISCOVERY TWICE"
+
 # ---------------------------------------------------------------------------------
 # THE LAW — verbatim. Do not paraphrase, soften, or "improve" this text. Subsystems
 # and tests read THIS constant; if the words ever need to change, they change here,
@@ -66,6 +69,24 @@ PRESERVE_OVER_DESTROY = {
     "deleted": "archived",    # prefer Archived  over Deleted
 }
 
+# ---------------------------------------------------------------------------------
+# THE SECOND LAW — verbatim. Parallel to LAW_001: read THIS constant, never paraphrase.
+# Where the first law forbids LOSING what is known, the second forbids RE-LEARNING it:
+# a person must never be asked the same thing twice. Like the first, this law is
+# ENFORCED, not merely written — the Curiosity Engine (anima/curiosity.py) makes it
+# real. Its gap-tracker records what is and is not yet known per person, so a question
+# is surfaced only for a genuine gap; the `test_no_redundant_discovery` invariant
+# (scripts/test_curiosity.py) fails the build if anything already-known is re-asked.
+# Enforced beats written — the same principle that gives LAW_001 its teeth.
+# ---------------------------------------------------------------------------------
+LAW_002 = (
+    "ANIMA LAW 002 — NEVER MAKE THE SAME DISCOVERY TWICE. "
+    "A person must never have to tell Vera the same thing twice — not a birthday, "
+    "a preference, a project, a fear, a goal, a lesson, a workflow, or a life event. "
+    "Once discovered, it becomes part of reality. The system tracks what it knows and "
+    "what it does not, and never re-asks what it already knows."
+)
+
 
 def law_text() -> str:
     """The full, verbatim law. Single source of truth for prompts, docs, and tests."""
@@ -75,6 +96,16 @@ def law_text() -> str:
 def corollaries() -> tuple[str, ...]:
     """The three preservation corollaries, in order."""
     return COROLLARIES
+
+
+def law_002_text() -> str:
+    """The full, verbatim second law. Single source of truth for prompts, docs, tests.
+
+    Written here; ENFORCED in anima/curiosity.py (gap-tracker + the
+    `test_no_redundant_discovery` invariant), the way LAW_001 is enforced by
+    `approved_loss()`. The words live in one place so every subsystem reads the same law.
+    """
+    return LAW_002
 
 
 def continuity_log_path(name: str) -> Path:
@@ -170,11 +201,35 @@ __all__ = [
     "LAW_ID",
     "LAW_TITLE",
     "LAW_001",
+    "LAW_002_ID",
+    "LAW_002_TITLE",
+    "LAW_002",
     "COROLLARIES",
     "PRESERVE_OVER_DESTROY",
     "law_text",
+    "law_002_text",
     "corollaries",
     "approved_loss",
     "approved_losses",
     "continuity_log_path",
 ]
+
+
+if __name__ == "__main__":
+    # Cheap, offline selftest: the laws must be present and verbatim-shaped. No store
+    # writes, no network — just assert the constants the rest of the system reads.
+    assert LAW_001.startswith("ANIMA LAW 001"), "LAW_001 text drifted"
+    assert "NEVER LOSE CONTINUITY" in LAW_001
+    assert len(COROLLARIES) == 4 and "Observed > Assumed." in COROLLARIES
+
+    assert LAW_002, "LAW_002 must be present"
+    assert LAW_002.startswith("ANIMA LAW 002"), "LAW_002 must start with 'ANIMA LAW 002'"
+    assert "NEVER MAKE THE SAME DISCOVERY TWICE" in LAW_002
+    assert law_002_text() == LAW_002
+    assert "LAW_002" in __all__, "LAW_002 must be exported"
+
+    print(LAW_001)
+    print()
+    print(LAW_002)
+    print()
+    print("constitution selftest: OK (LAW_001 + LAW_002 present and verbatim)")

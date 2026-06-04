@@ -23,8 +23,25 @@ KEYS = ("imessage", "mail", "web")
 # the founder turns it on; while OFF the organs stay dormant (organs/__init__.py
 # reads this via is_enabled()), honouring the 2026-07-03 observation-window freeze.
 BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency")
+
+# Enum (multi-value) settings, persisted alongside the booleans. Each maps a key to
+# (allowed_values, default); load()/save() read this map so a new enum stays in lockstep
+# the way BOOL_KEYS does for flags. Unlike a flag, an enum has a *safe default value*
+# (not just False) and any value off the allowed list collapses to that default.
+#
+# curiosity — the Curiosity Budget. Controls how OFTEN Vera surfaces a contextual
+# question (FREQUENCY only — never the content of any question, which the Curiosity
+# Engine owns). "minimal" rarely asks, "balanced" is the default cadence, "deep" asks
+# more freely. It is a dial on volume, not a gate on what she may learn.
+ENUM_KEYS = {
+    "curiosity": (("minimal", "balanced", "deep"), "balanced"),
+}
 # capability sub-permissions default to the safe subset; UI can widen them
-DEFAULT = {**{k: False for k in BOOL_KEYS}, "allowlist": []}
+DEFAULT = {
+    **{k: False for k in BOOL_KEYS},
+    **{k: default for k, (_allowed, default) in ENUM_KEYS.items()},
+    "allowlist": [],
+}
 
 
 def _path(name):
@@ -42,12 +59,23 @@ def _norm_host(h: str) -> str:
     return h
 
 
+def _norm_enum(key: str, value) -> str:
+    """Coerce a stored enum value to an allowed one, else the key's safe default.
+    A missing key, a non-string, or any value off the allow-list → the default."""
+    allowed, default = ENUM_KEYS[key]
+    if isinstance(value, str) and value in allowed:
+        return value
+    return default
+
+
 def load(name) -> dict:
     raw = load_json(_path(name)) if _path(name).exists() else {}
     out = dict(DEFAULT)
     if isinstance(raw, dict):
         for k in BOOL_KEYS:
             out[k] = bool(raw.get(k, False))
+        for k in ENUM_KEYS:
+            out[k] = _norm_enum(k, raw.get(k))
         al = raw.get("allowlist", [])
         if isinstance(al, list):
             out["allowlist"] = sorted({_norm_host(h) for h in al if isinstance(h, str)} - {""})[:100]
@@ -58,6 +86,8 @@ def save(name, caps) -> dict:
     out = dict(DEFAULT)
     for k in BOOL_KEYS:
         out[k] = bool(caps.get(k, False))
+    for k in ENUM_KEYS:
+        out[k] = _norm_enum(k, caps.get(k, out[k]))
     al = caps.get("allowlist", [])
     if isinstance(al, list):
         out["allowlist"] = sorted({_norm_host(h) for h in al if isinstance(h, str)} - {""})[:100]
@@ -68,3 +98,29 @@ def save(name, caps) -> dict:
 
 def enabled(name, key) -> bool:
     return bool(load(name).get(key, False))
+
+
+def curiosity_budget(name) -> str:
+    """How OFTEN Vera surfaces a contextual question: "minimal" | "balanced" | "deep".
+
+    The Curiosity Engine (anima/curiosity.py) calls this to pace itself. Fails SAFE:
+    a missing or corrupt store, or any value not on the allow-list, returns the
+    default "balanced" — curiosity is never silently switched off or cranked up by
+    bad data. (FREQUENCY only; it never touches the *content* of a question.)
+    """
+    _allowed, default = ENUM_KEYS["curiosity"]
+    try:
+        value = load(name).get("curiosity", default)
+    except Exception:
+        return default
+    return value if value in _allowed else default
+
+
+def set_curiosity_budget(name, value) -> str:
+    """Persist the Curiosity Budget for `name`. Mirrors how other settings are written:
+    read current caps, set this one field, save through the normalising `save()`.
+    An invalid value is coerced to the safe default rather than stored. Returns the
+    value actually persisted."""
+    caps = load(name)
+    caps["curiosity"] = _norm_enum("curiosity", value)
+    return save(name, caps)["curiosity"]

@@ -48,6 +48,9 @@ _VOICE = False                       # server voice mode (set at startup); the s
 _HISTMAX = int(os.environ.get("ANIMA_HISTORY", "24"))   # how many recent turns she keeps
 _HISTORY = deque(maxlen=_HISTMAX)    # recent (you, her) turns — persisted so a restart
                                      # doesn't wipe her short-term memory
+_CURIOSITY_ASKED = set()             # names that surfaced a curiosity question this process-
+                                     # session — pace Law 002's gap-asking to one gentle aside
+                                     # per session (conservative default; budget-tunable)
 
 
 def _hist_path(name):
@@ -330,6 +333,23 @@ def _turn(name, text, voice=False):
         try:                                       # Personal World State: capture relational/causal
             from . import world_state               # edges from THIS turn (additive, union-safe save,
             world_state.capture_relations(name, text)  # race-free under _lock) — situations build over time.
+        except Exception:
+            pass
+        try:                                       # LAW 002 / Curiosity Engine: AFTER capture (so a fact
+            from . import curiosity, cloud as _cc   # stated THIS turn is never asked about), only on a
+            if (not _cc.is_cloud()                  # CASUAL turn (no fact answered, no capability run, no
+                    and name not in _CURIOSITY_ASKED   # verifier override), cloud-off (PII), budget-gated,
+                    and not _fact_block and not cap_note   # at most one gentle aside per session.
+                    and not (_verdict is not None and getattr(_verdict, "override", False))):
+                _q = curiosity.next_question(name, recent_text=text)    # None most turns (budget gate)
+                if _q and _q.strip():
+                    _cands = curiosity.candidate_gaps(name)
+                    if _cands:
+                        curiosity.mark_asked(name, _cands[0])           # never re-ask this gap (Law 002)
+                    u.text = u.text.rstrip() + "\n\n" + _q.strip()      # a warm, optional curiosity
+                    _HISTORY[-1] = (text, u.text)                       # within-session coherence
+                    _save_history(name)                                 # persist it (Law 001)
+                    _CURIOSITY_ASKED.add(name)
         except Exception:
             pass
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
