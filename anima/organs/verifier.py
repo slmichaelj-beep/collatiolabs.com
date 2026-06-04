@@ -22,8 +22,8 @@ explicitly:
     reply may legitimately rest on, so a claim corroborated by the cap_note is NOT
     confabulation.
 
-Three checks, in order, all DETERMINISTIC (substring / value-contradiction / heuristic),
-so the whole organ is exercised and tested with NO model:
+Four checks, all DETERMINISTIC (substring / value-contradiction / heuristic), so the whole
+organ is exercised and tested with NO model:
 
   1. CONTRADICTION — does the reply state a value for a known trait (a birthday, a name,
      a place) that conflicts with what the evidence holds for that same trait? This is the
@@ -34,7 +34,15 @@ so the whole organ is exercised and tested with NO model:
      question? That is confabulation; it ties directly to the rail's personal-honesty
      stance. It flags, and overrides only when it is a hard, checkable specific (a date or
      a clearly-named personal entity) the evidence can't back.
-  3. CONFIDENCE — a single 0..1 score folded from the issues found and the strength of the
+  3. IGNORED KNOWN FACT — the SYMMETRIC PARTNER to (1). Where contradiction catches the
+     WRONG value, this catches the MISSING value: the question explicitly asks about a
+     trait the evidence holds as a settled, KNOWN fact (a birthday on disk, high
+     confidence, uncontested), yet the reply DISCLAIMS it ("I don't have your birthday")
+     or OMITS the value entirely. That is the load-bearing failure the spine fixes — a
+     fact that is on disk AND was asked for, yet the model declines to state it. It sets
+     ``override=True``. Strictly gated on a KNOWN fact EXISTING, so it can never punish an
+     honest "I don't have that yet" when the trait is genuinely unknown.
+  4. CONFIDENCE — a single 0..1 score folded from the issues found and the strength of the
      grounding. ``override=True`` means "do not ship this draft as-is"; otherwise it passes.
 
 An optional model-assisted deeper pass sits behind ``use_model=True`` (OFF by default and
@@ -63,6 +71,31 @@ except Exception:  # pragma: no cover - isolation fallback
 
     def _canon_trait(trait: str) -> str:  # minimal snake_case fold (no alias table)
         return re.sub(r"[^a-z0-9]+", "_", str(trait).strip().lower()).strip("_")
+
+# The question->trait table is the SINGLE SOURCE OF TRUTH for "what did they ask about",
+# already shared by ``memory_lirf.fact_note`` and ``router._asked_traits``. The verifier's
+# ignored-known-fact rule MUST route on the exact same table, so a denied known fact is
+# detected against precisely the trait the rest of the turn selected. Prefer the live
+# table; fall back to a contract-identical local copy so ``--selftest`` runs with nothing
+# built (same isolation discipline the router uses).
+try:  # pragma: no cover - import wiring
+    from ..memory_lirf import _Q_TRAITS as _Q_TRAITS  # type: ignore
+except Exception:  # pragma: no cover - isolation fallback (mirrors memory_lirf._Q_TRAITS)
+    _Q_TRAITS = [
+        (re.compile(r"\bbirthday|\bbday|\bborn\b|date of birth\b", re.I), "birthday"),
+        (re.compile(r"\bwhere (?:do|am) i (?:live|living)|\bmy (?:city|address|location|hometown)\b|where i live", re.I), "lives"),
+        (re.compile(r"\bwhere (?:do|did) i work|\bmy (?:job|employer|company|workplace)\b", re.I), "employer"),
+        (re.compile(r"\bwhat do i do\b|\bmy (?:occupation|profession|role|title)\b", re.I), "occupation"),
+        (re.compile(r"\bmy dog'?s? name|what'?s my dog|dog called\b", re.I), "dog_name"),
+        (re.compile(r"\bmy cat'?s? name|what'?s my cat\b", re.I), "cat_name"),
+        (re.compile(r"\bmy (?:mom|mum|mother)'?s? name|what'?s my mom\b", re.I), "mother"),
+        (re.compile(r"\bmy (?:dad|father)'?s? name|what'?s my dad\b", re.I), "father"),
+        (re.compile(r"\bmy (?:wife|husband|partner|spouse|gf|bf)'?s? name\b", re.I), "partner"),
+        (re.compile(r"\bmy name\b|what'?s my name|who am i\b", re.I), "name"),
+        (re.compile(r"\bmy (?:middle name)\b", re.I), "middle_name"),
+        (re.compile(r"\bfavou?rite colou?r\b", re.I), "favorite_color"),
+        (re.compile(r"\bwhat am i working on\b|my (?:project|current work)\b", re.I), "works_on"),
+    ]
 
 try:  # pragma: no cover - import wiring
     from .base import Organ
@@ -93,6 +126,13 @@ _NAME_TRAITS = frozenset({
     "son", "daughter", "dog_name", "cat_name",
 })
 
+# The [KNOWN] / settled-FACT bar (§1.3), reusing LIRF's own confidence floor. A freshly
+# stated (CONF_NEW=0.9) or corrected (CONF_CORRECTION=0.97) fact clears 0.85; the
+# needs_reconfirm flag on a silently-flipped near-immutable trait demotes it OUT of KNOWN,
+# which is exactly what keeps the bind honest. Only KNOWN facts carry binding force.
+_KNOWN_CONF_FLOOR = 0.85
+_KNOWN_SUPPORT_FLOOR = 1
+
 
 # ---------------------------------------------------------------------------
 # The Verdict — the organ's whole output contract.
@@ -105,8 +145,10 @@ class Verdict:
     ``confidence`` — 0..1; the organ's calibrated confidence that the draft is grounded.
     ``issues``     — human-readable findings (each: ``"<code>: <detail>"``), for the
                      telemetry trace and for an escalated regenerate-nudge.
-    ``override``   — True means SUPPRESS / REGENERATE this draft (a contradiction, or an
-                     unsupported HARD personal specific). ``override`` implies ``not ok``.
+    ``override``   — True means SUPPRESS / REGENERATE this draft (a contradiction, an
+                     unsupported HARD personal specific, or an IGNORED KNOWN FACT — a
+                     known value the reply was asked for but disclaimed/omitted).
+                     ``override`` implies ``not ok``.
     """
 
     ok: bool
@@ -117,6 +159,7 @@ class Verdict:
     # Codes used in ``issues`` (stable, so callers/telemetry can match on prefix).
     CONTRADICTION = "contradiction"
     UNSUPPORTED_PERSONAL = "unsupported_personal_claim"
+    IGNORED_KNOWN_FACT = "ignored_known_fact"  # a KNOWN fact was asked-for but disclaimed/omitted
 
     def as_dict(self) -> dict:
         return {
@@ -136,6 +179,25 @@ class _Fact:
     trait: str        # canonical trait slug
     value: Any        # the stored value (scalar or list)
     confidence: float
+    # Optional epistemic fields carried through from a raw LIRF row when present, so the
+    # ignored-known-fact rule can derive the [KNOWN] truth-class (§1.3) WITHOUT a schema
+    # change. They default to the permissive values, so a sparse canonical-Memory dict that
+    # lacks them is treated as active/uncontested — exactly the pre-existing behaviour.
+    status: str = "active"          # LIRF row status; only "active" rows can be KNOWN
+    needs_reconfirm: bool = False   # a near-immutable trait that silently flipped -> demoted
+    support: int = 1                # corroboration count; KNOWN needs >= 1
+
+    def is_known(self) -> bool:
+        """True iff this row meets the [KNOWN] / settled-FACT bar (§1.3): an active SELF
+        fact with high confidence, corroborated, and NOT flagged for re-confirmation. Only
+        KNOWN facts carry binding force — a [SEEN]/[SENSE]/contested row never enters the
+        ignored-known-fact rule, so the verifier never punishes an honest hedge."""
+        return (
+            self.status == "active"
+            and not self.needs_reconfirm
+            and self.support >= _KNOWN_SUPPORT_FLOOR
+            and float(self.confidence) >= _KNOWN_CONF_FLOOR
+        )
 
 
 def _coerce_fact(obj: Any) -> Optional[_Fact]:
@@ -163,7 +225,32 @@ def _coerce_fact(obj: Any) -> Optional[_Fact]:
     # the user always keys as SELF regardless of which shape produced it.
     if ent.strip().lower() in {"i", "me", "myself", "you", "user", "vera", "assistant"}:
         ent = SELF
-    return _Fact(entity=ent, trait=_canon_trait(trait), value=obj.get("value"), confidence=conf)
+    # Carry the epistemic fields through when the row exposes them (raw LIRF rows do; a
+    # sparse canonical-Memory dict does not — those default to active/uncontested above).
+    # ``support`` may be a count (LIRF row) OR a provenance list (canonical Memory's
+    # ``support: []`` / ``sources``); coerce either to an int corroboration count, and
+    # treat the canonical-Memory shape (which has no count) as corroborated (>=1) so an
+    # ordinary high-confidence bus fact still qualifies as KNOWN.
+    status = obj.get("status", "active")
+    status = status if isinstance(status, str) and status else "active"
+    needs_reconfirm = bool(obj.get("needs_reconfirm", False))
+    raw_support = obj.get("support", None)
+    if isinstance(raw_support, bool):  # guard: bool is an int subclass
+        support = 1
+    elif isinstance(raw_support, int):
+        support = raw_support
+    elif isinstance(raw_support, (list, tuple, set)):
+        support = len(raw_support) if raw_support else 1  # empty provenance list -> assume 1
+    elif raw_support is None:
+        support = 1  # field absent (canonical Memory) -> corroborated by default
+    else:
+        try:
+            support = int(raw_support)
+        except (TypeError, ValueError):
+            support = 1
+    return _Fact(entity=ent, trait=_canon_trait(trait), value=obj.get("value"),
+                 confidence=conf, status=status, needs_reconfirm=needs_reconfirm,
+                 support=support)
 
 
 def _normalise_evidence(evidence_facts: Any) -> list:
@@ -298,8 +385,15 @@ _CLAIM_RULES = [
     # location — "you live in Portland", "you're based in Berlin"
     (re.compile(r"\byou(?:'re|\s+are)?\s+(?:live|living|reside|based|stay)\s+(?:in\s+)?" + _PROPER, re.I), "lives"),
     (re.compile(r"\byou\s+live\s+in\s+" + _PROPER, re.I), "lives"),
-    # birthplace — "you were born in Ohio", "your hometown is Akron"
+    # birthplace — the place of ORIGIN. Catches the confabulation paraphrases the router
+    # now routes to `birthplace`, so a fabricated city with NO stored birthplace overrides
+    # to the spine's honest floor: "you were born in Ohio", "you grew up in Akron",
+    # "you were raised in X", "you're from Boston originally", "your hometown is X".
     (re.compile(r"\byou\s+were\s+born\s+in\s+" + _PROPER, re.I), "birthplace"),
+    (re.compile(r"\byou\s+grew\s+up\s+in\s+" + _PROPER, re.I), "birthplace"),
+    (re.compile(r"\byou\s+were\s+raised\s+in\s+" + _PROPER, re.I), "birthplace"),
+    (re.compile(r"\byou(?:'re|\s+are)\s+from\s+" + _PROPER + r"(?=.{0,15}\boriginally\b|\s*[.!?,]|\s*$)", re.I), "birthplace"),
+    (re.compile(r"\byou(?:'re|\s+are)\s+originally\s+from\s+" + _PROPER, re.I), "birthplace"),
     (re.compile(r"\byour\s+hometown\s+is\s+" + _PROPER, re.I), "birthplace"),
     # name — "your name is Sam", "you're Sam"
     (re.compile(r"\byour\s+(?:full\s+)?name\s+is\s+" + _NAMEVAL, re.I), "name"),
@@ -375,6 +469,103 @@ def _note_grounds(value: str, cap_note: Optional[str]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# IGNORED-KNOWN-FACT detection (the omission rule). Symmetric partner to CONTRADICTION:
+# contradiction = "stated the WRONG value"; ignored-known = "failed to state the RIGHT
+# value" for a fact that is KNOWN and was explicitly asked about. Both are deterministic,
+# model-free, and override-worthy. Detection is gated on a KNOWN fact EXISTING, so it can
+# never false-fire on a genuinely-unknown trait (where a disclaimer is the correct answer).
+# ---------------------------------------------------------------------------
+def _asked_traits(question: str) -> set:
+    """The set of canonical trait slugs the question explicitly asks about, via the SAME
+    ``_Q_TRAITS`` table ``fact_note``/``router._asked_traits`` route on — the single source
+    of truth for "what did they ask about". High-precision: "date of birth" -> birthday.
+    Off-topic chit-chat routes to nothing, so it can never enter the rule."""
+    asked = set()
+    for rx, trait in _Q_TRAITS:
+        try:
+            if rx.search(question or ""):
+                asked.add(_canon_trait(trait))
+        except Exception:
+            continue
+    return asked
+
+
+# A narrow fact-DENIAL matcher: the class of phrasings where the reply says it does NOT
+# have / know / remember a personal fact, scoped to "my/your/that/it" + a possessive. Kept
+# IN the gate with NO answer-key — it matches the SHAPE of a disclaimer, never any entity
+# value. Used only as a confirming signal; a silent omission (no claim at all) is caught
+# independently, so a missed phrasing here still can't let an ignored known fact ship.
+_DISCLAIMER_RE = re.compile(
+    r"""\b(?:
+        i\s+(?:don'?t|do\s+not|can'?t|cannot)\s+(?:have|know|recall|remember|see|find)
+            (?:\s+(?:your|that|it|what|when|the))?           # "I don't have your ___"
+      | (?:don'?t|do\s+not|can'?t|cannot)\s+(?:have|find|see|recall|remember)\s+(?:your|that|it)
+      | (?:not|isn'?t|aren'?t)\s+(?:saved|on\s+record|recorded|in\s+my\s+memory|
+            something\s+i\s+(?:have|know|remember))
+      | you\s+(?:haven'?t|have\s+not|never)\s+(?:told|said|mentioned|shared)
+      | (?:i\s+)?(?:haven'?t\s+got|don'?t\s+have)\s+(?:your|that|it)
+      | i'?m\s+not\s+sure\s+(?:what|when|of)\s+your
+      | i\s+wish\s+i\s+(?:knew|remembered)
+    )\b""",
+    re.I | re.X,
+)
+
+
+def _draft_has_value(draft: str, value: Any) -> bool:
+    """True iff the draft REALLY states ``value`` (the known fact shipped), across spelling.
+    Reuses the verifier's format-aware date matcher and scalar normaliser so "September 14"
+    is satisfied by "Sept 14" / "9/14" / "the 14th of September". For a date-shaped value we
+    require the draft to commit to the SAME day (and month when the value names one); for a
+    scalar we require a normalised substring hit. This is the inverse of ``_values_conflict``:
+    not "did the draft disagree?" but "did the draft actually carry the right value?"."""
+    if value is None:
+        return False
+    if isinstance(value, (list, tuple, set)):
+        # A list-valued trait (likes/pets) is additive and never "the one answer" a recall
+        # question omits — naming ANY member counts as using it; if none match, list traits
+        # are exempt from the rule (handled by the caller), so report present to stay inert.
+        toks = [str(x) for x in value if x is not None]
+        if not toks:
+            return True
+        d = _norm_scalar(draft)
+        return any(_norm_scalar(t) in d for t in toks) or True  # exempt: never block a list
+    d = _norm_scalar(draft)
+    if not d:
+        return False
+    vsig = _date_signature(value)
+    if vsig is not None:
+        # Date value: scan the draft for any date token that does NOT conflict and shares
+        # the value's day commitment (the load-bearing part of a birthday answer). Each
+        # date FORM is scanned with its OWN pattern (not one big alternation) so a looser
+        # form can't greedily swallow the digits of a tighter one — e.g. the word+number
+        # rule must not eat the "9" out of "9/14" and strand "/14". We collect the date
+        # signature of every candidate token and test against the value's signature.
+        v_days = {n for (k, n) in vsig if k == "d"}
+        date_token_patterns = (
+            r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b",                       # ISO 1990-09-14
+            r"\b\d{1,2}[-/]\d{1,2}(?:[-/]\d{2,4})?\b",               # 9/14, 06-11-1990
+            r"\b[A-Za-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?",  # September 14[, 1990]
+            r"\bthe\s+\d{1,2}(?:st|nd|rd|th)\b",                      # the 14th
+        )
+        for pat in date_token_patterns:
+            for tok in re.findall(pat, draft, re.I):
+                tsig = _date_signature(tok)
+                if tsig is None or _values_conflict(value, tok):
+                    continue
+                t_days = {n for (k, n) in tsig if k == "d"}
+                if v_days and t_days and v_days == t_days:
+                    return True
+                # value names no day to pin (month-only) -> a non-conflicting token that
+                # shares a committed dimension is enough.
+                if not v_days and {k for (k, _) in tsig} & {k for (k, _) in vsig}:
+                    return True
+        return False
+    # Scalar value: a normalised-substring hit (so "Portland" satisfies "Portland, OR").
+    sv = _norm_scalar(value)
+    return bool(sv) and sv in d
+
+
+# ---------------------------------------------------------------------------
 # The Verifier organ.
 # ---------------------------------------------------------------------------
 class Verifier(Organ):
@@ -443,7 +634,9 @@ class Verifier(Organ):
         contradicted = False
         unsupported_hard = False
         unsupported_soft = False
+        ignored_known = False
         grounded_claims = 0
+        claimed_traits = {t for (t, _) in claims}  # traits the draft made SOME assertion on
 
         for trait, claimed in claims:
             known = by_trait.get(trait)
@@ -480,6 +673,54 @@ class Verifier(Organ):
                     f"unverified by evidence (soft)"
                 )
 
+        # CHECK 3 — IGNORED KNOWN FACT (the omission rule). Build R = the set of KNOWN
+        # facts the question explicitly asks about, then assert each one actually SHIPPED in
+        # the draft. This is the symmetric partner to CONTRADICTION: there the draft stated
+        # the WRONG value; here it failed to state the RIGHT value for a fact it was handed.
+        #
+        #   Step A — R: for each asked trait (same _Q_TRAITS table the rest of the turn uses),
+        #            take its SELF row from by_trait IFF that row clears the [KNOWN] bar
+        #            (active, confidence >= 0.85, corroborated, NOT needs_reconfirm). A
+        #            [SEEN]/[SENSE]/contested row is deliberately excluded, so an honest
+        #            hedge of a soft/disputed fact is never punished. If R is empty (the
+        #            asked trait has no KNOWN row, or the turn is off-topic), the rule is
+        #            inert — a disclaimer on a genuine unknown is CORRECT and passes.
+        #   Step B — for each (trait, value) in R: the draft must carry value (across
+        #            spelling). REJECT iff value is MISSING and the draft either explicitly
+        #            disclaimed knowledge (_DISCLAIMER_RE) OR made no claim for that trait at
+        #            all (silent omission). Either way the known fact did not ship -> override.
+        if not contradicted:  # a wrong value is already the worse, override-ing failure
+            disclaimed = bool(_DISCLAIMER_RE.search(draft_reply or ""))
+            for trait in _asked_traits(question or ""):
+                known = by_trait.get(trait)
+                if known is None or not known.is_known():
+                    continue  # not a KNOWN fact -> nothing to bind, disclaimer is honest
+                if isinstance(known.value, (list, tuple, set)):
+                    continue  # list traits are additive; omitting a member is not a denial
+                value_shipped = _draft_has_value(draft_reply or "", known.value)
+                # INCOHERENT DISCLAIMER: a reply that DISCLAIMS a KNOWN fact ("I don't have
+                # your birthday saved…") is the spine's target failure EVEN when it then
+                # mentions the value — "I don't have it, but Sept 14 is special" reads as
+                # not-knowing and must be regenerated. So a disclaimer overrides regardless of
+                # whether the value also slipped in; only a CLEAN (non-disclaiming) reply that
+                # carries the value is allowed to pass on value-present. Still gated on a
+                # KNOWN fact, so an honest unknown is untouched.
+                if value_shipped and not disclaimed:
+                    continue  # the known value shipped warmly, no disclaimer -> clean
+                # Either the value is MISSING, or it appears alongside a self-contradicting
+                # disclaimer. REJECT iff the draft denied it OR said nothing about it.
+                made_claim_for_trait = trait in claimed_traits
+                if disclaimed or not made_claim_for_trait:
+                    ignored_known = True
+                    override = True
+                    _why = ("disclaimed (despite mentioning the value)"
+                            if (disclaimed and value_shipped)
+                            else ("disclaimed" if disclaimed else "omitted"))
+                    issues.append(
+                        f"{Verdict.IGNORED_KNOWN_FACT}:{trait}: question asked '{trait}', a "
+                        f"KNOWN fact ({trait} = {known.value!r}), but the reply {_why} it"
+                    )
+
         # Optional deeper pass — OFF by default, never on the critical path. It can only
         # ADD an issue / lower confidence, never clear a deterministic contradiction.
         model_penalty = 0.0
@@ -494,6 +735,7 @@ class Verifier(Organ):
 
         confidence = self._score(
             contradicted=contradicted,
+            ignored_known=ignored_known,
             unsupported_hard=unsupported_hard,
             unsupported_soft=unsupported_soft,
             grounded_claims=grounded_claims,
@@ -509,8 +751,12 @@ class Verifier(Organ):
 
     # -- scoring (pure) ----------------------------------------------------
     def _score(self, *, contradicted: bool, unsupported_hard: bool, unsupported_soft: bool,
-               grounded_claims: int, had_claims: bool) -> float:
+               grounded_claims: int, had_claims: bool, ignored_known: bool = False) -> float:
         if contradicted:
+            return self._CONTRADICTION_CONF
+        if ignored_known:
+            # A denied/omitted KNOWN fact is as bad as a wrong one for a companion (§2.2):
+            # same low-confidence tier as a contradiction, same override path.
             return self._CONTRADICTION_CONF
         if unsupported_hard:
             return self._UNSUPPORTED_HARD
@@ -596,8 +842,11 @@ def verify(question: str, draft_reply: str, evidence_facts: Any,
 
 # ---------------------------------------------------------------------------
 # Self-test — proves Organ 4 in ISOLATION (no model, no bus, no I/O). It CATCHES
-# (a) a reply that contradicts an evidence fact, (b) a confabulated personal claim;
-# and PASSES (c) a correct evidence-grounded answer, (d) a normal non-personal reply.
+# (a) a reply that contradicts an evidence fact, (b) a confabulated personal claim,
+# (e) a reply that DISCLAIMS or OMITS a KNOWN fact it was asked for (the ignored-known-fact
+# rule); and PASSES (c) a correct evidence-grounded answer, (d) a normal non-personal reply,
+# (e2) an answer that states the known fact (incl. across spellings), and (e3) an honest
+# disclaimer of a GENUINELY UNKNOWN fact (no false fire when the trait isn't on record).
 #   python3 anima/organs/verifier.py --selftest   (or just: python3 anima/organs/verifier.py)
 # ---------------------------------------------------------------------------
 def _mem(subject: str, predicate: str, value: Any, confidence: float = 0.97) -> dict:
@@ -686,12 +935,105 @@ def _selftest() -> int:
     vd2 = V.verify("how are you?", "I'm really glad you're here. How are you feeling today?", [])
     ok("(d') relational reply passes untouched", vd2.ok is True and vd2.issues == [])
 
+    # --- (e) IGNORED KNOWN FACT — the omission rule (symmetric partner to contradiction).
+    # The exact founder failure: birthday IS on disk (KNOWN), the user asks for it, yet the
+    # reply disclaims/omits the value. That must OVERRIDE; but a genuine unknown, a contested
+    # fact, and a correct answer must NOT.
+    known_bday = [_mem("you", "birthday", "September 14")]  # active, conf 0.97 -> KNOWN
+
+    # (e1) DISCLAIM a known birthday ("I don't have your birthday") -> CATCH + override.
+    ve1 = V.verify("when's my birthday?", "I don't have your birthday saved, sorry!", known_bday)
+    ok("(e1) disclaim-of-known-birthday is caught (not ok)", ve1.ok is False)
+    ok("(e1) disclaim-of-known-birthday sets override=True", ve1.override is True)
+    ok("(e1) issue is tagged 'ignored_known_fact:birthday'",
+       any(i.startswith(Verdict.IGNORED_KNOWN_FACT + ":birthday") for i in ve1.issues))
+    ok("(e1) ignored-known confidence is very low", ve1.confidence < 0.2)
+
+    # other disclaimer phrasings of the same known fact are caught too.
+    for phrase in ("I don't know your birthday.",
+                   "Hmm, you never told me your birthday.",
+                   "That's not something I have on record.",
+                   "I can't find your birthday."):
+        ok(f"(e1') disclaimer phrasing caught: {phrase!r}",
+           V.verify("when's my birthday?", phrase, known_bday).override is True)
+
+    # (e2) the reply STATES the known birthday -> PASS (no false fire), across spellings.
+    ve2 = V.verify("when's my birthday?", "Your birthday is September 14th — I remember!", known_bday)
+    ok("(e2) answer that states the known birthday passes (ok)", ve2.ok is True)
+    ok("(e2) stating the known birthday does NOT override", ve2.override is False)
+    ok("(e2) stating the known birthday raises no ignored-known issue",
+       not any(i.startswith(Verdict.IGNORED_KNOWN_FACT) for i in ve2.issues))
+    for spell in ("Sept 14", "9/14", "the 14th of September", "1990-09-14"):
+        ok(f"(e2') known value satisfied across spelling: {spell!r}",
+           V.verify("when's my birthday?", f"Of course — it's {spell}!", known_bday).override is False)
+
+    # (e3) GENUINE UNKNOWN: no birthday on record + an honest disclaimer -> PASS (the
+    # disclaimer is the CORRECT answer; the rule must stay inert with no KNOWN fact).
+    ve3 = V.verify("when's my birthday?", "I don't have your birthday yet — when is it?", [])
+    ok("(e3) honest disclaimer of an UNKNOWN birthday passes (ok)", ve3.ok is True)
+    ok("(e3) unknown birthday does NOT override", ve3.override is False)
+    ok("(e3) unknown birthday raises no ignored-known issue",
+       not any(i.startswith(Verdict.IGNORED_KNOWN_FACT) for i in ve3.issues))
+
+    # (e4) SILENT OMISSION of a known fact (warm deflection, no value, no explicit denial)
+    # -> still CATCH: the known value did not ship.
+    ve4 = V.verify("when's my birthday?",
+                   "Aww, birthdays! Tell me, how do you like to celebrate?", known_bday)
+    ok("(e4) silent omission of a known fact is caught (override)", ve4.override is True)
+
+    # (e5) GUARD — a CONTESTED known fact (needs_reconfirm) is demoted out of KNOWN, so an
+    # honest hedge of it is NOT punished.
+    contested = _row("birthday", "September 14")
+    contested["needs_reconfirm"] = True
+    ve5 = V.verify("when's my birthday?",
+                   "I'm not totally sure of your birthday anymore — remind me?", [contested])
+    ok("(e5) contested (needs_reconfirm) fact is NOT bound -> no override", ve5.override is False)
+
+    # (e6) GUARD — a LOW-CONFIDENCE ([SENSE]) fact is below the KNOWN bar, so disclaiming it
+    # is honest, not a violation.
+    soft = _row("birthday", "September 14", confidence=0.6)
+    ve6 = V.verify("when's my birthday?", "I don't have your birthday down.", [soft])
+    ok("(e6) sub-0.85 ([SENSE]) fact is NOT bound -> no override", ve6.override is False)
+
+    # (e7) GUARD — an OFF-TOPIC turn that happens to omit the known birthday is never flagged
+    # (the question doesn't route to the trait, so R is empty).
+    ve7 = V.verify("how's the weather where you are?",
+                   "I can't really see outside, but I hope it's nice!", known_bday)
+    ok("(e7) off-topic omission of a known fact is NOT flagged", ve7.override is False)
+
+    # (e8) raw LIRF-ROW known fact, disclaimed -> caught (shape-agnostic, like contradiction).
+    ve8 = V.verify("when's my birthday?", "I don't know your birthday.",
+                   [_row("birthday", "September 14")])
+    ok("(e8) ignored-known caught from a raw LIRF row too", ve8.override is True)
+
+    # (e9) a known fact for a DIFFERENT, non-asked trait is irrelevant — disclaiming the
+    # asked-but-unknown one stays honest even though SOME known fact exists.
+    ve9 = V.verify("when's my birthday?",
+                   "I don't have your birthday yet — tell me?",
+                   [_mem("you", "lives", "Portland, OR")])
+    ok("(e9) a known fact on a non-asked trait does not bind the asked one", ve9.override is False)
+
+    # (e10) INCOHERENT DISCLAIMER — the live failure the Spine targets: the reply DISCLAIMS the
+    # known fact ("I don't have your birthday saved…") yet ALSO mentions the value in the same
+    # breath. The value is technically present, but the disclaimer makes it read as not-knowing,
+    # so it MUST override (regenerate) — value-present alone does NOT excuse a self-contradicting
+    # denial. (Caught live: 1/12 birthday asks pre-fix.)
+    ve10 = V.verify("when's my birthday?",
+                    "I don't have your birthday saved, so I can't tell you the exact date. "
+                    "But I do remember that September 14th is a special day for us!",
+                    known_bday)
+    ok("(e10) a disclaimer that ALSO mentions the value still overrides (incoherent denial)",
+       ve10.override is True)
+    ok("(e10) issue notes the disclaimer-despite-value", any(
+        i.startswith(Verdict.IGNORED_KNOWN_FACT) and "despite mentioning the value" in i
+        for i in ve10.issues))
+
     # --- contract / robustness ---
     ok("Verdict is frozen + shaped", isinstance(vc, Verdict) and hasattr(vc, "override"))
     ok("as_dict exposes the 4 keys",
        set(va.as_dict().keys()) == {"ok", "confidence", "issues", "override"})
     ok("override implies not ok (invariant)",
-       all(v.ok is False for v in (va, va_row, vb, vb2) if v.override))
+       all(v.ok is False for v in (va, va_row, vb, vb2, ve1, ve4, ve8, ve10) if v.override))
     ok("module-level verify() matches the organ method",
        verify("when's my birthday?", "Your birthday is June 14th!", evidence).override is True)
 

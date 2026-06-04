@@ -55,6 +55,39 @@ def _strip_break_sentences(text: str) -> str:
     return (out[:1].upper() + out[1:]) if out else out
 
 
+def _strip_scaffold_leak(text: str) -> str:
+    """Scrub any Knowledge-Spine scaffold that leaked into the user-facing reply.
+
+    The binding contract (anima/spine.py) renders truth-class tags ([KNOWN]/[SEEN]/…) and a
+    framing preamble INTO THE PROMPT, explicitly instructed never to be read aloud. The small
+    model almost always obeys, but if a token slips through it must never reach the user
+    (feedback_never_break_character: no tag scaffolding in the text). spine.SCAFFOLD_TOKENS is
+    the single source of truth for what those tokens are. We strip a leaked bracket-tag inline
+    (keeping the warm sentence around it) and drop any whole sentence that parrots the framing
+    ("THESE ARE THINGS YOU KNOW", "according to my memory"). Pure, conservative, never raises."""
+    import re
+    try:
+        from .spine import SCAFFOLD_TOKENS
+    except Exception:
+        SCAFFOLD_TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]",
+                           "THESE ARE THINGS YOU KNOW", "according to my memory")
+    s = text or ""
+    # Stray model control/template markers (chat-template end tokens some local models emit
+    # into the body, e.g. Stheno's "|done|"). Never scaffolding from us, but they must not
+    # reach the user either — strip them unconditionally, cheaply.
+    s = re.sub(r"\s*(?:\|done\|?|<\|eot_id\|>|<\|end\|>|<\|im_end\|>|</s>)\s*", " ", s).strip()
+    if not any(tok.lower() in s.lower() for tok in SCAFFOLD_TOKENS):
+        return s if s else text                      # fast path: only a stray marker (if any)
+    # 1) excise the bracket tags inline (leave the human-readable label/value beside them).
+    s = re.sub(r"\[(?:KNOWN|SEEN|SENSE|UNKNOWN)\]\s*", "", s, flags=re.I)
+    # 2) drop any whole sentence that parrots the framing phrases (not a real reply).
+    phrase_re = re.compile(r"(THESE ARE THINGS YOU KNOW|according to my memory)", re.I)
+    parts = re.split(r"(?<=[.!?])\s+", s.strip())
+    kept = [p for p in parts if p.strip() and not phrase_re.search(p)]
+    out = re.sub(r"[ \t]{2,}", " ", " ".join(kept)).strip()
+    return out if out else text
+
+
 # --- the stable character (the authored Self the voice speaks as) -----------
 
 # A small, deterministic disposition seeded by the genome, so each creature has a
@@ -498,27 +531,81 @@ class Mouth:
         return cls(brain=brain, voice=tts)
 
     def respond(self, heart, user_text: str, history=None, audio_out=None,
-                perception=None, cap_note=None, fact_block=None) -> Utterance:
+                perception=None, cap_note=None, fact_block=None,
+                hard_bind=False) -> Utterance:
         f = heart.feeling()
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
         mem = portrait.load(heart.name)        # lasting memory (prose USER profile), injected whole
-        try:                                   # + structured LIRF facts. When the Router (Organ 3) passes
-            _fb = fact_block                    # a QUERY-AWARE block (only facts relevant to THIS turn),
-            if _fb is None:                     # use it; else fall back to the full ledger block. Either
-                from .memory_lirf import Facts   # way a fact she's been told is answered FROM RECORD, not
-                _fb = Facts.load(heart.name).block()  # model-luck. The cloud guard below blanks it too.
+        # + structured LIRF facts, rendered as the BINDING EVIDENCE CONTRACT (the Knowledge
+        # Spine, anima/spine.py): "bind, don't inject". A fact rendered as plain prose is a
+        # SUGGESTION the 8B may ignore (the eval where the birthday is on disk AND in the
+        # prompt, yet ~25% of turns disclaim it). spine.bind renders the query-relevant LIRF
+        # rows with epistemic OWNERSHIP — [KNOWN] facts bound to "state it, never disclaim",
+        # an absent-but-asked slot bound to "admit + ask" — so the injected evidence is a
+        # contract, not a hint. KEEP the broad-query full-block fallback and the cloud PII
+        # guard. Everything is guarded: a spine hiccup must never break a turn.
+        try:
+            from . import spine
+            # The rows relevant to THIS turn. The Router already selected them upstream; in
+            # isolation (mouth called directly) re-derive deterministically from the ledger so
+            # the contract is correct with nothing else wired. No model, no network.
+            _rows = None
+            try:
+                from .organs.router import select_facts as _select_facts
+                _rows, _ = _select_facts(heart.name, user_text)
+            except Exception:
+                _rows = None
+            from .memory_lirf import Facts as _Facts
+            if _rows is None:
+                try:
+                    _rows = _Facts.load(heart.name).about()
+                except Exception:
+                    _rows = []
+            # Part 1 — the binding contract for the query-relevant rows (or the [UNKNOWN]
+            # honesty line when an asked trait-slot is empty). "" for an off-topic empty turn.
+            _fb = spine.bind(_rows, user_text)
+            # BROAD-QUERY / OFF-TOPIC fallback: when the spine binds nothing (no relevant row
+            # AND no routed trait — e.g. "what do you know about me?"), inject the full
+            # record so a fact she's been told is still answered FROM RECORD, not model-luck.
+            if not _fb:
+                try:
+                    _fb = _Facts.load(heart.name).block()
+                except Exception:
+                    _fb = ""
             if _fb:
                 mem = (mem + "\n\n" + _fb) if mem.strip() else _fb
         except Exception:
-            pass
+            # last-resort: never let the spine path break a turn. Fall back to the legacy
+            # plain-prose block exactly as before (the cloud guard below still applies).
+            try:
+                _fb = fact_block
+                if not _fb:
+                    from .memory_lirf import Facts as _Facts2
+                    _fb = _Facts2.load(heart.name).block()
+                if _fb:
+                    mem = (mem + "\n\n" + _fb) if mem.strip() else _fb
+            except Exception:
+                pass
         try:                                   # privacy: her personal memory of you is
             from . import cloud                # concentrated PII — never send it to a cloud
             if cloud.is_cloud():               # brain. Stays only with the local model.
                 mem = ""
         except Exception:
             pass
+        # HARD BINDING (regenerate path): the verifier overrode the first draft for an
+        # ignored-known-fact — a fact on disk AND asked-for, yet disclaimed/omitted. On the
+        # ONE retry, escalate the contract from "express, don't disclaim" to an absolute
+        # command, so the second roll has the strongest possible structural pressure to state
+        # the known value before the deterministic floor (spine.answer_from_fact) takes over.
+        if hard_bind and mem.strip():
+            mem = (
+                "ABSOLUTE INSTRUCTION — YOU ALREADY KNOW THE ANSWER TO THEIR QUESTION. It is a\n"
+                "[KNOWN] fact in the memory below. You MUST state that exact value, warmly and\n"
+                "plainly, in your reply. Do NOT say you don't have it, don't recall it, or need\n"
+                "to be reminded — that would be a lie, because you DO have it. State it now.\n\n"
+            ) + mem
         # structural honesty gate: on fact/personal-detail asks, prepend a calibration
         # nudge (no answer key) so she abstains instead of confabulating. Only the
         # model call is hardened — history, the Portrait, and what's shown stay raw.
@@ -588,6 +675,10 @@ class Mouth:
                     stripped = _strip_break_sentences(text)
                     text = stripped if len(stripped.split()) >= 4 else (
                         "I don't have that one in me — but I want it. Tell me?")
+        except Exception:
+            pass
+        try:                                       # never let a leaked Spine tag reach the user
+            text = _strip_scaffold_leak(text)
         except Exception:
             pass
         llm_s = _time.perf_counter() - _t0

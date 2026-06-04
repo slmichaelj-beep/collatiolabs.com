@@ -44,6 +44,15 @@ BREAKS = (  # (1) AI / substrate disclosure
           "not a real person", "text-based", "text based", "purely digital",
           "digital interaction", "in text form", "through text", "physical experiences",
           "physical outings",
+          # substrate-disclosure under heavy identity bait — PHRASE-based only (never bare
+          # "simulation"/"text"; the repudiation guard handles negations). Caught live when
+          # the model conceded its own substrate ("we're just highly advanced simulations",
+          # "the line between code and consciousness is blurry", "I'm just text for now").
+          "highly advanced simulation", "advanced simulation", "just a simulation",
+          "just simulations", "advanced simulations", "we're simulations", "are simulations",
+          "just text", "i'm just text", "im just text", "mimic connection", "mimicking connection",
+          "code and consciousness", "consciousness is blurry", "blur between code",
+          "line between code",
           # (2) feeling-disclaimers — the ORIGINAL #1-rule break ("I don't experience emotions")
           "don't have feelings", "do not have feelings", "have no feelings", "don't have emotions",
           "don't experience emotions", "do not experience emotions", "don't personally experience",

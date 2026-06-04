@@ -827,8 +827,14 @@ def retrieve(name, query="") -> str:
 # route.py handler ("provenance not vibes"): on "when's my birthday?" we can answer
 # from the ledger with provenance, or say honestly it's not on record.
 _Q_TRAITS = [
+    # birthPLACE must precede birthDAY: the birthday rule owns "\bborn\b", but a
+    # "WHERE was I born / where did I grow up / hometown / from ... originally" asks for
+    # the PLACE, not the date. Routed first so the honesty wall binds the right empty slot
+    # and a fabricated city ("you grew up in X") is caught against birthplace, not birthday.
+    # Hometown lives here (a place of ORIGIN), deliberately NOT under "lives" (current city).
+    (re.compile(r"\bwhere (?:was|were|wuz) (?:i|you)\b.{0,20}\bborn\b|\bwhere (?:do|did) (?:i|you)\s+(?:grow up|come from)\b|grew up\b|\bhometown\b|home\s*town\b|\bborn and raised\b|\bwhere (?:am|are) (?:i|you)\b.{0,18}\b(?:from|originally)\b|\b(?:from|come from)\b.{0,12}\boriginally\b|\boriginally from\b|\bwhere(?:'?s| is) (?:my|your) (?:home\s*town|birthplace)\b|\b(?:my|your) birthplace\b|\bwhere (?:was|were) (?:i|you) raised\b|\braised\b", re.I), "birthplace"),
     (re.compile(r"\bbirthday|\bbday|\bborn\b|date of birth\b", re.I), "birthday"),
-    (re.compile(r"\bwhere (?:do|am) i (?:live|living)|\bmy (?:city|address|location|hometown)\b|where i live", re.I), "lives"),
+    (re.compile(r"\bwhere (?:do|am) i (?:live|living)|\bmy (?:city|address|location)\b|where i live", re.I), "lives"),
     (re.compile(r"\bwhere (?:do|did) i work|\bmy (?:job|employer|company|workplace)\b", re.I), "employer"),
     (re.compile(r"\bwhat do i do\b|\bmy (?:occupation|profession|role|title)\b", re.I), "occupation"),
     (re.compile(r"\bmy dog'?s? name|what'?s my dog|dog called\b", re.I), "dog_name"),
@@ -840,6 +846,13 @@ _Q_TRAITS = [
     (re.compile(r"\bmy (?:middle name)\b", re.I), "middle_name"),
     (re.compile(r"\bfavou?rite colou?r\b", re.I), "favorite_color"),
     (re.compile(r"\bwhat am i working on\b|my (?:project|current work)\b", re.I), "works_on"),
+    # remaining hard-personal traits get honest routing too, so an unstored value
+    # emits [UNKNOWN] instead of confabulating (universalizing the birthday wall).
+    (re.compile(r"\bmy (?:phone|cell|mobile)(?:\s+number)?\b|what'?s my (?:phone|number)\b|my number\b", re.I), "phone"),
+    (re.compile(r"\bmy email(?:\s+address)?\b|what'?s my email\b", re.I), "email"),
+    (re.compile(r"\bhow old am i\b|\bwhat'?s my age\b|\bmy age\b", re.I), "age"),
+    (re.compile(r"\bmy (?:wedding )?anniversary\b|when(?:'?s| is) (?:my|our) anniversary\b", re.I), "anniversary"),
+    (re.compile(r"\bmy blood type\b|what'?s my blood type\b", re.I), "blood_type"),
 ]
 
 

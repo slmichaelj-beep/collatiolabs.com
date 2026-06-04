@@ -216,15 +216,101 @@ def _turn(name, text, voice=False):
                           audio_out=audio_out, perception=p, cap_note=cap_note,
                           fact_block=_fact_block)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
-        # Organ 4 (Verifier): check the draft against its evidence (facts in play + the
-        # capability result) BEFORE it ships. MEASURE-FIRST — record the verdict in
-        # telemetry; the override-action (suppress/regenerate) lights up once we've seen
-        # the flag rate isn't noisy. Never blocks a turn.
+        # Organ 4 (Verifier) + Knowledge Spine ENFORCEMENT: check the draft against its
+        # evidence (facts in play + the capability result) BEFORE it ships, and when it
+        # overrides for an IGNORED KNOWN FACT (a fact on disk AND asked-for, yet disclaimed
+        # or omitted — the exact failure the Spine exists to kill), ACT:
+        #   1) REGENERATE once with the HARD binding contract (hard_bind=True);
+        #   2) if it STILL disclaims, ship the deterministic floor (spine.answer_from_fact)
+        #      so the KNOWN fact ALWAYS appears — never on model luck.
+        # Strictly gated on a KNOWN fact existing, so an honest "I don't have that yet" on a
+        # genuinely-unknown trait is NEVER touched (honesty preserved). Fully guarded: any
+        # spine/verifier hiccup degrades to shipping the original draft — never breaks a turn.
         _verdict = None
         try:
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
-            _verdict = verify(text, u.text, _VF.load(name).about(_VSELF), cap_note=cap_note)
+            from . import spine as _spine
+            _evidence = _VF.load(name).about(_VSELF)
+            _verdict = verify(text, u.text, _evidence, cap_note=cap_note)
+
+            def _ignored_trait(v):
+                """The trait slug from an ignored_known_fact override, or None."""
+                if not v or not getattr(v, "override", False):
+                    return None
+                for iss in getattr(v, "issues", []) or []:
+                    if str(iss).startswith("ignored_known_fact:"):
+                        # issue shape: "ignored_known_fact:<trait>: ..."
+                        return str(iss).split(":", 2)[1].strip()
+                return None
+
+            _bad_trait = _ignored_trait(_verdict)
+            if _bad_trait:
+                # (1) REGENERATE once with the hard binding contract.
+                try:
+                    _u2 = mouth.respond(heart, text, history=list(_HISTORY),
+                                        audio_out=None, perception=p, cap_note=cap_note,
+                                        fact_block=_fact_block, hard_bind=True)
+                except Exception:
+                    _u2 = None
+                if _u2 is not None and getattr(_u2, "text", "").strip():
+                    _v2 = verify(text, _u2.text, _evidence, cap_note=cap_note)
+                    if _ignored_trait(_v2) is None:
+                        u, _verdict = _u2, _v2     # the retry stated the fact — ship it
+                    else:
+                        # (2) STILL disclaiming after the hard contract — ship the
+                        # deterministic floor so the known value appears no matter what.
+                        _row = _VF.load(name).lookup(_VSELF, _bad_trait)
+                        _floor = _spine.answer_from_fact(text, _row, name=name)
+                        if _floor and _floor.strip():
+                            u.text = _floor
+                            _verdict = verify(text, u.text, _evidence, cap_note=cap_note)
+                        else:
+                            u, _verdict = _u2, _v2  # floor declined (not KNOWN) — keep retry
+                else:
+                    # regenerate failed outright — go straight to the deterministic floor.
+                    _row = _VF.load(name).lookup(_VSELF, _bad_trait)
+                    _floor = _spine.answer_from_fact(text, _row, name=name)
+                    if _floor and _floor.strip():
+                        u.text = _floor
+                        _verdict = verify(text, u.text, _evidence, cap_note=cap_note)
+            else:
+                # HONESTY GUARD (the inverse of ignored-known): the draft CONFABULATED a hard
+                # personal specific the evidence can't back (e.g. invents a birthday that was
+                # never stored). The #1 rule forbids shipping a fabricated personal fact, so
+                # regenerate ONCE under the binding contract (whose [UNKNOWN] line steers her
+                # to admit + ask); if she STILL invents, ship the spine's honest UNKNOWN
+                # phrasing so she NEVER asserts a fact she doesn't have. No floor here — there
+                # is no KNOWN value to assemble, and inventing one is the very failure we block.
+                def _confab_trait(v):
+                    if not v or not getattr(v, "override", False):
+                        return None
+                    for iss in getattr(v, "issues", []) or []:
+                        s = str(iss)
+                        if s.startswith("unsupported_personal_claim:") and "confabulation" in s:
+                            # issue shape: "unsupported_personal_claim: reply asserts <trait> = ..."
+                            m = _re_confab.search(s)
+                            return m.group(1) if m else None
+                    return None
+                import re as _re
+                _re_confab = _re.compile(r"reply asserts (\w+) =")
+                _fab_trait = _confab_trait(_verdict)
+                if _fab_trait and _VF.load(name).lookup(_VSELF, _fab_trait) is None:
+                    try:
+                        _u2 = mouth.respond(heart, text, history=list(_HISTORY),
+                                            audio_out=None, perception=p, cap_note=cap_note,
+                                            fact_block=_fact_block, hard_bind=False)
+                    except Exception:
+                        _u2 = None
+                    if _u2 is not None and _confab_trait(
+                            verify(text, _u2.text, _evidence, cap_note=cap_note)) is None:
+                        u = _u2                         # the retry stopped inventing — ship it
+                    else:
+                        # still confabulating — emit the spine's honest UNKNOWN phrasing.
+                        _hon = _spine.honest_unknown(text, name=name)
+                        if _hon and _hon.strip():
+                            u.text = _hon
+                    _verdict = verify(text, u.text, _evidence, cap_note=cap_note)
         except Exception:
             pass
         _HISTORY.append((text, u.text))           # within-session memory
