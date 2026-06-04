@@ -407,6 +407,16 @@ def _clean_node(s: Optional[str]) -> Optional[str]:
 # that a clause describes a situation worth connecting.
 _STRESS_WORDS = r"stress(?:ed|ful|ing)?|overwhelm(?:ed|ing)?|anxious|anxiety|burn(?:ed|t)?\s*out|swamped|exhaust(?:ed|ing)?|drained|heavy|rough|hard|tough|frustrat(?:ed|ing)?|struggling|underwater|slammed"
 
+# Subjects that name no real life-topic — pronouns + contentless fillers. A "<subject> is
+# stressful" / "<subject> is hurting <Y>" clause whose subject is one of these must NOT become
+# a spurious edge ("it's been rough" must never turn into "you stressed_by it").
+_NON_TOPIC = frozenset({
+    "i", "it", "this", "that", "she", "he", "they", "we", "you", "everything",
+    "something", "things", "thing", "stuff", "all", "everyone", "everybody", "nothing",
+    "today", "tonight", "tomorrow",
+    "s", "t", "m", "d", "re", "ve", "ll",   # contraction remnants ("it's"->"s", "I'm"->"m")
+})
+
 # Each rule: (compiled regex, builder(match) -> list[edge-dict]). A builder returns the
 # edges it is CERTAIN the text stated; it never adds a cause<->effect edge unless both
 # sides appear in the matched span.
@@ -438,6 +448,31 @@ _rule(
     r"(?:" + _STRESS_WORDS + r")\b"
     r"(?:[^.!?]*?\b(?:because|due to|cause|cuz|since)\s+(?:of\s+)?(?:my\s+|the\s+|a\s+|an\s+)?(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3}))?",
     _b_x_stressful_because,
+)
+
+
+# --- 1b. subject-led stress WITHOUT a possessive: "work has been stressful", "the launch is
+# rough", "the move was hard". Same shape as rule 1 (incl. the optional because-cause) but the
+# topic isn't "my X". Guarded by _NON_TOPIC so a pronoun/filler subject never becomes a
+# spurious "you stressed_by it" — and this is what lets situation("work") find a "work" node. -
+def _b_subject_stressful(m):
+    topic = _clean_node(m.group("topic"))
+    cause = _clean_node(m.group("cause"))
+    if not topic or topic.lower() in _NON_TOPIC:
+        return []
+    edges = [("you", "stressed_by", topic, "problem", topic)]
+    if cause:
+        edges.append((topic, "because", cause, "inference", None))
+    return edges
+
+
+_rule(
+    r"\b(?:the\s+|this\s+|that\s+|my\s+)?(?P<topic>[\w-]+(?:\s+[\w-]+){0,2}?)\s+"
+    r"(?:is|'s|are|was|were|has\s+been|have\s+been|feels|felt|gets|got|seems|been)\s+"
+    r"(?:really\s+|so\s+|super\s+|pretty\s+|kinda\s+|a\s+bit\s+)?"
+    r"(?:" + _STRESS_WORDS + r")\b"
+    r"(?:[^.!?]*?\b(?:because|due to|cause|cuz|since)\s+(?:of\s+)?(?:my\s+|the\s+|a\s+|an\s+)?(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3}))?",
+    _b_subject_stressful,
 )
 
 
@@ -498,8 +533,28 @@ def _b_leads_to(m):
 
 
 _rule(
-    r"(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3})\s+(?:leads to|is leading to|results in|causes|means)\s+(?P<effect>[\w'-]+(?:\s+[\w'-]+){0,3})",
+    r"(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3})\s+(?:leads?\s+to|led\s+to|is\s+leading\s+to|results?\s+in|resulted\s+in|causes?|caused|means|meant)\s+(?:my\s+|the\s+|a\s+|an\s+)?(?P<effect>[\w'-]+(?:\s+[\w'-]+){0,3})",
     _b_leads_to,
+)
+
+
+# --- 5b. stated impact: "<A> is affecting/hurting <B>", "the stress is wrecking my sleep"
+# -> A affects B. Both sides named in the matched span; subject A is guarded against a
+# pronoun/filler so "it's hurting me" never fabricates an edge. --------------------------
+def _b_affects(m):
+    cause = _clean_node(m.group("cause"))
+    effect = _clean_node(m.group("effect"))
+    if not cause or not effect or cause.lower() in _NON_TOPIC:
+        return []
+    return [(cause, "affects", effect, "inference", None)]
+
+
+_rule(
+    r"\b(?:the\s+|my\s+|this\s+|that\s+)?(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3})\s+"
+    r"(?:is|'s|are|keeps?|kept|has\s+been|have\s+been)\s+(?:really\s+|seriously\s+|totally\s+)?"
+    r"(?:affecting|hurting|wrecking|ruining|messing\s+with|killing|tanking|eating\s+into|getting\s+to|taking\s+a\s+toll\s+on|weighing\s+on)\s+"
+    r"(?:my\s+|the\s+|our\s+|his\s+|her\s+)?(?P<effect>[\w'-]+(?:\s+[\w'-]+){0,3})",
+    _b_affects,
 )
 
 
@@ -550,6 +605,25 @@ _rule(
     r"|(?:manager|boss|supervisor)\s+(?:just\s+)?(?:started|joined))\b"
     r"(?:[^.!?]*?\b(?:(?P<n>\d+|a|couple|few)\s+(?P<unit>months?|weeks?)\s+ago|just\s+started|recently))?",
     _b_new_person,
+)
+
+
+# --- 9. life-event sequence: "I started my business after the divorce" -> business after
+# divorce. Narrow (an explicit life-event verb + "after/following/once" + a named prior
+# event), stored as a SEQUENCE edge — Observed>Assumed: it states ORDER, not a claimed cause.
+def _b_after(m):
+    later = _clean_node(m.group("later"))
+    prior = _clean_node(m.group("prior"))
+    if not later or not prior or later.lower() in _NON_TOPIC or prior.lower() in _NON_TOPIC:
+        return []
+    return [(later, "after", prior, "sequence", later)]
+
+
+_rule(
+    r"\bi\s+(?:started|launched|founded|began|opened|moved|left|quit|joined|married|divorced|retired|graduated|had)\s+"
+    r"(?:my\s+|the\s+|a\s+|an\s+|to\s+)?(?P<later>[\w'-]+(?:\s+[\w'-]+){0,3})\s+(?:after|following|once)\s+"
+    r"(?:my\s+|the\s+|a\s+|an\s+)?(?P<prior>[\w'-]+(?:\s+[\w'-]+){0,2})",
+    _b_after,
 )
 
 
@@ -1056,6 +1130,21 @@ def _selftest() -> int:
        capture("I wish work were less stressful because of my manager") == []
        or all(p != "stressed_by" for s, p, o, _k, _t in
               capture("I wish work were less stressful")))
+
+    # --- widened natural-speech coverage (#21): the LIRF-style capture frontier ---
+    def _has(text, triple):
+        return triple in [(s, p, o) for s, p, o, _k, _t in capture(text)]
+    ok("widen: subject-led stress without 'my' -> you stressed_by work",
+       _has("work has been stressful because of my new manager", ("you", "stressed_by", "work")))
+    ok("widen: 'X is affecting Y' -> X affects Y",
+       _has("the stress is affecting my sleep", ("stress", "affects", "sleep")))
+    ok("widen: past-tense 'led to' -> leads_to",
+       _has("the move led to a new career", ("move", "leads_to", "new career")))
+    ok("widen: life-event 'after' -> a sequence edge",
+       _has("i started my business after the divorce", ("business", "after", "divorce")))
+    ok("widen-guard: pronoun/contraction subject fabricates NOTHING",
+       capture("it's been rough") == [] and capture("she is overwhelmed") == []
+       and all(o not in ("s", "t", "m", "it", "she") for s, p, o, _k, _t in capture("I'm overwhelmed")))
 
     # --- a throwaway store for persistence + situation ---
     name = "world_selftest_" + secrets.token_hex(3)
