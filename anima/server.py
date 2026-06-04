@@ -327,6 +327,11 @@ def _turn(name, text, voice=False):
             memory_lirf.capture(name, text)         # sleep — so a fact told today is known tomorrow.
         except Exception:
             pass
+        try:                                       # Personal World State: capture relational/causal
+            from . import world_state               # edges from THIS turn (additive, union-safe save,
+            world_state.capture_relations(name, text)  # race-free under _lock) — situations build over time.
+        except Exception:
+            pass
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
         try:                                       # telemetry: record what crossed each edge this turn —
             import types as _t                     # the model, the memory facts in play, the routing

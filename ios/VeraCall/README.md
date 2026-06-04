@@ -161,6 +161,14 @@ signing, and a private key that this repo will never contain.
    - **Capabilities:** check **Push Notifications**. *(There is no separate "VoIP"
      checkbox in the portal anymore — VoIP rides on Push Notifications; the "voip"
      **background mode** is set in the app's Info.plist, already done for you.)*
+   - **App Store review justification — use the TRUTHFUL one.** Never claim a disability
+     or accessibility need you don't have; a false justification creates real risk later,
+     and Apple routinely approves legitimate reminder/communication/companion use cases.
+     When review asks why the app uses the VoIP background mode + push, state the real reason:
+     > *The application provides proactive voice reminders, conversational reminders,
+     > appointment notifications, and persistent companion functionality. VoIP
+     > notifications are required to wake the app for user-initiated conversational
+     > interactions.*
 
 3. **Create an APNs Auth Key (.p8).** Portal ▸ **Keys ▸ +**.
    - Name it (e.g. "Vera APNs"), enable **Apple Push Notification service (APNs)**,

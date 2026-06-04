@@ -75,9 +75,28 @@ def read_transcript(name, limit=60) -> str:
     return "\n".join(out)
 
 
+def _archive_path(name):
+    return STORE / f"{name}.chat.archive.jsonl"
+
+
 def clear_log(name):
+    """ANIMA LAW 001 — Compressed > Forgotten. The raw turns are APPENDED to the
+    permanent, append-only chat archive BEFORE the working log is cleared, so the
+    nightly consolidation distils meaning into the Portrait without ever destroying
+    the source. Any fact the portrait fails to capture survives in the archive."""
+    p = log_path(name)
     try:
-        log_path(name).unlink()
+        raw = p.read_bytes()
+    except OSError:
+        raw = b""
+    if raw:
+        try:
+            with open(_archive_path(name), "ab") as a:   # append-only; never truncated
+                a.write(raw)
+        except OSError:
+            pass
+    try:
+        p.unlink()
     except OSError:
         pass
 

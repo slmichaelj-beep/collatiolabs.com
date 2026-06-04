@@ -160,6 +160,8 @@ SPECS: tuple[Spec, ...] = (
     Spec(".mem.json", "json-vec", required=True, min_bytes=10, structure="memory"),
     Spec(".replay.json", "json-vec", required=False, min_bytes=10, structure="replay"),
     Spec(".history.json", "json", required=False, min_bytes=2, structure="history"),
+    Spec(".lirf.json", "json", required=False, min_bytes=2),                 # the LIRF fact ledger — her strongest memory; LAW 001 demands redundancy
+    Spec(".chat.archive.jsonl", "text", required=False, min_bytes=1),        # permanent raw-conversation archive (Compressed > Forgotten)
     Spec(".portrait.md", "text", required=True, min_bytes=1),
     Spec(".persona.md", "text", required=False, min_bytes=1),
     Spec(".values.json", "json", required=False, min_bytes=2, structure="values"),

@@ -56,35 +56,44 @@ def _strip_break_sentences(text: str) -> str:
 
 
 def _strip_scaffold_leak(text: str) -> str:
-    """Scrub any Knowledge-Spine scaffold that leaked into the user-facing reply.
+    """Scrub any Knowledge-Spine / World-State scaffold that leaked into the user reply.
 
-    The binding contract (anima/spine.py) renders truth-class tags ([KNOWN]/[SEEN]/…) and a
-    framing preamble INTO THE PROMPT, explicitly instructed never to be read aloud. The small
-    model almost always obeys, but if a token slips through it must never reach the user
-    (feedback_never_break_character: no tag scaffolding in the text). spine.SCAFFOLD_TOKENS is
-    the single source of truth for what those tokens are. We strip a leaked bracket-tag inline
-    (keeping the warm sentence around it) and drop any whole sentence that parrots the framing
-    ("THESE ARE THINGS YOU KNOW", "according to my memory"). Pure, conservative, never raises."""
+    The binding contracts (anima/spine.py, anima/world_state.py) render truth-class tags
+    ([KNOWN]/[SEEN]/[SITUATION]/[LINK]/…) and framing preambles INTO THE PROMPT, explicitly
+    instructed never to be read aloud. The small model almost always obeys, but if a token
+    slips through it must never reach the user (feedback_never_break_character: no tag
+    scaffolding in the text). world_state.WORLD_SCAFFOLD_TOKENS is a SUPERSET of
+    spine.SCAFFOLD_TOKENS (it carries the relational tags too) — the single source of truth.
+    We split it into bracket-tags (excised inline, keeping the warm sentence) and framing
+    phrases (whole sentence dropped). Pure, conservative, auto-adapting, never raises."""
     import re
-    try:
-        from .spine import SCAFFOLD_TOKENS
-    except Exception:
-        SCAFFOLD_TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]",
-                           "THESE ARE THINGS YOU KNOW", "according to my memory")
+    try:                                             # the world-state superset already carries the
+        from .world_state import WORLD_SCAFFOLD_TOKENS as TOKENS  # spine tokens + [SITUATION]/[LINK]/
+    except Exception:                                # [KNOWS]; degrade gracefully if it's absent.
+        try:
+            from .spine import SCAFFOLD_TOKENS as TOKENS
+        except Exception:
+            TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]", "[SITUATION]", "[LINK]",
+                      "[KNOWS]", "THESE ARE THINGS YOU KNOW", "according to my memory",
+                      "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
     s = text or ""
     # Stray model control/template markers (chat-template end tokens some local models emit
     # into the body, e.g. Stheno's "|done|"). Never scaffolding from us, but they must not
     # reach the user either — strip them unconditionally, cheaply.
     s = re.sub(r"\s*(?:\|done\|?|<\|eot_id\|>|<\|end\|>|<\|im_end\|>|</s>)\s*", " ", s).strip()
-    if not any(tok.lower() in s.lower() for tok in SCAFFOLD_TOKENS):
+    if not any(tok.lower() in s.lower() for tok in TOKENS):
         return s if s else text                      # fast path: only a stray marker (if any)
+    bracket = [t for t in TOKENS if t.startswith("[") and t.endswith("]")]
+    phrases = [t for t in TOKENS if not (t.startswith("[") and t.endswith("]"))]
     # 1) excise the bracket tags inline (leave the human-readable label/value beside them).
-    s = re.sub(r"\[(?:KNOWN|SEEN|SENSE|UNKNOWN)\]\s*", "", s, flags=re.I)
-    # 2) drop any whole sentence that parrots the framing phrases (not a real reply).
-    phrase_re = re.compile(r"(THESE ARE THINGS YOU KNOW|according to my memory)", re.I)
-    parts = re.split(r"(?<=[.!?])\s+", s.strip())
-    kept = [p for p in parts if p.strip() and not phrase_re.search(p)]
-    out = re.sub(r"[ \t]{2,}", " ", " ".join(kept)).strip()
+    if bracket:
+        s = re.sub(r"(?:" + "|".join(re.escape(t) for t in bracket) + r")\s*", "", s, flags=re.I)
+    # 2) drop any whole sentence that parrots a framing phrase (not a real reply).
+    if phrases:
+        phrase_re = re.compile("(" + "|".join(re.escape(p) for p in phrases) + ")", re.I)
+        parts = re.split(r"(?<=[.!?])\s+", s.strip())
+        s = " ".join(p for p in parts if p.strip() and not phrase_re.search(p))
+    out = re.sub(r"[ \t]{2,}", " ", s).strip()
     return out if out else text
 
 
@@ -588,6 +597,21 @@ class Mouth:
                     mem = (mem + "\n\n" + _fb) if mem.strip() else _fb
             except Exception:
                 pass
+        # Personal World State (Life Graph): append the connected SITUATION around this turn —
+        # the relational/causal cluster (e.g. work ← new manager → poor sleep) — so she speaks
+        # to the SITUATION, not isolated facts. Self-contained block (own preamble + guardrail),
+        # additive over the spine, pure/read-only, never raises into a turn. Placed BEFORE the
+        # cloud gate so it is blanked as PII on a cloud brain, exactly like the LIRF block. Only
+        # injected when the cluster actually has edges (saves tokens on an off-topic turn).
+        try:
+            from . import world_state as _ws
+            _cluster = _ws.situation(heart.name, user_text, hops=2)
+            if _cluster.get("edges"):
+                _sit = _ws.render_situation(_cluster)
+                if _sit and _sit.strip():
+                    mem = (mem + "\n\n" + _sit) if mem.strip() else _sit
+        except Exception:
+            pass
         try:                                   # privacy: her personal memory of you is
             from . import cloud                # concentrated PII — never send it to a cloud
             if cloud.is_cloud():               # brain. Stays only with the local model.
