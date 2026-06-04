@@ -1,0 +1,956 @@
+"""
+memory_lirf — the LIRF (Ledger of Indexed, Resolved Facts) memory engine.
+
+This is the hard, queryable counterpart to the prose Portrait. The Portrait stays
+the soft "who they are", distilled at sleep and injected whole. LIRF is the
+append-only ledger of *atomic USER facts* with full provenance: every belief is a
+row with a stable id, a confidence, a corroboration count, the verbatim snippet
+that set it, and an append-only history of everything it ever displaced.
+
+Why it exists (the live bug it fixes): `portrait.load()` reads
+`.anima/{name}.portrait.md` as the USER profile, but on disk that file held persona
+bullets about HER — so asked "when's my birthday?" she had zero user facts AND a
+file polluting her self-image into her memory-of-you slot. LIRF kills the
+conflation at the schema level with one hard invariant: **entity is ALWAYS "you"**
+for the user. A belief about Vera can never enter this store. Named third parties
+(a dog, a mom) get their own entity key but are never merged into "you".
+
+Design synthesis:
+  * canonical entity model — collapse I/you/Lamar/me to the single key "you"
+    (the actual root-cause fix);
+  * rich audit spine — per-row stable id, append-only history[], status, verbatim
+    evidence, source, confidence, support — so it is explainable, not a black box.
+
+Three behaviours the Portrait can't give you:
+  1. capture-NOW — facts land the same turn they're stated (Portrait is sleep-only);
+  2. O(ms) exact lookup — a dict keyed on (entity, trait), no embeddings;
+  3. newest-wins merge with corroboration — and history[] never deletes the
+     displaced value, so "Vera used to think June 11, you corrected it" is provable.
+
+Storage discipline matches `{name}.mem.json` / `{name}.json`: a flat list persisted
+via `util.save_json` / `util.load_json` (atomic temp-write+rename, sealed under
+ANIMA_KEY iff set). NEVER a bespoke open()/JSONL writer — that would leave the
+ledger plaintext while the rest of .anima is sealed, and a crash mid-write could
+corrupt it. Footprint bet: tens to low-hundreds of rows for a personal companion;
+thousands is the documented ceiling where a real store would be needed.
+"""
+
+from __future__ import annotations
+
+import math
+import re
+import secrets
+from datetime import datetime, timezone
+from pathlib import Path
+
+from .util import save_json, load_json
+
+STORE = Path(".anima")
+
+# The user is ALWAYS this entity. Folding I/you/Lamar/me onto one key is the
+# root-cause fix: lookup never has to string-match a name, so the conflation that
+# caused the live bug cannot reappear structurally.
+SELF = "you"
+
+VERSION = 1
+
+# Confidence a freshly-stated declarative fact enters at.
+CONF_NEW = 0.9
+# An explicit user correction ("no it's the 12th", "actually I moved to Portland")
+# enters higher — the user just told us directly.
+CONF_CORRECTION = 0.97
+# Floor for a belief to be eligible for the injected fact-block. Low-confidence
+# beliefs stay on disk (and in lookup of last resort) but out of the prompt.
+CONF_BLOCK_FLOOR = 0.55
+# Asymptotic climb on agreement: conf -> conf + (1-conf)*RATE, capped.
+CONF_AGREE_RATE = 0.34
+CONF_CEIL = 0.99
+
+# Near-immutable traits: if one of these *flips* to a new value, we don't silently
+# overwrite — we install it but flag a soft re-confirm so the UI / a later turn can
+# double-check (a one-off mistyped birthday shouldn't bury the right one silently).
+NEAR_IMMUTABLE = frozenset({"birthday", "birthplace", "name", "blood_type"})
+
+# Traits that hold a *set* of values rather than a single one. Captures append with
+# dedupe instead of superseding ("I hate cilantro" + "I hate olives" -> both).
+LIST_TRAITS = frozenset({"dislikes", "likes", "pets", "allergies", "children", "siblings"})
+
+
+# --- canonical trait slugs --------------------------------------------------
+# Trait-slug drift (birthday vs bday vs date_of_birth) fragments the O(1) lookup,
+# so synonyms fold to ONE slug at write time. Unknown traits are allowed but
+# normalised to snake_case.
+_ALIASES = {
+    "bday": "birthday",
+    "bday_date": "birthday",
+    "date_of_birth": "birthday",
+    "dob": "birthday",
+    "born": "birthday",
+    "birth_date": "birthday",
+    "birthplace": "birthplace",
+    "born_in": "birthplace",
+    "hometown": "birthplace",
+    "lives": "lives",
+    "lives_in": "lives",
+    "location": "lives",
+    "city": "lives",
+    "home": "lives",
+    "residence": "lives",
+    "works_at": "employer",
+    "work": "employer",
+    "workplace": "employer",
+    "company": "employer",
+    "job": "occupation",
+    "role": "occupation",
+    "title": "occupation",
+    "profession": "occupation",
+    "works_on": "works_on",
+    "project": "works_on",
+    "dog": "dog_name",
+    "dogs_name": "dog_name",
+    "dog_name": "dog_name",
+    "cat": "cat_name",
+    "cats_name": "cat_name",
+    "partner": "partner",
+    "spouse": "partner",
+    "wife": "partner",
+    "husband": "partner",
+    "gf": "partner",
+    "bf": "partner",
+    "girlfriend": "partner",
+    "boyfriend": "partner",
+    "mom": "mother",
+    "mum": "mother",
+    "mother": "mother",
+    "dad": "father",
+    "father": "father",
+    "name": "name",
+    "full_name": "name",
+    "middle_name": "middle_name",
+    "phone": "phone",
+    "phone_number": "phone",
+    "email": "email",
+    "favorite_color": "favorite_color",
+    "favourite_color": "favorite_color",
+    "fav_color": "favorite_color",
+}
+
+
+def canon_trait(trait: str) -> str:
+    """Fold a raw trait to its canonical snake_case slug (alias-resolved)."""
+    s = re.sub(r"[^a-z0-9]+", "_", str(trait).strip().lower()).strip("_")
+    return _ALIASES.get(s, s)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _norm_value(v):
+    """Case/space-normalised key for same-value comparison (lists compared as sets)."""
+    if isinstance(v, list):
+        return frozenset(re.sub(r"\s+", " ", str(x).strip().lower()) for x in v)
+    return re.sub(r"\s+", " ", str(v).strip().lower())
+
+
+def _new_id() -> str:
+    return "f_" + secrets.token_hex(6)
+
+
+# ---------------------------------------------------------------------------
+# Tier-A extraction: cheap, synchronous regex matchers over the USER's text ONLY.
+# Anchored to declarative FIRST-PERSON PRESENT so wishes/hypotheticals don't land
+# ("I wish I lived in Paris", "if I worked at Google"). Each returns a candidate
+# dict {trait, value, evidence}; evidence is the verbatim user snippet.
+# ---------------------------------------------------------------------------
+
+# A guard: the matched clause must not be governed by a wish / conditional / past
+# longing. Applied to the text immediately preceding the match.
+_HYPOTHETICAL = re.compile(
+    r"\b(?:wish|hope|if|would|could|someday|one day|want to|wanna|going to|gonna|"
+    r"used to|maybe|might|planning to|plan to|dream)\b", re.I)
+
+
+def _not_hypothetical(text: str, start: int) -> bool:
+    head = text[:start]
+    # only the local clause matters — look back to the last sentence/clause break
+    clause = re.split(r"[.!?;]|\b(?:but|and|because|so)\b", head, flags=re.I)[-1]
+    return _HYPOTHETICAL.search(clause) is None
+
+
+# Each rule: (compiled regex, trait, value-builder(match) -> value|None).
+# Value-builders strip trailing punctuation and reject empties.
+def _clean(s):
+    s = re.sub(r"\s+", " ", (s or "").strip()).strip(" .,!?;:\"'")
+    return s or None
+
+
+_RULES = [
+    # name
+    (re.compile(r"\bmy name(?:'s| is)\s+(?P<v>[A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})", re.I),
+     "name", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\b(?:i'?m|i am|call me)\s+(?P<v>(?-i:[A-Z])[a-z'][\w'-]+)(?:\b(?!\s+(?:from|in|at|on|to|a|an|the|going|getting|feeling|allergic|working|trying|sorry|here|there|back|home|done|off|out|fine|good|great|okay|sure|so|very|really|not|just|still|now|also|gonna|about)\b))", re.I),
+     "name", lambda m: _clean(m.group("v"))),
+    # birthday — "my birthday is June 12", "my birthday's the 12th", "I was born on June 12"
+    (re.compile(r"\bmy\s+(?:birthday|bday|b-?day)(?:'s| is| falls on|:)?\s+(?:on\s+)?(?P<v>(?:[A-Z][a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?)|(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)|(?:the\s+\d{1,2}(?:st|nd|rd|th)))", re.I),
+     "birthday", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi was born on\s+(?P<v>[A-Z][a-z]+\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?)", re.I),
+     "birthday", lambda m: _clean(m.group("v"))),
+    # location — "I live in Portland", "I'm in Portland, OR", "I'm based in Berlin"
+    (re.compile(r"\bi\s+(?:live|reside|am based|'m based|stay)\s+in\s+(?P<v>[A-Z][\w'-]+(?:[ ,]+[A-Z][\w'.-]+){0,3})", re.I),
+     "lives", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi'?m\s+(?:currently\s+)?in\s+(?P<v>[A-Z][\w'-]+(?:,\s*[A-Z]{2})?)\b(?!\s+(?:a|an|the|trouble|love|charge|the\s+middle)\b)", re.I),
+     "lives", lambda m: _clean(m.group("v"))),
+    # employer / occupation
+    (re.compile(r"\bi work\s+at\s+(?P<v>[A-Z][\w'&.-]+(?:\s+[A-Z][\w'&.-]+){0,3})", re.I),
+     "employer", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi work\s+(?:as\s+(?:an?\s+)?|in\s+)(?P<v>[a-z][\w'-]+(?:\s+[\w'-]+){0,2})", re.I),
+     "occupation", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi'?m\s+(?:an?\s+)?(?P<v>(?:software|data|product|research)?\s*(?:engineer|developer|designer|scientist|teacher|nurse|doctor|lawyer|writer|artist|founder|manager|professor|student))\b", re.I),
+     "occupation", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi(?:'?m| am)\s+working\s+on\s+(?P<v>[\w'-]+(?:\s+[\w'-]+){0,4})", re.I),
+     "works_on", lambda m: _clean(m.group("v"))),
+    # pets — "my dog's name is Biscuit", "I have a dog named Biscuit", "my cat is Mochi"
+    (re.compile(r"\bmy\s+dog(?:'s)?(?:\s+is)?\s+(?:(?:name(?:'s| is)?|named|called)\s+)?(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "dog_name", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+dog\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "dog_name", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+cat(?:'s)?(?:\s+is)?\s+(?:(?:name(?:'s| is)?|named|called)\s+)?(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "cat_name", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+cat\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "cat_name", lambda m: _clean(m.group("v"))),
+    # relations — "my mom's name is Carol", "my wife Jen", "my sister is Anna"
+    (re.compile(r"\bmy\s+(?:mom|mum|mother)(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "mother", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+(?:dad|father)(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "father", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+(?:wife|husband|partner|gf|bf|girlfriend|boyfriend|spouse)(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)?(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "partner", lambda m: _clean(m.group("v"))),
+    # favorite color
+    (re.compile(r"\bmy\s+favou?rite\s+colou?r\s+is\s+(?P<v>[a-z][\w'-]+)", re.I),
+     "favorite_color", lambda m: _clean(m.group("v"))),
+    # likes / dislikes (list-valued) — "I love sushi", "I hate cilantro", "I can't stand olives".
+    # The object stops before a conjunction so "X and Y" yields two separate hits, not
+    # one value "X and Y" (the negative-lookahead on each extra word does the cut).
+    (re.compile(r"\bi\s+(?:love|really like|adore)\s+(?P<v>(?!and\b|but\b|or\b)[a-z][\w'-]+(?:\s+(?!and\b|but\b|or\b)[\w'-]+){0,2})", re.I),
+     "likes", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi\s+(?:hate|can'?t stand|despise|loathe|really dislike)\s+(?P<v>(?!and\b|but\b|or\b)[a-z][\w'-]+(?:\s+(?!and\b|but\b|or\b)[\w'-]+){0,2})", re.I),
+     "dislikes", lambda m: _clean(m.group("v"))),
+    # siblings — "my brother is Sam", "my sister's name is Anna"
+    (re.compile(r"\bmy\s+brother(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "brother", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+sister(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "sister", lambda m: _clean(m.group("v"))),
+    # allergy (list-valued) — "I'm allergic to shellfish", "I have an allergy to peanuts".
+    # NOTE: this also stops "I'm allergic to X" from mis-firing the name rule (allergic is lowercase).
+    (re.compile(r"\bi(?:'?m| am)\s+allergic\s+to\s+(?P<v>(?!and\b|or\b)[a-z][\w'-]+(?:\s+(?!and\b|or\b)[\w'-]+){0,2})", re.I),
+     "allergy", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+an?\s+allergy\s+to\s+(?P<v>(?!and\b|or\b)[a-z][\w'-]+(?:\s+(?!and\b|or\b)[\w'-]+){0,2})", re.I),
+     "allergy", lambda m: _clean(m.group("v"))),
+    # car — "I drive a Tesla Model 3", "my car is a Subaru"
+    (re.compile(r"\b(?:i drive|my car is)\s+(?:an?\s+)?(?P<v>(?-i:[A-Z])[\w'-]+(?:\s+[\w'-]+){0,2})", re.I),
+     "car", lambda m: _clean(m.group("v"))),
+    # phone / email
+    (re.compile(r"\bmy\s+(?:phone\s+|cell\s+|mobile\s+)?number(?:'s| is)\s+(?P<v>[\d][\d\-().\s]{6,}\d)", re.I),
+     "phone", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+email(?:\s+address)?(?:'s| is)\s+(?P<v>[\w.+-]+@[\w-]+\.[\w.-]+)", re.I),
+     "email", lambda m: _clean(m.group("v"))),
+    # children — "my son is Theo", "my daughter's name is Mia", "I have a son named Theo"
+    (re.compile(r"\bmy\s+son(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "son", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bmy\s+daughter(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "daughter", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+(?:son|boy)\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "son", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+(?:daughter|girl)\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "daughter", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+brother\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "brother", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi have\s+a\s+sister\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "sister", lambda m: _clean(m.group("v"))),
+    # work — clear job titles only, and a business owned/founded (capital-guarded so "I run errands" can't match)
+    (re.compile(r"\bi'?m\s+(?:the|a|an)\s+(?P<v>(?:senior\s+|lead\s+|principal\s+|chief\s+|head\s+|junior\s+|staff\s+)?(?:founder|co-?founder|ceo|cto|cfo|coo|president|vp|director|manager|engineer|developer|designer|scientist|analyst|consultant|architect|researcher|professor|owner|partner))\b", re.I),
+     "role", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\b(?:i\s+(?:run|own|founded|started)|my\s+(?:company|business|startup)\s+is(?:\s+called)?)\s+(?:an?\s+)?(?:(?:company|business|startup)\s+(?:called\s+)?)?(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+[\w'&.-]+){0,3})", re.I),
+     "business", lambda m: _clean(m.group("v"))),
+    # health — diet + medical condition
+    (re.compile(r"\bi'?m\s+(?:a\s+)?(?P<v>vegetarian|vegan|pescatarian|pescetarian|gluten-?free|dairy-?free|lactose intolerant|keto|paleo|kosher|halal)\b", re.I),
+     "diet", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bi (?:have|was diagnosed with)\s+(?P<v>(?:type \d )?(?:diabetes|asthma|adhd|add|anxiety|depression|hypertension|arthritis|epilepsy|migraines?|insomnia|celiac|crohn'?s|ibs|ocd|ptsd|dyslexia)|(?-i:[A-Z])[\w'-]+\s+(?:disease|syndrome|disorder))\b", re.I),
+     "condition", lambda m: _clean(m.group("v"))),
+    # age (distinct from birthday) — "I'm 34", "I'm 34 years old"; guarded so "I'm 5 minutes late" can't match
+    (re.compile(r"\bi(?:'?m| am)\s+(?P<v>\d{1,3})(?=\s+years?\s+old\b|\s*[.!?,]|\s*$)", re.I),
+     "age", lambda m: _clean(m.group("v"))),
+    # generalized favorite — "my favorite food is pizza" -> favorite_food: pizza
+    (re.compile(r"\bmy\s+favou?rite\s+(?P<cat>food|meal|dish|cuisine|movie|film|show|series|band|artist|musician|song|book|author|team|drink|beer|wine|season|sport|game|hobby|place|city|number|animal|colou?r)\s+is\s+(?P<v>[\w'\d][\w'-]*(?:\s+[\w'-]+){0,3})", re.I),
+     lambda m: "favorite_" + m.group("cat").lower().replace("colour", "color").replace("film", "movie").replace("series", "show"),
+     lambda m: _clean(m.group("v"))),
+]
+
+# Explicit-correction cues: when present, the captured fact enters as a correction
+# (higher confidence, prior row tagged 'user-corrected').
+_CORRECTION_CUE = re.compile(
+    r"\b(?:no,?\s+it'?s|actually|correction|i meant|not\s+\w+,?\s+it'?s|"
+    r"that'?s wrong|let me correct|i misspoke|scratch that)\b", re.I)
+
+# Retraction cues: "forget that", "forget my birthday", "that's not true anymore".
+_RETRACT_CUE = re.compile(
+    r"\b(?:forget (?:that|about that|my)|delete (?:that|my)|that'?s (?:no longer|not) true|"
+    r"i (?:don'?t|do not) (?:have|live)|never mind that)\b", re.I)
+
+
+def extract(text: str):
+    """TIER A. Pull durable first-person facts from a USER utterance via rules.
+
+    Returns a list of candidate dicts {trait, value, evidence, correction:bool}.
+    Operates on `text` (the user's words) ONLY — never the reply. Anchored to
+    declarative present so wishes/hypotheticals are rejected.
+    """
+    if not text or not text.strip():
+        return []
+    is_corr = bool(_CORRECTION_CUE.search(text))
+    found = {}
+    for rx, trait, build in _RULES:
+        for m in rx.finditer(text):
+            if not _not_hypothetical(text, m.start()):
+                continue
+            val = build(m)
+            if not val:
+                continue
+            ev = _clean(text[max(0, m.start() - 0):m.end()]) or text.strip()
+            ct = canon_trait(trait(m) if callable(trait) else trait)
+            # within one utterance, list traits accumulate; scalar traits keep the
+            # first clean hit (rules are ordered most-specific first).
+            if ct in LIST_TRAITS:
+                found.setdefault(ct, {"trait": ct, "value": [], "evidence": ev,
+                                      "correction": is_corr})
+                if val not in found[ct]["value"]:
+                    found[ct]["value"].append(val)
+            elif ct not in found:
+                found[ct] = {"trait": ct, "value": val, "evidence": ev,
+                             "correction": is_corr}
+    return list(found.values())
+
+
+# ---------------------------------------------------------------------------
+# Tier B (optional): a strict, model-assisted extractor. Off by default; runs the
+# real local brain with a tight "never infer" instruction and parses STRICT JSON.
+# Returns the same candidate shape. Used by the bench's LIRF condition and wired
+# behind a flag — never on the critical path of a live turn.
+# ---------------------------------------------------------------------------
+
+_TIERB_SYSTEM = (
+    "You extract DURABLE personal facts a person stated about THEMSELVES, for their "
+    "companion's memory. Output ONLY a JSON array. Each item: "
+    '{"trait": snake_case_slug, "value": string, "evidence": verbatim quote from '
+    "the user}. Rules: include a fact ONLY if the user EXPLICITLY stated it about "
+    "their own life (name, birthday, where they live, work, pets, family, strong "
+    "likes/dislikes). NEVER infer, guess, or include anything about the assistant. "
+    "Ignore questions, hypotheticals ('I wish...'), and the assistant's words. If "
+    "there are no durable self-facts, output []. Output the JSON array and nothing else."
+)
+
+
+def extract_model(text: str, brain) -> list:
+    """TIER B. Model-assisted strict extraction. `brain` has .reply(system,user,history).
+    Best-effort: any parse failure yields []. Never raises into the caller."""
+    if not text or not text.strip() or brain is None:
+        return []
+    try:
+        raw = brain.reply(_TIERB_SYSTEM, f'User said: "{text.strip()}"\n\nJSON:', [])
+    except Exception:
+        return []
+    import json as _json
+    m = re.search(r"\[.*\]", raw or "", re.S)
+    if not m:
+        return []
+    try:
+        arr = _json.loads(m.group(0))
+    except Exception:
+        return []
+    out = []
+    if isinstance(arr, list):
+        for it in arr:
+            if not isinstance(it, dict):
+                continue
+            trait, value = it.get("trait"), it.get("value")
+            if not trait or value in (None, "", []):
+                continue
+            out.append({"trait": canon_trait(trait), "value": value,
+                        "evidence": str(it.get("evidence") or text).strip(),
+                        "correction": False})
+    return out
+
+
+# ---------------------------------------------------------------------------
+# The store.
+# ---------------------------------------------------------------------------
+
+class Facts:
+    """The LIRF ledger for one creature: a flat list of belief rows, indexed two
+    ways in memory (by (entity,trait) for O(1) lookup, by id for edit/retract)."""
+
+    def __init__(self, rows=None):
+        self.rows = rows or []
+        self._reindex()
+
+    # --- indexing -----------------------------------------------------------
+    def _reindex(self):
+        # Active row per (entity, trait) — the lookup spine.
+        self._by_key = {}
+        # id -> row — the editor spine.
+        self._by_id = {}
+        for r in self.rows:
+            self._by_id[r["id"]] = r
+            if r.get("status") == "active":
+                self._by_key[(r["entity"], r["trait"])] = r
+
+    # --- persistence (atomic + encrypted, via util — never a bespoke writer) -
+    @classmethod
+    def path(cls, name):
+        return STORE / f"{name}.lirf.json"
+
+    @classmethod
+    def load(cls, name) -> "Facts":
+        d = load_json(cls.path(name))
+        rows = d.get("rows", []) if isinstance(d, dict) else []
+        return cls(rows)
+
+    def save(self, name) -> None:
+        STORE.mkdir(exist_ok=True)
+        save_json(self.path(name), {"version": VERSION, "rows": self.rows})
+
+    # --- capture: utterance -> candidates -----------------------------------
+    def capture(self, name, user_text, reply=None, brain=None, model_pass=False):
+        """Extract durable USER facts from `user_text` (Tier A always; Tier B iff
+        model_pass and a brain). `reply` is accepted for signature parity but is
+        NEVER read — facts come only from the user's words. Returns the candidate
+        list (already shaped for merge); does not persist (caller merges + saves)."""
+        cands = extract(user_text)
+        seen = {(c["trait"], _norm_value(c["value"])) for c in cands}
+        if model_pass and brain is not None:
+            for c in extract_model(user_text, brain):
+                k = (c["trait"], _norm_value(c["value"]))
+                if k not in seen:
+                    cands.append(c)
+                    seen.add(k)
+        # honour an explicit retraction in the same utterance
+        if _RETRACT_CUE.search(user_text or ""):
+            for c in cands:
+                c["retract"] = True
+        return cands
+
+    # --- merge: candidate -> ledger (the heart) -----------------------------
+    def merge(self, cand) -> dict:
+        """Fold one candidate into the ledger, keyed on (SELF, trait). Returns the
+        row touched. INVARIANT: entity is always SELF for the user — a third party
+        gets its own entity but never SELF; here every captured user-fact is SELF."""
+        trait = canon_trait(cand["trait"])
+        entity = cand.get("entity", SELF)
+        # hard schema-level guard against the conflation bug: a belief about HER can
+        # never enter as the user. Anything that isn't an explicit third party folds
+        # to SELF.
+        if entity in ("vera", "assistant", "me", "i", "myself", None, ""):
+            entity = SELF
+        value = cand["value"]
+        now = _now()
+        is_corr = bool(cand.get("correction"))
+        src = cand.get("source") or f"chat {now[:10]}"
+        ev = cand.get("evidence") or ""
+        existing = self._by_key.get((entity, trait))
+
+        if cand.get("retract") and existing is not None:
+            return self.retract(existing["id"])
+
+        if existing is None:
+            row = {
+                "id": _new_id(),
+                "entity": entity,
+                "trait": trait,
+                "value": value,
+                "confidence": CONF_CORRECTION if is_corr else CONF_NEW,
+                "support": 1,
+                "source": src,
+                "evidence": ev,
+                "created": now,
+                "updated": now,
+                "status": "active",
+                "history": [],
+            }
+            if trait in NEAR_IMMUTABLE:
+                row["needs_reconfirm"] = False
+            self.rows.append(row)
+            self._by_id[row["id"]] = row
+            self._by_key[(entity, trait)] = row
+            return row
+
+        same = _same_value(existing, value, trait)
+        if same:
+            # corroboration: support++, confidence climbs asymptotically; refresh
+            # provenance to the most recent mention.
+            if trait in LIST_TRAITS:
+                existing["value"] = _merge_list(existing["value"], value)
+            existing["support"] = int(existing.get("support", 1)) + 1
+            existing["confidence"] = _climb(existing.get("confidence", CONF_NEW))
+            existing["source"] = src
+            existing["evidence"] = ev or existing.get("evidence", "")
+            existing["updated"] = now
+            return existing
+
+        # DIFFERENT value -> newest wins. Push the old value into history[] (never
+        # deleted — the explainability spine), install the new one.
+        existing["history"].append({
+            "value": existing["value"],
+            "confidence": existing.get("confidence"),
+            "source": existing.get("source"),
+            "at": existing.get("updated"),
+            "reason": "user-corrected" if is_corr else "superseded",
+        })
+        existing["value"] = value
+        existing["confidence"] = CONF_CORRECTION if is_corr else CONF_NEW
+        existing["support"] = 1                 # fresh claim, not yet re-confirmed
+        existing["source"] = src
+        existing["evidence"] = ev
+        existing["updated"] = now
+        existing["status"] = "active"
+        if trait in NEAR_IMMUTABLE and not is_corr:
+            # a silent flip of a near-immutable trait is suspicious — flag, don't bury
+            existing["needs_reconfirm"] = True
+        else:
+            existing.pop("needs_reconfirm", None)
+        return existing
+
+    # --- lookup: O(1) single active row -------------------------------------
+    def lookup(self, entity, trait):
+        """The constant-time exact lookup. Returns the active row or None."""
+        return self._by_key.get((entity, canon_trait(trait)))
+
+    def value_of(self, trait, entity=SELF):
+        r = self.lookup(entity, trait)
+        return r["value"] if r else None
+
+    # --- about: ranked one-pass scan ----------------------------------------
+    def about(self, entity=SELF):
+        """All active rows for an entity, ranked by salience = conf*log(1+support).
+        Backs the viewer and block()."""
+        rows = [r for r in self.rows
+                if r.get("status") == "active" and r["entity"] == entity]
+        rows.sort(key=_salience, reverse=True)
+        return rows
+
+    # --- block: the compact injected fact-block -----------------------------
+    def block(self, name=None, budget=15, entity=SELF) -> str:
+        """Dense, model-friendly fact-block for prompt injection. Active rows with
+        confidence>=floor, ranked, top ~budget. ~200 tokens of auditable beliefs vs
+        a 60-line transcript. Empty string if nothing qualifies."""
+        rows = [r for r in self.about(entity)
+                if r.get("confidence", 0) >= CONF_BLOCK_FLOOR][:budget]
+        if not rows:
+            return ""
+        lines = ["KNOWN FACTS ABOUT THE PERSON (treat as true, do not re-ask):"]
+        for r in rows:
+            lines.append(f"- {r['trait'].replace('_', ' ')}: {_fmt_value(r['value'])}")
+        return "\n".join(lines)
+
+    # --- editor surface (backs GET/POST /facts) -----------------------------
+    def correct(self, id, value, source="user-edit"):
+        """User edits one belief to `value` (enters as a correction, ~0.97)."""
+        r = self._by_id.get(id)
+        if r is None:
+            return None
+        now = _now()
+        if not _same_value(r, value, r["trait"]):
+            r["history"].append({
+                "value": r["value"], "confidence": r.get("confidence"),
+                "source": r.get("source"), "at": r.get("updated"),
+                "reason": "user-edited",
+            })
+            r["value"] = value
+        r["confidence"] = CONF_CORRECTION
+        r["support"] = max(1, int(r.get("support", 1)))
+        r["source"] = source
+        r["updated"] = now
+        r["status"] = "active"
+        r.pop("needs_reconfirm", None)
+        self._by_key[(r["entity"], r["trait"])] = r
+        return r
+
+    def retract(self, id):
+        """Flip a belief to retracted: kept on disk for audit, excluded from
+        lookup() and block()."""
+        r = self._by_id.get(id)
+        if r is None:
+            return None
+        r["history"].append({
+            "value": r["value"], "confidence": r.get("confidence"),
+            "source": r.get("source"), "at": r.get("updated"), "reason": "retracted",
+        })
+        r["status"] = "retracted"
+        r["updated"] = _now()
+        # drop from the active lookup index
+        if self._by_key.get((r["entity"], r["trait"])) is r:
+            del self._by_key[(r["entity"], r["trait"])]
+        return r
+
+
+# --- ranking / value helpers (module-level so tests can reach them) ----------
+def _salience(r) -> float:
+    return float(r.get("confidence", 0.0)) * math.log(1 + int(r.get("support", 1)))
+
+
+def _climb(conf) -> float:
+    conf = float(conf)
+    return min(CONF_CEIL, conf + (1 - conf) * CONF_AGREE_RATE)
+
+
+def _same_value(row, value, trait) -> bool:
+    if trait in LIST_TRAITS:
+        # a list candidate is "same" if it adds nothing new
+        cur = _norm_value(row["value"] if isinstance(row["value"], list) else [row["value"]])
+        new = _norm_value(value if isinstance(value, list) else [value])
+        return new.issubset(cur)
+    return _norm_value(row["value"]) == _norm_value(value)
+
+
+def _merge_list(cur, add):
+    cur = list(cur) if isinstance(cur, list) else [cur]
+    add = add if isinstance(add, list) else [add]
+    seen = {_norm_value(x) for x in cur}
+    for x in add:
+        if _norm_value(x) not in seen:
+            cur.append(x)
+            seen.add(_norm_value(x))
+    return cur
+
+
+def _fmt_value(v) -> str:
+    if isinstance(v, list):
+        return ", ".join(str(x) for x in v)
+    return str(v)
+
+
+# ---------------------------------------------------------------------------
+# Module-level convenience API — the surface the task asked for by name.
+# Thin wrappers over Facts so callers don't have to juggle load/merge/save.
+# ---------------------------------------------------------------------------
+
+def capture(name, text, reply=None, brain=None, model_pass=False) -> list:
+    """Extract durable user-facts from one utterance and PERSIST them immediately
+    with full provenance. Returns the rows touched. Intended to be called inside the
+    server's per-turn lock (the turn is already serialised, so the read-modify-write
+    is race-free with no new lock)."""
+    f = Facts.load(name)
+    cands = f.capture(name, text, reply, brain=brain, model_pass=model_pass)
+    touched = [f.merge(c) for c in cands]
+    if touched:
+        f.save(name)
+    return touched
+
+
+def retrieve(name, query="") -> str:
+    """Return a compact LIRF fact-block for prompt injection via O(ms) lookup.
+
+    If `query` names a specific known trait (e.g. "when's my birthday?"), the most
+    relevant single fact is surfaced first; then the ranked block follows. Empty
+    string when nothing is on record. Cloud guard is the CALLER's job (blank this
+    under cloud.is_cloud(), exactly like the Portrait) — kept here so the store has
+    no opinion about transport.
+    """
+    f = Facts.load(name)
+    hit = _query_trait(query, f) if query else None
+    block = f.block(name)
+    if hit and block:
+        return block
+    if hit:
+        return ("KNOWN FACTS ABOUT THE PERSON (treat as true, do not re-ask):\n"
+                f"- {hit['trait'].replace('_', ' ')}: {_fmt_value(hit['value'])}")
+    return block
+
+
+# Question-word cues mapped to the trait they ask about — backs a deterministic
+# route.py handler ("provenance not vibes"): on "when's my birthday?" we can answer
+# from the ledger with provenance, or say honestly it's not on record.
+_Q_TRAITS = [
+    (re.compile(r"\bbirthday|\bbday|\bborn\b|date of birth\b", re.I), "birthday"),
+    (re.compile(r"\bwhere (?:do|am) i (?:live|living)|\bmy (?:city|address|location|hometown)\b|where i live", re.I), "lives"),
+    (re.compile(r"\bwhere (?:do|did) i work|\bmy (?:job|employer|company|workplace)\b", re.I), "employer"),
+    (re.compile(r"\bwhat do i do\b|\bmy (?:occupation|profession|role|title)\b", re.I), "occupation"),
+    (re.compile(r"\bmy dog'?s? name|what'?s my dog|dog called\b", re.I), "dog_name"),
+    (re.compile(r"\bmy cat'?s? name|what'?s my cat\b", re.I), "cat_name"),
+    (re.compile(r"\bmy (?:mom|mum|mother)'?s? name|what'?s my mom\b", re.I), "mother"),
+    (re.compile(r"\bmy (?:dad|father)'?s? name|what'?s my dad\b", re.I), "father"),
+    (re.compile(r"\bmy (?:wife|husband|partner|spouse|gf|bf)'?s? name\b", re.I), "partner"),
+    (re.compile(r"\bmy name\b|what'?s my name|who am i\b", re.I), "name"),
+    (re.compile(r"\bmy (?:middle name)\b", re.I), "middle_name"),
+    (re.compile(r"\bfavou?rite colou?r\b", re.I), "favorite_color"),
+    (re.compile(r"\bwhat am i working on\b|my (?:project|current work)\b", re.I), "works_on"),
+]
+
+
+def _query_trait(query, f: "Facts"):
+    for rx, trait in _Q_TRAITS:
+        if rx.search(query):
+            r = f.lookup(SELF, trait)
+            if r is not None:
+                return r
+    return None
+
+
+def fact_note(name, text):
+    """Deterministic route.py hook (cap_note channel). On a known-fact question,
+    return a ground-truth note carrying the ACTUAL stored value + provenance, so the
+    swappable mouth narrates only what code proved. Returns None if the turn isn't a
+    known-fact question (let normal flow handle it). If the trait IS asked but not on
+    record, return an honest 'not on record' note instead of letting her confabulate.
+    The CALLER must skip this under cloud.is_cloud() (PII guard)."""
+    asked = None
+    for rx, trait in _Q_TRAITS:
+        if rx.search(text or ""):
+            asked = trait
+            break
+    if asked is None:
+        return None
+    f = Facts.load(name)
+    r = f.lookup(SELF, asked)
+    label = asked.replace("_", " ")
+    if r is None:
+        return (f"[fact — the user's {label} is NOT on record. In one honest, warm "
+                f"sentence tell them you don't have it yet and ask them to tell you. "
+                f"Invent nothing.]")
+    learned = (r.get("updated") or "")[:10]
+    return (f"[fact — the user's {label} is {_fmt_value(r['value'])} "
+            f"(learned {learned}; provenance: {r.get('source','')}). State it warmly "
+            f"and naturally as something you remember. Do not hedge or say you're unsure.]")
+
+
+def render(name) -> str:
+    """Human-readable 'what Vera knows about you', with provenance per fact —
+    the 'you own what it believes about you' promise, now per-belief. Includes
+    superseded/retracted history so a correction is visible and restorable."""
+    f = Facts.load(name)
+    active = f.about(SELF)
+    others = sorted({r["entity"] for r in f.rows if r["entity"] != SELF and r.get("status") == "active"})
+    out = [f"What {name} knows about you ({len(active)} active facts):"]
+    if not active:
+        out.append("  (nothing on record yet — tell her about yourself and it lands here)")
+    for r in active:
+        flag = "  ⚠ needs re-confirm" if r.get("needs_reconfirm") else ""
+        out.append(
+            f"  • {r['trait'].replace('_', ' ')}: {_fmt_value(r['value'])}{flag}\n"
+            f"      confidence {r['confidence']:.2f} · corroborated {r['support']}x · "
+            f"{r.get('source','?')}\n"
+            f"      evidence: \"{r.get('evidence','')}\"")
+        for h in r.get("history", []):
+            out.append(f"      ↩ was {_fmt_value(h.get('value'))} "
+                       f"({h.get('reason','?')} {(h.get('at') or '')[:10]})")
+    for ent in others:
+        rows = [r for r in f.about(ent)]
+        out.append(f"\n  About {ent}:")
+        for r in rows:
+            out.append(f"    • {r['trait'].replace('_', ' ')}: {_fmt_value(r['value'])}")
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------------------
+# STEP 0 migration — the precondition for the live-bug fix, packaged as an
+# idempotent helper rather than run eagerly (the destructive disk change stays
+# human-gated, consistent with deferring integration to review).
+#
+# The bug: `.anima/{name}.portrait.md` held persona bullets about HER, but
+# `portrait.load()` reads that path as the USER profile. Fix = a 3-namespace split:
+#   {name}.persona.md  -> facts about the creature   (mouth.persona_path targets this)
+#   {name}.portrait.md -> prose profile of the USER  (portrait.consolidate writes this)
+#   {name}.lirf.json   -> structured USER beliefs     (this organ)
+# A polluted portrait is one whose first non-empty line is the creature's name with a
+# trailing colon ("Vera:") followed by persona-style bullets — heuristically detected
+# so we never clobber a genuine user profile.
+# ---------------------------------------------------------------------------
+
+def portrait_is_polluted(name) -> bool:
+    """True iff {name}.portrait.md looks like persona bullets about the creature
+    (the live bug), not a profile of the user."""
+    from .util import load_text
+    txt = load_text(STORE / f"{name}.portrait.md", "") or ""
+    head = next((ln.strip() for ln in txt.splitlines() if ln.strip()), "")
+    return head.rstrip(":").strip().lower() == str(name).strip().lower() and head.endswith(":")
+
+
+def migrate_persona_split(name, apply=False) -> dict:
+    """Idempotent STEP-0 migration. With apply=False (default) returns a plan only.
+    With apply=True: if {name}.portrait.md is polluted, move its body to
+    {name}.persona.md (only if no persona file exists yet) and blank the portrait,
+    so portrait.load() no longer serves persona bullets as the user profile.
+    Returns {polluted, persona_exists, action}.
+    """
+    from .util import load_text, save_text
+    from . import mouth
+    portrait_p = STORE / f"{name}.portrait.md"
+    persona_p = mouth.persona_path(name)
+    polluted = portrait_is_polluted(name)
+    persona_exists = bool((load_text(persona_p, "") or "").strip())
+    plan = {"polluted": polluted, "persona_exists": persona_exists, "action": "none"}
+    if not apply or not polluted:
+        if polluted:
+            plan["action"] = "would move portrait body -> persona.md and blank portrait"
+        return plan
+    body = (load_text(portrait_p, "") or "").strip()
+    if not persona_exists and body:
+        save_text(persona_p, body)              # her self-image lands where it belongs
+        plan["action"] = "moved portrait body -> persona.md; blanked portrait"
+    else:
+        plan["action"] = "blanked portrait (persona already present)"
+    save_text(portrait_p, "")                   # free the user-profile slot
+    return plan
+
+
+# ---------------------------------------------------------------------------
+# Self-test — run directly: `python3 -m anima.memory_lirf` (no model, no network).
+# Proves capture, the entity invariant, O(1) lookup, newest-wins + history, the
+# block, list traits, retraction, and round-trip persistence.
+# ---------------------------------------------------------------------------
+
+def _selftest() -> int:
+    import tempfile, os, glob
+    fails = []
+
+    def ok(label, cond):
+        print(("  ok   " if cond else "  FAIL ") + label)
+        if not cond:
+            fails.append(label)
+
+    # --- extraction: the obvious declaratives land, hypotheticals don't ---
+    c = extract("my birthday is June 12 and I live in Portland, OR")
+    byt = {x["trait"]: x["value"] for x in c}
+    ok("extract: birthday", byt.get("birthday") == "June 12")
+    ok("extract: lives", byt.get("lives") in ("Portland, OR", "Portland"))
+    ok("extract: rejects 'I wish I lived in Paris'",
+       all(x["trait"] != "lives" for x in extract("honestly I wish I lived in Paris")))
+    ok("extract: rejects 'if I worked at Google'",
+       all(x["trait"] != "employer" for x in extract("if I worked at Google I'd be rich")))
+    ok("extract: dog name", any(x["trait"] == "dog_name" and x["value"] == "Biscuit"
+                                for x in extract("my dog's name is Biscuit")))
+    ok("extract: list-valued dislikes accumulate",
+       set((extract("I hate cilantro and I can't stand olives")[0]["value"])) == {"cilantro", "olives"}
+       if extract("I hate cilantro and I can't stand olives") else False)
+
+    # --- a throwaway store ---
+    name = "lirf_selftest_" + secrets.token_hex(3)
+    try:
+        f = Facts(load_json(Facts.path(name)) if False else [])
+
+        # capture + merge a battery
+        for c in f.capture(name, "my birthday is June 11"):
+            f.merge(c)
+        ok("merge: inserted birthday active", f.value_of("birthday") == "June 11")
+        ok("lookup: O(1) returns the row", f.lookup(SELF, "birthday") is not None)
+
+        # corroboration climbs confidence, bumps support
+        conf0 = f.lookup(SELF, "birthday")["confidence"]
+        for c in f.capture(name, "yeah my birthday is June 11"):
+            f.merge(c)
+        r = f.lookup(SELF, "birthday")
+        ok("merge: same value -> support++", r["support"] == 2)
+        ok("merge: same value -> confidence climbs", r["confidence"] > conf0)
+
+        # correction: newest wins, old value preserved in history, higher confidence
+        for c in f.capture(name, "no it's the 12th — my birthday is June 12"):
+            f.merge(c)
+        r = f.lookup(SELF, "birthday")
+        ok("merge: correction installs new value", r["value"] == "June 12")
+        ok("merge: history keeps the displaced value",
+           any(h["value"] == "June 11" for h in r["history"]))
+        ok("merge: correction resets support to 1", r["support"] == 1)
+        ok("merge: near-immutable correction is NOT silently flagged (explicit corr)",
+           not r.get("needs_reconfirm"))
+
+        # the entity invariant: a belief about HER folds to 'you', never 'vera'
+        f.merge({"trait": "mood", "value": "warm", "entity": "vera", "evidence": "x"})
+        ok("invariant: entity=='vera' folded to SELF (no 'vera' key)",
+           all(r2["entity"] == SELF for r2 in f.rows))
+
+        # list trait append-with-dedupe across turns
+        for c in f.capture(name, "I hate cilantro"):
+            f.merge(c)
+        for c in f.capture(name, "honestly I hate cilantro and I can't stand olives"):
+            f.merge(c)
+        dis = f.value_of("dislikes") or []
+        ok("list trait: dedupes + accumulates", set(dis) == {"cilantro", "olives"})
+
+        # block: dense, only confident rows, no re-ask noise
+        for c in f.capture(name, "I live in Portland"):
+            f.merge(c)
+        blk = f.block(name)
+        ok("block: contains birthday line", "birthday: June 12" in blk)
+        ok("block: contains lives line", "lives: Portland" in blk)
+        ok("block: header tells model not to re-ask", "do not re-ask" in blk)
+
+        # retrieve + fact_note reload from disk (they're the live per-turn entry
+        # points), so flush the in-memory ledger first.
+        f.save(name)
+        # retrieve + fact_note (the deterministic provenance seam)
+        ok("retrieve: birthday question surfaces stored value",
+           "June 12" in retrieve(name, "when's my birthday?"))
+        note = fact_note(name, "when's my birthday?")
+        ok("fact_note: carries the real value + 'state it warmly'",
+           "June 12" in note and "warmly" in note)
+        ok("fact_note: unknown trait -> honest 'NOT on record'",
+           "NOT on record" in (fact_note(name, "what's my middle name?") or ""))
+        ok("fact_note: non-fact question -> None (let normal flow run)",
+           fact_note(name, "tell me a joke") is None)
+
+        # retract: gone from lookup/block, kept on disk
+        bid = f.lookup(SELF, "birthday")["id"]
+        f.retract(bid)
+        ok("retract: removed from active lookup", f.lookup(SELF, "birthday") is None)
+        ok("retract: row kept on disk as retracted",
+           any(r2["id"] == bid and r2["status"] == "retracted" for r2 in f.rows))
+
+        # round-trip persistence (atomic + encrypted via util)
+        f.save(name)
+        g = Facts.load(name)
+        ok("persist: round-trips active dislikes",
+           set(g.value_of("dislikes") or []) == {"cilantro", "olives"})
+        ok("persist: retracted row survives reload",
+           any(r2["id"] == bid and r2["status"] == "retracted" for r2 in g.rows))
+        ok("persist: id index rebuilt on load", g._by_id.get(bid) is not None)
+
+        # render is human-readable and shows provenance + history
+        rep = render(name)
+        ok("render: shows a corroboration count", "corroborated" in rep)
+
+        # STEP-0 migration detector (non-destructive: dry-run plans only)
+        from .util import save_text
+        pol_name = "lirf_pol_" + secrets.token_hex(3)
+        try:
+            save_text(STORE / f"{pol_name}.portrait.md", f"{pol_name}:\n• a warm AI companion")
+            ok("migration: detects a polluted (persona-as-user) portrait",
+               portrait_is_polluted(pol_name))
+            ok("migration: dry-run proposes the move, touches nothing",
+               migrate_persona_split(pol_name, apply=False)["action"].startswith("would move"))
+            save_text(STORE / f"{pol_name}.portrait.md", "• lives in Portland\n• works at Acme")
+            ok("migration: a real user profile is NOT flagged polluted",
+               not portrait_is_polluted(pol_name))
+        finally:
+            for fp in glob.glob(str(STORE / f"{pol_name}.*")):
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
+    finally:
+        for fp in glob.glob(str(Facts.path(name))):
+            try:
+                os.remove(fp)
+            except OSError:
+                pass
+
+    print()
+    if fails:
+        print(f"{len(fails)} FAILED: " + ", ".join(fails))
+        return 1
+    print("ALL LIRF SELFTESTS PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(_selftest())

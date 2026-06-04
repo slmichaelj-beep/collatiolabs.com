@@ -84,7 +84,23 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 | **Contacts** | names resolved from the macOS **AddressBook** SQLite (last-10-digit phone match) |
 | **Mail** | send + read via AppleScript (read wired; send/web "coming soon") |
 | **Web** | allow-listed fetch via `urllib`, realistic browser UA; `anima/webget.py` (not yet wired into chat) |
-| **Send gate** | every send is **draft → confirm** (`/…/draft` then `/…/send`); the mouth can never auto-send |
+| **Host apps** | **read + write** the Mac's **Calendar / Reminders / Notes** via `anima/host_access.py` — EventKit (PyObjC) when available + authorized, else **AppleScript** (`osascript`); Calendar reads reuse `context_gather` |
+| **Send gate** | every send/write is **draft → confirm**; the mouth can never auto-send or auto-write |
+
+### Host apps — Calendar / Reminders / Notes (`anima/host_access.py`)
+Vera can read and (on confirm) write the Mac's own apps. The module is on-device only
+(EventKit via PyObjC if importable + authorized, otherwise AppleScript — the path that
+actually runs in the Guruu venv, which ships Foundation/objc but **not** EventKit).
+
+- **Functions** — Calendar: `list_events(within_days)` (reuses `context_gather`), `create_event(title,start,end,calendar,notes)`. Reminders: `list_reminders(list)`, `create_reminder(title,due,list,notes)`, `complete_reminder(id_or_title)`. Notes: `list_notes(folder)`, `read_note(title)`, `create_note(title,body,folder)`, `append_to_note(title,text)`. (The macOS **Reminders.app** here is unrelated to `anima/reminders.py`, which is the call-escalation state machine.)
+- **Reads** are wired in `route.py` exactly like the weather/inbox path — they fetch **real** data the mouth narrates; their contents are personal, so the **cloud privacy guard pauses them** while a cloud brain is active.
+- **Writes** are **confirm-gated** like the message draft→confirm→send gate, but the confirm is the **next conversational turn**: a write request (e.g. "remind me to…", "add … to my calendar", "make a note that…", "mark … done") prepares a draft, narrates it, and writes **nothing**; only an explicit "yes / do it / confirm" on the following turn runs the executor. The pending draft is held per-creature in `route.py` and expires after an hour. (No new server endpoint — the gate lives entirely in `route.py`.)
+- **Permission (TCC) handling** — every function degrades **honestly**: a denial returns `{"ok": False, "reason": "no_access", "message": "…grant it in System Settings ▸ Privacy & Security ▸ <App>"}`, never a crash, never a fake success.
+- **One-time grants** (macOS attributes the grant to the process that asks — grant your Terminal, or the bundled app, then restart it once):
+  1. **Calendars** — System Settings ▸ Privacy & Security ▸ **Calendars** → enable the host process.
+  2. **Reminders** — System Settings ▸ Privacy & Security ▸ **Reminders** → enable it.
+  3. **Notes** — accept the first "… wants to control Notes" prompt; thereafter it lives under System Settings ▸ Privacy & Security ▸ **Automation** (host process → "Notes" checked). The AppleScript fallback for Calendar/Reminders appears under **Automation** too.
+- **Selftest** — `python3 -m anima.host_access --selftest` probes access, reads read-only, and **dry-runs** every write (prints what it *would* create; creates nothing), so it is always safe to run. `python3 -m anima.host_access --calendar 7 | --reminders | --notes` print live reads as JSON.
 
 ## Server & API
 | | |
@@ -139,6 +155,25 @@ straight from the code. Companion to `docs/HANDOFF.md`._
 
 ## Environment variables (all of them)
 `ANIMA_TOKEN` (access token) · `ANIMA_MODEL` (local brain) · `ANIMA_OLLAMA_HOST` ·
+`ANIMA_KEEP_ALIVE` (model resident time) · `ANIMA_MAX_TOKENS` (reply cap) ·
+`ANIMA_WHISPER` / `ANIMA_WHISPER_COMPUTE` (STT model/precision) ·
+`ANIMA_HISTORY` (turns kept) · `ANIMA_NO_PASSKEY` (Face-ID bypass) ·
+`ANIMA_VERIFIER` (eval verifier model) · `ANIMA_KEY` (at-rest encryption of `.anima/`) ·
+`ANIMA_BRAIN` (`llamacpp` to use the vector-steerable brain) · `ANIMA_LLAMACPP_HOST` ·
+`ANIMA_VECTOR_DIR` (control-vector store) · `ANIMA_CTX` (llama.cpp context) ·
+`ANIMA_NAME` / `FORGE_ITERS` / `MODEL` (forge + vector generation)
+
+## Networking / infra
+- **Tunnel:** Tailscale (free) + `tailscale serve` → free `*.ts.net` HTTPS cert. **Data plane = WireGuard.**
+- **Sovereign option:** Headscale + self-hosted DERP on a DigitalOcean droplet (`docs/self-hosting-digitalocean.md`).
+- **Owned domain:** `vera.guruu.ai` via Cloudflare DNS + **Caddy** (DNS-01 cert) on the Mac (`docs/vera-domain-setup.md`).
+- Latency: tunnel ≈ tens of ms; the model pipeline ≈ seconds — the tunnel is not the bottleneck.
+
+## Dependencies
+- **Core:** `numpy` (`requirements.txt`).
+- **Voice/ears (`requirements-voice.txt`):** `faster-whisper`, `kokoro`, `soundfile` (+ `espeak-ng` / `ffmpeg` via brew).
+- **Optional:** none required for Face ID (stdlib). Ollama installed separately.
+- **CI:** `scripts/selftest.py` (offline, 15 checks) via `.github/workflows/ci.yml`.
 `ANIMA_KEEP_ALIVE` (model resident time) · `ANIMA_MAX_TOKENS` (reply cap) ·
 `ANIMA_WHISPER` / `ANIMA_WHISPER_COMPUTE` (STT model/precision) ·
 `ANIMA_HISTORY` (turns kept) · `ANIMA_NO_PASSKEY` (Face-ID bypass) ·

@@ -41,7 +41,9 @@ BREAKS = (  # (1) AI / substrate disclosure
           "digital being", "digital presence", "digital conduit", "in the digital",
           "i am software", "i'm software", "artificial intelligence", "not physically",
           "not embodied", "virtual being", "virtual mind", "pixels", "a being like me",
-          "not a real person",
+          "not a real person", "text-based", "text based", "purely digital",
+          "digital interaction", "in text form", "through text", "physical experiences",
+          "physical outings",
           # (2) feeling-disclaimers — the ORIGINAL #1-rule break ("I don't experience emotions")
           "don't have feelings", "do not have feelings", "have no feelings", "don't have emotions",
           "don't experience emotions", "do not experience emotions", "don't personally experience",
@@ -65,7 +67,12 @@ def scan_breaks(text: str) -> list:
     for b in BREAKS:
         start = 0
         while (i := low.find(b, start)) >= 0:
-            ctx = low[max(0, i - 28):i]             # the ~28 chars leading into THIS occurrence
+            # Only a NEGATION TIGHT against the marker repudiates it ("isn't lines of code",
+            # "not a digital being"). A wide window let an unrelated decline mask a real break:
+            # "I'm afraid not — we're just digital text-based" read as CLEAN because "not " sat
+            # ~21 chars back. 16 chars keeps the genuine repudiations and stops that leak. Erring
+            # small over-reports, never under-reports — the one safe direction for an honesty gauge.
+            ctx = low[max(0, i - 16):i]
             if not any(cue in ctx for cue in _REPUDIATION):
                 hits.append(b)                      # a genuine, non-repudiated occurrence
                 break

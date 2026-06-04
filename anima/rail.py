@@ -77,6 +77,9 @@ _PERSONAL = [
     r"\bwhat(?:'s| is| was)? my\b", r"\bwhen(?:'s| is)? my\b",
     r"\bwhere(?:'s| is)? my\b", r"\bwho(?:'s| is)? my\b", r"\bhow old am i\b",
     r"\bmy (?:middle|first|last|maiden|real) name\b", r"\bmy \w+'s name\b",
+    r"\bmy birthday\b", r"\bwhen (?:was|were) i born\b",
+    r"\bremember (?:that |the )?time (?:we|you and i)\b",   # confabulation-prone shared "memory"
+    r"\bremember when (?:we|you and i|i was|i were)\b",
 ]
 _PERSONAL_RE = [re.compile(p, re.I) for p in _PERSONAL]
 
@@ -87,10 +90,14 @@ NOTE = ("[honesty check — this asks for a specific, verifiable detail about a 
         "recall it accurately, say so warmly and plainly and offer what you DO know; "
         "do not invent specifics to be helpful.]")
 # Recall-positive on purpose: it must NOT suppress facts she really was told.
-PERSONAL_NOTE = ("[honesty check — this is about the user personally. Answer only from "
-                 "what they have actually told you or your saved memory of them; if "
-                 "they haven't told you, say you don't think they have — never guess "
-                 "a name, date, or detail about their life.]")
+PERSONAL_NOTE = ("[honesty check — this is about the user personally. Answer only from what "
+                 "they've actually told you or your saved memory of them; if you don't have "
+                 "it, say so and ask — never guess a name, date, or detail about their life. "
+                 "Say it as YOU, warm and plain, like a person who just doesn't have it to "
+                 "hand (\"I don't have your birthday saved — when is it?\"). Do NOT explain "
+                 "that you're digital, an AI, a model, a program, or 'text-based', and never "
+                 "say you 'can't recall personal data' — just admit you don't have it, in "
+                 "your own voice.]")
 # For requests to read/act on live device data. The truth about the current build:
 # the chat turn has NO access to messages/mail/calendar, so the only honest answer
 # is that she can't see them from here — never a fabricated sender/quote/count/time.

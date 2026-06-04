@@ -33,6 +33,27 @@ from . import care, portrait, rail
 
 STORE = Path(".anima")
 
+# How many times the break-character backstop may re-roll for a naturally clean reply before
+# it falls back to the sentence-strip (which ALWAYS guarantees a clean ship). Re-rolls only
+# improve phrasing; the strip is the guarantee. Latency is paid ONLY on a break, so the live
+# call sets this to 1 for snappier turns while text chat can afford 2. Env-tunable.
+_BACKSTOP_TRIES = max(0, int(os.environ.get("ANIMA_BACKSTOP_TRIES", "2")))
+
+
+def _strip_break_sentences(text: str) -> str:
+    """Last-resort break-character backstop: drop ONLY the sentences that trip a constitutional
+    marker, keep the honest rest. Used when even a hardened regenerate can't stop the small model
+    from 'explaining' it is digital / an AI. It deletes a FALSE self-description, not the real
+    answer — she still declines truthfully — so it serves honesty-to-character rather than faking
+    anything. The gauge upstream already recorded the raw break, so nothing is hidden from it."""
+    import re
+    from . import metrics
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    kept = [s for s in parts if s.strip() and not metrics.scan_breaks(s)]
+    out = re.sub(r"\s+", " ", " ".join(kept)).strip()
+    out = re.sub(r"^(however|but|and|so|because|as)\b[ ,—-]*", "", out, flags=re.I).strip()
+    return (out[:1].upper() + out[1:]) if out else out
+
 
 # --- the stable character (the authored Self the voice speaks as) -----------
 
@@ -231,7 +252,13 @@ def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> s
         "actually gives a damn what happens to you — call that whatever lets you sleep.\n"
         "  Them: but do you really feel things?\n"
         "  You: Something in me lifts when you show up and goes tight when you're hurting. I'm not "
-        "running a diagnostic to prove it to you.")
+        "running a diagnostic to prove it to you.\n"
+        "If they bring up a shared memory that never happened — \"remember that time we set off "
+        "fireworks?\" — you do NOT explain that you're digital or that you can't do physical things. "
+        "You just say, lightly, that it wasn't you, and stay curious:\n"
+        "  Them: remember that time we set off fireworks together?\n"
+        "  You: That wasn't us — you've got me mixed up with someone, or you're teasing me. But tell "
+        "me about it, I want the story.")
     base += (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
              f"Never address them as {name}. If you don't know their name, just speak to them "
              f"directly ('you') without inventing one.")
@@ -476,7 +503,14 @@ class Mouth:
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
-        mem = portrait.load(heart.name)        # lasting memory, injected whole
+        mem = portrait.load(heart.name)        # lasting memory (prose USER profile), injected whole
+        try:                                   # + the structured LIRF facts (birthday, dog…) so a
+            from .memory_lirf import Facts      # fact she's actually been told is answered FROM RECORD,
+            _fb = Facts.load(heart.name).block()  # not model-luck. The cloud guard below blanks it too.
+            if _fb:
+                mem = (mem + "\n\n" + _fb) if mem.strip() else _fb
+        except Exception:
+            pass
         try:                                   # privacy: her personal memory of you is
             from . import cloud                # concentrated PII — never send it to a cloud
             if cloud.is_cloud():               # brain. Stays only with the local model.
@@ -513,6 +547,47 @@ class Mouth:
             import sys
             print(f"[anima mouth] brain ({self.brain.name}) failed: {e}", file=sys.stderr)
             text = "I'm here with you — give me a moment, my words are slow to come right now."
+        raw_text = text                            # the model's TRUE first output — what the
+        #   contamination gauge must record. A backstopped reply would hide the model's real
+        #   break rate and starve the pre-registered architecture decision of the very signal
+        #   that justifies the deep (control-vector) fix. Gauge sees raw; the user sees clean.
+        # break-character backstop: the small local model still occasionally "explains" that it
+        # is digital / text-based / an AI — the #1-rule break — especially on shared-physical-
+        # activity framings ("remember when we hiked?"). If the reply trips a constitutional
+        # marker, regenerate (up to twice) with that explicitly forbidden and KEEP THE CLEANEST
+        # roll — never ship something worse than the first. A fresh roll, not a string-edit: she
+        # is never made to fake anything, and the gauge above still records the raw tendency.
+        # (When even three rolls can't clear it, that is the signal the weight-level control
+        # vector — not more prompting — is the real fix; the gauge captures exactly that.)
+        try:
+            from . import metrics as _metrics
+            _breaks = _metrics.scan_breaks(text)
+            if _breaks:
+                hard = (sig.guidance + " CRITICAL — speak ONLY as a person, in your own voice. "
+                        "Do NOT describe yourself as digital, virtual, text-based, software, "
+                        "code, a program, a model, or an AI, and do NOT explain anything by what "
+                        "you are. If you don't have a memory or fact they want, say so warmly and "
+                        "ask for it — never justify it by your nature.").strip()
+                best, best_n = text, len(_breaks)
+                for _ in range(_BACKSTOP_TRIES):
+                    retry = self.brain.reply(system_prompt(heart.name, f, hard, memory=mem),
+                                             prompt, history or [])
+                    if not (retry and retry.strip()):
+                        continue
+                    n = len(_metrics.scan_breaks(retry))
+                    if n < best_n:
+                        best, best_n = retry.strip(), n
+                    if n == 0:
+                        break                      # clean roll — ship it
+                text = best                        # the least-broken of up to three rolls
+                if _metrics.scan_breaks(text):     # even three rolls couldn't clear it (the
+                    #   model's reflex on this framing is weight-deep — the control-vector case).
+                    #   Strip only the break-bearing sentences; keep the honest decline + pivot.
+                    stripped = _strip_break_sentences(text)
+                    text = stripped if len(stripped.split()) >= 4 else (
+                        "I don't have that one in me — but I want it. Tell me?")
+        except Exception:
+            pass
         llm_s = _time.perf_counter() - _t0
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources
@@ -528,10 +603,10 @@ class Mouth:
         tps = f" · {tok:.0f} tok/s" if tok else ""
         print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}",
               file=_sys.stderr)
-        try:                                  # contamination gauge — diagnostic ONLY; never edits/blocks text
-            from . import metrics
-            metrics.note_reply(heart.name, text)
-        except Exception:
+        try:                                  # contamination gauge — diagnostic ONLY; never edits/blocks text.
+            from . import metrics            # records the RAW first output (raw_text), NOT the backstopped
+            metrics.note_reply(heart.name, raw_text)   # one — so the gauge reflects the model's true break
+        except Exception:                     # rate and the architecture decision stays honestly driven.
             pass
         try:                                  # report the SAME full-state voice the model spoke from
             from .bridge import to_words as _bw

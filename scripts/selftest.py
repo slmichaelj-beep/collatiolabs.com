@@ -23,6 +23,7 @@ def ok(name, cond):
 import anima.server, anima.mouth, anima.route, anima.rail, anima.cloud      # noqa: E401
 import anima.models, anima.sysinfo, anima.passkey, anima.eval               # noqa: E401
 import anima.applemac, anima.webget, anima.caps                             # noqa: E401
+import anima.host_access, anima.context_gather                              # noqa: E401
 ok("all anima modules import", True)
 
 # --- honesty rail: intent classification ---
@@ -40,6 +41,63 @@ ok("route: real send extracts recipient+body",
    (route.route("Vera", "text Mom I'm running late") or {}).get("send", {}).get("to") == "Mom")
 ok("route: noun 'message' does NOT fabricate a draft",
    not (route.route("Vera", "I got your message yesterday and it was great") or {}).get("send"))
+
+# --- host apps (Calendar/Reminders/Notes): write intents + the CONFIRM-GATE ---
+# Writes are dry-run here (executors monkeypatched) so this stays offline and creates
+# nothing. The guarantee under test: a write request executes NOTHING until an explicit
+# confirm on the NEXT turn — the host-app mirror of the message draft→confirm→send gate.
+import anima.host_access as _ha
+_host_writes = []
+def _dry(action):
+    def f(*a, **k):
+        _host_writes.append(action)
+        return {"ok": True, "title": (a[0] if a else k.get("title", "?"))}
+    return f
+for _n in ("create_reminder", "create_event", "create_note", "append_to_note", "complete_reminder"):
+    setattr(_ha, _n, _dry(_n))
+# the no_access shape is honest and structured (never a crash, never fake success)
+_na = _ha._no_access("Reminders", "Reminders")
+ok("host_access: no_access is structured + honest",
+   _na["ok"] is False and _na["reason"] == "no_access" and "System Settings" in _na["message"])
+ok("host: 'remind me to' parses a create_reminder",
+   (route._parse_host_write("remind me to call the dentist tomorrow at 3pm") or {}).get("action") == "create_reminder")
+ok("host: 'add … to my calendar' parses a create_event",
+   (route._parse_host_write("add lunch with Sam to my calendar tomorrow at noon") or {}).get("action") == "create_event")
+ok("host: 'make a note that' parses a create_note",
+   (route._parse_host_write("make a note that I parked on level 3") or {}).get("action") == "create_note")
+ok("host: 'mark … done' parses a complete_reminder",
+   (route._parse_host_write("mark call the dentist as done") or {}).get("action") == "complete_reminder")
+ok("host: mid-sentence noun does NOT fabricate a write",
+   route._parse_host_write("I made a note of that yesterday") is None)
+# confirm-gate: prepare must NOT write; only an explicit yes executes
+route._pending_clear("HostVera")
+_r1 = route.route("HostVera", "remind me to water the plants tomorrow at 9am")
+ok("host: write request prepares a draft and writes NOTHING",
+   len(_host_writes) == 0 and route._pending_get("HostVera") is not None and "DRAFT" in (_r1 or {}).get("note", ""))
+_r2 = route.route("HostVera", "yes do it")
+ok("host: explicit 'yes' EXECUTES the pending write exactly once",
+   len(_host_writes) == 1 and _host_writes[0] == "create_reminder" and route._pending_get("HostVera") is None)
+# decline path: a clear no cancels and writes nothing
+_host_writes.clear()
+route.route("HostVera", "add a coffee chat to my calendar tomorrow at 2pm")
+_rd = route.route("HostVera", "no, cancel that")
+ok("host: 'no' cancels the draft and writes NOTHING",
+   len(_host_writes) == 0 and route._pending_get("HostVera") is None and "CANCEL" in (_rd or {}).get("note", "").upper())
+# confirm/decline classification is tight and decline wins ties
+ok("host: confirm tokens recognized incl. 'yes do it'",
+   route._is_confirm("yes do it") and route._is_confirm("sure") and route._is_confirm("do it"))
+ok("host: 'no, go ahead and cancel' is a DECLINE, never a confirm",
+   route._is_decline("no, go ahead and cancel") and not route._is_confirm("no, go ahead and cancel"))
+# the privacy guard pauses host reads on a cloud brain (contents are personal)
+import anima.cloud as _cloud
+_save_iscloud = _cloud.is_cloud
+_cloud.is_cloud = lambda: True
+try:
+    _pc = route.route("HostVera", "what's on my calendar today?")
+    ok("host: calendar read is PAUSED under a cloud brain (privacy guard)",
+       "PAUSED" in (_pc or {}).get("note", ""))
+finally:
+    _cloud.is_cloud = _save_iscloud
 
 # --- cloud: PII scrub + key never exposed ---
 import anima.cloud as cloud

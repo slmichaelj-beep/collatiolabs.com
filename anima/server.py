@@ -192,6 +192,12 @@ def _turn(name, text, voice=False):
         from . import route
         routed = route.route(name, text)
         cap_note = routed.get("note") if routed else None
+        _tid = "t-%d" % int(now * 1000)            # telemetry: open a flight-recorder trace for this
+        try:                                       # turn (direct/off-bus path — no organs on the bus
+            from . import telemetry as _telem      # yet). Passive: only appends; a recorder failure
+            _telem.get(name).begin(_tid)           # can never break a turn.
+        except Exception:
+            pass
         mouth = _mouth()
         _g0 = time.perf_counter()
         u = mouth.respond(heart, text, history=list(_HISTORY),
@@ -206,7 +212,29 @@ def _turn(name, text, voice=False):
         except Exception:
             pass
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
+        try:                                       # capture durable user-facts NOW (birthday, dog…)
+            from . import memory_lirf               # into the LIRF ledger — immediate, not just at
+            memory_lirf.capture(name, text)         # sleep — so a fact told today is known tomorrow.
+        except Exception:
+            pass
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
+        try:                                       # telemetry: record what crossed each edge this turn
+            import types as _t                     # — model that answered, memory facts in play, whether
+            from . import telemetry as _telem      # a capability fired. The "see the edge, don't guess
+            _fids = []                             # it" layer; read back via telemetry.last/replay.
+            try:
+                from .memory_lirf import Facts as _Facts
+                _fids = [f.get("id") for f in (_Facts.load(name).about() or []) if isinstance(f, dict)][:40]
+            except Exception:
+                pass
+            _dec = _t.SimpleNamespace(
+                model=getattr(u, "backend", ""), memory_ids=_fids,
+                contributing_organs=(["capability"] if cap_note else []) + (["memory"] if _fids else []),
+                escalation=("capability" if cap_note else ""), answer_plan="")
+            _telem.get(name).note_decision(_tid, _dec)
+            _telem.get(name).commit(_tid)
+        except Exception:
+            pass
         out = {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
             "rate": u.delivery["rate"], "backend": u.backend,

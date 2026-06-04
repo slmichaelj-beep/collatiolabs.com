@@ -47,6 +47,7 @@ async def _offer(request: web.Request) -> web.Response:
 
     @pc.on("connectionstatechange")
     async def _on_state() -> None:
+        print("[call] connection: " + pc.connectionState, file=__import__("sys").stderr, flush=True)
         if pc.connectionState in ("failed", "closed", "disconnected"):
             await pc.close()
             _pcs.discard(pc)

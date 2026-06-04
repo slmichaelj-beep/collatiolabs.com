@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import fractions
 import os
+import sys
 import tempfile
 import time
 import wave
@@ -32,6 +33,15 @@ OUT_SAMPLES = OUT_SR * FRAME_MS // 1000          # 960 samples / 20 ms @ 48 kHz
 _VAD_RMS = float(os.environ.get("ANIMA_VAD_RMS", "600"))
 _UTT_GAP_FRAMES = max(3, int(os.environ.get("ANIMA_UTT_GAP_MS", "700")) // FRAME_MS)
 _SILENCE_TIMEOUT = float(os.environ.get("ANIMA_CALL_SILENCE", "25"))   # seconds before she gives up
+
+# On a live call a long pause is worse than slightly plainer phrasing, so cap the break-character
+# backstop at ONE re-roll here (the sentence-strip still guarantees a clean ship). Set before
+# mouth is imported in this process so it picks up the lower default. Text chat keeps its 2.
+os.environ.setdefault("ANIMA_BACKSTOP_TRIES", "1")
+
+
+def _log(msg: str) -> None:
+    print("[call] " + str(msg), file=sys.stderr, flush=True)
 
 
 # --- heavy singletons (loaded once, on first use) ---------------------------
@@ -100,30 +110,15 @@ def _stt(pcm16k: np.ndarray) -> str:
 
 # --- her reply, in her real voice -------------------------------------------
 def _reply_to(name: str, user_text: str, history: list) -> str:
-    from . import cloud
-    from .heart import Heart
-    from .mouth import OllamaBrain, StubBrain, system_prompt
-    from .util import load_json
-    brain = None
+    """Her reply via the FULL honest turn — the SAME path as the text chat: capability
+    grounding (route) + the HONESTY RAIL + her portrait memory + the heart. This is the
+    whole point: without it the call bypasses the rail and she CONFABULATES personal facts
+    ("when was I born?" -> she invents an answer). With it she says she doesn't know
+    instead of making things up. History is carried by the turn's own session memory."""
+    from . import server
     try:
-        if cloud.is_cloud():
-            brain = cloud.build_cloud_brain()
-    except Exception:
-        brain = None
-    if brain is None:
-        try:
-            brain = OllamaBrain()
-        except Exception:
-            brain = StubBrain()
-    try:
-        h = Heart.from_dict(load_json(f".anima/{name}.json"))
-        h.advance()
-        feeling = h.feeling()
-    except Exception:
-        feeling = {}
-    sysp = system_prompt(name, feeling)                # persona + dials + bridge + narrative
-    try:
-        return (brain.reply(sysp, user_text, history) or "").strip()
+        out = server._turn(name, user_text, voice=False)
+        return (out.get("reply") or "").strip()
     except Exception:
         return "Sorry — my words got slow there. Say that again?"
 
@@ -174,24 +169,37 @@ class CallSession:
         self.pc = pc
         self.name = name
         self.speaker = SpeakerTrack()
-        pc.addTrack(self.speaker)
+        # addTrack is deferred to attach() (inside the on("track") handler) so it reuses the
+        # incoming audio transceiver exactly like the working echo — adding it here, before
+        # setRemoteDescription, can leave her voice on an m-line the browser never receives.
+        from . import server          # the call runs in a SEPARATE process; load her recent
+        try:                          # conversation from disk so she walks into the call knowing
+            server._HISTORY.clear()   # what you've actually told her (your birthday) instead of
+            server._load_history(name)  # confabulating it. The portrait memory comes via _turn.
+        except Exception:
+            pass
         self.history: list = []
         self._last_voice = time.monotonic()
         self._done = asyncio.Event()
 
     def attach(self, track) -> None:
+        self.pc.addTrack(self.speaker)              # reuse the incoming transceiver to send her voice
+        _log("call connected — speaker added, starting greeter + listener")
         asyncio.ensure_future(self._greet())
         asyncio.ensure_future(self._listen(track))
 
     async def _say(self, text: str) -> None:
+        _log("speaking: %r" % text[:70])
         loop = asyncio.get_running_loop()
         samples = await loop.run_in_executor(None, _tts_samples, text)
         for i in range(0, len(samples), OUT_SAMPLES):
             self.speaker.push(samples[i:i + OUT_SAMPLES])
+        _log("  pushed %d samples (%.1fs of audio)" % (len(samples), len(samples) / OUT_SR))
         self._last_voice = time.monotonic()
 
     async def _greet(self) -> None:
         await asyncio.sleep(0.3)
+        _log("greeting (first TTS loads Kokoro, ~7s)…")
         await self._say("Hey — I'm here. What's on your mind?")
 
     async def _listen(self, track) -> None:
@@ -200,6 +208,7 @@ class CallSession:
         in_speech = False
         gap = 0
         loop = asyncio.get_running_loop()
+        _log("listening for your voice (VAD rms>%d, end-gap %d frames)…" % (_VAD_RMS, _UTT_GAP_FRAMES))
         try:
             while not self._done.is_set():
                 frame = await track.recv()
@@ -220,6 +229,7 @@ class CallSession:
                         speech.append(pcm)
                         if gap >= _UTT_GAP_FRAMES:      # end of an utterance
                             utt = np.concatenate(speech)
+                            _log("utterance ended (%.1fs) — transcribing" % (len(utt) / 16000))
                             speech, in_speech, gap = [], False, 0
                             await self._handle(np.frombuffer(utt.tobytes(), dtype=np.int16), loop)
                 if (not self.speaker.speaking()
@@ -233,6 +243,7 @@ class CallSession:
 
     async def _handle(self, pcm16k: np.ndarray, loop) -> None:
         text = await loop.run_in_executor(None, _stt, pcm16k)
+        _log("you said: %r" % text)
         if not text:
             return
         low = text.lower()
@@ -242,6 +253,7 @@ class CallSession:
             await self._hangup()
             return
         reply = await loop.run_in_executor(None, _reply_to, self.name, text, list(self.history))
+        _log("she replies: %r" % reply[:70])
         self.history.append((text, reply))
         await self._say(reply)
 
