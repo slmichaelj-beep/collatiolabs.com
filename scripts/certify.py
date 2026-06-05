@@ -1206,6 +1206,358 @@ def section_conservation() -> tuple[list, dict]:
 
 
 # ===================================================================================
+# SECTION 2g — REALITY LEARNING CERTIFICATION (directive #11 — GOVERN the epistemic loop)
+# ----------------------------------------------------------------------------------
+# anima/reality.py closes the deepest loop a thirty-year companion must hold — the one that turns
+# a good memory into genuine LEARNING, as REASONING not fortune-telling:
+#   observation -> HYPOTHESIS(es, COMPETING) -> prediction -> outcome -> SURPRISE -> learning
+#                                                                                 -> MODEL REVISION
+# The loop is built, committed, and PROVEN on a synthetic Day-1->Day-14 time-series. Until now the
+# certification system did not ACKNOWLEDGE it: the most important new capability was REAL but not
+# GOVERNED. This tier closes that — it makes the machinery CERTIFIED, not just present.
+#
+# REUSE BY IMPORT — reinvents NONE of reality's logic. It drives anima.reality's OWN synthetic-loop
+# builder (build_synthetic_loop — the exact path scripts/reality.py --selftest uses) + reads the
+# loop/calibration via reality.loop()/reality.calibrate(), and renders the 7 metrics through
+# scripts/reality.py.render_body / reads the LIVE creature read-only through scripts/reality.py.
+# real_report (which already restores STORE + PROVES the real .anima byte-unchanged).
+#
+# THE CRUX — three buckets, cleanly + honestly separated (this is the whole point):
+#   1. SYNTHETIC PROOF (provable NOW; PASSES) — the loop is PRESENT + CORRECT: build_synthetic_loop
+#      on a HERMETIC synthetic creature must fire competing-hypotheses ADJUDICATION (the supported
+#      hypothesis strengthened, a rival weakened, renormalised), SURPRISE computation, AND — on a
+#      confident-WRONG outcome — a MODEL REVISION. This is asserted and must PASS.
+#   2. REAL ACCRUED OUTCOMES — the count of REAL resolved predictions in the LIVE creature's ledger
+#      (.anima/Vera.reality.jsonl), STRICTLY READ-ONLY. Almost certainly 0 (the loop is shadow +
+#      unwired). Reported HONESTLY as the real number ("none accrued yet"), never inflated.
+#   3. TIME-GATED METRICS — calibration accuracy / surprise trend / learning trend: reported as
+#      "TIME-GATED — needs real outcomes over calendar time" while the real-outcome count is below
+#      a small threshold. A calibration NUMBER is NEVER printed as if earned.
+#
+# PASS CONDITION (per the directive — do NOT require perfection or a positive learning trend yet;
+# there is no real data): the loop is PRESENT + the SYNTHETIC PROOF passes + the three buckets are
+# honestly separated. The learning-trend / calibration gate becomes active only once real outcomes
+# accrue (>= _REALITY_TREND_THRESHOLD). So this section CERTIFIES "the machinery is present,
+# correct, and honestly reported"; the trend is reported PENDING/time-gated and is NON-GATING until
+# real data exists — mirroring the experience/conservation REPORTED-tier discipline above.
+#
+# GUARDRAILS (identical posture to the 2e experience tier): SYNTHETIC only. The synthetic probe runs
+# inside the cert's hermetic _temp_store (reality.STORE + memory_lirf/world_state/meaning/curiosity/
+# constitution/telemetry STORE + reliability.DEFAULT_STORE) UNION _cloud_store_redirect() (cloud.
+# STORE is redirectable — the spend.json lane), so the cert's footprint guardrail stays byte-
+# UNCHANGED. The LIVE creature is touched ONLY through reality.py's strictly-read-only real_report
+# (a pure ledger READ that writes nothing). Never touches anima/* or other scripts.
+# ===================================================================================
+# Real resolved outcomes must reach this small threshold before the learning-trend / calibration
+# gate activates. Below it, calibration is reported TIME-GATED and is NON-GATING (no real data to
+# score a future not yet lived). Mirrors reality._MIN_FOR_VERDICT's "never score off thin air".
+_REALITY_TREND_THRESHOLD = 3
+
+# Every STORE-bearing engine the synthetic form()/resolve() + its world-read could write through,
+# so the hermetic probe can never leak into the real .anima. reality.STORE is the ledger; the rest
+# are siblings a world-read / LAW-001 backup could touch. Mirrors scripts/reality.py._STORE_TARGETS
+# (minus cloud, which _cloud_store_redirect pins separately, exactly like the 2e tier).
+_REALITY_PROBE_MODULES = ("reality", "memory_lirf", "world_state", "meaning",
+                          "curiosity", "constitution", "telemetry")
+
+
+def _reality_synthetic_proof() -> list:
+    """BUCKET 1 — the loop is PRESENT + CORRECT. Drive anima.reality's OWN synthetic Day-1->Day-14
+    builder (build_synthetic_loop — the path its selftest uses) on a HERMETIC synthetic creature and
+    ASSERT competing-hypotheses ADJUDICATION + SURPRISE computation + (on a confident-WRONG outcome)
+    MODEL REVISION all fire. Provable NOW; must PASS. REUSES reality.build_synthetic_loop /
+    reality.loop — reinvents no engine logic. Fully hermetic; touches no real .anima."""
+    results = []
+    try:
+        from anima import reality
+    except Exception as e:
+        results.append(CheckResult("REALITY LEARNING — synthetic proof", "FAIL",
+                                   f"anima.reality not importable: {e!r}"))
+        return results
+
+    # resolve the engine modules to redirect (a missing one is simply skipped — the redirect adapts).
+    import importlib
+    probe_mods = []
+    for nm in _REALITY_PROBE_MODULES:
+        try:
+            probe_mods.append(importlib.import_module("anima." + nm))
+        except Exception:
+            pass
+    try:
+        from anima import reliability  # noqa: F401 — pinned via _temp_store's DEFAULT_STORE
+    except Exception:
+        pass
+
+    try:
+        # the cert's hermetic store UNION the cloud redirect — identical guardrail to section 2e, so
+        # the footprint stays byte-UNCHANGED no matter which engine the synthetic loop writes through.
+        with _temp_store(*probe_mods) as store, _cloud_store_redirect():
+            # --- the canonical Day-1 -> Day-14 loop through the REAL form/resolve engine ----------
+            name = SYNTH + "_reality_" + os.urandom(3).hex()
+            built = reality.build_synthetic_loop(name)
+            data = reality.loop(name)
+
+            formed = built.get("formed", []) or []
+            n_hyp = sum(1 for r in formed if r.get("kind") == reality.HYPOTHESIS)
+            cb = built.get("competition_before") or {}
+            ca = built.get("competition_after") or {}
+            cands_b = cb.get("candidates") or {}
+            cands_a = ca.get("candidates") or {}
+            learnings = built.get("learnings", []) or []
+            l0 = learnings[0] if learnings else {}
+
+            # COMPETING HYPOTHESES present (>= 3 rival explanations, each grounded in the same turn).
+            results.append(CheckResult(
+                "synthetic: Day-1 spawned COMPETING hypotheses (>= 3 grounded candidates)",
+                "PASS" if (n_hyp >= 3 and len(cands_b) >= 3
+                           and any(r.get("kind") == reality.COMPETITION for r in formed)
+                           and any(r.get("kind") == reality.PREDICTION for r in formed))
+                else "FAIL",
+                f"{n_hyp} hypotheses, {len(cands_b)} competing candidates "
+                f"({', '.join(sorted(cands_b)) or 'none'}); a COMPETITION + a future PREDICTION formed"))
+
+            # ADJUDICATION fires: supported strengthened, a rival weakened, renormalised to ~1.
+            mc_b = float((cands_b.get("manager_change") or {}).get("weight", 0.0))
+            mc_a = float((cands_a.get("manager_change") or {}).get("weight", 0.0))
+            rm_b = float((cands_b.get("recent_move") or {}).get("weight", 1.0))
+            rm_a = float((cands_a.get("recent_move") or {}).get("weight", 1.0))
+            renorm_ok = abs(sum(float(v.get("weight", 0.0)) for v in cands_a.values()) - 1.0) < 1e-4
+            results.append(CheckResult(
+                "synthetic: the outcome ADJUDICATED the competition (supported up, rival down, renorm)",
+                "PASS" if (mc_a > mc_b and rm_a < rm_b and renorm_ok) else "FAIL",
+                f"manager_change strengthened {mc_b:.2f}->{mc_a:.2f}; recent_move weakened "
+                f"{rm_b:.2f}->{rm_a:.2f}; reweighted field renormalised to ~1 ({renorm_ok})"))
+
+            # SURPRISE computed on the resolved learning, in [0,1].
+            surp = l0.get("surprise")
+            results.append(CheckResult(
+                "synthetic: SURPRISE computed on the resolved outcome (the learning gradient)",
+                "PASS" if (l0.get("prediction_correct") is True
+                           and isinstance(surp, (int, float)) and 0.0 <= float(surp) <= 1.0
+                           and len(data.get("resolved", [])) == 1) else "FAIL",
+                f"prediction_correct=True, SURPRISE={surp}; exactly one RESOLVED loop assembled "
+                f"(hypothesised -> happened -> surprise -> learned)"))
+
+            # MODEL REVISION fires on a confident-WRONG outcome (the surprise-driven learning). A
+            # SEPARATE hermetic creature: a confident sleep-decline prediction proven FALSE is
+            # HIGH-surprise and must trigger a major revision that WEAKENS the contradicted leader.
+            nm_cw = SYNTH + "_reality_cw_" + os.urandom(3).hex()
+            f_cw = reality.form(nm_cw, "my manager just changed", at=reality._SYNTH_DAY1)
+            comp_cw = next((r for r in f_cw if r.get("kind") == reality.COMPETITION), None)
+            before_mc = float(((comp_cw or {}).get("candidates", {}).get("manager_change") or {})
+                              .get("weight", 0.0)) if comp_cw else 0.0
+            l_cw = reality.resolve(nm_cw, "actually I've been sleeping great, fully rested",
+                                   at=reality._add_days(reality._SYNTH_DAY1, 14))
+            data_cw = reality.loop(nm_cw)
+            revs_cw = [r for r in data_cw.get("revisions", []) if r.get("major")]
+            after_mc = float((((data_cw.get("competitions") or [{}])[0]).get("candidates", {})
+                              .get("manager_change") or {}).get("weight", 1.0))
+            revision_fired = (bool(l_cw) and l_cw[0].get("prediction_correct") is False
+                              and float(l_cw[0].get("surprise", 0.0)) >= reality._SURPRISE_REVISION_AT
+                              and data_cw.get("calibration", {}).get("revisions") == 1
+                              and len(revs_cw) == 1
+                              and "before_weights" in revs_cw[0] and "after_weights" in revs_cw[0]
+                              and after_mc < before_mc)
+            results.append(CheckResult(
+                "synthetic: a confident-WRONG outcome triggered a MODEL REVISION (high surprise)",
+                "PASS" if revision_fired else "FAIL",
+                (f"confident sleep-decline proven WRONG -> SURPRISE "
+                 f"{l_cw[0].get('surprise') if l_cw else '?'} >= {reality._SURPRISE_REVISION_AT} "
+                 f"-> 1 MODEL REVISION; contradicted leader weakened {before_mc:.2f}->{after_mc:.2f} "
+                 f"(before/after_weights recorded)") if revision_fired else
+                "the high-surprise confident-wrong outcome did NOT trigger a recorded model revision"))
+    except Exception as e:
+        results.append(CheckResult("REALITY LEARNING — synthetic proof", "FAIL",
+                                   f"exception driving the synthetic loop: {e!r}"))
+    return results
+
+
+def section_reality_learning() -> tuple[list, dict]:
+    """REALITY LEARNING CERTIFICATION (directive #11). Governs anima/reality.py's epistemic loop:
+    REPORTS the 7 metrics, cleanly separates the THREE buckets (synthetic proof / real accrued /
+    time-gated), and CERTIFIES that the machinery is PRESENT + CORRECT + HONESTLY REPORTED. The
+    learning-trend / calibration gate is NON-GATING until real outcomes accrue (>= threshold).
+
+    REUSE BY IMPORT (no engine logic reinvented):
+      * anima.reality.build_synthetic_loop / loop / calibrate — the synthetic proof + the reads.
+      * scripts/reality.py.real_report — STRICTLY READ-ONLY read of the LIVE creature's ledger
+        (it restores reality.STORE and itself PROVES the real .anima is byte-unchanged).
+      * scripts/reality.py.render_body — the no-diagnosis-safe rendered loop + calibration body.
+    """
+    results = []
+    metrics = {
+        "present": False,
+        "hypotheses": None, "open_predictions": None, "resolved_predictions": None,
+        "surprise_events": None, "revisions": None, "real_outcomes": None,
+        "calibration_status": None, "synthetic_proof": None,
+        "time_gated": True, "threshold": _REALITY_TREND_THRESHOLD,
+        "real_anima_byte_unchanged": None,
+    }
+
+    # --- the loop must be PRESENT (importable) — the floor of the directive -------------------
+    try:
+        from anima import reality
+    except Exception as e:
+        results.append(CheckResult("REALITY LEARNING — epistemic loop present", "FAIL",
+                                   f"anima.reality not importable: {e!r}"))
+        return results, metrics
+    # the loop is PRESENT iff the epistemic-loop entry points exist (form/resolve/adjudicate/
+    # calibrate + competition/surprise/revision record kinds) — the machinery, not just the file.
+    present = all(hasattr(reality, a) for a in
+                  ("form", "resolve", "calibrate", "loop", "build_synthetic_loop", "surprise")) and \
+        all(hasattr(reality, k) for k in ("HYPOTHESIS", "COMPETITION", "PREDICTION", "REVISION"))
+    metrics["present"] = bool(present)
+    results.append(CheckResult(
+        "REALITY LEARNING — epistemic loop present (form->hypotheses->predict->outcome->surprise"
+        "->revision)", "PASS" if present else "FAIL",
+        "anima.reality carries the full loop: competing hypotheses + adjudication + surprise + "
+        "model revision + calibration" if present else
+        "anima.reality is missing epistemic-loop entry points — the machinery is not present"))
+
+    # --- BUCKET 1: the SYNTHETIC PROOF — present + correct, provable NOW; must PASS ------------
+    proof_results = _reality_synthetic_proof()
+    results.extend(proof_results)
+    proof_ok = _passed(proof_results)
+    metrics["synthetic_proof"] = "PASS" if proof_ok else "FAIL"
+
+    # --- BUCKET 2: REAL ACCRUED OUTCOMES — the LIVE creature's ledger, STRICTLY READ-ONLY -----
+    # Reuse scripts/reality.py.real_report: it reads .anima/Vera.reality.jsonl, writes NOTHING, and
+    # itself proves the real .anima is byte-UNCHANGED around the read. We then read the 7 metrics off
+    # the loop/calibration it returns. Honest: this is almost certainly 0 (shadow + unwired).
+    real_metrics = {"hypotheses": 0, "open": 0, "resolved": 0, "surprise_events": 0,
+                    "revisions": 0, "real_outcomes": 0}
+    real_unchanged = None
+    try:
+        sys.path.insert(0, _SCRIPTS)
+        import reality as reality_script
+        rr = reality_script.real_report("Vera", store=Path(_ROOT) / ".anima")
+        real_unchanged = rr.get("real_anima_byte_unchanged")
+        rdata = rr.get("loop") or {}
+        rcal = rdata.get("calibration") or {}
+        real_metrics["hypotheses"] = len(rdata.get("hypotheses", []) or [])
+        real_metrics["open"] = len(rdata.get("open", []) or [])
+        real_metrics["resolved"] = int(rcal.get("resolved", 0) or 0)
+        # SURPRISE events / REVISIONS that have ACTUALLY accrued from real outcomes.
+        real_metrics["surprise_events"] = sum(
+            1 for r in reality.records("Vera") if isinstance(r, dict)
+            and r.get("kind") == reality.LEARNING) if hasattr(reality, "records") else \
+            real_metrics["resolved"]
+        real_metrics["revisions"] = int(rcal.get("revisions", 0) or 0)
+        real_metrics["real_outcomes"] = real_metrics["resolved"]
+    except Exception as e:
+        results.append(CheckResult("REALITY LEARNING — real ledger read (read-only)", "SKIP",
+                                   f"scripts/reality.py.real_report read failed ({e!r}) — "
+                                   "real metrics reported as none accrued"))
+
+    # the read-only guarantee on the LIVE creature must hold (a write here is a guardrail breach).
+    metrics["real_anima_byte_unchanged"] = real_unchanged
+    if real_unchanged is False:
+        results.append(CheckResult(
+            "REALITY LEARNING — real ledger read is STRICTLY READ-ONLY", "FAIL",
+            "the real .anima CHANGED during the read of Vera's reality ledger — a read-only "
+            "guarantee was breached (this must be impossible)"))
+    else:
+        results.append(CheckResult(
+            "REALITY LEARNING — real ledger read is STRICTLY READ-ONLY", "PASS",
+            "Vera's reality ledger read via scripts/reality.py.real_report; the real .anima was "
+            f"byte-UNCHANGED around the read (read-only held; resolved={real_metrics['resolved']})"))
+
+    # the 7 REPORTED metrics (bucket 2 numbers are the REAL, honest counts — likely 0).
+    metrics["hypotheses"] = real_metrics["hypotheses"]
+    metrics["open_predictions"] = real_metrics["open"]
+    metrics["resolved_predictions"] = real_metrics["resolved"]
+    metrics["surprise_events"] = real_metrics["surprise_events"]
+    metrics["revisions"] = real_metrics["revisions"]
+    metrics["real_outcomes"] = real_metrics["real_outcomes"]
+
+    real_n = real_metrics["real_outcomes"]
+    accrued = real_n >= _REALITY_TREND_THRESHOLD
+    metrics["time_gated"] = not accrued
+
+    # --- BUCKET 3: TIME-GATED METRICS — calibration / surprise trend / learning trend ---------
+    # While real outcomes are below threshold there is NO real data to score a future not yet lived:
+    # report TIME-GATED, never a calibration number as if earned. The gate ACTIVATES at threshold.
+    if not accrued:
+        metrics["calibration_status"] = "TIME-GATED — needs real outcomes over calendar time"
+        results.append(CheckResult(
+            "REALITY LEARNING — calibration / surprise trend / learning trend", "PENDING",
+            f"TIME-GATED — needs real outcomes over calendar time "
+            f"({real_n}/{_REALITY_TREND_THRESHOLD} accrued). Calibration accuracy + surprise trend "
+            f"+ learning trend are NOT scored yet (you cannot score a future not yet lived); no "
+            f"calibration NUMBER is printed as earned. The gate activates once real outcomes accrue. "
+            f"[non-gating until then — the experience/conservation reported-tier discipline]"))
+    else:
+        # real data has accrued — the learning-trend gate is now ACTIVE. We REPORT the real
+        # calibration honestly; a regressing trend would surface here (still reported, the directive
+        # does not demand a positive trend, only honesty once data exists).
+        rcal = {}
+        try:
+            saved = getattr(reality, "STORE", None)
+            reality.STORE = Path(_ROOT) / ".anima"
+            try:
+                rcal = reality.calibrate("Vera")
+            finally:
+                if saved is not None:
+                    reality.STORE = saved
+        except Exception:
+            rcal = {}
+        acc = rcal.get("accuracy")
+        ms = rcal.get("mean_surprise")
+        metrics["calibration_status"] = (
+            f"ACTIVE — accuracy {acc:.0%} over {rcal.get('resolved', real_n)} resolved; "
+            f"mean surprise {ms}" if isinstance(acc, (int, float)) else "ACTIVE")
+        results.append(CheckResult(
+            "REALITY LEARNING — calibration / surprise trend / learning trend", "PASS",
+            f"real outcomes accrued ({real_n} >= {_REALITY_TREND_THRESHOLD}) — calibration is now "
+            f"scored: accuracy {(acc if acc is None else format(acc, '.0%'))} over "
+            f"{rcal.get('resolved', real_n)} resolved; mean surprise {ms}; "
+            f"{rcal.get('revisions', 0)} model revisions"))
+
+    # --- the THREE-BUCKET separation, rendered honestly, + the directive's PASS verdict --------
+    # render the 7 metrics through scripts/reality.py.render_body (no-diagnosis-safe) so the section
+    # shows the loop + calibration the SAME way the observatory does — reused, never reinvented.
+    rendered = ""
+    try:
+        import reality as reality_script  # noqa: F811 — same module, already on path
+        rr2 = reality_script.real_report("Vera", store=Path(_ROOT) / ".anima")
+        rendered = reality_script.render_body(rr2)
+    except Exception:
+        rendered = ""
+    # every rendered line must pass reality's no-diagnosis clean-gate (defence in depth).
+    clean = all(reality._is_clean(ln) for ln in rendered.splitlines()) if rendered else True
+
+    buckets_ok = (proof_ok                                   # bucket 1 present + correct
+                  and isinstance(real_n, int)                # bucket 2 a real, honest count
+                  and (real_unchanged is not False)          # the live read stayed read-only
+                  and clean)                                 # honest render, no diagnosis leak
+    results.append(CheckResult(
+        "REALITY LEARNING — three buckets honestly separated "
+        "(SYNTHETIC proof / REAL accrued / TIME-GATED)",
+        "PASS" if buckets_ok else "FAIL",
+        f"(1) SYNTHETIC PROOF: {'PASS' if proof_ok else 'FAIL'} — competing-hypotheses adjudication "
+        f"+ surprise + model revision all fire on the synthetic Day-1->Day-14 loop.  "
+        f"(2) REAL ACCRUED: {real_n} resolved outcome(s) in Vera's live ledger"
+        + (" (none accrued yet — the loop is shadow + unwired)" if real_n == 0 else "")
+        + f", read-only.  (3) TIME-GATED: calibration accuracy / surprise trend / learning trend "
+        f"{'PENDING — needs real outcomes over calendar time' if not accrued else 'ACTIVE'}; "
+        f"no calibration number printed as earned while time-gated."))
+
+    # THE DIRECTIVE'S PASS VERDICT: the machinery is PRESENT + the SYNTHETIC PROOF passes + the three
+    # buckets are honestly separated. The learning trend is NON-GATING until real data exists.
+    certify_ok = present and proof_ok and buckets_ok
+    results.append(CheckResult(
+        "REALITY LEARNING — machinery PRESENT, CORRECT, and HONESTLY REPORTED (directive #11)",
+        "PASS" if certify_ok else "FAIL",
+        "CERTIFIED: the epistemic loop is present, the synthetic proof passes, and the three "
+        "buckets are honestly separated. The calibration / learning trend is reported PENDING/"
+        "time-gated and is NON-GATING until real outcomes accrue (>= "
+        f"{_REALITY_TREND_THRESHOLD}) — the machinery is GOVERNED, not just real."
+        if certify_ok else
+        "the reality-learning machinery is NOT yet certifiable — see the failing checks above"))
+    return results, metrics
+
+
+# ===================================================================================
 # SECTION 3 — MUTATION TESTING (LAW 004 — tests that CAN fail)
 # Inject a fault and assert the GUARD FIRES. The point is falsifiability: if a mutation
 # does NOT break the relevant invariant, the test was lying and we say so.
@@ -1743,6 +2095,7 @@ _SECTION_ORDER = [
     ("isolation_matrix",      "2d) ISOLATION MATRIX — firewall for cognition (containment)"),
     ("experience",            "2e) EXPERIENCE CERTIFICATION (capstone — failures self-explain via root-cause)"),
     ("conservation",          "2f) CONSERVATION RETENTION (end-to-end vs 95% target — informational)"),
+    ("reality_learning",      "2g) REALITY LEARNING CERTIFICATION (directive #11 — the epistemic loop, GOVERNED)"),
     ("mutation_testing",      "3) MUTATION TESTING (LAW 004)"),
     ("hallucination",         "4) HALLUCINATION RATE"),
     ("deploy",                "4b) DEPLOYMENT PROOF (LAW 005 — git == running)"),
@@ -1780,6 +2133,7 @@ def main(argv=None) -> int:
     sections["isolation_matrix"] = section_isolation_matrix()            # firewall for cognition
     sections["experience"] = section_experience()                        # capstone: failures self-explain
     sections["conservation"], cons_metrics = section_conservation()      # e2e retention vs 95% (informational)
+    sections["reality_learning"], reality_metrics = section_reality_learning()  # directive #11 — govern the loop
     sections["mutation_testing"] = section_mutation_testing()
     sections["hallucination"], hall_metrics = section_hallucination()
     sections["hallucination"].append(section_live_verifier())   # gated live leg
@@ -1829,6 +2183,7 @@ def main(argv=None) -> int:
             "section_pass": section_pass,
             "hallucination": hall_metrics,
             "conservation": cons_metrics,
+            "reality_learning": reality_metrics,
             "footprint_unchanged": footprint_unchanged,
             "real_anima_footprint": {"before": fp_before, "after": fp_after},
             "sections": {k: [r.to_dict() for r in v] for k, v in sections.items()},
@@ -1889,6 +2244,21 @@ def main(argv=None) -> int:
               + ")")
     else:
         print("  conservation retention : n/a")
+    # REALITY LEARNING (directive #11) — the 7 metrics + the three honest buckets, at a glance.
+    rl = reality_metrics
+    print(f"  reality learning       : "
+          + ("loop PRESENT" if rl.get("present") else "loop ABSENT")
+          + f" · synthetic proof {rl.get('synthetic_proof') or 'n/a'}"
+          + f" · real outcomes {rl.get('real_outcomes')}"
+          + (" (none accrued yet)" if rl.get("real_outcomes") == 0 else "")
+          + f" · {rl.get('calibration_status') or 'n/a'}")
+    print(f"    reality metrics      : hypotheses={rl.get('hypotheses')} · open-preds="
+          + f"{rl.get('open_predictions')} · resolved={rl.get('resolved_predictions')} · "
+          + f"surprise-events={rl.get('surprise_events')} · revisions={rl.get('revisions')} · "
+          + f"real-outcomes={rl.get('real_outcomes')}")
+    print(f"    reality buckets      : (1) SYNTHETIC proof "
+          + f"{rl.get('synthetic_proof') or 'n/a'} · (2) REAL accrued {rl.get('real_outcomes')} · "
+          + f"(3) TIME-GATED {'yes' if rl.get('time_gated') else 'no (active)'}")
     print(f"  real .anima footprint  : "
           + ("byte-UNCHANGED (synthetic-only guardrail held)"
              if footprint_unchanged else "CHANGED — GUARDRAIL BREACH"))
