@@ -136,8 +136,8 @@ ok("cloud: public() never exposes the api key", "key" not in cloud.public())
 import tempfile as _tf, pathlib as _pl, json as _cj
 import anima.memory_lirf as _mlirf, anima.portrait as _cport
 _cl_td = _tf.mkdtemp(prefix="cloud-pii-")          # SYNTHETIC creature + temp store; never Vera.*
-_cl_save = (_mlirf.STORE, _cport.STORE)
-_mlirf.STORE = _pl.Path(_cl_td); _cport.STORE = _pl.Path(_cl_td)
+_cl_save = (_mlirf.STORE, _cport.STORE, cloud.STORE)
+_mlirf.STORE = _pl.Path(_cl_td); _cport.STORE = _pl.Path(_cl_td); cloud.STORE = _pl.Path(_cl_td)
 try:
     _cn = "PiiSynth"
     _ff = _mlirf.Facts([])                          # seed the auditor's people as the creature's memory
@@ -176,6 +176,8 @@ try:
     _wire = _cj.dumps(_cap.get("messages", []))
     ok("cloud names: END-TO-END reply() wire payload leaks NO known name verbatim",
        not any(_nm in _wire for _nm in ("Mara", "Okonkwo", "Raj", "Collatio")))
+    ok("cloud isolation: reply()'s phantom add_spend writes the REDIRECTED store, not real .anima",
+       cloud._spend_path() == _pl.Path(_cl_td) / "spend.json")
 
     # back-compat: no creature set -> structured-only scrub, exactly today's behaviour.
     _br2 = cloud.OpenAICompatBrain("http://x", "m", "KEY", "openai:m", "openai")
@@ -189,7 +191,7 @@ try:
        not hasattr(_cmouth.OllamaBrain(), "creature")
        and not hasattr(_cmouth.StubBrain(), "creature"))
 finally:
-    _mlirf.STORE, _cport.STORE = _cl_save
+    _mlirf.STORE, _cport.STORE, cloud.STORE = _cl_save
     import shutil as _csh
     _csh.rmtree(_cl_td, ignore_errors=True)
 

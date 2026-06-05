@@ -212,8 +212,14 @@ MODELS = {
 }
 
 
+# Redirectable store root (mirrors memory_lirf.STORE etc.) so a hermetic test can
+# isolate cloud's brain.json + spend.json instead of leaking them into the real
+# .anima. Default is the real store; tests point it at a temp dir.
+STORE = Path(".anima")
+
+
 def _path() -> Path:
-    return Path(".anima") / "brain.json"
+    return STORE / "brain.json"
 
 
 # Rough blended $ per 1K tokens (input+output) — APPROXIMATE; providers change prices.
@@ -267,7 +273,7 @@ def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None,
     except (TypeError, ValueError):
         budget = cur["budget"]
     local_model = cur["local_model"] if local_model is None else (local_model or "").strip()
-    Path(".anima").mkdir(exist_ok=True)
+    STORE.mkdir(parents=True, exist_ok=True)
     save_json(_path(), {"provider": provider, "model": model,
                         "keys": keys, "model_opts": model_opts,
                         "base": (base or "").strip(), "budget": budget,
@@ -277,7 +283,7 @@ def save_cfg(provider: str, model: str, key: str, base: str = "", budget=None,
 
 # --- daily spend cap --------------------------------------------------------
 def _spend_path() -> Path:
-    return Path(".anima") / "spend.json"
+    return STORE / "spend.json"
 
 
 def spent_today() -> float:
@@ -292,7 +298,7 @@ def spent_today() -> float:
 
 def add_spend(usd: float) -> float:
     total = round(spent_today() + max(0.0, usd), 5)
-    Path(".anima").mkdir(exist_ok=True)
+    STORE.mkdir(parents=True, exist_ok=True)
     save_json(_spend_path(), {"date": time.strftime("%Y-%m-%d"), "spent": total})
     return total
 
