@@ -62,6 +62,16 @@ CONF_CORRECTION = 0.97
 # Floor for a belief to be eligible for the injected fact-block. Low-confidence
 # beliefs stay on disk (and in lookup of last resort) but out of the prompt.
 CONF_BLOCK_FLOOR = 0.55
+# Confidence a HEDGED self-statement enters at ("I guess my favorite color is
+# probably green"). A hedge ("I guess", "probably", "maybe", "I think", "kind of",
+# "I'm not sure", "might be") is the user telling us they are NOT sure — so the fact
+# must NOT clear the [KNOWN] FACT bar curiosity enforces (curiosity._CONF_KNOWN, 0.85),
+# or LAW 002 would shield a guess forever and Vera would never learn the real value.
+# Pinned BELOW that bar (so the gap stays OPEN / SUSPECTED and curiosity keeps asking)
+# yet kept as a real low-confidence hint. A later confident restatement climbs/supersedes
+# it the moment the user commits. Must stay < curiosity._CONF_KNOWN; cross-checked by the
+# selftest so a drift in either constant is caught.
+CONF_HEDGED = 0.6
 # Asymptotic climb on agreement: conf -> conf + (1-conf)*RATE, capped.
 CONF_AGREE_RATE = 0.34
 CONF_CEIL = 0.99
@@ -171,11 +181,78 @@ _HYPOTHETICAL = re.compile(
     r"used to|maybe|might|planning to|plan to|dream)\b", re.I)
 
 
-def _not_hypothetical(text: str, start: int) -> bool:
+def _local_clause(text: str, start: int) -> str:
+    """The local clause governing a match: the text from the last sentence/clause break
+    up to the match. Shared by the hypothetical guard and the hedge detector so both judge
+    the SAME span (e.g. the words right before 'my favorite color ...')."""
     head = text[:start]
-    # only the local clause matters — look back to the last sentence/clause break
-    clause = re.split(r"[.!?;]|\b(?:but|and|because|so)\b", head, flags=re.I)[-1]
-    return _HYPOTHETICAL.search(clause) is None
+    return re.split(r"[.!?;]|\b(?:but|and|because|so)\b", head, flags=re.I)[-1]
+
+
+def _not_hypothetical(text: str, start: int) -> bool:
+    return _HYPOTHETICAL.search(_local_clause(text, start)) is None
+
+
+# --- HEDGE detection -------------------------------------------------------
+# A hedge is the user signalling they are NOT sure of a self-fact ("I guess my favorite
+# color is probably green", "I think I live in Portland", "kind of my thing"). Unlike a
+# _HYPOTHETICAL (a wish/conditional that means "this is NOT a fact, drop it"), a hedge means
+# "this IS a fact but a soft one" — so we still CAPTURE it, only at a low confidence that
+# stays BELOW curiosity's [KNOWN] bar (CONF_HEDGED). That keeps the gap OPEN so curiosity
+# keeps asking and LAW 002 never shields a guess as if it were certain.
+#
+# Two surfaces a hedge shows up on, both handled:
+#   1. governing the CLAUSE before the fact  -> "I guess my favorite color is green",
+#      "I think my birthday is the 12th", "I'm not sure but I live in Portland".
+#   2. sitting INSIDE the value slot          -> "... is probably green", "... is maybe blue".
+# For (2) a rule may expose an optional named group `hedge` (consumed BEFORE the real value
+# group `v`, so the value is the REAL word — "green", not "probably"); extract() reads that
+# group's presence. As a belt-and-suspenders for any rule WITHOUT a hedge group, extract()
+# also strips a leading hedge token off the captured value and flags it hedged.
+_HEDGE_CLAUSE = re.compile(
+    r"\b(?:i\s+guess|i\s+think|i\s+suppose|i\s+believe|i'?m\s+not\s+(?:really\s+)?sure|"
+    r"i'?m\s+not\s+certain|probably|possibly|maybe|perhaps|might\s+be|kind\s+of|"
+    r"sort\s+of|i\s+feel\s+like)\b", re.I)
+
+# A hedge word/phrase sitting at the START of a captured value, to strip so the stored value
+# is the REAL word. "probably green" -> "green" (+hedged); a bare hedge ("probably") strips to
+# nothing -> we store NO value (the gap stays open) rather than the hedge word itself.
+_HEDGE_LEADING = re.compile(
+    r"^(?:probably|possibly|maybe|perhaps|kind\s+of|sort\s+of|i\s+guess|i\s+think)\s+",
+    re.I)
+
+# A value that is ENTIRELY a hedge word (e.g. the value-group backtracked and grabbed
+# "probably" with no real word after it, as in "my favorite color is probably"). Such a value
+# is meaningless AND must never be stored — it's the exact bug ("favorite_color=probably").
+# Treated as hedged with NO value so the slot stays empty and the gap stays open.
+_BARE_HEDGE = frozenset({"probably", "possibly", "maybe", "perhaps", "guess", "i guess",
+                         "i think", "kind of", "sort of", "dunno", "unsure", "not sure"})
+
+# The alternation a rule embeds as an optional (?P<hedge>...) group right before its value,
+# so a single-word value rule (favorite_color/favorite_X) parses PAST the hedge to the real
+# value instead of capturing the hedge word. Kept as a string so rules compose it inline.
+_HEDGE_PREFIX = (r"(?P<hedge>(?:probably|possibly|maybe|perhaps|kind\s+of|sort\s+of|"
+                 r"i\s+think|i\s+guess)\s+)?")
+
+
+def _is_hedged(text: str, start: int) -> bool:
+    """True iff the local clause governing a match carries a hedge marker."""
+    return _HEDGE_CLAUSE.search(_local_clause(text, start)) is not None
+
+
+def _strip_leading_hedge(val):
+    """Strip a leading hedge token off a value. Returns (clean_value_or_None, was_hedged).
+    'probably green' -> ('green', True); 'probably' -> (None, True); 'green' -> ('green',
+    False). Operates on a single scalar string; list values are returned unchanged."""
+    if not isinstance(val, str):
+        return val, False
+    # value that is ONLY a hedge word (a backtracked single-word grab) -> drop it, hedged.
+    if re.sub(r"[^a-z ]", "", val.strip().lower()).strip() in _BARE_HEDGE:
+        return None, True
+    m = _HEDGE_LEADING.match(val)
+    if not m:
+        return val, False
+    return _clean(val[m.end():]), True
 
 
 # Each rule: (compiled regex, trait, value-builder(match) -> value|None).
@@ -252,8 +329,10 @@ _RULES = [
      "father", lambda m: _clean(m.group("v"))),
     (re.compile(r"\bmy\s+(?:wife|husband|partner|gf|bf|girlfriend|boyfriend|spouse)(?:'s)?\s+(?:name(?:'s| is)?\s+|named\s+|called\s+|is\s+(?:(?:named|called)\s+)?)?(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
      "partner", lambda m: _clean(m.group("v"))),
-    # favorite color
-    (re.compile(r"\bmy\s+favou?rite\s+colou?r\s+is\s+(?P<v>[a-z][\w'-]+)", re.I),
+    # favorite color — the value group is single-word, so an optional hedge ("... is
+    # probably green") is consumed by the (?P<hedge>...) prefix FIRST, leaving v="green"
+    # (the REAL value, never "probably"). extract() reads the hedge group to lower confidence.
+    (re.compile(r"\bmy\s+favou?rite\s+colou?r\s+is\s+" + _HEDGE_PREFIX + r"(?P<v>[a-z][\w'-]+)", re.I),
      "favorite_color", lambda m: _clean(m.group("v"))),
     # likes / dislikes (list-valued) — "I love sushi", "I hate cilantro", "I can't stand olives".
     # The object stops before a conjunction so "X and Y" yields two separate hits, not
@@ -375,8 +454,10 @@ _RULES = [
     # age (distinct from birthday) — "I'm 34", "I'm 34 years old"; guarded so "I'm 5 minutes late" can't match
     (re.compile(r"\bi(?:'?m| am)\s+(?P<v>\d{1,3})(?=\s+years?\s+old\b|\s*[.!?,]|\s*$)", re.I),
      "age", lambda m: _clean(m.group("v"))),
-    # generalized favorite — "my favorite food is pizza" -> favorite_food: pizza
-    (re.compile(r"\bmy\s+favou?rite\s+(?P<cat>food|meal|dish|cuisine|movie|film|show|series|band|artist|musician|song|book|author|team|drink|beer|wine|season|sport|game|hobby|place|city|number|animal|colou?r)\s+is\s+(?P<v>[\w'\d][\w'-]*(?:\s+[\w'-]+){0,3})", re.I),
+    # generalized favorite — "my favorite food is pizza" -> favorite_food: pizza. The optional
+    # (?P<hedge>...) prefix consumes a leading "probably/maybe/I think ..." so the value is the
+    # REAL one ("pizza", not "probably") and extract() lowers confidence below the KNOWN bar.
+    (re.compile(r"\bmy\s+favou?rite\s+(?P<cat>food|meal|dish|cuisine|movie|film|show|series|band|artist|musician|song|book|author|team|drink|beer|wine|season|sport|game|hobby|place|city|number|animal|colou?r)\s+is\s+" + _HEDGE_PREFIX + r"(?P<v>[\w'\d][\w'-]*(?:\s+[\w'-]+){0,3})", re.I),
      lambda m: "favorite_" + m.group("cat").lower().replace("colour", "color").replace("film", "movie").replace("series", "show"),
      lambda m: _clean(m.group("v"))),
 ]
@@ -409,6 +490,16 @@ def extract(text: str):
             if not _not_hypothetical(text, m.start()):
                 continue
             val = build(m)
+            # HEDGE: a soft self-statement ("I guess my favorite color is probably green").
+            # A rule may capture the hedge in an optional (?P<hedge>...) group placed before
+            # its value; either way we (a) flag the candidate hedged so merge() enters it
+            # BELOW the [KNOWN] bar (leaving the gap open for curiosity), and (b) strip any
+            # leading hedge token off the value so we store the REAL word ("green"), never the
+            # hedge ("probably"). A value that is ONLY a hedge word strips to nothing -> we
+            # store NO value (the slot stays empty -> still an open gap), never the hedge.
+            hedged = bool(m.groupdict().get("hedge")) or _is_hedged(text, m.start())
+            val, leading_hedged = _strip_leading_hedge(val)
+            hedged = hedged or leading_hedged
             if not val:
                 continue
             ev = _clean(text[max(0, m.start() - 0):m.end()]) or text.strip()
@@ -416,13 +507,15 @@ def extract(text: str):
             # within one utterance, list traits accumulate; scalar traits keep the
             # first clean hit (rules are ordered most-specific first).
             if ct in LIST_TRAITS:
-                found.setdefault(ct, {"trait": ct, "value": [], "evidence": ev,
-                                      "correction": is_corr})
-                if val not in found[ct]["value"]:
-                    found[ct]["value"].append(val)
+                cand = found.setdefault(ct, {"trait": ct, "value": [], "evidence": ev,
+                                             "correction": is_corr, "hedged": False})
+                if val not in cand["value"]:
+                    cand["value"].append(val)
+                if hedged:
+                    cand["hedged"] = True
             elif ct not in found:
                 found[ct] = {"trait": ct, "value": val, "evidence": ev,
-                             "correction": is_corr}
+                             "correction": is_corr, "hedged": hedged}
     return list(found.values())
 
 
@@ -581,6 +674,12 @@ class Facts:
         value = cand["value"]
         now = _now()
         is_corr = bool(cand.get("correction"))
+        hedged = bool(cand.get("hedged"))
+        # Entry confidence for a NEW or SUPERSEDING value. An explicit correction is the
+        # user telling us directly (highest). A HEDGE is the user telling us they are unsure,
+        # so it enters BELOW curiosity's [KNOWN] bar (CONF_HEDGED) — the gap stays open and
+        # LAW 002 never shields a guess. Correction beats hedge if (rarely) both are present.
+        entry_conf = CONF_CORRECTION if is_corr else (CONF_HEDGED if hedged else CONF_NEW)
         src = cand.get("source") or f"chat {now[:10]}"
         ev = cand.get("evidence") or ""
         existing = self._by_key.get((entity, trait))
@@ -594,7 +693,7 @@ class Facts:
                 "entity": entity,
                 "trait": trait,
                 "value": value,
-                "confidence": CONF_CORRECTION if is_corr else CONF_NEW,
+                "confidence": entry_conf,
                 "support": 1,
                 "source": src,
                 "evidence": ev,
@@ -633,7 +732,7 @@ class Facts:
             "reason": "user-corrected" if is_corr else "superseded",
         })
         existing["value"] = value
-        existing["confidence"] = CONF_CORRECTION if is_corr else CONF_NEW
+        existing["confidence"] = entry_conf
         existing["support"] = 1                 # fresh claim, not yet re-confirmed
         existing["source"] = src
         existing["evidence"] = ev
@@ -1178,6 +1277,42 @@ def _selftest() -> int:
     ok("WAVE-A guard: capitalised aux in name slot ('my son Then we left') is no name",
        "son" not in _xt("my son Then we left for the park"))
 
+    # --- HEDGE capture (extract layer): a guess parses to the REAL value, flagged hedged,
+    # and NEVER stores the hedge word. The auditor's regression: "I guess my favorite color
+    # is probably green" must yield value='green' (not 'probably'), hedged=True. -----------
+    def _xc(text, trait):
+        """The single extracted candidate for `trait` (or None)."""
+        return next((x for x in extract(text) if x["trait"] == trait), None)
+
+    aud = _xc("I guess my favorite color is probably green", "favorite_color")
+    ok("HEDGE [auditor]: value is the REAL word 'green', NEVER the hedge 'probably'",
+       aud is not None and aud["value"] == "green")
+    ok("HEDGE [auditor]: the candidate is flagged hedged (so merge enters it below KNOWN)",
+       aud is not None and aud.get("hedged") is True)
+    # the confident control is NOT hedged and keeps its value
+    ctl = _xc("my favorite color is green", "favorite_color")
+    ok("HEDGE [control]: 'my favorite color is green' -> value 'green', NOT hedged",
+       ctl is not None and ctl["value"] == "green" and not ctl.get("hedged"))
+    # hedge sitting INSIDE the value slot ("is maybe blue") -> real value, hedged
+    inv = _xc("my favorite color is maybe blue", "favorite_color")
+    ok("HEDGE [in-value]: '... is maybe blue' -> value 'blue' (past the hedge), hedged",
+       inv is not None and inv["value"] == "blue" and inv.get("hedged"))
+    # clause-governing hedge ("I think ...") flags hedged on a multi-word favorite value
+    clz = _xc("I think my favorite food is sushi", "favorite_food")
+    ok("HEDGE [clause]: 'I think my favorite food is sushi' -> value 'sushi', hedged",
+       clz is not None and clz["value"] == "sushi" and clz.get("hedged"))
+    # a value that is ONLY a hedge word stores NOTHING (never 'favorite_color=probably')
+    ok("HEDGE [bare]: '... is probably' (no real value) captures NO favorite_color row",
+       _xc("my favorite color is probably", "favorite_color") is None)
+    # CONF_HEDGED is, by construction, below the curiosity [KNOWN] bar — assert the relation
+    # here so a drift in either constant trips a test rather than silently re-locking a guess.
+    try:
+        from .curiosity import _CONF_KNOWN as _CK
+    except Exception:
+        _CK = 0.85
+    ok("HEDGE [invariant]: CONF_HEDGED < curiosity._CONF_KNOWN (a guess never clears KNOWN)",
+       CONF_HEDGED < _CK and CONF_HEDGED >= CONF_BLOCK_FLOOR)
+
     # --- a throwaway store ---
     name = "lirf_selftest_" + secrets.token_hex(3)
     try:
@@ -1228,6 +1363,99 @@ def _selftest() -> int:
         ok("block: contains birthday line", "birthday: June 12" in blk)
         ok("block: contains lives line", "lives: Portland" in blk)
         ok("block: header tells model not to re-ask", "do not re-ask" in blk)
+
+        # --- HEDGE merge + curiosity gap-open (the auditor's end-to-end regression) -------
+        # Isolate in a throwaway temp store so curiosity's own ledger never touches real
+        # .anima (it reads/writes {name}.curiosity.jsonl). Redirect BOTH module STOREs, run,
+        # restore. This proves the fix at the layer the auditor named: a hedged self-fact
+        # enters BELOW the [KNOWN] bar, so curiosity keeps the gap OPEN (LAW 002 cannot shield
+        # a guess), while a confident control is KNOWN and suppressed (not re-asked).
+        try:
+            import anima.curiosity as _cur
+            _have_cur = True
+        except Exception:
+            _cur = None
+            _have_cur = False
+        if _have_cur:
+            import sys as _sys
+            # Redirect the STORE on EVERY module that resolves it. Under
+            # `python3 -m anima.memory_lirf` this function runs inside the __main__ module,
+            # whose bare STORE is a SEPARATE binding from anima.memory_lirf.STORE — and
+            # curiosity.Facts.load() reads the PACKAGE copy. Redirect both (+ curiosity), or
+            # the gap lookups leak to the real .anima (the exact gotcha curiosity's selftest
+            # documents). Mutate the module attr, never a local 'STORE'.
+            _hmods = [_sys.modules[__name__]]
+            try:
+                import anima.memory_lirf as _pkg_ml
+                if _pkg_ml is not _hmods[0]:
+                    _hmods.append(_pkg_ml)
+            except Exception:
+                pass
+            _hmods.append(_cur)
+            _hstore_saved = [(m, getattr(m, "STORE", None)) for m in _hmods]
+            _htd = tempfile.mkdtemp(prefix="lirf-hedge-self-")
+            _htp = Path(_htd)
+            for _m in _hmods:
+                _m.STORE = _htp
+            try:
+                # AUDITOR: "I guess my favorite color is probably green"
+                an = "lirf_hedge_aud_" + secrets.token_hex(3)
+                fa = Facts([])
+                for c in fa.capture(an, "I guess my favorite color is probably green"):
+                    fa.merge(c)
+                fa.save(an)
+                ra = Facts.load(an).lookup(SELF, "favorite_color")
+                ok("HEDGE merge [auditor]: value is 'green', NEVER 'probably'",
+                   ra is not None and ra["value"] == "green")
+                ok("HEDGE merge [auditor]: confidence is below the [KNOWN] bar "
+                   f"(conf={None if ra is None else ra['confidence']} < {_cur._CONF_KNOWN})",
+                   ra is not None and float(ra["confidence"]) < _cur._CONF_KNOWN)
+                ok("HEDGE curiosity [auditor]: the hedged row is NOT _is_known_row "
+                   "(LAW 002 cannot shield it -> the gap stays OPEN, Vera keeps asking)",
+                   not _cur._is_known_row(ra))
+
+                # AUDITOR via a TAXONOMY slot ('lives') so detect_gaps emits the OPEN gap:
+                # "I think I live in Portland" -> SUSPECTED 'lives' gap (hint=Portland), not KNOWN.
+                ah = "lirf_hedge_liv_" + secrets.token_hex(3)
+                fh = Facts([])
+                for c in fh.capture(ah, "I think I live in Portland"):
+                    fh.merge(c)
+                fh.save(ah)
+                rh = Facts.load(ah).lookup(SELF, "lives")
+                lives_gaps = [g for g in _cur.detect_gaps(ah) if g["slot"] == "lives"]
+                ok("HEDGE curiosity [taxonomy]: a hedged 'lives' -> an OPEN SUSPECTED gap "
+                   "(curiosity keeps asking), value still 'Portland'",
+                   rh is not None and rh["value"] == "Portland"
+                   and len(lives_gaps) == 1 and lives_gaps[0]["kind"] == "SUSPECTED")
+
+                # CONTROL: a confident direct statement stays KNOWN and is SUPPRESSED.
+                cn = "lirf_hedge_ctl_" + secrets.token_hex(3)
+                fc = Facts([])
+                for c in fc.capture(cn, "my favorite color is green"):
+                    fc.merge(c)
+                for c in fc.capture(cn, "I live in Portland"):
+                    fc.merge(c)
+                fc.save(cn)
+                rc = Facts.load(cn).lookup(SELF, "favorite_color")
+                ok("HEDGE control: a confident 'favorite color is green' stays ~KNOWN "
+                   f"(conf={None if rc is None else rc['confidence']} >= {_cur._CONF_KNOWN})",
+                   rc is not None and float(rc["confidence"]) >= _cur._CONF_KNOWN
+                   and _cur._is_known_row(rc))
+                ok("HEDGE control: a confident 'lives' produces NO gap (KNOWN, never re-asked)",
+                   all(g["slot"] != "lives" for g in _cur.detect_gaps(cn)))
+            finally:
+                for _m, _old in _hstore_saved:
+                    if _old is not None:
+                        _m.STORE = _old
+                for _fp in glob.glob(str(_htp / "*")):
+                    try:
+                        os.remove(_fp)
+                    except OSError:
+                        pass
+                try:
+                    os.rmdir(_htd)
+                except OSError:
+                    pass
 
         # retrieve + fact_note reload from disk (they're the live per-turn entry
         # points), so flush the in-memory ledger first.

@@ -448,17 +448,71 @@ def backup(name: str, store=None, keep: int = KEEP, clock=None, ts=None) -> dict
         shutil.rmtree(tmp, ignore_errors=True)
         raise
 
-    pruned = _rotate(store, keep)
+    pruned = _rotate(store, keep, name=name)
     return {"ok": True, "stamp": stamp, "dir": str(dest), "files": copied,
             "kept": _existing_snapshots(store), "pruned": pruned}
 
 
-def _rotate(store: Path, keep: int) -> list[str]:
-    """Delete oldest snapshots beyond `keep`. Returns the ids removed."""
+def _record_rotation_loss(name, doomed, keep, store) -> None:
+    """Write a LAW-001 approved_loss for snapshots pruned by rotation BEFORE they are
+    deleted. Rotation is a SANCTIONED, bounded discard (we keep only the newest `keep`),
+    but under Archived > Deleted it must be ACCOUNTED, never silent: the ledger records
+    exactly which snapshot ids were dropped and why. This is LOW severity — the LIVE state
+    is the source of truth and is present in every newer snapshot, so a pruned old snapshot
+    is redundant — but the prune is still a loss and the law has no silent path.
+
+    Same shape as _record_unrecoverable_loss: the continuity ledger lives beside the store,
+    so we point constitution.STORE at the SAME store for the write and restore it after.
+    Best-effort: a failure to record is logged LOUDLY but must not crash a backup (the
+    snapshot itself already published successfully)."""
+    if not doomed:
+        return
+    try:
+        from . import constitution
+    except Exception as e:                              # pragma: no cover - constitution is core
+        _loud(f"could NOT import constitution to account for the rotation of "
+              f"{len(doomed)} snapshot(s): {e}")
+        return
+    saved = getattr(constitution, "STORE", None)
+    try:
+        constitution.STORE = Path(store)
+        constitution.approved_loss(
+            subsystem="reliability._rotate",
+            what=f"{len(doomed)} old backup snapshot(s) beyond keep={keep}: "
+                 f"{', '.join(doomed)}",
+            why=f"snapshot rotation (keep={keep}); the bound keeps the newest {keep} "
+                "snapshots so the hot backups dir cannot grow without limit. The pruned "
+                "snapshots are redundant — the LIVE state is the source of truth and is "
+                "captured in every newer snapshot — so this is a sanctioned, bounded loss; "
+                "recorded here so it is Accounted, not silent (Archived > Deleted).",
+            approver="reliability.backup",
+            name=name,
+            detail={"pruned": list(doomed), "keep": keep, "store": str(store)},
+        )
+    except Exception as e:
+        _loud(f"FAILED to record the approved_loss for {len(doomed)} rotated snapshot(s): "
+              f"{e} — proceeding with the bounded prune (the live state is unaffected).")
+    finally:
+        if saved is not None:
+            constitution.STORE = saved
+
+
+def _rotate(store: Path, keep: int, name: str = "Vera") -> list[str]:
+    """Delete oldest snapshots beyond `keep`, ACCOUNTING for the bounded loss first.
+
+    Rotation keeps the backups dir bounded to the newest `keep` snapshots. Deleting the
+    overflow is a sanctioned discard, but it is NOT silent: before any rmtree, we record a
+    constitution.approved_loss naming exactly which snapshot ids are pruned and why
+    (snapshot rotation, keep=N). Under Archived > Deleted a prune must be Accounted, never
+    silent — even though it is LOW severity (the live state is the source of truth and lives
+    in every newer snapshot, so a pruned old snapshot is redundant). Returns the ids removed."""
     snaps = _existing_snapshots(store)
     if keep <= 0 or len(snaps) <= keep:
         return []
     doomed = snaps[: len(snaps) - keep]
+    # Account for the bounded loss BEFORE deleting (the law permits the discard only with a
+    # record; call this immediately before the destructive op, never after).
+    _record_rotation_loss(name, doomed, keep, store)
     root = _backups_root(store)
     for s in doomed:
         shutil.rmtree(root / s, ignore_errors=True)

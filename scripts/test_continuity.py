@@ -257,21 +257,44 @@ def test_backup_preserves():
            archive_backed_up)
 
         # rotation past keep deletes the OLDEST snapshot from the hot dir. Per Archived>
-        # Deleted, that snapshot is gone for good unless copied off first — note it.
-        for i in range(3):
-            reliability.backup(name, store=store, keep=2, ts=f"20260604-12000{i+1}")
-        kept = reliability._existing_snapshots(store)
-        ok("rotation keeps exactly `keep` newest snapshots", len(kept) == 2)
-        rotated_out = "20260604-120000" not in kept
-        if rotated_out:
-            law_violation(
-                "reliability._rotate (anima/reliability.py:453-462)",
-                "snapshots beyond keep=14 are shutil.rmtree'd with no cold-archive and no "
-                "approved_loss() (tension with Archived>Deleted). The LIVE ledger is never "
-                "lost (it's the source of truth + every newer snapshot), so this is LOW "
-                "severity, but old snapshots vanish silently. FIX: move pruned snapshots to "
-                "a cold backups/archive/ OR record approved_loss() on prune.")
-        ok("[note] oldest snapshot rotated out of the hot backups dir", rotated_out)
+        # Deleted, that prune is a sanctioned but bounded loss — it must be ACCOUNTED, not
+        # silent. _rotate now records a constitution.approved_loss naming exactly which
+        # snapshot ids it pruned and why (snapshot rotation, keep=N) BEFORE any rmtree.
+        # The continuity ledger lives beside the store, so point constitution.STORE there
+        # to read back what _rotate recorded into THIS temp store.
+        _saved_cstore = constitution.STORE
+        constitution.STORE = store
+        try:
+            losses_before = len(constitution.approved_losses(name))
+            for i in range(3):
+                reliability.backup(name, store=store, keep=2, ts=f"20260604-12000{i+1}")
+            kept = reliability._existing_snapshots(store)
+            ok("rotation keeps exactly `keep` newest snapshots", len(kept) == 2)
+            rotated_out = "20260604-120000" not in kept
+            ok("oldest snapshot rotated out of the hot backups dir", rotated_out)
+
+            # THE FIX (was a flagged law-gap): the pruned snapshots are no longer rmtree'd
+            # silently. Every rotation that drops a snapshot records an approved_loss that
+            # NAMES the pruned id(s) and the bound (keep=N) — Accounted, not silent.
+            losses = constitution.approved_losses(name)
+            ok("[FIX] rotation RECORDED an approved_loss for the pruned snapshot(s) (not silent rmtree)",
+               len(losses) > losses_before)
+            rot_losses = [e for e in losses if e.get("subsystem") == "reliability._rotate"]
+            ok("[FIX] the rotation loss is attributed to reliability._rotate under LAW 001",
+               bool(rot_losses) and rot_losses[-1]["law"] == "ANIMA LAW 001"
+               and rot_losses[-1]["approver"] == "reliability.backup")
+            ok("[FIX] the recorded loss NAMES the exact snapshot id that was pruned (auditable)",
+               any("20260604-120000" in e["what"]
+                   or "20260604-120000" in (e.get("detail", {}).get("pruned") or [])
+                   for e in rot_losses))
+            ok("[FIX] the recorded loss states the rotation bound keep=N (why)",
+               any("keep=" in e["why"] or e.get("detail", {}).get("keep") is not None
+                   for e in rot_losses))
+            # The bound still holds: rotation does NOT retain snapshots unboundedly.
+            ok("[FIX] rotation is still BOUNDED (keep enforced, dir cannot grow without limit)",
+               len(reliability._existing_snapshots(store)) == 2)
+        finally:
+            constitution.STORE = _saved_cstore
 
 
 # ===================================================================================
