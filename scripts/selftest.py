@@ -181,7 +181,9 @@ for _f in _glob.glob(".anima/st_src.*") + _glob.glob(".anima/st_dst.*") + _glob.
 import subprocess as _sub
 for _law, _script in (("LAW 001 — continuity", "test_continuity.py"),
                       ("LAW 002 — never make the same discovery twice", "test_curiosity.py"),
-                      ("LAW 003 — understanding beats remembering", "test_meaning.py")):
+                      ("LAW 003 — understanding beats remembering", "test_meaning.py"),
+                      ("LAW 001 — compression (life review)", "test_review.py"),
+                      ("DREAM ENGINE — open loops", "test_loops.py")):
     _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), _script)
     _r = _sub.run([sys.executable, _p], capture_output=True, text=True)
     ok(f"{_law}: invariant test passes ({_script})", _r.returncode == 0)

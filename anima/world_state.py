@@ -581,7 +581,13 @@ def _b_goal(m):
 
 
 _rule(
-    r"\b(?:i(?:'?m| am)\s+(?:trying|working|hoping)\s+to|i\s+(?:want|need|plan|aim)\s+to|my\s+goal\s+is\s+to)\s+(?P<obj>[\w'-]+(?:\s+[\w'-]+){0,4})",
+    # widened (#27) for the Dream Engine: catch the common STATED-intention phrasings —
+    # "I'm planning/aiming/meaning to", "I've been meaning/wanting to", "I intend/hope/aspire
+    # to" — not just want/trying. "going to" is deliberately EXCLUDED (ambiguous with the plain
+    # future "I'm going to the store"). Never fabricates: still an explicit first-person intent.
+    r"\b(?:i(?:'?m| am)\s+(?:trying|working|hoping|planning|aiming|meaning|looking|itching|determined)\s+to"
+    r"|i(?:'?ve| have)\s+been\s+(?:trying|hoping|planning|meaning|wanting|working)\s+to"
+    r"|i\s+(?:want|need|plan|aim|intend|hope|mean|aspire)\s+to|my\s+goal\s+is\s+to)\s+(?P<obj>[\w'-]+(?:\s+[\w'-]+){0,4})",
     _b_goal,
 )
 

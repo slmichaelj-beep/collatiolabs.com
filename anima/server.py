@@ -335,18 +335,34 @@ def _turn(name, text, voice=False):
             world_state.capture_relations(name, text)  # race-free under _lock) — situations build over time.
         except Exception:
             pass
-        try:                                       # LAW 002 / Curiosity Engine: AFTER capture (so a fact
-            from . import curiosity, cloud as _cc   # stated THIS turn is never asked about), only on a
-            if (not _cc.is_cloud()                  # CASUAL turn (no fact answered, no capability run, no
-                    and name not in _CURIOSITY_ASKED   # verifier override), cloud-off (PII), budget-gated,
-                    and not _fact_block and not cap_note   # at most one gentle aside per session.
+        try:                                       # PROACTIVE ASIDE — at most ONE gentle, optional aside
+            from . import curiosity, loops, cloud as _cc  # per session, only on a CASUAL turn (no fact
+            if (not _cc.is_cloud()                  # answered, no capability, no verifier override),
+                    and name not in _CURIOSITY_ASKED   # cloud-off (PII). AFTER capture, so a fact/goal
+                    and not _fact_block and not cap_note   # stated THIS turn is never asked back about.
                     and not (_verdict is not None and getattr(_verdict, "override", False))):
-                _q = curiosity.next_question(name, recent_text=text)    # None most turns (budget gate)
-                if _q and _q.strip():
-                    _cands = curiosity.candidate_gaps(name)
-                    if _cands:
-                        curiosity.mark_asked(name, _cands[0])           # never re-ask this gap (Law 002)
-                    u.text = u.text.rstrip() + "\n\n" + _q.strip()      # a warm, optional curiosity
+                _aside = None
+                try:                                # 1) Dream Engine: resurface a stalled open loop —
+                    _rl = loops.resurface(name)     # "you wanted X — still?" (paced + 21-day cooldown)
+                    if _rl and _rl.strip():
+                        _ch = loops.last_resurface_choice()
+                        if _ch:
+                            loops.mark_resurfaced(name, _ch, line=_rl)  # never re-nag (Law 001 ledger)
+                        _aside = _rl.strip()
+                except Exception:
+                    _aside = None
+                if not _aside:                      # 2) else a contextual curiosity question (Law 002)
+                    try:
+                        _q = curiosity.next_question(name, recent_text=text)
+                        if _q and _q.strip():
+                            _cands = curiosity.candidate_gaps(name)
+                            if _cands:
+                                curiosity.mark_asked(name, _cands[0])   # never re-ask this gap (Law 002)
+                            _aside = _q.strip()
+                    except Exception:
+                        _aside = None
+                if _aside:                          # surface exactly one, persist, mark the session
+                    u.text = u.text.rstrip() + "\n\n" + _aside
                     _HISTORY[-1] = (text, u.text)                       # within-session coherence
                     _save_history(name)                                 # persist it (Law 001)
                     _CURIOSITY_ASKED.add(name)

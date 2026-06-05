@@ -194,6 +194,22 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"{args.name} took stock of what's been mattering lately (see: meaning).")
         except Exception:
             pass
+        # 1.6) life review (LAW 001 — Compressed > Forgotten): distil today into a Daily State —
+        # what changed / mattered / unresolved + what to remember forever — then roll the current
+        # week/month/year forward (idempotent, latest-wins per period; each rollup PRESERVES every
+        # remember-forever item). Append-only, read-only over the stores; the brain enables an
+        # optional warm narrative, off the critical path.
+        try:
+            from . import review
+            _b = brain if brain.available() else None
+            _d = review.daily_review(args.name, brain=_b)
+            if _d and not _d.get("quiet"):
+                print(f"{args.name} looked back on the day and kept what mattered (see: review).")
+            review.weekly_review(args.name)
+            review.monthly_review(args.name)
+            review.yearly_review(args.name)
+        except Exception:
+            pass
         # 2) feeling: fold lived moments into long-term replay, then learn on them
         mem = Memory.load(_mem_path(args.name))
         replay = Replay.load(_replay_path(args.name))
