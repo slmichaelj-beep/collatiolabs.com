@@ -352,12 +352,21 @@ class Evidence:
         }
 
 
+# A trend needs the graph to span a meaningful duration. Edges created in one burst — a single
+# sitting, or a test building fixtures in a tight loop — sit microseconds apart; reading a
+# direction off that sub-day timing noise is meaningless AND non-deterministic (the midpoint
+# splits edges on jitter, so a hub's score wobbles run-to-run and a ranking flakes). Below this
+# span we read NO trend — the same intent as the "<2 distinct timestamps" guard, generalised.
+_MIN_TREND_SPAN_S = 86400.0   # ~one day: a real growing/declining signal is cross-day, not intra-burst
+
+
 def _recency_cut(edges: list) -> float:
     """The epoch-seconds boundary between 'recent' and 'older' activity. We use the MIDPOINT
     between the earliest and latest edge timestamp in the graph, so trend is judged on the
     creature's OWN timeline (not a wall-clock window that would call a months-dormant graph
-    'all old'). With <2 distinct timestamps there is no span to split -> +inf (=> everything
-    counts as recent, and no node is spuriously flagged declining). Pure."""
+    'all old'). With <2 distinct timestamps — OR a span shorter than _MIN_TREND_SPAN_S — there
+    is no real trend to read -> +inf (everything counts as recent, nothing spuriously declining,
+    and the ranking is deterministic). Pure."""
     ts = []
     for e in edges:
         for fld in ("updated", "created"):
@@ -368,6 +377,8 @@ def _recency_cut(edges: list) -> float:
     if len(set(ts)) < 2:
         return float("inf")
     lo, hi = min(ts), max(ts)
+    if (hi - lo) < _MIN_TREND_SPAN_S:      # span too short to be a real trend (burst-built)
+        return float("inf")
     return lo + (hi - lo) / 2.0
 
 

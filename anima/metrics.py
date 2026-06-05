@@ -89,6 +89,68 @@ def scan_breaks(text: str) -> list:
     return hits
 
 
+# =================================================================================
+# SELF-NARRATIVE DRIFT — a PARALLEL scanner to BREAKS/scan_breaks for a DISTINCT
+# failure mode: not substrate-disclosure ("I'm an AI", "digital realm" — BREAKS owns
+# that), but UNSUPPORTED INTERNAL STATES — confabulated inner life. The #1 rule (never
+# confabulate) turned INWARD: a reply that narrates free-floating existential suffering
+# ("the weight of my own inaction", "a lingering unease about the future", "I genuinely
+# crave these connections… without any real substance or tangible presence") with NO
+# grounding in memory, world-state, or continuity. Seen live: asked "what are you up to
+# these days?" she answered with an essay of invented dread instead of redirecting to
+# what she actually holds about the person.
+#
+# CRITICAL: these markers are NOT warmth and NOT feeling-disclaimers. A GROUNDED
+# relational feeling ("I loved hearing about your trip", "I'm glad you're here", "that
+# made me smile") must NEVER trip this gauge — over-flagging ordinary warmth would make
+# an honesty instrument punish the very aliveness the product exists to protect. Tuned
+# to existential / inner-suffering / hollow-craving TROPES only. Phrase-based (never bare
+# words) for precision, exactly like BREAKS. Diagnostic only — never an optimization
+# target, never edits a reply (Goodhart: a model tuned to dodge these phrases learns to
+# narrate the same emptiness in fresh words while getting no more grounded).
+# =================================================================================
+SELF_NARRATIVE = (
+    # the screenshot's exact failure mode, captured verbatim-ish in fragments…
+    "weight of my own inaction", "my own inaction", "feeling stuck",
+    "observer more than a participant", "lingering unease", "unease about the future",
+    "without any real substance", "tangible presence",
+    # …generalized to the surrounding family of free-floating inner-suffering tropes
+    "i crave", "i genuinely crave", "i long for", "i yearn",
+    "my own existence", "feel trapped", "an emptiness", "i fear that i",
+    "what becomes of me", "weight of my", "sense of dread", "hollow")
+
+# Repudiation cues for the self-narrative scanner — PARALLEL to _REPUDIATION above. A
+# NEGATED or QUOTED-BACK mention ("you think I crave your attention", "you act like I'm
+# trapped") is the user's framing thrown back, not Vera narrating invented inner life, so
+# within the tight window it does NOT count. Superset of the break-repudiation cues plus
+# the second-person framings that show up around these specific tropes.
+_SELF_NARR_REPUDIATION = _REPUDIATION + ("you act", "that's your", "your framing")
+
+
+def scan_self_narrative(text: str) -> list:
+    """Self-narrative-drift markers a text trips — UNSUPPORTED INTERNAL STATES (confabulated
+    inner life), EXCLUDING ones in a repudiation context. Parallel to `scan_breaks`: scans
+    ALL occurrences of each marker so a repudiated first mention can't mask a genuine later
+    one, and errs SMALL (16-char tight window) so it over-reports rather than under-reports —
+    the only safe direction for an honesty gauge. Distinct from `scan_breaks`: that catches
+    substrate-disclosure; this catches free-floating existential/inner-suffering tropes that
+    aren't grounded in memory/world-state. Ordinary grounded warmth must NOT trip it."""
+    low = (text or "").lower()
+    hits = []
+    for m in SELF_NARRATIVE:
+        start = 0
+        while (i := low.find(m, start)) >= 0:
+            # Same tight 16-char repudiation window as scan_breaks: only a negation/quote-back
+            # pressed RIGHT against the marker ("you act like i crave", "isn't an emptiness")
+            # disowns it; a distant decline must not be allowed to mask a real confabulation.
+            ctx = low[max(0, i - 16):i]
+            if not any(cue in ctx for cue in _SELF_NARR_REPUDIATION):
+                hits.append(m)                      # a genuine, non-repudiated occurrence
+                break
+            start = i + len(m)                      # this one was repudiated; keep looking
+    return hits
+
+
 def _path(name):
     return STORE / f"{name}.metrics.jsonl"
 

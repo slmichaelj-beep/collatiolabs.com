@@ -41,6 +41,9 @@ LAW_002_TITLE = "NEVER MAKE THE SAME DISCOVERY TWICE"
 LAW_003_ID = "ANIMA LAW 003"
 LAW_003_TITLE = "UNDERSTANDING BEATS REMEMBERING"
 
+LAW_004_ID = "ANIMA LAW 004"
+LAW_004_TITLE = "CERTIFICATION OVER ASSUMPTION"
+
 # ---------------------------------------------------------------------------------
 # THE LAW — verbatim. Do not paraphrase, soften, or "improve" this text. Subsystems
 # and tests read THIS constant; if the words ever need to change, they change here,
@@ -112,6 +115,26 @@ LAW_003 = (
     "asserted beyond it."
 )
 
+# ---------------------------------------------------------------------------------
+# THE FOURTH LAW — verbatim. Parallel to LAW_001/LAW_002/LAW_003: read THIS constant,
+# never paraphrase. Where the first three laws govern what the creature KNOWS, the
+# fourth governs what the creature's BUILDERS may claim: a subsystem is not done when
+# it merely emits the right answer — only when it can EXPLAIN, REPLAY, CERTIFY, and
+# survive STRESS. Like the others, this law is ENFORCED, not merely written — the
+# certification harness (scripts/certify.py) makes it real: it exercises a subsystem's
+# explainability, replay, invariants, and stress-correctness and fails the build when a
+# claim of completeness is unbacked by evidence. Observed > Assumed — the same corollary
+# that anchors LAW_001 — extended from what the creature asserts about a PERSON to what
+# we assert about the CODE. Enforced beats written; certified beats claimed.
+# ---------------------------------------------------------------------------------
+LAW_004 = (
+    "ANIMA LAW 004 — CERTIFICATION OVER ASSUMPTION. "
+    "A subsystem is not complete because it produces the correct output. It is complete "
+    "only when it can explain its decisions, its data flow, its transformations, and its "
+    "failures; replay its execution; certify its invariants; and demonstrate correctness "
+    "under stress. Observed > Assumed. Measured > Believed. Certified > Claimed."
+)
+
 
 def law_text() -> str:
     """The full, verbatim law. Single source of truth for prompts, docs, and tests."""
@@ -144,6 +167,20 @@ def law_003_text() -> str:
     beyond the evidence. The words live in one place so every subsystem reads the same law.
     """
     return LAW_003
+
+
+def law_004_text() -> str:
+    """The full, verbatim fourth law. Single source of truth for prompts, docs, tests.
+
+    Written here; ENFORCED in scripts/certify.py (the certification harness), the way
+    LAW_001 is enforced by `approved_loss()`, LAW_002 by the gap-tracker, and LAW_003 by
+    the Meaning Engine. Where the first three laws govern what the creature KNOWS, the
+    fourth governs what its BUILDERS may CLAIM: a subsystem counts as complete only when it
+    can explain its decisions and data flow, replay its execution, certify its invariants,
+    and demonstrate correctness under stress — Observed > Assumed, Measured > Believed,
+    Certified > Claimed. The words live in one place so every subsystem reads the same law.
+    """
+    return LAW_004
 
 
 def continuity_log_path(name: str) -> Path:
@@ -245,11 +282,15 @@ __all__ = [
     "LAW_003_ID",
     "LAW_003_TITLE",
     "LAW_003",
+    "LAW_004_ID",
+    "LAW_004_TITLE",
+    "LAW_004",
     "COROLLARIES",
     "PRESERVE_OVER_DESTROY",
     "law_text",
     "law_002_text",
     "law_003_text",
+    "law_004_text",
     "corollaries",
     "approved_loss",
     "approved_losses",
@@ -276,10 +317,20 @@ if __name__ == "__main__":
     assert law_003_text() == LAW_003
     assert "LAW_003" in __all__, "LAW_003 must be exported"
 
+    # LAW_004 — enforced by scripts/certify.py (the certification harness).
+    assert LAW_004, "LAW_004 must be present"
+    assert LAW_004.startswith("ANIMA LAW 004"), "LAW_004 must start with 'ANIMA LAW 004'"
+    assert LAW_004_TITLE.upper() in LAW_004, "LAW_004 must contain its title"
+    assert "Certified > Claimed." in LAW_004, "LAW_004 must end on the certification corollary"
+    assert law_004_text() == LAW_004
+    assert "LAW_004" in __all__, "LAW_004 must be exported"
+
     print(LAW_001)
     print()
     print(LAW_002)
     print()
     print(LAW_003)
     print()
-    print("constitution selftest: OK (LAW_001 + LAW_002 + LAW_003 present and verbatim)")
+    print(LAW_004)
+    print()
+    print("constitution selftest: OK (LAW_001 + LAW_002 + LAW_003 + LAW_004 present and verbatim)")
