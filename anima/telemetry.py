@@ -530,6 +530,43 @@ class MRITrace:
             pass
         return self
 
+    # -- fill-in / supersede a stage frame (the black-box closer) ----------
+    def upsert_stage(self, name: str, *, t_ms: Any = None, in_shape: Any = None,
+                     out: Any = None, dropped: Any = None, confidence: Any = None,
+                     note: str = "") -> "MRITrace":
+        """Like ``stage``, but if a frame of this ``name`` already exists IN PLACE it is
+        REPLACED rather than a duplicate appended (keeping the canonical frame order).
+
+        This is how a stage assembled DEEPER in the call tree fills in a black box the
+        outer turn could only mark as N/A: ``server._turn`` emits a placeholder
+        ``situation``/``prompt`` frame before calling ``mouth.respond`` (it cannot see
+        inside the mouth), then the mouth — running on the same turn — supersedes that
+        placeholder with the REAL frame via the current-trace handle. The viewer's
+        ``find_frame``/movie then show the populated frame at its proper position, not a
+        confusing N/A twin. Falls back to a plain append if the frame isn't there yet.
+        Guarded like everything here — a recorder slip never reaches the turn."""
+        try:
+            frame = {
+                "stage": str(name),
+                "t_ms": _round_ms(t_ms),
+                "in_shape": _jsonable(in_shape),
+                "out": _jsonable(out),
+                "dropped": _as_list(dropped),
+                "confidence": _conf(confidence),
+                "note": str(note or "")[:600],
+            }
+            with self._lock:
+                stages = self.doc["stages"]
+                for i, f in enumerate(stages):
+                    if isinstance(f, dict) and str(f.get("stage")) == frame["stage"]:
+                        stages[i] = frame      # supersede the placeholder in place
+                        break
+                else:
+                    stages.append(frame)       # no prior frame — just add it
+        except Exception:
+            pass
+        return self
+
     # -- a shape transformation across an organ boundary -------------------
     def shape(self, boundary: str, *, received: Any = None, expected: Any = None,
               transformation: str = "", loss: Any = None) -> "MRITrace":
@@ -597,6 +634,7 @@ class MRITrace:
                         pass
                 doc = self.doc
             _append_mri(self.name, doc)
+            _clear_current(self)      # this turn is closed — drop the thread's handle
             return doc
         except Exception:
             return None
@@ -609,6 +647,7 @@ class _NullTrace(MRITrace):
     guard short-circuits. Keeps ``_turn`` free of ``if tr is not None`` clutter."""
 
     def commit(self, *, reply: Any = None, total_ms: Any = None) -> Optional[dict]:
+        _clear_current(self)      # still release the thread handle, even though we write nothing
         return None
 
 
@@ -692,19 +731,100 @@ def open_trace(name: str, turn_id: str, user_text: str = "") -> MRITrace:
     """Open a fresh MRI trace for one turn. ALWAYS returns a usable trace object (a
     ``_NullTrace`` if construction somehow fails), so a call site never has to guard
     the handle itself — only the eventual ``commit`` touches disk. The turn drives
-    ``.stage/.shape/.alternative`` on it as each stage runs, then ``.commit``."""
+    ``.stage/.shape/.alternative`` on it as each stage runs, then ``.commit``.
+
+    Side effect — THE CURRENT-TRACE HANDLE: the freshly opened trace is also stashed as
+    *this thread's* current open trace, so code DEEPER in the same turn (e.g.
+    ``mouth.respond`` / ``mouth.system_prompt``, which ``server._turn`` cannot pass a
+    handle into without owning server.py) can append its own frames via
+    ``record_stage(...)`` / ``current_trace()`` WITHOUT threading the handle through every
+    call. The turn is serialised per-thread, so one current trace per thread is exact;
+    ``commit`` clears the handle. Stashing is itself guarded — it can never fail the open.
+    """
     try:
-        return MRITrace(name, turn_id, user_text)
+        tr = MRITrace(name, turn_id, user_text)
     except Exception:
         try:
-            return _NullTrace(name, turn_id, user_text)
+            tr = _NullTrace(name, turn_id, user_text)
         except Exception:
             # last-ditch: an object that at least has the methods (no disk).
-            t = _NullTrace.__new__(_NullTrace)
-            t.name, t.turn_id, t._committed = name, turn_id, True
-            t._lock = threading.Lock()
-            t.doc = {"stages": [], "shapes": [], "alternatives": []}
-            return t
+            tr = _NullTrace.__new__(_NullTrace)
+            tr.name, tr.turn_id, tr._committed = name, turn_id, True
+            tr._lock = threading.Lock()
+            tr.doc = {"stages": [], "shapes": [], "alternatives": []}
+    _set_current(tr)
+    return tr
+
+
+# ---------------------------------------------------------------------------
+# THE CURRENT-TRACE HANDLE — a per-thread pointer to the turn's open MRI trace.
+#
+# ``server._turn`` (off-limits to organs) opens the trace via ``open_trace`` and films
+# the stages IT can see. But two stages run INSIDE ``mouth.respond`` and are invisible
+# from _turn: the world_state SITUATION cluster, and the full system-prompt assembly.
+# Rather than change server.py to pass a handle down, ``open_trace`` parks the trace
+# here keyed by thread; the mouth (same thread, same turn) reaches it with
+# ``current_trace()`` and writes its frames with ``record_stage(...)``. If no trace is
+# open (mouth called outside a recorded turn, or recording disabled), every call is a
+# guarded no-op — never an error, never latency on the turn. ``threading.local`` keeps
+# concurrent turns on different threads from ever seeing each other's trace.
+# ---------------------------------------------------------------------------
+_CURRENT = threading.local()
+
+
+def _set_current(tr: Optional["MRITrace"]) -> None:
+    try:
+        _CURRENT.trace = tr
+    except Exception:
+        pass
+
+
+def _clear_current(tr: Optional["MRITrace"] = None) -> None:
+    """Drop this thread's current trace. If ``tr`` is given, only clear when it IS the
+    current one (so a late ``commit`` on an already-superseded trace can't blank a newer
+    turn's handle on the same thread)."""
+    try:
+        cur = getattr(_CURRENT, "trace", None)
+        if tr is None or cur is tr:
+            _CURRENT.trace = None
+    except Exception:
+        pass
+
+
+def current_trace() -> Optional["MRITrace"]:
+    """This thread's OPEN MRI trace for the turn in flight, or None if none is open.
+
+    The handle ``mouth.respond`` uses to film the frames ``server._turn`` can't see —
+    without server.py ever passing it down. Returns None (a clean no-op signal) whenever
+    the mouth runs outside a recorded turn, so a caller can guard with a simple truth test.
+    Never raises."""
+    try:
+        return getattr(_CURRENT, "trace", None)
+    except Exception:
+        return None
+
+
+def record_stage(name: str, *, upsert: bool = True, **kw) -> bool:
+    """Append (or supersede) a stage frame on THIS THREAD'S current open trace, if any.
+
+    The passive entry point for deep-in-the-turn organs (the mouth) to close a black box
+    the outer ``server._turn`` could only mark N/A. Accepts the same keywords as
+    ``MRITrace.stage`` (``t_ms``, ``in_shape``, ``out``, ``dropped``, ``confidence``,
+    ``note``). With ``upsert=True`` (default) it REPLACES a same-named placeholder frame in
+    place (so the viewer shows the real ``prompt``/``situation`` frame, not an N/A twin);
+    with ``upsert=False`` it always appends. Returns True if a frame was recorded, False if
+    no trace was open (the no-op case) — fully guarded, never raises, ~0 added latency."""
+    try:
+        tr = current_trace()
+        if tr is None:
+            return False
+        if upsert:
+            tr.upsert_stage(name, **kw)
+        else:
+            tr.stage(name, **kw)
+        return True
+    except Exception:
+        return False
 
 
 def trace(name: str, turn_id: str) -> Optional[dict]:

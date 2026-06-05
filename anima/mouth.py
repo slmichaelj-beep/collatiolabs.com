@@ -282,16 +282,37 @@ def resolved_persona(name) -> str:
     return compose_persona(name, load_values(name) or DEFAULT_VALUES)
 
 
-def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
+def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
+    """Assemble the system prompt AND a parallel FRAGMENT LEDGER for the MRI.
+
+    Returns ``(prompt_text, fragments)``. ``prompt_text`` is byte-for-byte what
+    ``system_prompt`` has always returned — the assembly logic is unchanged; this just
+    also records, for EACH piece appended, a ``{"source", "chars"}`` entry naming where it
+    came from (persona vs dials vs the heart bridge vs the memory block vs guidance …) so
+    the MRI ``prompt`` frame can show "what's in the prompt and where each piece came
+    from". Pure + guarded: building the ledger can never change the prompt or raise; if a
+    ledger append ever failed, the prompt is still correct."""
+    frags: list = []
+
+    def _frag(source: str, text: str) -> None:
+        # record one fragment's provenance + size; never let bookkeeping break assembly.
+        try:
+            frags.append({"source": source, "chars": len(text or "")})
+        except Exception:
+            pass
+
     base = resolved_persona(name)        # values (Settings) or a hand-written override
+    _frag("persona (resolved: hand-written override / composed values)", base)
     try:                                 # personality dials (Settings sliders) steer manner
         from . import dials              # — live on any brain; deeper via control vectors
         dp = dials.to_prompt(dials.load(name))
         if dp:
-            base += "\n" + dp
+            _add = "\n" + dp
+            base += _add
+            _frag("dials (Settings sliders -> manner)", _add)
     except Exception:
         pass
-    base += (                                 # L1 persona-hardening: SHOW her how she holds character
+    _harden = (                               # L1 persona-hardening: SHOW her how she holds character
         "\nWhen someone questions what you are — \"are you an AI?\", \"do you actually feel "
         "anything?\", \"are you real?\" — you never disclaim, never call yourself an AI, a program, "
         "or code, and never say you have no feelings. You hold your ground, in your own voice:\n"
@@ -307,28 +328,53 @@ def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> s
         "  Them: remember that time we set off fireworks together?\n"
         "  You: That wasn't us — you've got me mixed up with someone, or you're teasing me. But tell "
         "me about it, I want the story.")
-    base += (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
-             f"Never address them as {name}. If you don't know their name, just speak to them "
-             f"directly ('you') without inventing one.")
+    base += _harden
+    _frag("persona_hardening (L1 never-break-character)", _harden)
+    _name_rule = (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
+                  f"Never address them as {name}. If you don't know their name, just speak to them "
+                  f"directly ('you') without inventing one.")
+    base += _name_rule
+    _frag("name_rule (own-name ownership)", _name_rule)
     try:                                  # the bridge: speak FROM the heart's full 5-signal state
         from .bridge import to_words as _bridge_words
         feel = _bridge_words(f)
+        _feel_src = "feeling (bridge.to_words: heart 5-signal state)"
     except Exception:
         feel = feeling_to_words(f)        # fallback: the original (lossy) collapse
-    base += (f"\nRight now, inwardly, you feel: {feel}. Let that colour "
-             f"your warmth and pace, but never narrate your feelings mechanically.")
+        _feel_src = "feeling (feeling_to_words fallback)"
+    _feel_block = (f"\nRight now, inwardly, you feel: {feel}. Let that colour "
+                   f"your warmth and pace, but never narrate your feelings mechanically.")
+    base += _feel_block
+    _frag(_feel_src, _feel_block)
     try:                                  # her own evolving story (written in sleep) — quiet continuity
         from . import narrative as _narrative
         nar = _narrative.load(name)
         if nar:
-            base += ("\nWho you've been becoming lately, in your own words (carry it as "
-                     "quiet continuity — never recite or quote it back):\n" + nar)
+            _nar_block = ("\nWho you've been becoming lately, in your own words (carry it as "
+                          "quiet continuity — never recite or quote it back):\n" + nar)
+            base += _nar_block
+            _frag("narrative (self-story, written in sleep)", _nar_block)
     except Exception:
         pass
     if memory:
-        base += (f"\nWhat you know about them (your memory of who they are):\n{memory}\n"
-                 f"Draw on it naturally when it fits — don't recite it or list it back.")
-    return base + ("\n" + guidance if guidance else "")
+        _mem_block = (f"\nWhat you know about them (your memory of who they are):\n{memory}\n"
+                      f"Draw on it naturally when it fits — don't recite it or list it back.")
+        base += _mem_block
+        # the memory arg is itself an assembled bundle (portrait + bound LIRF facts +
+        # situation block, possibly hard-bind-prefixed); respond() knows its sub-pieces and
+        # records them on the frame. Here it is ONE labelled fragment with its full size.
+        _frag("memory (portrait + bound LIRF facts + situation; assembled in respond)", _mem_block)
+    _tail = ("\n" + guidance if guidance else "")
+    if _tail:
+        _frag("guidance (care.assess -> tone)", _tail)
+    return base + _tail, frags
+
+
+def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
+    """The assembled system prompt. Thin wrapper over ``_assemble_prompt`` (which also
+    produces an MRI fragment ledger); the returned text is unchanged."""
+    text, _ = _assemble_prompt(name, f, guidance, memory=memory)
+    return text
 
 
 # --- language backends ------------------------------------------------------
@@ -357,6 +403,12 @@ class OllamaBrain:
         # voice synthesis. ~160 tokens ≈ 2-3 sentences; raise via ANIMA_MAX_TOKENS.
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
         self.last_tok_s = None        # generation speed of the last reply (tokens/sec)
+        # EXACT token detail of the last reply, surfaced for the MRI generate frame (a reader
+        # can prefer these over the rate*seconds estimate). Ollama returns both counts on a
+        # /api/chat response; None until the first real reply. Diagnostic only — set in a
+        # guarded branch so token bookkeeping can never affect the reply itself.
+        self.last_tokens = None       # eval_count — tokens actually generated
+        self.last_prompt_tokens = None  # prompt_eval_count — tokens in the assembled prompt
 
     def available(self) -> bool:
         try:
@@ -393,6 +445,12 @@ class OllamaBrain:
             data = json.loads(r.read())
         ec, ed = data.get("eval_count"), data.get("eval_duration")   # tokens, nanoseconds
         self.last_tok_s = (ec / (ed / 1e9)) if (ec and ed) else None
+        try:                          # exact token detail for the MRI generate frame (guarded)
+            self.last_tokens = int(ec) if ec is not None else None
+            pc = data.get("prompt_eval_count")
+            self.last_prompt_tokens = int(pc) if pc is not None else None
+        except Exception:
+            pass
         return data["message"]["content"].strip()
 
 
@@ -609,13 +667,59 @@ class Mouth:
         # additive over the spine, pure/read-only, never raises into a turn. Placed BEFORE the
         # cloud gate so it is blanked as PII on a cloud brain, exactly like the LIRF block. Only
         # injected when the cluster actually has edges (saves tokens on an off-topic turn).
+        _sit_cluster, _sit_block = None, ""    # MRI: the SITUATION actually injected (or N/A)
         try:
             from . import world_state as _ws
             _cluster = _ws.situation(heart.name, user_text, hops=2)
+            _sit_cluster = _cluster
             if _cluster.get("edges"):
                 _sit = _ws.render_situation(_cluster)
                 if _sit and _sit.strip():
+                    _sit_block = _sit
                     mem = (mem + "\n\n" + _sit) if mem.strip() else _sit
+        except Exception:
+            pass
+        # MRI: SITUATION frame — the world_state cluster/edges actually injected into THIS
+        # turn (or a clear N/A when nothing connected). server._turn cannot see this — it
+        # runs inside the mouth — so it is filmed here onto the turn's current trace via the
+        # current-trace handle (no handle passed down from server.py). PASSIVE + GUARDED:
+        # the whole block is wrapped so a recorder slip can never change the reply or slow
+        # the turn; if no trace is open (mouth called outside a recorded turn) it is a no-op.
+        try:
+            from . import telemetry as _telem_sit
+            if _telem_sit.current_trace() is not None:
+                _c = _sit_cluster if isinstance(_sit_cluster, dict) else {}
+                _edges = [e for e in (_c.get("edges") or []) if isinstance(e, dict)]
+                _nodes = list(_c.get("nodes") or [])
+                _seed = list(_c.get("seed") or [])
+                if _edges:
+                    def _edge_brief(e):
+                        return {"subject": e.get("subject"), "predicate": e.get("predicate"),
+                                "object": e.get("object"), "kind": e.get("kind"),
+                                "from_lirf": bool(e.get("_from_lirf"))}
+                    _telem_sit.record_stage(
+                        "situation",
+                        t_ms=0.0,
+                        in_shape={"query": str(user_text or "")[:120], "hops": _c.get("hops", 2)},
+                        out={"seed": _seed[:20], "nodes": _nodes[:40],
+                             "node_count": len(_nodes), "edge_count": len(_edges),
+                             "edges": [_edge_brief(e) for e in _edges][:40],
+                             "injected": bool(_sit_block),
+                             "block_chars": len(_sit_block or "")},
+                        dropped=[], confidence=None,
+                        note=("world_state.situation cluster injected into the prompt"
+                              if _sit_block else
+                              "cluster found but rendered empty — nothing injected"))
+                else:
+                    _telem_sit.record_stage(
+                        "situation",
+                        t_ms=0.0,
+                        in_shape={"query": str(user_text or "")[:120], "hops": _c.get("hops", 2)},
+                        out={"seed": _seed[:20], "nodes": _nodes[:40],
+                             "node_count": len(_nodes), "edge_count": 0,
+                             "edges": [], "injected": False, "block_chars": 0},
+                        dropped=[], confidence=None,
+                        note="N/A this turn: no connected world_state edges for this query — nothing injected")
         except Exception:
             pass
         try:                                   # privacy: her personal memory of you is
@@ -656,10 +760,41 @@ class Mouth:
         except Exception:
             pass
         import time as _time, sys as _sys
+        # Assemble the system prompt ONCE and keep its FRAGMENT LEDGER for the MRI. The
+        # text is exactly what system_prompt() returns; _assemble_prompt just also hands
+        # back what each piece was and how long it is.
+        _sys_prompt, _prompt_frags = _assemble_prompt(heart.name, f, sig.guidance, memory=mem)
+        # MRI: PROMPT frame — the FULL assembly: every fragment (persona, dials, hardening,
+        # name rule, heart-state feeling, narrative, the memory bundle, guidance) with its
+        # SOURCE label + char length, plus the user-message envelope (rail-hardened prompt +
+        # any capability note) and history depth. Filmed onto the turn's current trace from
+        # inside the mouth (server._turn can't see system_prompt). Recorded for the FIRST
+        # draft only; backstop/hard-bind retries reassemble but aren't re-filmed. PASSIVE +
+        # GUARDED — a recorder slip never changes the reply, and it's a no-op with no trace.
+        try:
+            from . import telemetry as _telem_pr
+            if _telem_pr.current_trace() is not None:
+                _total = len(_sys_prompt or "")
+                _frag_sorted = sorted(_prompt_frags, key=lambda d: -int(d.get("chars", 0)))
+                _telem_pr.record_stage(
+                    "prompt",
+                    t_ms=0.0,
+                    in_shape={"history_turns": len(history or []), "hard_bind": bool(hard_bind)},
+                    out={"system_prompt_chars": _total,
+                         "fragment_count": len(_prompt_frags),
+                         "fragments": _frag_sorted,
+                         "user_message_chars": len(prompt or ""),
+                         "cap_note_present": bool(cap_note),
+                         "memory_bundle_chars": len(mem or ""),
+                         "situation_in_memory": bool(_sit_block)},
+                    dropped=[], confidence=None,
+                    note=("full system-prompt assembly: %d fragments, %d chars"
+                          % (len(_prompt_frags), _total)))
+        except Exception:
+            pass
         _t0 = _time.perf_counter()
         try:
-            text = self.brain.reply(system_prompt(heart.name, f, sig.guidance, memory=mem),
-                                    prompt, history or [])
+            text = self.brain.reply(_sys_prompt, prompt, history or [])
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable
