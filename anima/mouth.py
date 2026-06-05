@@ -67,21 +67,21 @@ def _strip_scaffold_leak(text: str) -> str:
     We split it into bracket-tags (excised inline, keeping the warm sentence) and framing
     phrases (whole sentence dropped). Pure, conservative, auto-adapting, never raises."""
     import re
-    try:                                             # the review superset carries spine + world +
-        from .review import REVIEW_SCAFFOLD_TOKENS as TOKENS  # meaning + review tags; fall back
-    except Exception:                                # meaning -> world -> spine -> a hardcoded floor.
+    TOKENS = ()                                      # UNION every engine's scaffold-token set — the
+    for _mod, _attr in (("review", "REVIEW_SCAFFOLD_TOKENS"),       # supersets branched (review AND
+                        ("trajectory", "TRAJECTORY_SCAFFOLD_TOKENS"),  # trajectory both extend meaning),
+                        ("meaning", "MEANING_SCAFFOLD_TOKENS"),     # so first-wins no longer covers all.
+                        ("world_state", "WORLD_SCAFFOLD_TOKENS"), ("spine", "SCAFFOLD_TOKENS")):
         try:
-            from .meaning import MEANING_SCAFFOLD_TOKENS as TOKENS
+            _m = __import__("anima." + _mod, fromlist=[_attr])
+            TOKENS = TOKENS + tuple(getattr(_m, _attr))
         except Exception:
-            try:
-                from .world_state import WORLD_SCAFFOLD_TOKENS as TOKENS
-            except Exception:
-                try:
-                    from .spine import SCAFFOLD_TOKENS as TOKENS
-                except Exception:
-                    TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]", "[SITUATION]", "[LINK]",
-                              "[KNOWS]", "THESE ARE THINGS YOU KNOW", "according to my memory",
-                              "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
+            pass
+    if not TOKENS:                                   # hardcoded floor if every import failed
+        TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]", "[SITUATION]", "[LINK]",
+                  "[KNOWS]", "THESE ARE THINGS YOU KNOW", "according to my memory",
+                  "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
+    TOKENS = tuple(dict.fromkeys(TOKENS))            # dedupe, preserve order
     s = text or ""
     # Stray model control/template markers (chat-template end tokens some local models emit
     # into the body, e.g. Stheno's "|done|"). Never scaffolding from us, but they must not

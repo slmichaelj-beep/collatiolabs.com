@@ -342,16 +342,27 @@ def _turn(name, text, voice=False):
                     and not _fact_block and not cap_note   # stated THIS turn is never asked back about.
                     and not (_verdict is not None and getattr(_verdict, "override", False))):
                 _aside = None
-                try:                                # 1) Dream Engine: resurface a stalled open loop —
-                    _rl = loops.resurface(name)     # "you wanted X — still?" (paced + 21-day cooldown)
-                    if _rl and _rl.strip():
-                        _ch = loops.last_resurface_choice()
-                        if _ch:
-                            loops.mark_resurfaced(name, _ch, line=_rl)  # never re-nag (Law 001 ledger)
-                        _aside = _rl.strip()
+                try:                                # 1) Opportunity Engine: a grounded, optional OFFER
+                    from . import opportunity        # "want me to…?" — paced; an OFFER, never an action
+                    _op = opportunity.next_opportunity(name)
+                    if _op and _op.strip():
+                        _oc = opportunity.last_opportunity_choice()
+                        if _oc:
+                            opportunity.mark_offered(name, _oc, line=_op)
+                        _aside = _op.strip()
                 except Exception:
                     _aside = None
-                if not _aside:                      # 2) else a contextual curiosity question (Law 002)
+                if not _aside:
+                    try:                            # 2) Dream Engine: resurface a stalled open loop —
+                        _rl = loops.resurface(name)  # "you wanted X — still?" (paced + 21-day cooldown)
+                        if _rl and _rl.strip():
+                            _ch = loops.last_resurface_choice()
+                            if _ch:
+                                loops.mark_resurfaced(name, _ch, line=_rl)  # never re-nag (Law 001)
+                            _aside = _rl.strip()
+                    except Exception:
+                        _aside = None
+                if not _aside:                      # 3) else a contextual curiosity question (Law 002)
                     try:
                         _q = curiosity.next_question(name, recent_text=text)
                         if _q and _q.strip():
