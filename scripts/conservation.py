@@ -1278,18 +1278,51 @@ def _selftest() -> int:
     ok("ledger: total_salient == captured + lost",
        led["total_salient"] == led["captured_salient"] + len(led["lost"]))
 
-    # --- tone is reported LOST even when an edge predicate echoes it ---
-    # world_state stores a (you stressed_by 'Q3 launch') edge; its PREDICATE contains the
-    # token 'stressed', but that captured the RELATION, not the FEELING. Tone must still be
-    # reported lost — credited only by CONTENT (values/objects), never by a predicate slot.
+    # --- tone is now CAPTURED via a durable reported_feeling fact (Wave: tone widening) ---
+    # PRECEDENT: exactly the Maya/Austin flip from commit d0fc93d — the tool always measured
+    # actual loss; only the test's expectation was stale once the extractor widened. memory_lirf
+    # now captures an explicit first-person feeling ("I've been really stressed") as a durable
+    # reported_feeling row whose VALUE is the user's stated phrase "really stressed" — so BOTH
+    # the affect ('stressed') AND its intensity ('really') survive as CONTENT and are credited.
+    # RULE #1: that row records the USER *reported* a feeling (an OBSERVED fact grounded in their
+    # words), NOT that Vera feels anything — the conservation tool credits tone ONLY from a fact
+    # VALUE (never a predicate), so this credit is the genuine durable capture, not a relation
+    # predicate masquerading as affect. The earlier 'stressed_by' predicate still does NOT credit
+    # tone (relation != affect); the credit comes from the reported_feeling value.
     led_t = conservation_ledger("I've been really stressed about the Q3 launch")
-    ok("ledger: tone ('stressed') is LOST despite a 'stressed_by' predicate (relation!=affect)",
-       any(u["category"] == "tone" and _norm_unit(u["surface"]) == _norm_unit("stressed")
-           for u in led_t["lost"]))
-    ok("ledger: degree word ('really') is reported LOST (intensity dropped)",
-       any(u["category"] == "tone" and u["surface"].lower() == "really" for u in led_t["lost"]))
-    ok("ledger: lost_by_category counts tone losses",
-       led_t["lost_by_category"]["tone"] >= 1)
+    # the value is a phrase ("really stressed") — tokenise it the way the captured-set diff
+    # does (word by word, stemmed) so the affect token is matched, not the collapsed phrase key.
+    def _val_tokens(f):
+        vals = f["value"] if isinstance(f.get("value"), list) else [f.get("value")]
+        toks = set()
+        for v in vals:
+            for w in _WORD.findall(str(v)):
+                k = _norm_unit(w)
+                if k:
+                    toks.add(k)
+        return toks
+    ok("ledger: a reported_feeling fact captures the affect ('really stressed') durably",
+       any(f.get("trait") == "reported_feeling"
+           and _norm_unit("stressed") in _val_tokens(f)
+           and _norm_unit("really") in _val_tokens(f)
+           for f in led_t["extracted"]["facts"]))
+    ok("ledger: tone ('stressed') is now CAPTURED (reported_feeling value), not lost",
+       not any(u["category"] == "tone" and _norm_unit(u["surface"]) == _norm_unit("stressed")
+               for u in led_t["lost"]))
+    ok("ledger: degree word ('really') is now CAPTURED (intensity kept in the value), not lost",
+       not any(u["category"] == "tone" and u["surface"].lower() == "really"
+               for u in led_t["lost"]))
+    ok("ledger: no tone is lost for an explicit first-person feeling statement",
+       led_t["lost_by_category"]["tone"] == 0)
+    # RULE #1 GUARDRAIL, asserted: the durable record is grounded in the USER's words and never
+    # claims a feeling FOR Vera. The captured value is a phrase the user literally used, and the
+    # trait name itself ('reported_feeling') frames it as the user's report, not Vera's state.
+    ok("ledger: RULE #1 — captured affect is GROUNDED in the user's words (value ⊆ input)",
+       all(all(tok in "i've been really stressed about the q3 launch"
+               for tok in str(v).lower().split())
+           for f in led_t["extracted"]["facts"]
+           if f.get("trait") == "reported_feeling"
+           for v in (f["value"] if isinstance(f.get("value"), list) else [f.get("value")])))
 
     # --- once a TOTAL-LOSS input, now captured. Wave A (#35) added the "I moved to X" rule +
     # the move/cause world-state edge, so this rich causal input now stores facts + edges and
@@ -1421,15 +1454,23 @@ def _selftest() -> int:
        total_attributed >= sc["detected"] - sc["used"])
 
     # --- DISCRIMINATION: a high-retention input vs a low-retention input. The fact-dense
-    #     input rides to USED in full; the all-tone input is dropped at CAPTURE in full. ---
+    #     input rides to USED in full; the all-tone input is dropped at CAPTURE in full.
+    #     The low example is deliberately kept GENUINELY LOST so the loss path stays exercised
+    #     after the tone widening: it carries NO explicit first-person feeling frame ("I'm/I
+    #     feel <affect>") and its affect words ('heavy'/'rough'/'exhausting') are outside the
+    #     durable reported_feeling lexicon — so nothing is captured and it drops fully at
+    #     CAPTURE, exactly the honest behaviour for tone with no slot. (The prior example,
+    #     "I am really stressed ... lately", is now PARTLY captured — "really stressed" lands as
+    #     a reported_feeling fact — so it no longer exercises a full-capture loss; this purer
+    #     all-tone line restores that.) ---
     hi = conservation_ledger("My name is Sarah and I live in Portland")
-    lo = conservation_ledger("I am really stressed and excited and overwhelmed lately honestly")
+    lo = conservation_ledger("everything feels heavy and rough and exhausting")
     hsc, lsc = hi["pipeline"]["stage_counts"], lo["pipeline"]["stage_counts"]
     hi_e2e = _safe_rate(hsc["used"], hsc["detected"])
     lo_e2e = _safe_rate(lsc["used"], lsc["detected"])
     ok(f"discriminate: high-retention input reaches USED in full (e2e={hi_e2e:.2f})",
        hsc["detected"] > 0 and hsc["used"] == hsc["detected"])
-    ok(f"discriminate: low-retention input is dropped at CAPTURE (e2e={lo_e2e:.2f})",
+    ok(f"discriminate: low-retention all-tone input is dropped at CAPTURE (e2e={lo_e2e:.2f})",
        lsc["detected"] > 0 and lsc["used"] == 0
        and len(lo["pipeline"]["lost_at"].get("capture", [])) == lsc["detected"])
     ok("discriminate: high-retention e2e STRICTLY exceeds low-retention e2e",

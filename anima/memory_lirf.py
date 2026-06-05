@@ -83,7 +83,11 @@ NEAR_IMMUTABLE = frozenset({"birthday", "birthplace", "name", "blood_type"})
 
 # Traits that hold a *set* of values rather than a single one. Captures append with
 # dedupe instead of superseding ("I hate cilantro" + "I hate olives" -> both).
-LIST_TRAITS = frozenset({"dislikes", "likes", "pets", "allergies", "children", "siblings"})
+# ``reported_feeling`` is list-valued because a person voices MANY transient affect states
+# over time ("I've been stressed", later "I'm excited"); each is an OBSERVED report worth
+# keeping, none supersedes the other (see the affect rules + RULE #1 GUARDRAIL below).
+LIST_TRAITS = frozenset({"dislikes", "likes", "pets", "allergies", "children", "siblings",
+                         "reported_feeling"})
 
 
 # --- canonical trait slugs --------------------------------------------------
@@ -288,6 +292,46 @@ def _is_stopname(v) -> bool:
     return (not s) or s in _STOPNAMES
 
 
+# --- AFFECT / FEELING lexicon (for the reported_feeling rule) ----------------------------
+# THE #1-RULE GUARDRAIL — read this before touching the affect rules:
+#   The reported_feeling trait stores that the USER *reported* feeling a way, as an OBSERVED
+#   fact about the user, grounded verbatim in their words (the evidence snippet is the user's
+#   own sentence). It is the durable record of "the user SAID they've been stressed", NEVER a
+#   claim that Vera feels anything. Vera's #1 rule (never confabulate a feeling) is preserved
+#   precisely because the value is the user's stated affect word, captured only from an
+#   explicit FIRST-PERSON feeling frame ("I'm / I've been / I feel / we are <affect>"). There
+#   is no inference: if the user did not say it, nothing is stored.
+# A closed set of common affect adjectives the user applies to THEMSELVES. Kept as bare
+# adjectives (the rule's frame supplies the "the user is/feels" part) so a stray noun can
+# never match. Mirrors the conservation observatory's tone lexicon so the durable capture
+# lines up with what that tool counts as tone salience.
+_AFFECT_WORDS = (
+    r"stressed|stress|stressful|anxious|nervous|overwhelmed|worried|scared|afraid|"
+    r"excited|thrilled|happy|glad|grateful|hopeful|proud|relieved|content|calm|"
+    r"sad|down|depressed|lonely|tired|exhausted|drained|burnt|burned|burnt\s*out|"
+    r"frustrated|angry|upset|miserable|heartbroken|devastated|furious|uneasy|restless|"
+    r"hopeless|ashamed|guilty|delighted|joyful|fearful"
+)
+# Degree adverbs that modify an affect ("really stressed", "so anxious"). Captured WITH the
+# affect word so the stored value keeps the user's stated INTENSITY ("really stressed"),
+# which is itself the signal the conservation ledger reported lost at capture.
+_AFFECT_DEGREE = (r"(?:really|very|so|super|extremely|incredibly|deeply|terribly|totally|"
+                  r"completely|utterly|quite|pretty|kinda|a\s+bit|a\s+little)\s+")
+
+
+def _affect_value(m):
+    """Build the reported_feeling value: the user's stated affect WITH any degree modifier,
+    e.g. "really stressed", "excited". Returns the verbatim phrase the user used so both the
+    feeling AND its intensity are kept durably (and so the value is unmistakably the USER's
+    word, never an inference). None if the affect group is empty (defensive)."""
+    aff = (m.group("aff") or "").strip()
+    if not aff:
+        return None
+    deg = (m.groupdict().get("deg") or "").strip()
+    phrase = (deg + " " + aff).strip() if deg else aff
+    return _clean(phrase)
+
+
 _RULES = [
     # name
     (re.compile(r"\bmy name(?:'s| is)\s+(?P<v>[A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})", re.I),
@@ -460,6 +504,24 @@ _RULES = [
     (re.compile(r"\bmy\s+favou?rite\s+(?P<cat>food|meal|dish|cuisine|movie|film|show|series|band|artist|musician|song|book|author|team|drink|beer|wine|season|sport|game|hobby|place|city|number|animal|colou?r)\s+is\s+" + _HEDGE_PREFIX + r"(?P<v>[\w'\d][\w'-]*(?:\s+[\w'-]+){0,3})", re.I),
      lambda m: "favorite_" + m.group("cat").lower().replace("colour", "color").replace("film", "movie").replace("series", "show"),
      lambda m: _clean(m.group("v"))),
+    # --- REPORTED FEELING (affect / tone) ----------------------------------------------
+    # RULE #1 GUARDRAIL (see _AFFECT_WORDS above): captures that the USER reported a feeling
+    # state — an OBSERVED fact grounded in their verbatim words — NOT that Vera feels anything.
+    # Frame: an explicit first-person feeling clause "I'm / I am / I've been / I feel / I was /
+    # we are <[degree] affect>", e.g. "I've been really stressed", "we are excited". The value
+    # is the user's stated phrase WITH its intensity ("really stressed"). _not_hypothetical
+    # (applied in extract()) rejects "I wish I were less stressed"; the closed affect set keeps
+    # a non-feeling word from matching; list-valued so successive distinct feelings accumulate.
+    # The conservation ledger named tone the #1 routinely-dropped class — this gives it a slot.
+    (re.compile(r"\b(?:i(?:'?m| am| are|'?ve been| have been| feel| felt| was| was feeling| keep feeling| get| got)|"
+                r"we(?:'?re| are|'?ve been| have been))\s+"
+                r"(?P<deg>" + _AFFECT_DEGREE + r")?(?P<aff>(?:" + _AFFECT_WORDS + r"))\b", re.I),
+     "reported_feeling", _affect_value),
+    # "feeling <affect>" / "been feeling <affect>" without an explicit subject pronoun right
+    # before (e.g. "honestly, feeling pretty overwhelmed") — still a first-person report in a
+    # chat turn; guarded the same closed-set way. Kept narrow (the gerund "feeling" anchors it).
+    (re.compile(r"\b(?:been\s+)?feeling\s+(?P<deg>" + _AFFECT_DEGREE + r")?(?P<aff>(?:" + _AFFECT_WORDS + r"))\b", re.I),
+     "reported_feeling", _affect_value),
 ]
 
 # Explicit-correction cues: when present, the captured fact enters as a correction
@@ -1276,6 +1338,44 @@ def _selftest() -> int:
        "friend" not in _xt("my friend and I went out for dinner"))
     ok("WAVE-A guard: capitalised aux in name slot ('my son Then we left') is no name",
        "son" not in _xt("my son Then we left for the park"))
+
+    # --- REPORTED FEELING (affect / tone capture) --------------------------------------
+    # The conservation ledger named TONE the #1 routinely-dropped class. These lock in the
+    # reported_feeling widening AND its RULE #1 GUARDRAIL: we store that the USER reported a
+    # feeling (an observed fact, grounded in their words), never that Vera feels anything; the
+    # stored value is the user's stated affect WITH its intensity ("really stressed"); and the
+    # never-infer rails (hypothetical guard + closed affect set + first-person frame) hold.
+    def _feels(text):
+        f = next((x for x in extract(text) if x["trait"] == "reported_feeling"), None)
+        return set(f["value"]) if f and isinstance(f.get("value"), list) else set()
+    ok("AFFECT: 'I've been really stressed' -> reported_feeling='really stressed' (intensity kept)",
+       "really stressed" in _feels("I've been really stressed about the Q3 launch"))
+    ok("AFFECT: 'we are excited' -> reported_feeling='excited'",
+       "excited" in _feels("My wife Jen and I are excited about the move to Denver in March"))
+    ok("AFFECT: 'I'm so anxious' -> reported_feeling='so anxious'",
+       "so anxious" in _feels("I'm so anxious about tomorrow"))
+    ok("AFFECT: 'feeling pretty overwhelmed' -> reported_feeling='pretty overwhelmed'",
+       "pretty overwhelmed" in _feels("honestly, been feeling pretty overwhelmed"))
+    ok("AFFECT: 'I feel grateful' -> reported_feeling='grateful'",
+       "grateful" in _feels("I feel grateful"))
+    ok("AFFECT: list-valued — two affects in one utterance BOTH accumulate (neither lost)",
+       _feels("I'm stressed and I'm excited") == {"stressed", "excited"})
+    # RULE #1 GUARDRAIL: the value is the USER's word, drawn from their sentence — an OBSERVED
+    # report, not a feeling claimed for Vera. Asserted by grounding: every token of the stored
+    # value appears in the user's utterance.
+    _src = "i've been really stressed about the q3 launch"
+    ok("AFFECT [RULE #1]: stored affect is GROUNDED in the user's words (no confabulation)",
+       all(tok in _src for v in _feels("I've been really stressed about the Q3 launch")
+           for tok in v.lower().split()))
+    # GUARDS — Observed > Assumed: never invent a feeling.
+    ok("AFFECT guard: hypothetical 'I wish I were less stressed' captures NO feeling",
+       "reported_feeling" not in _xt("I wish I were less stressed")
+       and "reported_feeling" not in _xt("I hope I'm not too stressed"))
+    ok("AFFECT guard: a non-affect statement ('I am 34 years old') captures NO feeling",
+       "reported_feeling" not in _xt("I am 34 years old")
+       and "reported_feeling" not in _xt("I work at Collatio"))
+    ok("AFFECT guard: a feeling stated ABOUT someone else is not read as the user's",
+       "reported_feeling" not in _xt("my boss is stressed"))
 
     # --- HEDGE capture (extract layer): a guess parses to the REAL value, flagged hedged,
     # and NEVER stores the hedge word. The auditor's regression: "I guess my favorite color

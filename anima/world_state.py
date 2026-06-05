@@ -542,11 +542,18 @@ _rule(
 
 
 # --- 2. bare stress without a named cause: "work's been rough", "I'm stressed about X" ---
+# A stated TIME in the span ("stressed about the launch lately") is attached as a durable
+# you --stressed_when--> TIME edge so a bare-temporal marker the conservation ledger flagged
+# (lately/recently/last week) is KEPT, not dropped. Only when the user actually stated one.
 def _b_stressed_about(m):
     topic = _clean_node(m.group("topic"))
     if not topic:
         return []
-    return [("you", "stressed_by", topic, "problem", topic)]
+    edges = [("you", "stressed_by", topic, "problem", topic)]
+    when = _temporal_in(m.group(0))
+    if when:
+        edges.append(("you", "stressed_when", when, "observation", None))
+    return edges
 
 
 _rule(
@@ -557,11 +564,18 @@ _rule(
 
 
 # --- 3. worry: "I'm worried/anxious about <X>" -> problem edge ---------------
+# As with stress, a stated TIME ("worried about money lately") is attached durably as
+# you --worried_when--> TIME so the bare-temporal recency the conservation ledger named
+# survives instead of being trimmed off as filler. Only when the user actually stated one.
 def _b_worried_about(m):
     obj = _clean_node(m.group("obj"))
     if not obj:
         return []
-    return [("you", "worried_about", obj, "problem", obj)]
+    edges = [("you", "worried_about", obj, "problem", obj)]
+    when = _temporal_in(m.group(0))
+    if when:
+        edges.append(("you", "worried_when", when, "observation", None))
+    return edges
 
 
 _rule(
@@ -710,9 +724,17 @@ _rule(
 # ===========================================================================
 
 # A stated TIME inside a clause — "in 2024", "last week", "in March", "by Q3", "3 months
-# ago". Pulled as a readable surface so it can become the OBJECT of a "<event>_when" edge
-# (the temporal then has a slot to live in instead of being dropped). Anchored words only;
-# never matches a bare number that isn't a time.
+# ago", and BARE-RECENCY markers ("lately", "recently", "these days", "this month").
+# Pulled as a readable surface so it can become the OBJECT of a "<event>_when" edge (the
+# temporal then has a slot to live in instead of being dropped). Anchored words only; never
+# matches a bare number that isn't a time.
+#
+# BARE-TEMPORAL (the conservation ledger's second named loss class): "lately" / "recently" /
+# "these days" / "this month" carry real recency but had no slot, so they reached the prompt
+# yet were never stored. Adding them here means EVERY existing "<event>_when" builder
+# (moved/adopted/started/self-event) AND the worry/stress builders below keep them durably as
+# the OBJECT of a *_when edge — "worried_when lately", "moved_when last week". Still anchored:
+# a bare marker is only pulled from a span a relational rule already matched, never fabricated.
 _TEMPORAL_PHRASE = re.compile(
     r"\b("
     r"(?:in|by|since|around|back in)\s+(?:\d{4}|Q[1-4]|"
@@ -722,6 +744,7 @@ _TEMPORAL_PHRASE = re.compile(
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
     r"|(?:\d{1,2}|a|a\s+couple|couple|few|several)\s+(?:days?|weeks?|months?|years?)\s+ago"
     r"|yesterday|today|tonight|tomorrow|this\s+weekend|last\s+weekend"
+    r"|lately|recently|nowadays|these\s+days|of\s+late|this\s+(?:morning|evening)"
     r")\b",
     re.I,
 )
@@ -1426,6 +1449,26 @@ def _selftest() -> int:
        not any(p == "adopted" for p, o in _pred_obj("we adopted a strategy at work")))
     ok("WAVE-A guard: capitalised aux in name slot ('my wife Then we left') -> no role bond",
        ("has", "wife") not in _pred_obj("my wife Then we left"))
+
+    # --- BARE-TEMPORAL recency markers ('lately'/'recently'/'these days') get a durable slot.
+    # The conservation ledger named bare-temporal the #2 dropped class: these words reached the
+    # prompt but were never stored. _temporal_in now recognises them, and the worry/stress
+    # builders attach a you --<feeling>_when--> TIME edge so the recency survives as the OBJECT
+    # (content), not as trimmed-off filler. Only when the user actually stated one. ------------
+    ok("BARE-TEMPORAL: 'worried about money lately' -> you worried_when 'lately' (durable)",
+       ("worried_when", "lately") in _pred_obj("I work at Collatio and I'm worried about money lately"))
+    # ('these days' normalises to the content token 'days' after scaffold-word stripping)
+    ok("BARE-TEMPORAL: 'stressed about work these days' -> you stressed_when (these) 'days'",
+       ("stressed_when", "days") in _pred_obj("I'm stressed about the launch these days"))
+    ok("BARE-TEMPORAL: 'worried about money recently' -> you worried_when 'recently'",
+       ("worried_when", "recently") in _pred_obj("I've been worried about money recently"))
+    ok("BARE-TEMPORAL: 'nowadays' is recognised too -> you worried_when 'nowadays'",
+       ("worried_when", "nowadays") in _pred_obj("I'm anxious about work nowadays"))
+    # GUARD — Observed > Assumed: no stated time -> NO _when edge fabricated.
+    ok("BARE-TEMPORAL guard: 'worried about money' (no time word) -> NO worried_when edge",
+       not any(p == "worried_when" for p, o in _pred_obj("I'm worried about money")))
+    ok("BARE-TEMPORAL guard: a bare marker with no event frame fabricates nothing",
+       capture("lately") == [] and capture("these days honestly") == [])
 
     # --- a throwaway store for persistence + situation ---
     name = "world_selftest_" + secrets.token_hex(3)
