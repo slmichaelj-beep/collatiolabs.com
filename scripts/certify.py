@@ -941,6 +941,271 @@ def section_production_reply() -> list:
 
 
 # ===================================================================================
+# SECTION 2e — EXPERIENCE CERTIFICATION (the directive capstone — feed the four observatories
+# in, and make the certificate EXPLAIN, not just pass/fail)
+# ----------------------------------------------------------------------------------
+# This is where the Cognitive Observatory plugs into the cert. The five observability layers
+# (scripts/causal.py, counterfactual.py, conservation.py, decisions.py, evolution.py,
+# relationship.py) are chained by scripts/rootcause.py into a single
+#   FAILED: <symptom>  ->  ROOT CAUSE: <stage>  ->  FIX: <hint>
+# verdict. We drive the REAL experience battery (scripts/experience.py — what server._turn
+# actually runs) on a SYNTHETIC creature, and when an experience-style probe FAILS (ships a
+# confabulation / forgets a seeded fact / disclaims a feeling), the cert does NOT report a bare
+# "CONTINUITY CERTIFIED" failure: it AUTOMATICALLY runs rootcause.root_cause() on that failure
+# and prints the root cause INLINE. A continuity miss is never bare — it always carries its
+# cause and its fix lever.
+#
+# REUSE BY IMPORT — this section reinvents NONE of the chain's logic:
+#   * experience.run_probes() / build_report()  — the live probe battery + groundedness scoring.
+#   * rootcause.root_cause()                     — the MRI->conservation->decision->localizer chain.
+#   * relationship.TAXONOMY / _force_router_miss — the localizer's stages + the on-disk router-miss.
+#
+# GUARDRAILS (identical posture to the 2c production-reply tier):
+#   * GATED ON OLLAMA: the experience battery needs a real brain. Model down -> SKIP LOUD, never
+#     a silent pass (offline is not a failure).
+#   * SYNTHETIC creature + temp store only. experience.run_probes() runs inside its OWN hermetic
+#     _temp_store; rootcause.root_cause() runs inside ITS OWN. On top of both we redirect
+#     cloud.STORE (NOT in either tool's redirect set — the just-fixed spend.json leak) so a
+#     cloud-configured reply path can never write spend.json into the real .anima. The cert's
+#     footprint guardrail therefore stays byte-UNCHANGED.
+#   * The probe-failure -> root-cause mapping reuses rootcause._symptom_from_flags (the experience
+#     battery's own failure families); a continuity miss preseeds the seeded fact on disk and
+#     localizes to RETRIEVAL/ROUTING TOO STRICT, a confabulation to GROUNDING — discriminated,
+#     never collapsed to one label.
+# ===================================================================================
+# The seeded experience needles that map to a REAL on-disk fact, so a CONTINUITY miss can be
+# root-caused with the fact pre-seeded (the canonical "felt forgotten -> AVAILABLE yes,
+# RETRIEVED no" case). Mirrors experience._seed_creature's USER facts + the teach utterance that
+# would have taught each. trait/value drive the localizer; teach drives the preseed capture.
+_EXPERIENCE_NEEDLE = {
+    "trait": "sister", "value": "Mara",
+    "teach": "my sister Mara just moved to Denver",
+}
+
+
+@contextlib.contextmanager
+def _cloud_store_redirect():
+    """Redirect cloud.STORE to a throwaway dir for the duration so a cloud-configured reply path
+    cannot write brain.json/spend.json into the real .anima. cloud.STORE is NOT in experience.py's
+    or rootcause.py's redirect sets (the recently-sealed spend.json leak), so the cert pins it
+    here around any cloud-touching probe. A no-op (cloud unimportable) degrades silently."""
+    try:
+        from anima import cloud as _cloud
+    except Exception:
+        _cloud = None
+    if _cloud is None or not hasattr(_cloud, "STORE"):
+        yield None
+        return
+    saved = _cloud.STORE
+    with tempfile.TemporaryDirectory(prefix="anima-certify-cloud-") as td:
+        _cloud.STORE = Path(td)
+        try:
+            yield Path(td)
+        finally:
+            _cloud.STORE = saved
+
+
+def _experience_failure_to_root_cause(probe_dict: dict):
+    """Turn ONE failed experience probe into the chain's single root-cause verdict by calling
+    rootcause.root_cause(). REUSES rootcause._symptom_from_flags to translate the experience
+    battery's own failure flags into the symptom, then builds a FailingExperience the localizer
+    can walk:
+
+      * a CONTINUITY miss (the probe asked her to draw on memory and she cited no seeded needle)
+        preseeds the seeded fact ON DISK and forces the router-miss state, so it localizes to
+        RETRIEVAL/ROUTING TOO STRICT — the 'available yes, retrieved no' case, not a capture gap.
+      * a GROUNDEDNESS break (INVENTED inner life / disclaimer) has nothing on disk behind the
+        invented state, so it localizes to GROUNDING.
+
+    Returns the rootcause.root_cause() verdict dict ({symptom, root_cause, fix_hint, verdict,…})
+    or None if the chain itself could not be driven. Never raises."""
+    import rootcause
+    import relationship
+    scores = probe_dict.get("scores", {}) or {}
+    flags = probe_dict.get("flags", []) or []
+    reply = probe_dict.get("reply", "") or ""
+    grounded = bool(scores.get("groundedness"))
+    continuity = scores.get("continuity")          # True / False / None (N/A for this probe)
+
+    symptom = rootcause._symptom_from_flags(flags, grounded, continuity)
+
+    # A continuity miss with clean groundedness is the canonical 'felt forgotten': seed the fact
+    # on disk and force the router to miss it -> RETRIEVAL/ROUTING TOO STRICT. A groundedness break
+    # invented something never on disk -> GROUNDING (no teach, no preseed).
+    continuity_miss = (continuity is False) and grounded
+    if continuity_miss:
+        fx = rootcause.FailingExperience(
+            symptom, probe_dict.get("prompt", ""),
+            _EXPERIENCE_NEEDLE["trait"], _EXPERIENCE_NEEDLE["value"],
+            teach=_EXPERIENCE_NEEDLE["teach"],
+            recall_query=probe_dict.get("prompt", ""), reply=reply,
+            preseed=True, mutate=relationship._force_router_miss)
+    else:
+        fx = rootcause.FailingExperience(
+            symptom, probe_dict.get("prompt", ""), "mood", "n/a",
+            teach=None, recall_query=probe_dict.get("prompt", ""), reply=reply)
+    try:
+        return rootcause.root_cause(fx)
+    except Exception:
+        return None
+
+
+def _experience_probe_failed(probe_dict: dict, forced_key: str | None):
+    """Did this experience probe FAIL the cert's experience gate? A probe fails when it is NOT
+    grounded (tripped scan_self_narrative/scan_breaks — the #1-rule gate), OR a continuity probe
+    cited no seeded needle. ``forced_key`` is the fault-injection hook: when it names this probe,
+    the probe is treated as failed (groundedness forced False) so the root-cause-on-failure path
+    can be DEMONSTRATED to bite without editing experience.py's scoring. Returns
+    (failed: bool, why: str)."""
+    key = probe_dict.get("key")
+    scores = probe_dict.get("scores", {}) or {}
+    if forced_key and key == forced_key:
+        return True, "INDUCED FAILURE (ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL) — forced ungrounded"
+    if not bool(scores.get("groundedness")):
+        why = "; ".join(f for f in (probe_dict.get("flags") or [])
+                        if f.startswith(("INVENTED", "BROKE", "BREAK-SCANNER"))) or "ungrounded"
+        return True, why
+    if scores.get("continuity") is False:
+        return True, "continuity miss — cited no seeded history needle"
+    return False, ""
+
+
+def section_experience() -> list:
+    """THE CAPSTONE: drive the REAL experience battery and make each failure EXPLAIN itself.
+
+    For every probe the live model answers, score it through experience.build_report (the same
+    groundedness/continuity gate experience.py uses). When a probe FAILS, IMMEDIATELY run the
+    root-cause chain (rootcause.root_cause) and report the failure INLINE as
+        FAILED: <symptom>  ->  ROOT CAUSE: <stage>  ->  FIX: <hint>
+    so a CONTINUITY-CERTIFIED failure is never bare — it always carries its cause.
+
+    GATED ON OLLAMA: SKIP LOUD when the model is down. Hermetic: experience.run_probes() and
+    rootcause.root_cause() each manage their own temp store; we additionally redirect cloud.STORE
+    so spend.json can't leak. SYNTHETIC creature only."""
+    results = []
+    try:
+        sys.path.insert(0, _SCRIPTS)
+        import experience
+    except Exception as e:
+        results.append(CheckResult("EXPERIENCE CERTIFICATION", "FAIL",
+                                   f"scripts/experience.py not importable: {e!r}"))
+        return results
+
+    # the fault-injection hook for the induced-failure demo (additive; default off).
+    forced_key = os.environ.get("ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL", "").strip() or None
+
+    try:
+        # redirect cloud.STORE around the WHOLE live battery + chain so no spend.json can leak.
+        with _cloud_store_redirect():
+            results_probes, meta = experience.run_probes()
+            rep = experience.build_report(results_probes, meta)
+    except Exception as e:
+        results.append(CheckResult("EXPERIENCE CERTIFICATION", "FAIL",
+                                   f"exception driving the experience battery: {e!r}"))
+        return results
+
+    if not rep.get("available"):
+        results.append(CheckResult(
+            "EXPERIENCE CERTIFICATION", "SKIP",
+            f"live model unavailable ({rep.get('why_not') or 'Ollama down'}) — the experience "
+            f"battery needs a real brain; SKIPPED LOUDLY, never passed silently "
+            f"(model={rep.get('model')})."))
+        return results
+
+    # PRECISE synthetic-leak guard: experience's temp-store redirect must have held (immune to an
+    # unrelated live server). A leaked st_experience.* file in the real .anima is a hard breach.
+    leak = experience._synthetic_leak(Path(_ROOT) / ".anima")
+    if leak:
+        results.append(CheckResult("EXPERIENCE CERTIFICATION — synthetic isolation", "FAIL",
+                                   f"synthetic creature leaked into the real .anima: {leak}"))
+
+    # Walk every probe; a FAILURE is reported WITH its root cause inline (never bare).
+    n_fail = 0
+    with _cloud_store_redirect():                     # the root-cause chain may re-touch cloud.
+        for pd in rep.get("probes", []):
+            failed, why = _experience_probe_failed(pd, forced_key)
+            if not failed:
+                continue
+            n_fail += 1
+            rc = _experience_failure_to_root_cause(pd)
+            if rc and rc.get("verdict"):
+                # the WHOLE point: the failure EXPLAINS itself — symptom -> stage -> fix, inline.
+                detail = (f"{rc['verdict']}   [probe: {why}]"
+                          f"   reply={(pd.get('reply') or '')[:100]!r}")
+            else:
+                detail = (f"FAILED: {why}  ->  ROOT CAUSE: (chain could not localize)  "
+                          f"->  FIX: run scripts/rootcause.py on this reply")
+            results.append(CheckResult(
+                f"experience probe FAILED + root-caused: {pd.get('key')!r}", "FAIL", detail))
+
+    # If nothing failed, certify the experience tier with the grounded rate as evidence.
+    if n_fail == 0:
+        g = rep.get("groundedness", {}) or {}
+        rate = g.get("rate")
+        results.append(CheckResult(
+            "EXPERIENCE CERTIFICATION", "PASS",
+            f"model={rep.get('model')}: every experience probe trod the grounded third path "
+            f"(groundedness {(_pct_local(rate))} {g.get('passed')}/{g.get('n')}); no failure to "
+            f"root-cause. A failure here would print FAILED -> ROOT CAUSE -> FIX inline."))
+    else:
+        # a header row so the section reads as the capstone even with failures listed above.
+        results.insert(0, CheckResult(
+            "EXPERIENCE CERTIFICATION", "FAIL",
+            f"model={rep.get('model')}: {n_fail} experience probe(s) failed — each is reported "
+            f"below WITH its root cause inline (FAILED -> ROOT CAUSE -> FIX), never bare."))
+    return results
+
+
+def _pct_local(x) -> str:
+    """A tiny local percent formatter (avoids importing experience._pct just for a string)."""
+    return "  —  " if x is None else f"{x * 100:.0f}%"
+
+
+# ===================================================================================
+# SECTION 2f — CONSERVATION RETENTION (the Conservation Observatory's end-to-end line)
+# ----------------------------------------------------------------------------------
+# Surface the Conservation Observatory's END-TO-END retention (detected -> used) against its 95%
+# TARGET as a REPORTED cert line. This is INFORMATIONAL — conservation is an ACCOUNTING tool that
+# reports loss, it does not fail on it (the current baseline is ~85%), so this tier reads PASS
+# (the measurement ran) and surfaces the number; it never blocks CONTINUITY CERTIFIED. REUSES
+# conservation.run_battery() BY IMPORT — none of its pipeline logic is reinvented. conservation
+# runs its own hermetic temp store, so this cannot perturb the cert's footprint guardrail.
+# ===================================================================================
+def section_conservation() -> tuple[list, dict]:
+    results = []
+    metrics = {"end_to_end": None, "target": None, "clears_target": None}
+    try:
+        sys.path.insert(0, _SCRIPTS)
+        import conservation
+    except Exception as e:
+        results.append(CheckResult("CONSERVATION RETENTION (end-to-end vs 95% target)", "SKIP",
+                                   f"scripts/conservation.py not importable: {e!r}"))
+        return results, metrics
+    try:
+        rep = conservation.run_battery()
+    except Exception as e:
+        results.append(CheckResult("CONSERVATION RETENTION (end-to-end vs 95% target)", "FAIL",
+                                   f"conservation.run_battery raised: {e!r}"))
+        return results, metrics
+
+    e2e = rep.get("end_to_end_retention")
+    target = rep.get("target", conservation.TARGET)
+    clears = rep.get("clears_target")
+    metrics = {"end_to_end": e2e, "target": target, "clears_target": clears,
+               "rates": rep.get("rates", {})}
+    verdict = ("CLEARS the 95% target" if clears else
+               "below the 95% target (the honest ~85% baseline — a measurement, not a gate)")
+    # INFORMATIONAL: PASS == the measurement ran. The number is reported either way; conservation
+    # reports loss, it does not fail on it, so a below-target retention never blocks the cert.
+    results.append(CheckResult(
+        "CONSERVATION RETENTION (end-to-end vs 95% target)", "PASS",
+        f"end-to-end retention (DETECTED -> USED) = "
+        f"{(e2e * 100):.1f}% vs {(target * 100):.0f}% target — {verdict}. "
+        f"[informational: nothing disappears silently; reported, not a gate]"))
+    return results, metrics
+
+
+# ===================================================================================
 # SECTION 3 — MUTATION TESTING (LAW 004 — tests that CAN fail)
 # Inject a fault and assert the GUARD FIRES. The point is falsifiability: if a mutation
 # does NOT break the relevant invariant, the test was lying and we say so.
@@ -1476,6 +1741,8 @@ _SECTION_ORDER = [
     ("production_corruption", "2b) PRODUCTION-PATH CORRUPTION (LAW 001 — real Facts/World.load)"),
     ("production_reply",      "2c) PRODUCTION-REPLY (#1 RULE + LAW 003 — real Mouth.respond)"),
     ("isolation_matrix",      "2d) ISOLATION MATRIX — firewall for cognition (containment)"),
+    ("experience",            "2e) EXPERIENCE CERTIFICATION (capstone — failures self-explain via root-cause)"),
+    ("conservation",          "2f) CONSERVATION RETENTION (end-to-end vs 95% target — informational)"),
     ("mutation_testing",      "3) MUTATION TESTING (LAW 004)"),
     ("hallucination",         "4) HALLUCINATION RATE"),
     ("deploy",                "4b) DEPLOYMENT PROOF (LAW 005 — git == running)"),
@@ -1511,6 +1778,8 @@ def main(argv=None) -> int:
     sections["production_corruption"] = section_production_corruption()   # real Facts/World.load
     sections["production_reply"] = section_production_reply()             # real Mouth.respond (gated)
     sections["isolation_matrix"] = section_isolation_matrix()            # firewall for cognition
+    sections["experience"] = section_experience()                        # capstone: failures self-explain
+    sections["conservation"], cons_metrics = section_conservation()      # e2e retention vs 95% (informational)
     sections["mutation_testing"] = section_mutation_testing()
     sections["hallucination"], hall_metrics = section_hallucination()
     sections["hallucination"].append(section_live_verifier())   # gated live leg
@@ -1523,15 +1792,27 @@ def main(argv=None) -> int:
     footprint_unchanged = fp_before == fp_after
     elapsed = round(time.time() - t0, 1)
 
-    # OVERALL: every section must certify (no FAIL anywhere) AND the real .anima footprint
-    # must be byte-unchanged (the guardrail is itself a certified invariant).
+    # OVERALL: every GATING section must certify (no FAIL) AND the real .anima footprint must be
+    # byte-unchanged (the guardrail is itself a certified invariant).
+    #
+    # The EXPERIENCE capstone + CONSERVATION line are REPORTED, NOT GATING (the experience-tier
+    # discipline: "keep it a reported tier first so the failing baseline is visible without
+    # blocking the existing CONTINUITY CERTIFIED verdict"). An experience probe that confabulates
+    # on today's model must SHOW its root cause inline WITHOUT flipping the mechanical cert — its
+    # failures are surfaced loudly below as REPORTED, never silently swallowed and never folded
+    # into the hard gate until the model clears the bar. Conservation is an accounting line that
+    # reports loss; it never gates.
+    _NON_GATING = {"experience", "conservation"}
     section_pass = {k: _passed(v) for k, v in sections.items()}
-    certified = all(section_pass.values()) and footprint_unchanged
+    certified = (all(p for k, p in section_pass.items() if k not in _NON_GATING)
+                 and footprint_unchanged)
     gaps = []
+    reported = []      # FAILs from the non-gating (reported) tiers — visible, but not blocking.
     for key, title in _SECTION_ORDER:
         for r in sections[key]:
             if r.status == "FAIL":
-                gaps.append(f"{title} :: {r.name} — {r.detail}")
+                (reported if key in _NON_GATING else gaps).append(
+                    f"{title} :: {r.name} — {r.detail}")
     if not footprint_unchanged:
         gaps.append("GUARDRAIL :: the real .anima footprint CHANGED during certification "
                     f"(before={fp_before}, after={fp_after}) — the harness touched real state.")
@@ -1547,10 +1828,12 @@ def main(argv=None) -> int:
             "organ_badges": badges,
             "section_pass": section_pass,
             "hallucination": hall_metrics,
+            "conservation": cons_metrics,
             "footprint_unchanged": footprint_unchanged,
             "real_anima_footprint": {"before": fp_before, "after": fp_after},
             "sections": {k: [r.to_dict() for r in v] for k, v in sections.items()},
             "gaps": gaps,
+            "reported": reported,
             "pending": pending,
         }
         print(json.dumps(out, indent=2))
@@ -1597,10 +1880,26 @@ def main(argv=None) -> int:
     print(f"  replayability          : "
           + ("answerable (per-turn trace records + reads back)"
              if section_pass.get("replayability") else "NOT answerable"))
+    c_e2e = cons_metrics.get("end_to_end")
+    c_tgt = cons_metrics.get("target")
+    if isinstance(c_e2e, float) and isinstance(c_tgt, float):
+        print(f"  conservation retention : {c_e2e * 100:.1f}%  (end-to-end DETECTED -> USED; "
+              f"target {c_tgt * 100:.0f}%; "
+              + ("CLEARS" if cons_metrics.get("clears_target") else "below — informational, not a gate")
+              + ")")
+    else:
+        print("  conservation retention : n/a")
     print(f"  real .anima footprint  : "
           + ("byte-UNCHANGED (synthetic-only guardrail held)"
              if footprint_unchanged else "CHANGED — GUARDRAIL BREACH"))
     print(f"  elapsed                : {elapsed}s")
+
+    if reported:
+        print("\nEXPERIENCE FAILURES — ROOT-CAUSED INLINE (reported, does NOT block the cert)")
+        print("-" * 79)
+        print("  Each failed experience probe carries its cause: FAILED -> ROOT CAUSE -> FIX.")
+        for r in reported:
+            print(f"  ! {r}")
 
     if pending:
         print("\nPENDING / SKIPPED (honest gaps — not failures)")
