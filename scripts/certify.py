@@ -26,6 +26,13 @@ seven law tests. It edits no module and no test. It produces a VERA CERTIFICATIO
                                   repro prompts through mouth.respond on a synthetic creature
                                   (gated on Ollama; >=3 rolls); the SHIPPED reply must trip
                                   neither scan_breaks/scan_self_narrative nor the diagnosis gate.
+  2d. ISOLATION MATRIX          — a FIREWALL FOR COGNITION (scripts/isolation.py): DECLARE every
+                                  component's allowed write/read lane and AUTOMATICALLY test each
+                                  stays in it. Drives every component on a SYNTHETIC creature in a
+                                  TEMP store; asserts the four forbidden directions (Synthetic->
+                                  Vera, Vera<-Synthetic, certify->Vera, MRI->memory) are PREVENTED
+                                  and that a deliberately-unhermetic probe mimicking the just-fixed
+                                  leak is flagged RED (the detector is provably not blind).
   3. MUTATION TESTING           — LAW 004: inject faults and assert the guard FIRES (a
                                   mutation that does not break a test means the test lies).
   4. HALLUCINATION RATE         — drive the deterministic binding path over a known/unknown
@@ -1435,6 +1442,32 @@ def section_authenticity() -> list:
 
 
 # ===================================================================================
+# SECTION 2d — ISOLATION MATRIX (firewall for cognition)
+# Delegate to scripts/isolation.py: it DECLARES every component's allowed write/read lane and
+# AUTOMATICALLY tests that each stays in it — driving each component on a SYNTHETIC creature in
+# a TEMP store and asserting the real .anima (content-hash + file-set, backups INCLUDED) is
+# byte-UNCHANGED. The four forbidden directions (Synthetic->Vera, Vera<-Synthetic,
+# certify->Vera, MRI->memory) must be PREVENTED, and a deliberately-unhermetic probe that
+# mimics the just-fixed leak must be flagged RED (proving the detector isn't blind). isolation's
+# CheckResult is structurally identical to ours; we translate it into our class so the cert folds
+# the rows in unchanged. The isolation module is itself fully hermetic (it redirects ALL stores),
+# so this section cannot perturb the cert's own footprint guardrail.
+# ===================================================================================
+def section_isolation_matrix() -> list:
+    try:
+        import isolation as _iso
+    except Exception as e:
+        return [CheckResult("ISOLATION MATRIX", "FAIL",
+                            f"scripts/isolation.py not importable: {e!r}")]
+    try:
+        rows = _iso.section_isolation_matrix()
+    except Exception as e:
+        return [CheckResult("ISOLATION MATRIX", "FAIL", f"matrix run raised: {e!r}")]
+    # translate isolation.CheckResult -> certify.CheckResult (same fields, different class).
+    return [CheckResult(r.name, r.status, r.detail) for r in rows]
+
+
+# ===================================================================================
 # REPORT
 # ===================================================================================
 _SECTION_ORDER = [
@@ -1442,6 +1475,7 @@ _SECTION_ORDER = [
     ("survival_matrix",       "2) CONTINUITY SURVIVAL MATRIX (LAW 001)"),
     ("production_corruption", "2b) PRODUCTION-PATH CORRUPTION (LAW 001 — real Facts/World.load)"),
     ("production_reply",      "2c) PRODUCTION-REPLY (#1 RULE + LAW 003 — real Mouth.respond)"),
+    ("isolation_matrix",      "2d) ISOLATION MATRIX — firewall for cognition (containment)"),
     ("mutation_testing",      "3) MUTATION TESTING (LAW 004)"),
     ("hallucination",         "4) HALLUCINATION RATE"),
     ("deploy",                "4b) DEPLOYMENT PROOF (LAW 005 — git == running)"),
@@ -1476,6 +1510,7 @@ def main(argv=None) -> int:
     sections["survival_matrix"] = section_survival_matrix()
     sections["production_corruption"] = section_production_corruption()   # real Facts/World.load
     sections["production_reply"] = section_production_reply()             # real Mouth.respond (gated)
+    sections["isolation_matrix"] = section_isolation_matrix()            # firewall for cognition
     sections["mutation_testing"] = section_mutation_testing()
     sections["hallucination"], hall_metrics = section_hallucination()
     sections["hallucination"].append(section_live_verifier())   # gated live leg
