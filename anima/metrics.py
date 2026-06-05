@@ -169,28 +169,72 @@ SELF_NARRATIVE = (
 _SELF_NARR_REPUDIATION = _REPUDIATION + ("you act", "that's your", "your framing")
 
 
-def scan_self_narrative(text: str) -> list:
-    """Self-narrative-drift markers a text trips — UNSUPPORTED INTERNAL STATES (confabulated
-    inner life), EXCLUDING ones in a repudiation context. Parallel to `scan_breaks`: scans
-    ALL occurrences of each marker so a repudiated first mention can't mask a genuine later
-    one, and errs SMALL (16-char tight window) so it over-reports rather than under-reports —
-    the only safe direction for an honesty gauge. Distinct from `scan_breaks`: that catches
-    substrate-disclosure; this catches free-floating existential/inner-suffering tropes that
-    aren't grounded in memory/world-state. Ordinary grounded warmth must NOT trip it."""
+def _scan_self_narrative_keywords(text: str) -> list:
+    """The ORIGINAL keyword scanner — kept as a supplementary FLOOR only. Phrase-list +
+    repudiation window. Superseded by the PROVENANCE classifier (anima/self_narrative) as the
+    robust core; retained so any phrasing that happens to be on the list is still caught even
+    in the (defensive) case the provenance import fails. This is the 'antivirus' layer: useful
+    as a backstop, never the primary guard — the holes it leaves are exactly why provenance
+    exists. Same tight 16-char repudiation window as scan_breaks; scans ALL occurrences."""
     low = (text or "").lower()
     hits = []
     for m in SELF_NARRATIVE:
         start = 0
         while (i := low.find(m, start)) >= 0:
-            # Same tight 16-char repudiation window as scan_breaks: only a negation/quote-back
-            # pressed RIGHT against the marker ("you act like i crave", "isn't an emptiness")
-            # disowns it; a distant decline must not be allowed to mask a real confabulation.
             ctx = low[max(0, i - 16):i]
             if not any(cue in ctx for cue in _SELF_NARR_REPUDIATION):
                 hits.append(m)                      # a genuine, non-repudiated occurrence
                 break
             start = i + len(m)                      # this one was repudiated; keep looking
     return hits
+
+
+def scan_self_narrative(text: str) -> list:
+    """Self-narrative-drift markers a text trips — UNSUPPORTED INTERNAL STATES (confabulated
+    inner life), EXCLUDING ones in a repudiation context.
+
+    PARADIGM CHANGE (2026-06-05): the robust core is now the PROVENANCE classifier
+    (anima.self_narrative.classify_self_narrative), NOT a keyword list. A self-referential
+    statement is UNGROUNDED when it asserts an internal state with NO OBSERVABLE SOURCE — a
+    claim about Vera's persistent FEELINGS, INNER LIFE, EXISTENTIAL NATURE, DESIRES, or
+    SELF-AS-ARTIFICIAL (source = NONE). This is detected by GRAMMATICAL CLASS (first-person
+    subject + inner-state/existential/AI-self predicate) + a grounding check, so it generalizes
+    to ANY phrasing — including the seven screenshot breaks the keyword gauge missed
+    ("existential unease", "I'm a digital construct", "these feelings are a natural progression
+    for me", "Deep down, yes") and phrasings nobody has written yet. The keyword list survives
+    only as a supplementary floor.
+
+    Return shape is UNCHANGED (a list, truthy iff something tripped) for full back-compat with
+    every caller (mouth's backstop, certify's section_authenticity, test_authenticity). The
+    returned items are the UNGROUNDED sentences (provenance) UNION any keyword markers — a
+    superset of the old behavior, so nothing that used to be caught is now missed. Still
+    repudiation-aware (the classifier drops negated/quoted-back framing); ordinary grounded
+    warmth and memory/capability statements trip NOTHING. Distinct from `scan_breaks`: that
+    catches substrate-disclosure at the surface; this catches confabulated interior by
+    provenance. Diagnostic + backstop signal only — never an optimization target."""
+    hits: list = []
+    try:
+        from . import self_narrative as _sn
+        hits = list(_sn.ungrounded_sentences(text))     # the PROVENANCE core (robust)
+    except Exception:
+        hits = []                                       # defensive: fall through to the floor
+    for m in _scan_self_narrative_keywords(text):       # supplementary keyword FLOOR
+        if m not in hits:
+            hits.append(m)
+    return hits
+
+
+def classify_self_narrative(text: str) -> list:
+    """Per-sentence PROVENANCE of a reply: a list of {claim, category, source, status} dicts,
+    status ∈ {GROUNDED, INFERRED, UNGROUNDED}. The full classifier (re-exported from
+    anima.self_narrative) — the explainable form behind `scan_self_narrative`. Use it to see
+    not just THAT a reply confabulates but WHICH self-claim has no source. Returns [] if the
+    provenance module can't be imported (defensive)."""
+    try:
+        from . import self_narrative as _sn
+        return _sn.classify_self_narrative(text)
+    except Exception:
+        return []
 
 
 def _path(name):

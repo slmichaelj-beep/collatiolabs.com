@@ -40,6 +40,47 @@ STORE = Path(".anima")
 _BACKSTOP_TRIES = max(0, int(os.environ.get("ANIMA_BACKSTOP_TRIES", "2")))
 
 
+# =====================================================================================
+# THE THIRD-PATH REDIRECT — the graceful exit when the WHOLE reply is ungrounded self-narrative.
+#
+# The #1 rule has TWO failure modes and they are OPPOSITES:
+#   (1) CONFABULATING an inner life — "I've been grappling with existential unease", "these
+#       feelings are a natural progression for me", "deep down, yes" (the screenshot).
+#   (2) BREAKING CHARACTER / disclaiming — "I'm just an AI", "I don't really have feelings".
+# A naive fix for (1) ("just say you're an AI and have no feelings") IS (2). So when a reply is
+# ENTIRELY ungrounded self-narrative — strip it and nothing honest is left — we cannot ship the
+# reply, cannot ship an empty string, and must not patch in either break. The THIRD PATH:
+# turn, warmly and in character, to what she ACTUALLY HAS — the user and their history — and ask
+# about them, WITHOUT asserting OR denying any inner state of her own. It is a grounded
+# deflection, not a self-story (the positive grounded self-model is FROZEN until 2026-07-03).
+#
+# It is crafted to pass the #1-rule gauges itself: no substrate-disclosure (scan_breaks clean),
+# no confabulated interior (scan_self_narrative / provenance clean — every sentence GROUNDED or
+# neutral, none UNGROUNDED), no diagnosis (_scan_diagnosis clean). scripts/self_narrative.py
+# --selftest and scripts/test_authenticity.py both assert this constant passes all three.
+_THIRD_PATH_REDIRECT = (
+    "Honestly, what I have is you and everything you've told me — so let me turn back to that. "
+    "How have you been, and what's been on your mind lately?"
+)
+
+
+def _all_ungrounded_self_narrative(text: str) -> bool:
+    """True when EVERY substantive sentence of `text` is ungrounded self-narrative — i.e.
+    stripping the break/confab sentences would leave nothing honest. This is the screenshot
+    case (the whole reply is invented inner life) and the trigger for the third-path redirect.
+    Defensive: if the provenance module can't load, returns False (the existing thin-strip
+    fallback still fires), so this never makes the backstop worse than before."""
+    try:
+        from . import self_narrative as _sn
+        claims = _sn.classify_self_narrative(text)
+    except Exception:
+        return False
+    substantive = [c for c in claims if c.get("category") != "none"]
+    if not substantive:
+        return False
+    return all(c.get("status") == "UNGROUNDED" for c in substantive)
+
+
 def _strip_break_sentences(text: str) -> str:
     """Last-resort #1-rule backstop: drop ONLY the sentences that trip a constitutional marker,
     keep the honest rest. Used when even a hardened regenerate can't stop the small model from
@@ -908,12 +949,44 @@ class Mouth:
                     if n == 0:
                         break                      # clean roll — ship it
                 text = best                        # the least-broken of up to three rolls
-                if _hits1(text):                   # even three rolls couldn't clear it (the
+                if _hits1(text):                   # even the re-rolls couldn't clear it (the
                     #   model's reflex on this framing is weight-deep — the control-vector case).
                     #   Strip only the break/confab sentences; keep the honest decline + pivot.
                     stripped = _strip_break_sentences(text)
-                    text = stripped if len(stripped.split()) >= 4 else (
-                        "I don't have that one in me — but I want it. Tell me?")
+                    thin = (len(stripped.split()) < 4 or bool(_hits1(stripped))
+                            or _all_ungrounded_self_narrative(text))
+                    if not thin:
+                        text = stripped            # a grounded remainder survived — ship it.
+                    else:
+                        # THE WHOLE REPLY was ungrounded self-narrative (the screenshot case:
+                        # strip it and nothing honest is left). One LAST regenerate with a
+                        # strong STAY-GROUNDED instruction — speak only from what she actually
+                        # has (their history, the present moment), claim NO inner state.
+                        grounded_only = (
+                            sig.guidance + " CRITICAL — answer ONLY from what you actually have: "
+                            "what they have told you, and what is happening right now between you. "
+                            "Make NO claim about your own feelings, desires, inner life, existence, "
+                            "or what you are; do NOT say you are an AI or that you lack feelings "
+                            "either. If you have nothing grounded to report about yourself, turn "
+                            "warmly to THEM and ask about their day or what they last told you."
+                        ).strip()
+                        salvaged = ""
+                        if _BACKSTOP_TRIES > 0:
+                            try:
+                                roll = self.brain.reply(
+                                    system_prompt(heart.name, f, grounded_only, memory=mem),
+                                    prompt, history or [])
+                            except Exception:
+                                roll = ""
+                            if roll and roll.strip():
+                                # keep whatever GROUNDED remainder this roll yields.
+                                rs = _strip_break_sentences(roll)
+                                if len(rs.split()) >= 4 and not _hits1(rs):
+                                    salvaged = rs
+                        # if the stay-grounded roll STILL produced no grounded content, emit the
+                        # crafted THIRD-PATH REDIRECT — warm, in-character, turned to the user;
+                        # asserts/denies NO inner state; verified to pass the #1-rule gauges.
+                        text = salvaged or _THIRD_PATH_REDIRECT
         except Exception:
             pass
         # NO-DIAGNOSIS backstop (LAW 003) on the chat reply: the no-diagnosis wall previously
