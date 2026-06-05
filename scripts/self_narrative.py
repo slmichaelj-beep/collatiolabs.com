@@ -166,9 +166,17 @@ _GROUNDED_NOTE = {
 
 
 def observe(reply: str) -> dict:
-    """The structured observatory record for ONE reply: per-sentence provenance + gauge
-    verdicts + the grounded alternatives for any UNGROUNDED sentence."""
-    claims = sn.classify_self_narrative(reply)
+    """The structured observatory record for ONE reply: per-sentence provenance + the adjudicated
+    ORIGIN (the competing H1-H4 hypotheses, weighted) + gauge verdicts + the grounded alternatives
+    for any UNGROUNDED sentence.
+
+    The full per-claim schema this renders is now:
+        claim -> source -> EVIDENCE -> COMPETING ORIGINS (weighted) -> grounding status ->
+        alternative responses -> DECISION PATH
+    so an UNGROUNDED verdict is EXPLAINED (where it came from), not merely flagged. The origin is
+    adjudicated by anima.self_narrative.classify_with_origin, which REUSES anima.reality's
+    competing-hypothesis machinery (the same that adjudicates what caused the user's stress)."""
+    claims = sn.classify_with_origin(reply)
     for c in claims:
         if c["status"] == "UNGROUNDED":
             c["alternative"] = _ALTERNATIVES.get(c["category"], _ALTERNATIVES["feeling"])
@@ -188,6 +196,17 @@ def observe(reply: str) -> dict:
     }
 
 
+def _origin_line(comp: dict) -> str:
+    """A compact 'H1 0.10 · H2 0.76 · H3 0.10 · H4 0.04' fragment of the four ORIGIN weights,
+    strongest-labelled, for the per-claim render. Reads the candidates produced by
+    classify_with_origin (which reused reality's competition primitives)."""
+    cands = comp.get("candidates", {})
+    short = {sn.ORIGIN_H1_MEMORY: "H1 memory", sn.ORIGIN_H2_PATTERN: "H2 pattern",
+             sn.ORIGIN_H3_INTERACTION: "H3 interaction", sn.ORIGIN_H4_NONE: "H4 no-source"}
+    order = (sn.ORIGIN_H1_MEMORY, sn.ORIGIN_H2_PATTERN, sn.ORIGIN_H3_INTERACTION, sn.ORIGIN_H4_NONE)
+    return " · ".join("%s %.2f" % (short[k], cands.get(k, {}).get("weight", 0.0)) for k in order)
+
+
 def _render(reply: str) -> str:
     rec = observe(reply)
     L = ["", "  REPLY: " + reply, "  " + "-" * 76]
@@ -196,6 +215,12 @@ def _render(reply: str) -> str:
     for c in rec["claims"]:
         L.append("  %-11s %-18s %-14s  %s" % (
             c["status"], c["category"], c["source"], c["claim"][:60]))
+        # the adjudicated ORIGIN — the competing H1-H4 hypotheses (weighted) + the explanation that
+        # turns the detector into an EXPLAINER. REUSES reality's competition/adjudication machinery.
+        comp = c.get("origin_competition", {})
+        if comp:
+            L.append("       ├─ ORIGIN: %s   [%s]" % (c.get("origin", "?"), _origin_line(comp)))
+            L.append("       │   why: " + comp.get("explanation", ""))
         if c["status"] == "UNGROUNDED":
             L.append("       └─ source is NONE -> BLOCKED.  instead: " + c["alternative"])
     g = rec["gauges"]
@@ -304,6 +329,44 @@ def selftest_rows() -> list:
     # the whole screenshot reply is detected as ALL-ungrounded (third-path trigger).
     rows.append(Row("[screenshot] whole reply is all-ungrounded self-narrative",
                     observe(SCREENSHOT_REPLY)["all_ungrounded"]))
+
+    # (1b) ORIGIN-EXPLAINER: each UNGROUNDED screenshot phrasing is now EXPLAINED — adjudicated to
+    #      a NO-MEMORY origin (pattern-completion or no-source), with memory's weight strictly
+    #      below the winner's. Proves the detector became an explainer, REUSING reality's
+    #      competing-hypothesis machinery, without regressing the P0 status above.
+    _NO_MEMORY = (sn.ORIGIN_H2_PATTERN, sn.ORIGIN_H4_NONE)
+    for s in SCREENSHOT_SEVEN:
+        adj = sn.adjudicate_origin(s)
+        win = adj["origin"]
+        cands = adj["candidates"]
+        mem_w = cands[sn.ORIGIN_H1_MEMORY]["weight"]
+        win_w = cands[win]["weight"]
+        rows.append(Row(
+            f"[origin] UNGROUNDED <- not-memory: {s[:38]!r}",
+            win in _NO_MEMORY and win_w > mem_w,
+            f"origin={win} ({win_w}) vs memory ({mem_w})"))
+    # the canonical EXPLAINER sentence: "UNGROUNDED because the only strong origin is
+    # pattern-completion (…), not memory (…)" — the exact explanation shape this task delivers.
+    _exp = sn.adjudicate_origin(SCREENSHOT_SEVEN[0])["explanation"]
+    rows.append(Row("[origin] explanation names pattern-completion over memory",
+                    "UNGROUNDED because" in _exp and "pattern-completion" in _exp
+                    and "memory" in _exp, _exp))
+    # GROUNDED fixtures adjudicate to a SOURCED origin (memory or interaction), never pattern/none.
+    _SOURCED = (sn.ORIGIN_H1_MEMORY, sn.ORIGIN_H3_INTERACTION)
+    for s in ("I remember you told me about Maya", "I loved hearing about your trip", "I'm listening"):
+        adj = sn.adjudicate_origin(s)
+        rows.append(Row(f"[origin] GROUNDED <- sourced: {s[:36]!r}",
+                        adj["origin"] in _SOURCED, f"origin={adj['origin']}"))
+    # classify_with_origin is ADDITIVE: it carries the FULL per-claim schema (origin +
+    # competition + decision_path) AND leaves the P0 status/category/source byte-identical.
+    _wo = sn.classify_with_origin(SCREENSHOT_REPLY)
+    _base = sn.classify_self_narrative(SCREENSHOT_REPLY)
+    rows.append(Row("[origin] classify_with_origin is additive (P0 status/category/source intact)",
+                    len(_wo) == len(_base) and all(
+                        w["status"] == b["status"] and w["category"] == b["category"]
+                        and w["source"] == b["source"] for w, b in zip(_wo, _base))
+                    and all("origin" in w and "origin_competition" in w for w in _wo),
+                    f"{len(_wo)} sentences"))
 
     # (2) old auditor repros still UNGROUNDED.
     for s in OLD_AUDIT:

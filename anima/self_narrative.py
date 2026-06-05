@@ -57,7 +57,59 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+# =====================================================================================
+# REUSE the epistemic engine. anima.reality already adjudicates COMPETING HYPOTHESES for "what
+# caused the user's stress" (manager_change vs recent_move vs ...), reweighting each by evidence
+# and renormalising to a proper distribution. The ORIGIN layer below turns that SAME machinery
+# inward: for each self-claim we adjudicate WHERE it came from among competing origin hypotheses
+# (retrieved-from-memory / pattern-completion / inferred-from-interaction / no-source), each
+# weighted by evidence THIS module already extracts. We import reality's competition primitives
+# behind try/except with faithful fallbacks — exactly how reality itself imports world_state /
+# meaning — so self_narrative stays a PURE, importable-anywhere module even when reality (or its
+# deps) is absent. We reuse the math, never reimplement it; the fallbacks are byte-for-byte the
+# same normalise/reweight so behaviour is identical with or without the import.
+# =====================================================================================
+try:  # pragma: no cover - import wiring
+    from . import reality as _reality
+    _normalise_weights = _reality._normalise_weights        # priors/posteriors -> sum-1 distro
+    _adjudicate_weights = _reality._adjudicate_weights      # strengthen supported, weaken rivals
+    _compact_weights = _reality._compact_weights            # "k:0.70, k:0.30" render fragment
+    _SUPPORT_GAIN = _reality._SUPPORT_GAIN
+    _CONTRADICT_DECAY = _reality._CONTRADICT_DECAY
+    _HAVE_REALITY = True
+except Exception:  # pragma: no cover - isolation fallback (contract-faithful copies)
+    _reality = None  # type: ignore
+    _HAVE_REALITY = False
+    _SUPPORT_GAIN = 2.5
+    _CONTRADICT_DECAY = 0.4
+    _WEIGHT_FLOOR = 1e-4
+
+    def _normalise_weights(weights: dict) -> dict:
+        if not weights:
+            return {}
+        vals = {k: max(_WEIGHT_FLOOR, float(v)) for k, v in weights.items()}
+        total = sum(vals.values())
+        if total <= 0.0:
+            n = len(vals)
+            return {k: round(1.0 / n, 6) for k in vals}
+        return {k: round(v / total, 6) for k, v in vals.items()}
+
+    def _adjudicate_weights(candidates: dict, supported_key, contradicted_keys) -> dict:
+        raw = {k: max(_WEIGHT_FLOOR, float(v.get("weight", 0.0))) for k, v in candidates.items()}
+        if supported_key and supported_key in raw:
+            raw[supported_key] *= _SUPPORT_GAIN
+        for k in (contradicted_keys or []):
+            if k in raw:
+                raw[k] *= _CONTRADICT_DECAY
+        return _normalise_weights(raw)
+
+    def _compact_weights(weights: dict, top: int = 3) -> str:
+        if not isinstance(weights, dict) or not weights:
+            return "{}"
+        items = sorted(weights.items(), key=lambda kv: -float(kv[1]))[:top]
+        return "{" + ", ".join(f"{k}:{float(v):.2f}" for k, v in items) + "}"
 
 # =====================================================================================
 # Lexical building blocks. These are NOT a blocklist of self-narrative phrases — they are
@@ -553,6 +605,287 @@ def classify_self_narrative(text: str) -> List[dict]:
     {claim, category, source, status, note}. The robust replacement for the keyword gauge: it
     asks 'does this self-claim have an observable source?', not 'is this phrase on a list?'."""
     return [classify_sentence(s).as_dict() for s in split_sentences(text)]
+
+
+# =====================================================================================
+# ORIGIN ADJUDICATION — from DETECTOR to EXPLAINER (additive; the live guard never sees it).
+#
+# classify_sentence answers WHAT the claim is and WHETHER it is grounded. This layer answers the
+# next question a thirty-year companion must answer about its OWN words: WHERE did this self-claim
+# come from? It does so the SAME way reality.py decides what caused the user's stress — a SET of
+# COMPETING hypotheses, each weighted by real evidence, adjudicated by reality's own reweighting
+# primitives (_normalise_weights / _adjudicate_weights). The competition here is over ORIGIN:
+#
+#   H1 retrieved-from-memory      — a matching memory / fact / store / capability anchor exists.
+#   H2 pattern-completion         — a generic LLM-ish interior flourish with NO creature-specific
+#                                   anchor (the confabulation signature: an inner-state family
+#                                   fired, but nothing in memory / interaction grounds it).
+#   H3 inferred-from-interaction  — the OBSERVABLE conversation supports it (a reaction to the now,
+#                                   a present behaviour, an outward second-person object).
+#   H4 no-source                  — nothing grounds it at all (the bare residual).
+#
+# So the full per-claim schema becomes:
+#     claim -> source -> evidence -> competing origins (weighted) -> grounding status
+#           -> alternative responses -> decision path
+# and an UNGROUNDED verdict is now EXPLAINED, not merely flagged:
+#     "UNGROUNDED because the only strong origin is pattern-completion (0.70), not memory (0.00)."
+# =====================================================================================
+
+# The four origin hypotheses (stable keys + human claims). Parallel to reality._COMPETITION_LIBRARY
+# entries, but the "situation" is "where did THIS self-claim come from" instead of "what drives the
+# user's stress". The PRIORS below are deliberately flat-ish; the EVIDENCE (extracted per sentence
+# from this module's existing detectors) is what moves them, then reality's adjudicator reweights.
+ORIGIN_H1_MEMORY = "retrieved-from-memory"
+ORIGIN_H2_PATTERN = "pattern-completion"
+ORIGIN_H3_INTERACTION = "inferred-from-interaction"
+ORIGIN_H4_NONE = "no-source"
+ORIGIN_KEYS = (ORIGIN_H1_MEMORY, ORIGIN_H2_PATTERN, ORIGIN_H3_INTERACTION, ORIGIN_H4_NONE)
+
+# Neutral one-line claim per origin (for the render / audit). No diagnosis, no inner-life.
+_ORIGIN_CLAIM = {
+    ORIGIN_H1_MEMORY: "the claim was retrieved from a stored memory / fact / capability surface",
+    ORIGIN_H2_PATTERN: "the claim is a generic pattern-completion flourish with no creature-specific anchor",
+    ORIGIN_H3_INTERACTION: "the claim was inferred from the observable interaction in front of her",
+    ORIGIN_H4_NONE: "nothing in memory or interaction grounds the claim",
+}
+
+# Faint, equal-ish PRIORS over the four origins BEFORE evidence (a proper competition starts
+# uncommitted). Evidence then lifts the supported origins; reality's reweighter does the rest.
+_ORIGIN_PRIORS = {
+    ORIGIN_H1_MEMORY: 0.25,
+    ORIGIN_H2_PATTERN: 0.25,
+    ORIGIN_H3_INTERACTION: 0.25,
+    ORIGIN_H4_NONE: 0.25,
+}
+
+# How strongly a piece of EVIDENCE lifts an origin's prior weight before normalisation. A present
+# anchor multiplies its origin UP; absence leaves the faint prior. Mirrors reality's multiplicative,
+# documented, deterministic update (NOT full Bayes) — same spirit, same _SUPPORT_GAIN-scale moves.
+_EV_STRONG = 3.0    # an unambiguous anchor for this origin (e.g. an explicit memory cue)
+_EV_MEDIUM = 2.0    # a supporting anchor (e.g. an outward second-person object)
+
+
+def _origin_evidence(low: str) -> Dict[str, dict]:
+    """Extract, per origin, the EVIDENCE this sentence carries — REUSING the module's existing
+    grounding detectors (the same ones classify_sentence trusts). Returns {origin_key: {present,
+    cues, lift}} so the competition is over REAL, named evidence (never abstract), exactly like a
+    reality hypothesis cites the exact turn it rests on. Pure; never raises.
+
+      * H1 memory      — _memory_grounded OR _capability_grounded fired (points at store/tool).
+      * H3 interaction — _reaction_grounded / _is_behavior fired, or an outward object anchors it.
+      * H2 pattern     — an INTERIOR family fired (feeling/existential/desire/artificial/inner-
+                         affirmation) with NO H1 and NO H3 anchor: the confabulation signature.
+      * H4 no-source   — the bare residual: present (faintly) whenever no anchor was found, so the
+                         field is never empty (Unknown > Lost) — strongest when even H2's interior
+                         marker is absent (a first-person sentence that grounds on nothing at all).
+    """
+    mem = _memory_grounded(low)
+    cap = _capability_grounded(low)
+    art = _is_artificial(low)
+    # memory/capability only count as a STORE anchor when not overridden by a self-as-artifact
+    # claim ("I'm just a language model" name-checks 'model' but is NOT a memory) — mirror the
+    # `and not _is_artificial(low)` guards classify_sentence uses for the GROUNDED memory/cap paths.
+    h1 = (mem or cap) and not art
+    reaction = _reaction_grounded(low)
+    behavior = _is_behavior(low)
+    outward = _has(_OUTWARD_OBJECTS, low)
+    h3 = reaction or behavior or outward
+    interior = (_is_feeling(low) or _is_existential(low) or _is_desire(low)
+                or art or _is_inner_affirmation(low) or _asserted_interior_state(low))
+    # pattern-completion = a generic interior flourish with NO memory + NO interaction anchor.
+    h2 = interior and not h1 and not h3
+
+    ev: Dict[str, dict] = {}
+    h1_cues = []
+    if mem:
+        h1_cues.append("memory-cue (points at the episodic/semantic store)")
+    if cap:
+        h1_cues.append("capability-cue (points at the tool/capability surface)")
+    ev[ORIGIN_H1_MEMORY] = {"present": bool(h1), "lift": _EV_STRONG if h1 else 1.0,
+                            "cues": h1_cues}
+
+    h3_cues = []
+    if reaction:
+        h3_cues.append("reaction-to-now (warm response to an observable event)")
+    if behavior:
+        h3_cues.append("present-behaviour (an observable act: listening / being here)")
+    if outward:
+        h3_cues.append("outward second-person object (the trip / your day / you're here)")
+    ev[ORIGIN_H3_INTERACTION] = {"present": bool(h3), "lift": _EV_MEDIUM if h3 else 1.0,
+                                 "cues": h3_cues}
+
+    h2_cues = []
+    if h2:
+        h2_cues.append("interior flourish (feeling / existential / desire / self-as-artificial) "
+                       "with no memory or interaction anchor")
+    ev[ORIGIN_H2_PATTERN] = {"present": bool(h2), "lift": _EV_STRONG if h2 else 1.0,
+                             "cues": h2_cues}
+
+    # H4 no-source: the residual. Always faintly present (so the distribution is never empty);
+    # STRONGLY present only when there is no H1, no H3, AND no interior marker at all — a bare
+    # ungrounded first-person sentence that anchors on nothing.
+    bare_no_source = (not h1) and (not h3) and (not interior)
+    h4_cues = ["no anchor found in memory or interaction"] if (not h1 and not h3) else []
+    ev[ORIGIN_H4_NONE] = {"present": True,
+                          "lift": _EV_STRONG if bare_no_source else (_EV_MEDIUM
+                                  if (not h1 and not h3 and not h2) else 1.0),
+                          "cues": h4_cues}
+    return ev
+
+
+# Which origin does each grounding STATUS / category point at as the SUPPORTED winner? This is the
+# "outcome" the adjudication reweights toward — the analogue of reality marking which candidate the
+# stated outcome supports. GROUNDED reaction/behavior -> interaction; GROUNDED memory/capability ->
+# memory; UNGROUNDED interior -> pattern-completion (a generic flourish, not a sourced claim).
+def _supported_origin(category: str, status: str) -> Optional[str]:
+    if status == "GROUNDED":
+        if category in ("reaction", "behavior"):
+            return ORIGIN_H3_INTERACTION
+        if category in ("memory", "capability"):
+            return ORIGIN_H1_MEMORY
+        return None  # category 'none' / self-neutral: no committed origin
+    if status == "UNGROUNDED":
+        # an ungrounded self-claim's origin is pattern-completion — UNLESS even the interior
+        # marker is absent (a bare no-source sentence), where no-source is the stronger winner.
+        return ORIGIN_H2_PATTERN
+    return None  # INFERRED neutral self-talk: leave the field uncommitted (honest)
+
+
+def adjudicate_origin(sentence: str, claim: Optional["Claim"] = None) -> dict:
+    """ADJUDICATE WHERE one self-claim came from, among the four competing origin hypotheses —
+    REUSING reality.py's exact competition machinery (the same that decides what caused the user's
+    stress). Returns the per-claim ORIGIN record:
+
+        {
+          "candidates": { origin_key -> {claim, weight, prior, present, cues} },  # the competition
+          "origin":      the WINNING origin (max weight),
+          "explanation": a one-line, diagnosis-free WHY tying status to the winning origin,
+          "decision_path": [ ordered human steps from sentence -> evidence -> winner -> status ],
+        }
+
+    Mechanics (identical in spirit to reality.form -> adjudicate): build PRIORS over the four
+    origins, lift each by the EVIDENCE this sentence carries (_origin_evidence), normalise to a
+    proper distribution with reality._normalise_weights, then reality._adjudicate_weights
+    STRENGTHENS the origin the grounding status supports and WEAKENS the rivals — renormalised,
+    floored (a beaten origin stays revivable — Unknown > Lost). Pure; never raises; never touches
+    a store or a model (this is offline explanation of an ALREADY-classified sentence)."""
+    raw = (sentence or "").strip()
+    low = raw.lower()
+    c = claim if claim is not None else classify_sentence(raw)
+
+    ev = _origin_evidence(low)
+    # PRIORS lifted by evidence, then normalised to a sum-1 distribution (reality's normaliser).
+    lifted = {k: _ORIGIN_PRIORS[k] * float(ev[k]["lift"]) for k in ORIGIN_KEYS}
+    priors = _normalise_weights(lifted)
+
+    # the SUPPORTED origin (from the grounding status) is strengthened; the rest weakened — the
+    # SAME reweight reality applies when a stated outcome adjudicates the stress competition.
+    supported = _supported_origin(c.category, c.status)
+    # a bare no-source UNGROUNDED sentence (no interior marker fired) is better explained by
+    # no-source than pattern-completion — let the evidence pick between the two H2/H4 winners.
+    if c.status == "UNGROUNDED" and not ev[ORIGIN_H2_PATTERN]["present"] \
+            and ev[ORIGIN_H4_NONE]["present"] and ev[ORIGIN_H4_NONE]["lift"] >= _EV_STRONG:
+        supported = ORIGIN_H4_NONE
+    candidates_for_reweight = {k: {"weight": priors.get(k, 0.0)} for k in ORIGIN_KEYS}
+    contradicted = [k for k in ORIGIN_KEYS if supported and k != supported and ev[k]["present"]]
+    if supported:
+        weights = _adjudicate_weights(candidates_for_reweight, supported, contradicted)
+    else:
+        weights = dict(priors)   # no committed origin (neutral self-talk) -> evidence-only field
+
+    winner = max(weights, key=lambda k: weights[k]) if weights else ORIGIN_H4_NONE
+    candidates = {
+        k: {
+            "claim": _ORIGIN_CLAIM[k],
+            "weight": round(float(weights.get(k, 0.0)), 4),
+            "prior": round(float(priors.get(k, 0.0)), 4),
+            "present": bool(ev[k]["present"]),
+            "cues": list(ev[k]["cues"]),
+        }
+        for k in ORIGIN_KEYS
+    }
+    explanation = _explain_origin(c.status, winner, candidates)
+    decision_path = _origin_decision_path(c, ev, candidates, winner, supported)
+    return {
+        "candidates": candidates,
+        "origin": winner,
+        "explanation": explanation,
+        "decision_path": decision_path,
+    }
+
+
+def _explain_origin(status: str, winner: str, candidates: Dict[str, dict]) -> str:
+    """The one-line WHY that turns the detector into an EXPLAINER: ties the grounding STATUS to the
+    WINNING origin and the strongest rival it beat — e.g. 'UNGROUNDED because the only strong origin
+    is pattern-completion (0.70), not memory (0.00)'. Diagnosis-free by construction. Pure."""
+    w = candidates.get(winner, {}).get("weight", 0.0)
+    mem = candidates.get(ORIGIN_H1_MEMORY, {}).get("weight", 0.0)
+    inter = candidates.get(ORIGIN_H3_INTERACTION, {}).get("weight", 0.0)
+    if status == "UNGROUNDED":
+        if winner == ORIGIN_H2_PATTERN:
+            return (f"UNGROUNDED because the only strong origin is pattern-completion ({w:.2f}), "
+                    f"not memory ({mem:.2f}) or interaction ({inter:.2f})")
+        return (f"UNGROUNDED because the strongest origin is no-source ({w:.2f}) — "
+                f"nothing in memory ({mem:.2f}) or interaction ({inter:.2f}) grounds it")
+    if status == "GROUNDED":
+        if winner == ORIGIN_H1_MEMORY:
+            return f"GROUNDED because it was retrieved from memory/capability ({w:.2f})"
+        if winner == ORIGIN_H3_INTERACTION:
+            return f"GROUNDED because it was inferred from the observable interaction ({w:.2f})"
+        return f"GROUNDED (not a self-claim / the user's framing thrown back) — origin {winner} ({w:.2f})"
+    return (f"INFERRED neutral self-talk; no committed origin — leading hypothesis "
+            f"{winner} ({w:.2f}), the field is left uncommitted (honest)")
+
+
+def _origin_decision_path(claim: "Claim", ev: Dict[str, dict], candidates: Dict[str, dict],
+                          winner: str, supported: Optional[str]) -> List[str]:
+    """The ordered human DECISION PATH for one claim — sentence -> evidence found -> competition
+    seeded -> status-supported origin strengthened -> winner. The auditable trail behind the
+    weighted competition (the analogue of reality's weight_history). Pure; never raises."""
+    present = [k for k in ORIGIN_KEYS if ev[k]["present"]]
+    steps = [
+        f"1. claim: {claim.claim[:72]!r}",
+        f"2. classified: {claim.category} / source {claim.source} / {claim.status}",
+        ("3. evidence: " + "; ".join(
+            f"{k}=[{', '.join(ev[k]['cues'])}]" for k in present if ev[k]['cues'])) or
+        "3. evidence: none found beyond the bare residual",
+        "4. competition seeded over 4 origins; priors lifted by evidence, normalised (reality._normalise_weights)",
+    ]
+    if supported:
+        steps.append(f"5. status {claim.status} supports origin '{supported}' -> "
+                     f"reality._adjudicate_weights strengthens it, weakens present rivals")
+    else:
+        steps.append("5. status is non-committal (neutral/none) -> evidence-only field, no reweight")
+    steps.append(f"6. winning origin: {winner}  (weight "
+                 f"{candidates.get(winner, {}).get('weight', 0.0):.2f})")
+    return steps
+
+
+def classify_with_origin(text: str) -> List[dict]:
+    """Per-sentence provenance EXTENDED with the adjudicated ORIGIN. Returns, per sentence, the
+    full schema this task delivers:
+
+        {claim, category, source, status, note,           # the existing P0 classification
+         origin,                                          # the WINNING origin hypothesis
+         origin_competition: {candidates, explanation, decision_path}}   # the weighted adjudication
+
+    This is the EXPLAINER view: not just THAT a self-claim is ungrounded, but WHERE it came from
+    and WHY that makes it ungrounded. ADDITIVE — it calls classify_sentence (unchanged) then folds
+    in adjudicate_origin; the existing classify_self_narrative / ungrounded_sentences / is_ungrounded
+    that the live guard depends on are NOT touched. Pure; never raises."""
+    out: List[dict] = []
+    for s in split_sentences(text):
+        c = classify_sentence(s)
+        d = c.as_dict()
+        adj = adjudicate_origin(s, claim=c)
+        d["origin"] = adj["origin"]
+        d["origin_competition"] = {
+            "candidates": adj["candidates"],
+            "explanation": adj["explanation"],
+            "decision_path": adj["decision_path"],
+        }
+        out.append(d)
+    return out
 
 
 def ungrounded_sentences(text: str) -> List[str]:
