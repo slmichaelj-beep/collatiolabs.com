@@ -22,6 +22,7 @@ import secrets
 import threading
 import time
 import warnings
+from datetime import datetime, timezone
 
 warnings.filterwarnings("ignore")                       # quiet torch/HF startup noise
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
@@ -51,6 +52,41 @@ _HISTORY = deque(maxlen=_HISTMAX)    # recent (you, her) turns — persisted so 
 _CURIOSITY_ASKED = set()             # names that surfaced a curiosity question this process-
                                      # session — pace Law 002's gap-asking to one gentle aside
                                      # per session (conservative default; budget-tunable)
+
+# ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy-fingerprint of THIS running process,
+# captured ONCE at startup (see _capture_deploy / main). The /version endpoint serves it
+# so a deploy check can confirm the RUNNING process executes the certified commit — git ==
+# running. Defaults are the never-broke-startup fallbacks; never recomputed per request.
+_DEPLOY = {"sha": "unknown", "branch": "unknown", "started": None}
+
+
+def _git(*args) -> str:
+    """Run a read-only git command in the repo dir and return its stripped stdout, or ""
+    on ANY failure. GUARDED so a missing git / not-a-repo / timeout can NEVER raise — this
+    feeds startup, and LAW 005 must add deploy-proof without ever risking the server boot."""
+    import subprocess
+    try:
+        repo = Path(__file__).resolve().parent.parent      # anima/.. == repo root
+        out = subprocess.run(["git", *args], cwd=str(repo), capture_output=True,
+                             text=True, timeout=5)
+        if out.returncode == 0:
+            return (out.stdout or "").strip()
+    except Exception:
+        pass
+    return ""
+
+
+def _capture_deploy() -> dict:
+    """Fingerprint the commit THIS process is running, ONCE at startup. Short HEAD sha +
+    branch via guarded subprocess (falls back to 'unknown'), plus an ISO start timestamp.
+    Fully guarded: any failure yields the 'unknown' fallback rather than breaking boot."""
+    try:
+        sha = _git("rev-parse", "--short", "HEAD") or "unknown"
+        branch = _git("rev-parse", "--abbrev-ref", "HEAD") or "unknown"
+    except Exception:
+        sha, branch = "unknown", "unknown"
+    return {"sha": sha, "branch": branch,
+            "started": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 def _hist_path(name):
@@ -927,6 +963,15 @@ class Handler(BaseHTTPRequestHandler):
                 html = ((WEB / "index.html").read_text(encoding="utf-8")
                         .replace("__NAME__", self.name).replace("__TOKEN__", ""))
                 return self._send(200, "text/html; charset=utf-8", html.encode())
+            if u.path == "/version":
+                # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
+                # running process: the commit it is actually executing, captured ONCE at
+                # startup. UNAUTHENTICATED by design — it is non-sensitive deploy metadata
+                # (a short sha + branch + start time, no secrets, no personal data), and a
+                # deploy check MUST be able to read it without a session to prove git ==
+                # running. Served straight from the module-level stash; computes nothing here.
+                return self._send(200, "application/json",
+                                  json.dumps(_DEPLOY).encode())
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
             if u.path == "/auth/status":
@@ -1160,6 +1205,10 @@ def main(argv=None):
         raise SystemExit(f"\ncannot open {args.name}: {e}\n"
                          "  set the same ANIMA_KEY you used before (or unset it if plaintext).\n")
     label(f"{args.name} server :{args.port}")
+    global _DEPLOY                       # LAW 005: pin the running commit ONCE, before serving
+    _DEPLOY = _capture_deploy()          # guarded — never breaks startup; serves /version
+    print(f"deploy: running {_DEPLOY['sha']} ({_DEPLOY['branch']}) — "
+          f"`python3 scripts/deploy_check.py` confirms git == running (LAW 005)")
     Handler.token = os.environ.get("ANIMA_TOKEN", "")
     from . import crypto
     from .mouth import DEFAULT_MODEL
