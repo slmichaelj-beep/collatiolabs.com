@@ -185,6 +185,32 @@ def _clean(s):
     return s or None
 
 
+# A capitalised word in an APPOSITIVE name slot ("my daughter <X>") that is NOT a real
+# name — a sentence-initial / clause-initial function word, a pronoun, or a common aux that
+# can appear Title-cased mid-stream. The appositive rules already require a leading capital
+# AND lowercase-rest AND a negative-lookahead on copulas; this is the final guard so a
+# stray "My daughter Then..." / "my friend They..." can never be mistaken for a name.
+# (Observed > Assumed: when in doubt, capture NOTHING rather than fabricate a name.)
+_STOPNAMES = frozenset(
+    w.lower() for w in (
+        "I", "Im", "Ive", "Id", "Ill", "My", "We", "Weve", "Were", "Our", "The", "A",
+        "An", "This", "That", "These", "Those", "He", "She", "It", "They", "You", "Your",
+        "Last", "Next", "Then", "And", "But", "So", "Because", "When", "Where", "What",
+        "Who", "Why", "How", "If", "Yeah", "Honestly", "Lately", "Recently", "Now", "Just",
+        "Today", "Yesterday", "Tomorrow", "Tonight", "Maybe", "Really", "After", "Before",
+        "Since", "While", "Also", "Still", "Yes", "No", "Oh", "Well", "Is", "Are", "Was",
+        "Were", "Has", "Have", "Had", "Named", "Called", "Got", "Started", "Moved", "Left",
+        "Quit", "Joined", "Loves", "Lives", "Works", "Said", "Told", "Came", "Went", "Made",
+    )
+)
+
+
+def _is_stopname(v) -> bool:
+    """True iff an appositive-slot capture is a function word / pronoun / aux, not a name."""
+    s = re.sub(r"[^a-z]", "", str(v or "").strip().lower())
+    return (not s) or s in _STOPNAMES
+
+
 _RULES = [
     # name
     (re.compile(r"\bmy name(?:'s| is)\s+(?P<v>[A-Z][\w'-]+(?:\s+[A-Z][\w'-]+){0,2})", re.I),
@@ -268,6 +294,74 @@ _RULES = [
      "brother", lambda m: _clean(m.group("v"))),
     (re.compile(r"\bi have\s+a\s+sister\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
      "sister", lambda m: _clean(m.group("v"))),
+    # --- APPOSITIVE names (WAVE A) -----------------------------------------------------
+    # A name stated in apposition, WITHOUT a copula: "my daughter Maya", "my friend Sloane",
+    # "a dog named Cooper". The capital-guard ((?-i:[A-Z])) is what makes this safe: the
+    # token right after the role must START with a capital AND be otherwise lowercase, so
+    # "my daughter started school" (started is lowercase) and "my friend and I" (and) can
+    # never be read as a name. _is_stopname is the final guard against a function/aux word
+    # that happens to be Title-cased mid-stream ("my friend Then we left"). These mirror the
+    # copula rules above but drop the "is/named/called" requirement — the #1 total-loss class
+    # the conservation ledger named. (Copula rules are listed FIRST so "my daughter's name is
+    # Mia" still prefers the specific form; extract() keeps the first hit for a scalar trait.)
+    (re.compile(r"\bmy\s+daughter\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "daughter", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+son\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "son", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+(?:wife|husband|partner|gf|bf|girlfriend|boyfriend|spouse)\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "partner", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+(?:mom|mum|mother)\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "mother", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+(?:dad|father)\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "father", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+brother\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "brother", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+sister\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "sister", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    (re.compile(r"\bmy\s+friend\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "friend", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    # "a dog named Cooper" / "we adopted a dog named Cooper" — pet appositive WITHOUT "my".
+    (re.compile(r"\b(?:a|our|the)\s+dog\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "dog_name", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\b(?:a|our|the)\s+cat\s+(?:named|called)\s+(?P<v>(?-i:[A-Z])[\w'-]+)", re.I),
+     "cat_name", lambda m: _clean(m.group("v"))),
+    # --- LIFE-EVENT durable facts (WAVE A) ---------------------------------------------
+    # A stated transition becomes a DURABLE trait, not a dropped verb. "I moved to Austin"
+    # -> moved_to=Austin. EVERY capital-class is wrapped (?-i:...) so re.I can't make it match
+    # a lowercase common noun: "I moved to the city/a new place" captures NOTHING, and the
+    # hypothetical guard in extract() rejects "maybe I'll move to X". The place run only
+    # extends across ADDITIONAL capitalised tokens ("New York", "Austin, TX"), so it stops at
+    # the first lowercase word ("Austin because ..." -> "Austin"). These are kept as their OWN
+    # traits (moved_to/employer/business) so they neither fight nor silently overwrite the
+    # current-state slots (lives/employer) the Spine already owns.
+    (re.compile(r"\bi\s+(?:just\s+|recently\s+|finally\s+)?moved\s+(?:back\s+)?to\s+(?P<v>(?-i:[A-Z])[\w'-]+(?:[ ,]+(?-i:[A-Z])[\w'.-]+){0,3})", re.I),
+     "moved_to", lambda m: _clean(m.group("v"))),
+    (re.compile(r"\bwe\s+(?:just\s+|recently\s+|finally\s+)?moved\s+(?:back\s+)?to\s+(?P<v>(?-i:[A-Z])[\w'-]+(?:[ ,]+(?-i:[A-Z])[\w'.-]+){0,3})", re.I),
+     "moved_to", lambda m: _clean(m.group("v"))),
+    # "I started/founded/launched a company (called X)" -> the durable event; X is captured
+    # when named (capital-guarded), else the trait alone records that the event happened.
+    (re.compile(r"\bi\s+(?:just\s+|recently\s+|finally\s+|co-?)?(?:started|launched|founded|co-?founded|opened)\s+(?:my\s+own\s+|my\s+|a\s+|an\s+)?(?:company|business|startup|firm|nonprofit|shop|store|practice|brand)(?:\s+(?:called|named)\s+(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+(?-i:[A-Z])[\w'&.-]+){0,3}))?", re.I),
+     "business", lambda m: _clean(m.group("v")) if m.group("v") else "started a company"),
+    # "I quit my job" / "I left my job" -> a durable event marker.
+    (re.compile(r"\bi\s+(?:just\s+|recently\s+|finally\s+)?(?:quit|left|resigned\s+from)\s+(?:my\s+)?(?:job|position|role|company)\b", re.I),
+     "job_change", lambda m: "quit my job"),
+    # "I got a new job" / "I started a new job" -> a durable event marker.
+    (re.compile(r"\bi\s+(?:just\s+|recently\s+)?(?:got|started|landed|accepted)\s+(?:a\s+)?new\s+job\b", re.I),
+     "job_change", lambda m: "started a new job"),
+    # "I joined Acme" / "I started at Acme" -> employer (capital-guarded company name).
+    (re.compile(r"\bi\s+(?:just\s+|recently\s+)?(?:joined|started\s+at|started\s+working\s+at)\s+(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+(?-i:[A-Z])[\w'&.-]+){0,3})", re.I),
+     "employer", lambda m: _clean(m.group("v"))),
+    # "I married Jen" / "we got married" -> a durable relationship event (name captured
+    # when given; the partner copula/appositive rules above also catch "my wife Jen").
+    (re.compile(r"\bi\s+married\s+(?P<v>(?-i:[A-Z])[a-z'-]+)\b", re.I),
+     "married_to", lambda m: _clean(m.group("v")) if not _is_stopname(m.group("v")) else None),
+    # "we adopted a dog/cat" / "I adopted a dog" -> a pet exists (the NAME, when appositive,
+    # is caught by the pet rules above; this records the species as a list-valued pet event).
+    (re.compile(r"\b(?:we|i)\s+(?:just\s+|recently\s+)?adopted\s+(?:a\s+|an\s+|our\s+)?(?P<v>dog|cat|puppy|kitten|kitty)\b", re.I),
+     "pets", lambda m: _clean(m.group("v"))),
+    # "we had a baby" / "I had a baby" / "we just had a baby boy" -> a durable life event.
+    (re.compile(r"\b(?:we|i)\s+(?:just\s+|recently\s+|finally\s+)?had\s+(?:a\s+|our\s+)?(?P<v>baby|baby\s+(?:boy|girl)|son|daughter|kid|child|twins)\b", re.I),
+     "life_event", lambda m: "had a " + (_clean(m.group("v")) or "baby")),
     # work — clear job titles only, and a business owned/founded (capital-guarded so "I run errands" can't match)
     (re.compile(r"\bi'?m\s+(?:the|a|an)\s+(?P<v>(?:senior\s+|lead\s+|principal\s+|chief\s+|head\s+|junior\s+|staff\s+)?(?:founder|co-?founder|ceo|cto|cfo|coo|president|vp|director|manager|engineer|developer|designer|scientist|analyst|consultant|architect|researcher|professor|owner|partner))\b", re.I),
      "role", lambda m: _clean(m.group("v"))),
@@ -1010,6 +1104,47 @@ def _selftest() -> int:
     ok("extract: list-valued dislikes accumulate",
        set((extract("I hate cilantro and I can't stand olives")[0]["value"])) == {"cilantro", "olives"}
        if extract("I hate cilantro and I can't stand olives") else False)
+
+    # --- WAVE A: APPOSITIVE names (no copula) + LIFE-EVENT durable facts ---------------
+    # The conservation ledger surfaced these as total-loss classes; these asserts lock the
+    # widening in and guard the capital/stopname/hypothetical rails (mirrors the #21 widen).
+    def _xt(text):
+        return {x["trait"]: x["value"] for x in extract(text)}
+    ok("WAVE-A appositive: 'my daughter Maya' -> daughter=Maya (no copula needed)",
+       _xt("My daughter Maya started kindergarten last week").get("daughter") == "Maya")
+    ok("WAVE-A appositive: 'my friend Sloane' -> friend=Sloane",
+       _xt("my friend Sloane is visiting").get("friend") == "Sloane")
+    ok("WAVE-A appositive: 'a dog named Cooper' -> dog_name=Cooper (no 'my')",
+       _xt("We adopted a dog named Cooper in 2024").get("dog_name") == "Cooper")
+    ok("WAVE-A life-event: 'I moved to Austin' -> moved_to=Austin (stops before 'because')",
+       _xt("I moved to Austin because my manager changed").get("moved_to") == "Austin")
+    ok("WAVE-A life-event: multi-word place 'I moved to New York' kept whole",
+       _xt("I moved to New York last year").get("moved_to") == "New York")
+    ok("WAVE-A life-event: 'I started a company called Collatio' -> business=Collatio",
+       _xt("I started a company called Collatio").get("business") == "Collatio")
+    ok("WAVE-A life-event: 'I started a company' (unnamed) -> business marker",
+       "company" in (_xt("I started a company").get("business") or ""))
+    ok("WAVE-A life-event: 'I quit my job' -> job_change marker",
+       "quit" in (_xt("I quit my job").get("job_change") or ""))
+    ok("WAVE-A life-event: 'I joined Acme' -> employer=Acme",
+       _xt("I joined Acme").get("employer") == "Acme")
+    ok("WAVE-A life-event: 'I married Jen' -> married_to=Jen",
+       _xt("I married Jen").get("married_to") == "Jen")
+    ok("WAVE-A life-event: 'we had a baby' -> a durable life_event",
+       "baby" in (_xt("we had a baby").get("life_event") or ""))
+    # GUARDS — Observed > Assumed: never fabricate a name or a place.
+    ok("WAVE-A guard: 'my daughter started kindergarten' (no name) captures NO daughter",
+       "daughter" not in _xt("my daughter started kindergarten"))
+    ok("WAVE-A guard: 'I moved to the city' (common noun) captures NO moved_to",
+       "moved_to" not in _xt("I moved to the city")
+       and "moved_to" not in _xt("I moved to a new place"))
+    ok("WAVE-A guard: hypothetical 'maybe I'll move to Paris' captures NOTHING durable",
+       "moved_to" not in _xt("maybe I'll move to Paris")
+       and "moved_to" not in _xt("I wish I moved to Denver"))
+    ok("WAVE-A guard: 'my friend and I' does not read 'and'/'I' as a name",
+       "friend" not in _xt("my friend and I went out for dinner"))
+    ok("WAVE-A guard: capitalised aux in name slot ('my son Then we left') is no name",
+       "son" not in _xt("my son Then we left for the park"))
 
     # --- a throwaway store ---
     name = "lirf_selftest_" + secrets.token_hex(3)

@@ -44,6 +44,9 @@ LAW_003_TITLE = "UNDERSTANDING BEATS REMEMBERING"
 LAW_004_ID = "ANIMA LAW 004"
 LAW_004_TITLE = "CERTIFICATION OVER ASSUMPTION"
 
+LAW_005_ID = "ANIMA LAW 005"
+LAW_005_TITLE = "DEPLOYED OVER BUILT"
+
 # ---------------------------------------------------------------------------------
 # THE LAW — verbatim. Do not paraphrase, soften, or "improve" this text. Subsystems
 # and tests read THIS constant; if the words ever need to change, they change here,
@@ -135,6 +138,24 @@ LAW_004 = (
     "under stress. Observed > Assumed. Measured > Believed. Certified > Claimed."
 )
 
+# ---------------------------------------------------------------------------------
+# THE FIFTH LAW — verbatim. Parallel to LAW_001..LAW_004: read THIS constant, never
+# paraphrase. Where the fourth law forbids mistaking the right OUTPUT for a complete
+# subsystem, the fifth forbids mistaking BUILT code for RUNNING code. Code on disk is not
+# code in production. A whole certified architecture sat idle while the live process ran a
+# day-old binary for ~24h — the certificate proved the code, never the deployment. Like the
+# others this law is ENFORCED: a Prove-Deployment check confirms the git, deployed, and
+# running commits all match before a thing counts as live.
+# ---------------------------------------------------------------------------------
+LAW_005 = (
+    "ANIMA LAW 005 — DEPLOYED OVER BUILT. "
+    "A subsystem that is built, tested, and certified is not yet doing anything: code on "
+    "disk is not code in production. Built ≠ Tested ≠ Certified ≠ Deployed ≠ Running ≠ "
+    "Being Used ≠ Working. Every certification must verify that the running process executes "
+    "the certified commit — the git, deployed, and running commits must match. "
+    "Deployed > Built. Running > Deployed. Working > Running."
+)
+
 
 def law_text() -> str:
     """The full, verbatim law. Single source of truth for prompts, docs, and tests."""
@@ -181,6 +202,19 @@ def law_004_text() -> str:
     Certified > Claimed. The words live in one place so every subsystem reads the same law.
     """
     return LAW_004
+
+
+def law_005_text() -> str:
+    """The full, verbatim fifth law. Single source of truth for prompts, docs, tests.
+
+    Written here; ENFORCED by the Prove-Deployment verification (a runtime tier of
+    scripts/certify.py / a deploy-check), which confirms the running process executes the
+    certified commit — the git, deployed, and running SHAs must match. Where LAW_004 governs
+    what BUILDERS may CLAIM about code, LAW_005 governs the gap between BUILT and RUNNING: a
+    day-old binary served production while the new architecture sat certified-but-idle.
+    The words live in one place so every subsystem reads the same law.
+    """
+    return LAW_005
 
 
 def continuity_log_path(name: str) -> Path:
@@ -285,12 +319,16 @@ __all__ = [
     "LAW_004_ID",
     "LAW_004_TITLE",
     "LAW_004",
+    "LAW_005_ID",
+    "LAW_005_TITLE",
+    "LAW_005",
     "COROLLARIES",
     "PRESERVE_OVER_DESTROY",
     "law_text",
     "law_002_text",
     "law_003_text",
     "law_004_text",
+    "law_005_text",
     "corollaries",
     "approved_loss",
     "approved_losses",
@@ -325,6 +363,14 @@ if __name__ == "__main__":
     assert law_004_text() == LAW_004
     assert "LAW_004" in __all__, "LAW_004 must be exported"
 
+    # LAW_005 — enforced by the Prove-Deployment check (running commit == certified commit).
+    assert LAW_005, "LAW_005 must be present"
+    assert LAW_005.startswith("ANIMA LAW 005"), "LAW_005 must start with 'ANIMA LAW 005'"
+    assert LAW_005_TITLE.upper() in LAW_005, "LAW_005 must contain its title"
+    assert "Deployed > Built." in LAW_005, "LAW_005 must carry the deployment corollary"
+    assert law_005_text() == LAW_005
+    assert "LAW_005" in __all__, "LAW_005 must be exported"
+
     print(LAW_001)
     print()
     print(LAW_002)
@@ -333,4 +379,6 @@ if __name__ == "__main__":
     print()
     print(LAW_004)
     print()
-    print("constitution selftest: OK (LAW_001 + LAW_002 + LAW_003 + LAW_004 present and verbatim)")
+    print(LAW_005)
+    print()
+    print("constitution selftest: OK (LAW_001 + LAW_002 + LAW_003 + LAW_004 + LAW_005 present and verbatim)")

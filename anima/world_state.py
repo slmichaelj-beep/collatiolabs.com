@@ -368,7 +368,7 @@ def _edge_key(r: dict):
 # governed by a wish/conditional is NOT a stated situation ("I wish work were less
 # stressful" must not assert work IS stressful).
 try:  # pragma: no cover
-    from .memory_lirf import _HYPOTHETICAL, _not_hypothetical  # type: ignore
+    from .memory_lirf import _HYPOTHETICAL, _not_hypothetical, _is_stopname  # type: ignore
 except Exception:  # pragma: no cover
     _HYPOTHETICAL = re.compile(
         r"\b(?:wish|hope|if|would|could|someday|one day|want to|wanna|going to|gonna|"
@@ -378,6 +378,20 @@ except Exception:  # pragma: no cover
         head = text[:start]
         clause = re.split(r"[.!?;]|\b(?:but|and|because|so)\b", head, flags=re.I)[-1]
         return _HYPOTHETICAL.search(clause) is None
+
+    # Faithful local copy of the LIRF appositive-name guard (a capitalised function/aux word
+    # in a name slot is NOT a name) — so the standalone --selftest needs no LIRF build.
+    _STOPNAMES_LOCAL = frozenset(
+        "i im ive id ill my we weve were our the a an this that these those he she it they "
+        "you your last next then and but so because when where what who why how if yeah "
+        "honestly lately recently now just today yesterday tomorrow tonight maybe really "
+        "after before since while also still yes no oh well is are was were has have had "
+        "named called got started moved left quit joined loves lives works said told came "
+        "went made".split())
+
+    def _is_stopname(v) -> bool:
+        s = re.sub(r"[^a-z]", "", str(v or "").strip().lower())
+        return (not s) or s in _STOPNAMES_LOCAL
 
 
 # Trailing filler an object-capture tends to over-run into ("money right now",
@@ -630,6 +644,179 @@ _rule(
     r"(?:my\s+|the\s+|a\s+|an\s+|to\s+)?(?P<later>[\w'-]+(?:\s+[\w'-]+){0,3})\s+(?:after|following|once)\s+"
     r"(?:my\s+|the\s+|a\s+|an\s+)?(?P<prior>[\w'-]+(?:\s+[\w'-]+){0,2})",
     _b_after,
+)
+
+
+# ===========================================================================
+# WAVE A — LIFE-EVENT edges + the TEMPORAL qualifier they hang on.
+# A stated life event ("I moved to Austin", "we adopted a dog", "my daughter started
+# kindergarten") is a SITUATION, not just an isolated value: it has an actor, an object,
+# often a stated CAUSE, and often a TIME. The conservation ledger showed these as
+# total-loss because no relational rule had a frame for them. These rules add that frame,
+# with the SAME never-infer discipline: every node comes from the matched span, the
+# capital/stop guards reject fabricated nouns, and a TIME is attached only when the user
+# actually stated one. Observed > Assumed throughout.
+# ===========================================================================
+
+# A stated TIME inside a clause — "in 2024", "last week", "in March", "by Q3", "3 months
+# ago". Pulled as a readable surface so it can become the OBJECT of a "<event>_when" edge
+# (the temporal then has a slot to live in instead of being dropped). Anchored words only;
+# never matches a bare number that isn't a time.
+_TEMPORAL_PHRASE = re.compile(
+    r"\b("
+    r"(?:in|by|since|around|back in)\s+(?:\d{4}|Q[1-4]|"
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))"
+    r"|(?:last|next|this)\s+(?:week|month|year|spring|summer|fall|autumn|winter|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    r"|(?:\d{1,2}|a|a\s+couple|couple|few|several)\s+(?:days?|weeks?|months?|years?)\s+ago"
+    r"|yesterday|today|tonight|tomorrow|this\s+weekend|last\s+weekend"
+    r")\b",
+    re.I,
+)
+
+
+def _temporal_in(span: str):
+    """The first stated TIME phrase in a span ("in 2024", "last week"), or None. The
+    leading connective (in/by/last…) is kept so the stored object reads naturally AND so
+    the temporal salient tokens (the year/month/'last'/'week') survive in the object."""
+    if not span:
+        return None
+    m = _TEMPORAL_PHRASE.search(span)
+    if not m:
+        return None
+    s = re.sub(r"\s+", " ", m.group(1).strip())
+    return s or None
+
+
+# --- 10. MOVE: "I moved to Austin (because <cause>)", "the move to Denver", "we moved to
+# Portland in March". Emits you --moved_to--> PLACE (predicate built from the actual verb so
+# "moved"/"move" both credit), the stated CAUSE as PLACE --because--> CAUSE, and the stated
+# TIME as you --moved_when--> TIME. PLACE is capital-guarded; CAUSE/TIME only when present. -
+def _b_moved(m):
+    place = _clean_node(m.group("place"))
+    if not place or place.lower() in _NON_TOPIC:
+        return []
+    verb = (m.group("verb") or "moved").lower()
+    pred = "move_to" if verb == "move" else "moved_to"
+    edges = [("you", pred, place, "fact", place)]
+    cause = _clean_node(m.group("cause")) if m.groupdict().get("cause") else None
+    if cause and cause.lower() not in _NON_TOPIC:
+        edges.append((place, "because", cause, "inference", None))
+    when = _temporal_in(m.group(0))
+    if when:
+        edges.append(("you", "moved_when", when, "observation", None))
+    return edges
+
+
+_rule(
+    # "I/we moved to <Place>" — capital-guarded place (so a common noun like "the city" never
+    # matches), optional "because <cause>", optional trailing TIME (kept in the span so
+    # _temporal_in can attach "last year"/"in 2024" as you --moved_when--> TIME).
+    r"\b(?:i|we)\s+(?:just\s+|recently\s+|finally\s+)?(?P<verb>moved)\s+(?:back\s+)?to\s+"
+    r"(?P<place>(?-i:[A-Z])[\w'-]+(?:[ ,]+(?-i:[A-Z])[\w'.-]+){0,3})"
+    r"(?:[^.!?]*?\bbecause\s+(?:of\s+)?(?:my\s+|the\s+|a\s+|an\s+)?(?P<cause>[\w'-]+(?:\s+[\w'-]+){0,3}))?"
+    r"(?:[^.!?]*?\b(?:(?:last|next|this)\s+(?:week|month|year)|(?:in|by|back\s+in)\s+(?:\d{4}|Q[1-4]|"
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)|\d+\s+(?:months?|years?)\s+ago))?",
+    _b_moved,
+)
+_rule(
+    # "the move to <Place> (in March)" — the planned/recent move as a noun. Temporal tail
+    # kept in the span so _temporal_in attaches the stated time (you --moved_when--> March).
+    r"\bthe\s+(?P<verb>move)\s+to\s+(?P<place>(?-i:[A-Z])[\w'-]+(?:[ ,]+(?-i:[A-Z])[\w'.-]+){0,3})"
+    r"(?:[^.!?]*?\b(?:in|by|around)\s+(?:\d{4}|Q[1-4]|"
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?))?",
+    _b_moved,
+)
+
+
+# --- 10b. a NAMED person in their life stated appositively: "my wife Jen", "my daughter
+# Maya", "my friend Sloane" -> you --has--> ROLE (the relationship the LIRF name hangs on).
+# Records ONLY the role bond (the NAME itself is LIRF's job); the capital-guarded appositive
+# is what proves a person was actually named, not a generic mention. Never fabricates. ------
+def _b_named_relation(m):
+    role = (m.group("role") or "").lower().strip()
+    # the appositive token must be a genuine NAME, not a capitalised aux/function word.
+    if not role or _is_stopname(m.group("name")):
+        return []
+    return [("you", "has", role, "relationship", role)]
+
+
+_rule(
+    r"\bmy\s+(?P<role>wife|husband|partner|girlfriend|boyfriend|fiance|fiancee|"
+    r"daughter|son|mom|mother|dad|father|brother|sister|friend|boss|manager)\s+"
+    r"(?P<name>(?-i:[A-Z])[a-z'-]+)\b",     # an appositive NAME must follow (capital-guarded)
+    _b_named_relation,
+)
+
+
+# --- 11. ADOPT: "we adopted a dog (named Cooper) (in 2024)" -> you --adopted--> dog, and the
+# year as you --adopted_when--> 2024. Species is a closed set (never a fabricated noun). -----
+def _b_adopted(m):
+    species = (m.group("species") or "").lower().strip()
+    if not species:
+        return []
+    edges = [("you", "adopted", species, "fact", species)]
+    when = _temporal_in(m.group(0))
+    if when:
+        edges.append(("you", "adopted_when", when, "observation", None))
+    return edges
+
+
+_rule(
+    r"\b(?:we|i)\s+(?:just\s+|recently\s+)?adopted\s+(?:a\s+|an\s+|our\s+)?(?P<species>dog|cat|puppy|kitten|kitty|pet)\b"
+    r"(?:[^.!?]*?(?:in|back\s+in)\s+(?:\d{4}|Q[1-4]))?",
+    _b_adopted,
+)
+
+
+# --- 12. THIRD-PARTY life event: "my daughter Maya started kindergarten last week",
+# "my son Theo started school". Emits you --has--> ROLE (credits the relationship), ROLE
+# --started--> THING (the event), and the stated TIME as ROLE --started_when--> TIME. The
+# THING is a closed set of life milestones so a stray verb can't fabricate an edge. --------
+def _b_relation_started(m):
+    role = (m.group("role") or "").lower().strip()
+    thing = _clean_node(m.group("thing"))
+    if not role or not thing:
+        return []
+    edges = [("you", "has", role, "relationship", role),
+             (role, "started", thing, "fact", role)]
+    when = _temporal_in(m.group(0))
+    if when:
+        edges.append((role, "started_when", when, "observation", None))
+    return edges
+
+
+_rule(
+    r"\bmy\s+(?P<role>daughter|son|wife|husband|partner|mom|mother|dad|father|brother|sister|kid|child)\s+"
+    r"(?:(?-i:[A-Z])[a-z'-]+\s+)?"          # optional appositive NAME (skipped; LIRF owns the name)
+    r"(?:just\s+|recently\s+|finally\s+)?(?:started|began|enrolled\s+in|got\s+into)\s+"
+    r"(?:my\s+|the\s+|a\s+|an\s+)?(?P<thing>kindergarten|preschool|pre-?k|school|college|university|daycare|"
+    r"first\s+grade|middle\s+school|high\s+school|a\s+new\s+job|kindergarden)\b"
+    r"(?:[^.!?]*?(?:(?:last|next|this)\s+(?:week|month|year)|in\s+\d{4}))?",
+    _b_relation_started,
+)
+
+
+# --- 13. SELF life event with a time but no place/object frame: "I started a new job last
+# month", "I graduated in 2020", "I retired last year". Emits a dated event marker so the
+# milestone + its time are both kept. Verb is a closed life-event set; never fabricates. ---
+def _b_self_event_when(m):
+    verb = (m.group("verb") or "").lower().strip()
+    when = _temporal_in(m.group(0))
+    if not verb or not when:
+        return []
+    return [("you", canon_trait(verb), when, "observation", None)]
+
+
+_rule(
+    r"\bi\s+(?:just\s+|recently\s+|finally\s+)?(?P<verb>graduated|retired|quit|enlisted|divorced)\b"
+    r"[^.!?]*?\b(?:(?:last|next|this)\s+(?:week|month|year)|in\s+(?:\d{4}|Q[1-4]|"
+    r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?"
+    r"|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)|\d+\s+(?:months?|years?)\s+ago)\b",
+    _b_self_event_when,
 )
 
 
@@ -1151,6 +1338,43 @@ def _selftest() -> int:
     ok("widen-guard: pronoun/contraction subject fabricates NOTHING",
        capture("it's been rough") == [] and capture("she is overwhelmed") == []
        and all(o not in ("s", "t", "m", "it", "she") for s, p, o, _k, _t in capture("I'm overwhelmed")))
+
+    # --- WAVE A: LIFE-EVENT edges + the TEMPORAL qualifier they hang on ----------------
+    # The conservation ledger surfaced moves/adoptions/started-events as total-loss; these
+    # add the relational frame AND attach the stated time, with the same never-infer rails.
+    def _pred_obj(text):
+        return {(p, _norm_node(o)) for s, p, o, _k, _t in capture(text)}
+    mv = _pred_obj("I moved to Austin because my manager changed")
+    ok("WAVE-A move: 'I moved to Austin' -> you moved_to austin",
+       _has("I moved to Austin because my manager changed", ("you", "moved_to", "Austin")))
+    ok("WAVE-A move: stated cause -> austin because manager (object carries 'manager')",
+       any(p == "because" and "manager" in o for p, o in mv))
+    ok("WAVE-A move: stated TIME attaches -> moved_when 'last year'",
+       ("moved_when", "last year") in _pred_obj("I moved to Denver last year"))
+    ok("WAVE-A move: 'the move to Denver in March' -> move_to denver + moved_when march",
+       ("move_to", "denver") in _pred_obj("the move to Denver in March")
+       and ("moved_when", "march") in _pred_obj("the move to Denver in March"))
+    ok("WAVE-A adopt: 'we adopted a dog ... in 2024' -> you adopted dog + adopted_when 2024",
+       ("adopted", "dog") in _pred_obj("We adopted a dog named Cooper in 2024")
+       and ("adopted_when", "2024") in _pred_obj("We adopted a dog named Cooper in 2024"))
+    sta = _pred_obj("My daughter Maya started kindergarten last week")
+    ok("WAVE-A started: 'my daughter ... started kindergarten' -> has daughter + started kindergarten",
+       ("has", "daughter") in sta and ("started", "kindergarten") in sta)
+    ok("WAVE-A started: trailing 'last week' attaches as started_when",
+       ("started_when", "last week") in sta)
+    ok("WAVE-A named-relation: 'my wife Jen' -> you has wife (the role bond)",
+       ("has", "wife") in _pred_obj("My wife Jen and I are excited"))
+    # GUARDS — Observed > Assumed: a common-noun object, a hypothetical, or a capitalised aux
+    # in the name slot must fabricate NO edge.
+    ok("WAVE-A guard: 'I moved to the city' (common noun) -> no move edge",
+       not any(p in ("moved_to", "move_to") for p, o in _pred_obj("I moved to the city")))
+    ok("WAVE-A guard: hypothetical move/adopt fabricates nothing",
+       capture("maybe we'll move to Paris") == [] and capture("I wish I moved to Denver") == []
+       and not any(p == "adopted" for p, o in _pred_obj("we should adopt a dog someday")))
+    ok("WAVE-A guard: 'we adopted a strategy' (non-pet) -> no adopt edge",
+       not any(p == "adopted" for p, o in _pred_obj("we adopted a strategy at work")))
+    ok("WAVE-A guard: capitalised aux in name slot ('my wife Then we left') -> no role bond",
+       ("has", "wife") not in _pred_obj("my wife Then we left"))
 
     # --- a throwaway store for persistence + situation ---
     name = "world_selftest_" + secrets.token_hex(3)
