@@ -162,6 +162,7 @@ SPECS: tuple[Spec, ...] = (
     Spec(".history.json", "json", required=False, min_bytes=2, structure="history"),
     Spec(".lirf.json", "json", required=False, min_bytes=2, structure="lirf"),   # the LIRF fact ledger — her strongest memory; LAW 001 demands redundancy
     Spec(".world.json", "json", required=False, min_bytes=2, structure="world"),  # the world-state relation graph — situations over the facts; LAW 001 redundancy
+    Spec(".lerf.json", "json", required=False, min_bytes=2, structure="lerf-objects"),  # the LERF cognitive-object ledger (skills/concepts/procedures); LAW 001 redundancy
     Spec(".chat.archive.jsonl", "text", required=False, min_bytes=1),        # permanent raw-conversation archive (Compressed > Forgotten)
     Spec(".portrait.md", "text", required=True, min_bytes=1),
     Spec(".persona.md", "text", required=False, min_bytes=1),
@@ -612,6 +613,9 @@ def _structural_complaint(spec: Spec, obj) -> str | None:
     elif s == "world":
         if not isinstance(obj, dict) or not isinstance(obj.get("relations"), list):
             return "world store missing its `relations` list (parsed but wrong shape)"
+    elif s == "lerf-objects":
+        if not isinstance(obj, dict) or not isinstance(obj.get("objects"), list):
+            return "LERF ledger missing its `objects` list (parsed but wrong shape)"
     elif s == "values":
         if not isinstance(obj, list):
             return "values is not a JSON list"
