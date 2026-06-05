@@ -320,14 +320,21 @@ def replay(name: str, turn_id: str) -> Optional[dict]:
     return found
 
 
-def traces(name: str) -> list:
-    """Every committed trace for ``name``, oldest→newest (append order)."""
+def bus_traces(name: str) -> list:
+    """Every committed BUS trace for ``name``, oldest→newest (append order).
+
+    Renamed from ``traces`` so the richer MRI ``traces`` (defined later, the live
+    reader the Viewer uses) can own that name without shadowing this one silently.
+    The legacy bus path reads via ``replay`` / ``last`` / this; nothing external
+    referenced the old ``traces`` name."""
     return [r for r in _read(name) if isinstance(r, dict)]
 
 
 def last(name: str) -> Optional[dict]:
-    """The most recently committed trace, or None."""
-    rows = traces(name)
+    """The most recently committed BUS trace, or None. Reads the bus log directly
+    (``_read``) so it is independent of the later MRI ``traces`` definition —
+    ``certify.py``'s replayability check depends on this staying the bus reader."""
+    rows = bus_traces(name)
     return rows[-1] if rows else None
 
 
@@ -343,6 +350,388 @@ def get(name: str) -> Telemetry:
     if r is None:
         r = _RECORDERS[name] = Telemetry(name)
     return r
+
+
+# ===========================================================================
+# THE MRI RECORDER — total turn introspection.
+#
+# The Telemetry above is the lean bus recorder: question -> observations ->
+# decision, one compact line. The MRI is its richer sibling for the DIRECT turn
+# path (``server._turn``): it films EVERY stage of one turn as an ordered strip of
+# "frames", each with its input shape, structured output, latency, what it DROPPED,
+# its confidence, and a note — plus the shape transformations across organ
+# boundaries and the alternatives a stage rejected. "If we can see it, we can
+# understand it."
+#
+# Same posture as everything else in this file and in ``metrics``:
+#   * PASSIVE — it only ever appends; it never speaks back into a turn.
+#   * GUARDED — every public method swallows its own exceptions, so a recorder
+#     failure can NEVER change a reply, break a turn, or even be noticed by it.
+#   * APPEND-ONLY — a committed trace is one jsonl line on
+#     ``.anima/{name}.mri.jsonl``, gitignored and machine-local, read back
+#     verbatim by ``trace`` / ``last_trace`` / ``traces`` (the Viewer's input).
+#
+# THE PER-TURN SCHEMA (one JSON object per turn, the hard contract the Viewer
+# reads — keep it EXACTLY):
+#   {
+#     "v": <schema version>, "kind": "mri",
+#     "turn_id", "name", "at" (epoch seconds, float), "user_text", "reply",
+#     "total_ms" (float),
+#     "stages": [
+#       {"stage": <name>, "t_ms": <float latency of this stage>,
+#        "in_shape": <brief dict/str describing the input shape>,
+#        "out": <the stage's structured output>,
+#        "dropped": [<things this stage discarded>],
+#        "confidence": <0..1 or null>, "note": <str>}
+#     ],
+#     "shapes": [
+#       {"boundary": "<src>-><dst>", "received": <shape>, "expected": <shape>,
+#        "transformation": <str>, "loss": [<dropped>]}
+#     ],
+#     "alternatives": [
+#       {"decision": <str>, "selected": <str>,
+#        "rejected": [{"option": <str>, "reason": <str>}]}
+#     ]
+#   }
+#
+# REQUIRED stage names (capture each that runs; skip-with-note if N/A):
+#   perception · heart · capture · route · bind · situation · meaning ·
+#   curiosity · prompt · generate · verify
+# ===========================================================================
+
+MRI_SCHEMA_VERSION = 1
+
+# The canonical ordered stage names — the "frames" of the movie, in turn order.
+# The Viewer can rely on this vocabulary; a stage not in this list is still
+# accepted (forward-compatible), it just isn't one of the documented frames.
+MRI_STAGES = (
+    "perception", "heart", "capture", "route", "bind",
+    "situation", "meaning", "curiosity", "prompt", "generate", "verify",
+)
+
+
+def _mri_path(name: str) -> Path:
+    return STORE / f"{name}.mri.jsonl"
+
+
+def _jsonable(obj: Any, _depth: int = 0):
+    """Best-effort coerce an arbitrary stage output into something json.dumps can
+    serialise WITHOUT ever raising. Numbers/str/bool/None pass through; dict/list
+    recurse (bounded depth + width so a pathological structure can't blow up the
+    recorder); numpy scalars/arrays degrade to floats/lists; everything else falls
+    back to a short ``repr``. This is what lets a stage hand us its native object
+    and trust the MRI to store *something* faithful rather than crash."""
+    try:
+        if obj is None or isinstance(obj, (bool, int, float, str)):
+            # guard against NaN/Inf which are not valid JSON
+            if isinstance(obj, float) and (obj != obj or obj in (float("inf"), float("-inf"))):
+                return None
+            return obj
+        if _depth >= 6:
+            return repr(obj)[:200]
+        if isinstance(obj, dict):
+            out = {}
+            for i, (k, v) in enumerate(obj.items()):
+                if i >= 80:                       # width cap — never store an unbounded dict
+                    out["…"] = f"+{len(obj) - i} more"
+                    break
+                out[str(k)] = _jsonable(v, _depth + 1)
+            return out
+        if isinstance(obj, (list, tuple, set)):
+            seq = list(obj)
+            out = [_jsonable(v, _depth + 1) for v in seq[:120]]   # width cap
+            if len(seq) > 120:
+                out.append(f"…+{len(seq) - 120} more")
+            return out
+        # numpy scalar / array, or anything exposing tolist()/item()
+        if hasattr(obj, "tolist"):
+            try:
+                return _jsonable(obj.tolist(), _depth + 1)
+            except Exception:
+                pass
+        if hasattr(obj, "item"):
+            try:
+                return _jsonable(obj.item(), _depth + 1)
+            except Exception:
+                pass
+        # dataclass / simple object — fold its public attributes
+        d = getattr(obj, "__dict__", None)
+        if isinstance(d, dict) and d:
+            return _jsonable({k: v for k, v in d.items() if not k.startswith("_")}, _depth + 1)
+        return repr(obj)[:200]
+    except Exception:
+        try:
+            return repr(obj)[:120]
+        except Exception:
+            return "<unserialisable>"
+
+
+class MRITrace:
+    """One turn's complete introspective trace — the film of a single exchange.
+
+    Build it imperatively as the turn runs:
+
+        tr = telemetry.open_trace(name, turn_id, user_text)
+        tr.stage("perception", t_ms=..., in_shape=..., out=..., dropped=..., confidence=...)
+        ...
+        tr.shape("perception->heart", received=..., expected=..., transformation=..., loss=...)
+        tr.alternative("curiosity:which gap to ask", selected="dog_name", rejected=[...])
+        tr.commit(reply=..., total_ms=...)
+
+    Every method is best-effort and append-only to the in-memory object; ``commit``
+    flushes ONE jsonl line and is the only disk touch. Nothing here can raise into a
+    turn — the whole point is that the camera never trips the actor."""
+
+    def __init__(self, name: str, turn_id: str, user_text: str = "") -> None:
+        self.name = name
+        self.turn_id = turn_id
+        self._committed = False
+        self._lock = threading.Lock()
+        self.doc: dict = {
+            "v": MRI_SCHEMA_VERSION,
+            "kind": "mri",
+            "turn_id": turn_id,
+            "name": name,
+            "at": None,                 # epoch seconds, stamped at commit
+            "user_text": str(user_text or "")[:4000],
+            "reply": None,
+            "total_ms": None,
+            "stages": [],
+            "shapes": [],
+            "alternatives": [],
+        }
+        try:
+            import time as _t
+            self.doc["at"] = _t.time()
+        except Exception:
+            pass
+
+    # -- a stage frame -----------------------------------------------------
+    def stage(self, name: str, *, t_ms: Any = None, in_shape: Any = None,
+              out: Any = None, dropped: Any = None, confidence: Any = None,
+              note: str = "") -> "MRITrace":
+        """Append one ordered stage frame. ``out`` is coerced json-safe; ``dropped``
+        is the list of things this stage discarded (the conservation ledger of a turn);
+        ``confidence`` is a 0..1 score or None; ``note`` is freeform (use it to record
+        WHY a stage was skipped — 'N/A: cloud brain', etc.)."""
+        try:
+            frame = {
+                "stage": str(name),
+                "t_ms": _round_ms(t_ms),
+                "in_shape": _jsonable(in_shape),
+                "out": _jsonable(out),
+                "dropped": _as_list(dropped),
+                "confidence": _conf(confidence),
+                "note": str(note or "")[:600],
+            }
+            with self._lock:
+                self.doc["stages"].append(frame)
+        except Exception:
+            pass
+        return self
+
+    # -- a shape transformation across an organ boundary -------------------
+    def shape(self, boundary: str, *, received: Any = None, expected: Any = None,
+              transformation: str = "", loss: Any = None) -> "MRITrace":
+        """Record what crossed one boundary ('perception->heart'): the shape received,
+        the shape expected, a one-line description of the transformation, and the
+        ``loss`` (fields dropped on the way through). This is where shape-mismatch and
+        silent data loss become visible."""
+        try:
+            entry = {
+                "boundary": str(boundary),
+                "received": _jsonable(received),
+                "expected": _jsonable(expected),
+                "transformation": str(transformation or "")[:300],
+                "loss": _as_list(loss),
+            }
+            with self._lock:
+                self.doc["shapes"].append(entry)
+        except Exception:
+            pass
+        return self
+
+    # -- a decision and the roads not taken --------------------------------
+    def alternative(self, decision: str, *, selected: Any = None,
+                    rejected: Any = None) -> "MRITrace":
+        """Record a branch point: the ``decision`` made, what was ``selected``, and the
+        ``rejected`` options each with a reason. ``rejected`` accepts a list of
+        ``{"option":..., "reason":...}`` dicts (other shapes are coerced best-effort)."""
+        try:
+            rej = []
+            for r in (rejected or []):
+                if isinstance(r, dict):
+                    rej.append({"option": _jsonable(r.get("option")),
+                                "reason": str(r.get("reason", ""))[:300]})
+                else:
+                    rej.append({"option": _jsonable(r), "reason": ""})
+            entry = {
+                "decision": str(decision),
+                "selected": _jsonable(selected),
+                "rejected": rej,
+            }
+            with self._lock:
+                self.doc["alternatives"].append(entry)
+        except Exception:
+            pass
+        return self
+
+    # -- close + flush -----------------------------------------------------
+    def commit(self, *, reply: Any = None, total_ms: Any = None) -> Optional[dict]:
+        """Stamp the reply + total latency and append the whole trace as ONE jsonl line
+        to ``.anima/{name}.mri.jsonl``. Append-only; idempotent (a second call is a
+        no-op returning None). Returns the committed doc, or None on any failure."""
+        try:
+            with self._lock:
+                if self._committed:
+                    return None
+                self._committed = True
+                if reply is not None:
+                    self.doc["reply"] = str(reply)[:8000]
+                self.doc["total_ms"] = _round_ms(total_ms)
+                if self.doc.get("at") is None:
+                    try:
+                        import time as _t
+                        self.doc["at"] = _t.time()
+                    except Exception:
+                        pass
+                doc = self.doc
+            _append_mri(self.name, doc)
+            return doc
+        except Exception:
+            return None
+
+
+# -- a no-op trace so a guarded call site never has to None-check ------------
+class _NullTrace(MRITrace):
+    """Returned when even opening a trace failed. Every method is inherited but the
+    underlying doc append is harmless; commit writes nothing because the parent's
+    guard short-circuits. Keeps ``_turn`` free of ``if tr is not None`` clutter."""
+
+    def commit(self, *, reply: Any = None, total_ms: Any = None) -> Optional[dict]:
+        return None
+
+
+def _round_ms(v: Any) -> Any:
+    try:
+        if v is None:
+            return None
+        f = float(v)
+        if f != f or f in (float("inf"), float("-inf")):   # NaN / Inf are not valid JSON
+            return None
+        return round(f, 3)
+    except Exception:
+        return None
+
+
+def _conf(v: Any) -> Any:
+    try:
+        if v is None:
+            return None
+        f = float(v)
+        if f != f:                      # NaN
+            return None
+        return max(0.0, min(1.0, f))
+    except Exception:
+        return None
+
+
+def _as_list(v: Any) -> list:
+    try:
+        if v is None:
+            return []
+        if isinstance(v, (list, tuple, set)):
+            return [_jsonable(x) for x in list(v)[:200]]
+        return [_jsonable(v)]
+    except Exception:
+        return []
+
+
+def _is_json_safe(obj: Any) -> bool:
+    """True iff ``obj`` serialises with stdlib json and no fallback. Used by the
+    self-test to prove a committed trace is the Viewer-ready, lossless JSON the
+    contract promises (not something only ``default=`` rescued)."""
+    try:
+        json.dumps(obj, allow_nan=False)
+        return True
+    except Exception:
+        return False
+
+
+def _append_mri(name: str, row: dict) -> None:
+    """Append one committed MRI trace as a single jsonl line. Mirrors ``_append``
+    exactly — including the blanket guard: the camera must NEVER break the turn. Uses
+    ``default=str`` as a final serialisation backstop so an exotic value that slipped
+    past ``_jsonable`` still can't raise."""
+    try:
+        STORE.mkdir(exist_ok=True)
+        line = json.dumps(row, default=lambda o: repr(o)[:120])
+        with open(_mri_path(name), "a") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def _read_mri(name: str) -> list:
+    """Read every committed MRI trace back. Mirrors ``_read``: a malformed line is
+    skipped, never fatal."""
+    rows, p = [], _mri_path(name)
+    if p.exists():
+        try:
+            for line in p.read_text().splitlines():
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    return rows
+
+
+def open_trace(name: str, turn_id: str, user_text: str = "") -> MRITrace:
+    """Open a fresh MRI trace for one turn. ALWAYS returns a usable trace object (a
+    ``_NullTrace`` if construction somehow fails), so a call site never has to guard
+    the handle itself — only the eventual ``commit`` touches disk. The turn drives
+    ``.stage/.shape/.alternative`` on it as each stage runs, then ``.commit``."""
+    try:
+        return MRITrace(name, turn_id, user_text)
+    except Exception:
+        try:
+            return _NullTrace(name, turn_id, user_text)
+        except Exception:
+            # last-ditch: an object that at least has the methods (no disk).
+            t = _NullTrace.__new__(_NullTrace)
+            t.name, t.turn_id, t._committed = name, turn_id, True
+            t._lock = threading.Lock()
+            t.doc = {"stages": [], "shapes": [], "alternatives": []}
+            return t
+
+
+def trace(name: str, turn_id: str) -> Optional[dict]:
+    """Read back ONE committed MRI trace by turn_id (the most recent if a turn_id ever
+    recurs), or None. The Viewer's point lookup."""
+    found = None
+    for row in _read_mri(name):
+        if isinstance(row, dict) and row.get("turn_id") == turn_id:
+            found = row
+    return found
+
+
+def traces(name: str) -> list:  # noqa: F811 - intentional: MRI bulk reader (see note)
+    """Every committed MRI trace for ``name``, oldest->newest (append order).
+
+    NOTE: this shadows the bus-recorder ``traces`` defined earlier in the module.
+    That is deliberate — the MRI is the richer, current reader, and the live system
+    reads MRI traces. The bus trace list remains reachable via ``_read(name)`` /
+    ``replay`` for the legacy path; nothing in the live turn depends on the old
+    ``traces`` name."""
+    return [r for r in _read_mri(name) if isinstance(r, dict)]
+
+
+def last_trace(name: str) -> Optional[dict]:
+    """The most recently committed MRI trace, or None."""
+    rows = traces(name)
+    return rows[-1] if rows else None
 
 
 # ---------------------------------------------------------------------------
@@ -476,13 +865,173 @@ def _selftest() -> int:  # pragma: no cover - exercised via __main__
         ok("error sink recorded the handler exception",
            rt3 is not None and rt3["errors"] and rt3["errors"][0]["type"] == "RuntimeError")
 
-    # Run the scenario inside a throwaway .anima so we never touch real state.
+    # -----------------------------------------------------------------------
+    # MRI scenario — build a synthetic full-schema trace exercising EVERY required
+    # stage, a shape transformation, and a rejected-alternative, then read it back
+    # and assert the hard contract round-trips byte-for-shape. No bus, no models.
+    # -----------------------------------------------------------------------
+    def mri_scenario() -> None:
+        import numpy as _np
+
+        print()
+        print("MRI recorder self-test")
+
+        nm, tid = "selftest_mri_vera", "t-1717000000000"
+        tr = open_trace(nm, tid, "when's my birthday?")
+        ok("open_trace returns a usable trace", isinstance(tr, MRITrace) and tr.turn_id == tid)
+
+        # perception — entities/sentiment + a SUMMARY of the perception vector.
+        tr.stage("perception", t_ms=0.42,
+                 in_shape={"text_len": 19},
+                 out={"entities": ["birthday"], "sentiment": 0.1,
+                      "vector": {"presence": 1.0, "attention": 0.85, "mood": 0.1}},
+                 dropped=["raw_token_stream"], confidence=0.6, note="9-field percept")
+        # heart — feeling vector + neuron-state summary + unrest (the NEURAL frame).
+        _h = _np.zeros(24)
+        tr.stage("heart", t_ms=1.3,
+                 in_shape={"percept_dims": 9, "neurons": 24},
+                 out={"feeling": {"valence": 0.2, "arousal": 0.3, "reaching": 0.1,
+                                  "settled": 0.4, "unrest": 0.05},
+                      "neurons": {"n": 24, "mean": float(_h.mean()), "l2": float(_np.linalg.norm(_h))},
+                      "unrest": 0.05},
+                 dropped=[], confidence=None, note="LTC state read")
+        # capture — LIRF facts + world edges + salient-in vs DROPPED = conservation.
+        tr.stage("capture", t_ms=2.1,
+                 in_shape={"text_len": 19},
+                 out={"lirf_facts_written": ["f_b1"], "world_edges_written": [],
+                      "salient_in": 2, "salient_kept": 1},
+                 dropped=["salient:weather(low-signal)"], confidence=0.9,
+                 note="conservation: 2 in, 1 kept, 1 dropped")
+        # route — facts selected ids+values + routing decision.
+        tr.stage("route", t_ms=0.8,
+                 in_shape={"candidate_facts": 3},
+                 out={"selected": [{"id": "f_b1", "trait": "birthday", "value": "1990-06-11"}],
+                      "model": "local", "escalation": ""},
+                 dropped=["f_x9:lives(off-topic)"], confidence=0.95, note="query-aware")
+        # bind — the bound spine block + fact truth-classes.
+        tr.stage("bind", t_ms=0.3,
+                 in_shape={"selected_facts": 1},
+                 out={"block_len": 142, "truth_classes": {"birthday": "KNOWN"}},
+                 dropped=[], confidence=1.0, note="binding contract")
+        # situation — cluster nodes + edges.
+        tr.stage("situation", t_ms=1.0,
+                 in_shape={"query": "birthday"},
+                 out={"nodes": ["you", "birthday"], "edges": 1, "seed": ["you"]},
+                 dropped=[], confidence=None, note="2-hop cluster")
+        # meaning — significance objects.
+        tr.stage("meaning", t_ms=0.0,
+                 in_shape={"topics": 0}, out={"objects": []},
+                 dropped=[], confidence=None, note="N/A: sparse life")
+        # curiosity — gaps + candidates + SELECTED + REJECTED{option,reason}.
+        tr.stage("curiosity", t_ms=0.5,
+                 in_shape={"gaps": 2},
+                 out={"candidates": ["dog_name", "job"], "selected": "dog_name"},
+                 dropped=["job(lower priority)"], confidence=0.7, note="one aside max")
+        tr.alternative("curiosity:which gap to ask", selected="dog_name",
+                       rejected=[{"option": "job", "reason": "lower priority this turn"}])
+        # prompt — system-prompt length + the mem block.
+        tr.stage("prompt", t_ms=0.2,
+                 in_shape={"history_turns": 3},
+                 out={"system_prompt_len": 2048, "mem_block_len": 142},
+                 dropped=[], confidence=None, note="assembled")
+        # generate — model + reply + token count + tok/s.
+        tr.stage("generate", t_ms=812.0,
+                 in_shape={"prompt_chars": 2190},
+                 out={"model": "qwen", "reply": "Your birthday is June 11th.",
+                      "tokens": 7, "tok_s": 42.0},
+                 dropped=[], confidence=None, note="local")
+        # verify — verdict + issues + override.
+        tr.stage("verify", t_ms=0.6,
+                 in_shape={"reply_len": 27, "evidence_facts": 1},
+                 out={"verdict": "ok", "issues": [], "override": False},
+                 dropped=[], confidence=0.98, note="passed")
+
+        # a shape transformation across a boundary, with declared loss.
+        tr.shape("perception->heart",
+                 received={"fields": 9, "type": "Perception"},
+                 expected={"fields": 9, "type": "ndarray(9,)"},
+                 transformation="Perception.vector(): 9 named affect fields -> float64[9]",
+                 loss=["entities", "sentiment(string label)"])
+
+        committed = tr.commit(reply="Your birthday is June 11th.", total_ms=820.0)
+        ok("commit returns the committed doc", isinstance(committed, dict))
+        ok("commit is idempotent (2nd returns None)", tr.commit(reply="x", total_ms=1) is None)
+
+        # Read it back from disk — the Viewer's exact path.
+        rt = trace(nm, tid)
+        ok("trace() finds the committed turn", rt is not None and rt["turn_id"] == tid)
+        ok("schema: top-level keys present",
+           all(k in rt for k in ("turn_id", "name", "at", "user_text", "reply",
+                                 "total_ms", "stages", "shapes", "alternatives")))
+        ok("schema: at is an epoch float", isinstance(rt["at"], (int, float)))
+        ok("schema: user_text + reply survived",
+           rt["user_text"] == "when's my birthday?" and rt["reply"].startswith("Your birthday"))
+        ok("schema: total_ms recorded", rt["total_ms"] == 820.0)
+
+        seen = [s["stage"] for s in rt["stages"]]
+        ok("all 11 required stages captured, in order", seen == list(MRI_STAGES))
+        # every frame carries the full per-stage contract.
+        good_frames = all(
+            set(f) >= {"stage", "t_ms", "in_shape", "out", "dropped", "confidence", "note"}
+            for f in rt["stages"])
+        ok("every stage frame has the full key set", good_frames)
+
+        per = {s["stage"]: s for s in rt["stages"]}
+        ok("perception frame summarises the percept vector",
+           "vector" in per["perception"]["out"] and per["perception"]["dropped"] == ["raw_token_stream"])
+        ok("heart frame carries feeling + neuron summary + unrest",
+           per["heart"]["out"]["unrest"] == 0.05 and per["heart"]["out"]["neurons"]["n"] == 24)
+        ok("capture frame is the conservation ledger",
+           per["capture"]["out"]["salient_in"] == 2 and per["capture"]["dropped"] == ["salient:weather(low-signal)"])
+        ok("route frame records selected ids+values + the decision",
+           per["route"]["out"]["selected"][0]["id"] == "f_b1" and per["route"]["out"]["model"] == "local")
+        ok("bind frame carries truth-classes", per["bind"]["out"]["truth_classes"]["birthday"] == "KNOWN")
+        ok("generate frame carries model + tokens + tok/s",
+           per["generate"]["out"]["tokens"] == 7 and per["generate"]["out"]["tok_s"] == 42.0)
+        ok("verify frame carries verdict + override",
+           per["verify"]["out"]["verdict"] == "ok" and per["verify"]["out"]["override"] is False)
+        ok("a skipped stage is recorded with a note, not omitted",
+           per["meaning"]["note"].startswith("N/A"))
+        ok("confidence is clamped 0..1 or null",
+           all((f["confidence"] is None) or (0.0 <= f["confidence"] <= 1.0) for f in rt["stages"]))
+
+        ok("shapes: the boundary transformation round-trips",
+           rt["shapes"] and rt["shapes"][0]["boundary"] == "perception->heart"
+           and "entities" in rt["shapes"][0]["loss"])
+        ok("alternatives: the rejected option + reason survived",
+           rt["alternatives"] and rt["alternatives"][0]["selected"] == "dog_name"
+           and rt["alternatives"][0]["rejected"][0]["option"] == "job"
+           and "priority" in rt["alternatives"][0]["rejected"][0]["reason"])
+
+        ok("last_trace() returns it too", (last_trace(nm) or {}).get("turn_id") == tid)
+        ok("the whole doc is JSON-serialisable", _is_json_safe(rt))
+
+        # GUARDRAIL: a stage handed un-serialisable / pathological input must NOT raise,
+        # and must NOT corrupt the trace — the camera never trips the actor.
+        tr2 = open_trace(nm, "t-guard")
+
+        class _Unserialisable:
+            def __repr__(self):
+                raise RuntimeError("repr boom")
+        tr2.stage("perception", out={"obj": _Unserialisable(), "circular": None}, t_ms="not-a-number")
+        # a NaN confidence and an Inf latency must degrade to null, never crash.
+        tr2.stage("heart", confidence=float("nan"), t_ms=float("inf"))
+        g = tr2.commit(reply="ok", total_ms=1.0)
+        ok("a stage with an un-serialisable output never breaks the recorder", isinstance(g, dict))
+        rt2 = trace(nm, "t-guard")
+        ok("the guarded trace still committed + reads back", rt2 is not None and len(rt2["stages"]) == 2)
+        ok("NaN confidence degraded to null", rt2["stages"][1]["confidence"] is None)
+        ok("non-numeric / Inf latency degraded to null",
+           rt2["stages"][0]["t_ms"] is None and rt2["stages"][1]["t_ms"] is None)
+
+    # Run BOTH scenarios inside a throwaway .anima so we never touch real state.
     with tempfile.TemporaryDirectory() as tmp:
         cwd = os.getcwd()
         os.chdir(tmp)
         STORE = Path(".anima")
         try:
             asyncio.run(scenario())
+            mri_scenario()
         finally:
             os.chdir(cwd)
             STORE = Path(".anima")

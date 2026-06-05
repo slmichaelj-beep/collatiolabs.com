@@ -180,45 +180,230 @@ def _ensure(name, neurons):
 def _turn(name, text, voice=False):
     """One exchange: feel it, record it, reply from state. Serialised for safety."""
     with _lock:
+        _turn_t0 = time.perf_counter()             # MRI: wall-clock for the whole turn
         heart = Heart.from_dict(load_json(_path(name)))
+        # ---- perception (MRI frame) ----
+        _ps0 = time.perf_counter()
         p = senses.read(text, name=name)
+        _perc_ms = (time.perf_counter() - _ps0) * 1000.0
         now = time.time()
         mem = Memory.load(_mem(name))
         last = mem.rows[-1]["clock"] if mem.rows else heart.last_tick
         mem.record(heart.input_vector(p.vector(), now), (now - last) / 60.0, now)
         mem.save(_mem(name))
+        # ---- heart (MRI frame — the NEURAL layer) ----
+        _hs0 = time.perf_counter()
         heart.perceive(p.vector(), now=now)
+        _heart_ms = (time.perf_counter() - _hs0) * 1000.0
         audio_out = str(STORE / f"{name}.last.wav") if voice else None
+        _tid = "t-%d" % int(now * 1000)            # telemetry: open a flight-recorder trace for this
+        # MRI RECORDER (rich per-turn trace). One trace per turn, PASSIVE + GUARDED: every
+        # record below is wrapped so a recorder failure can NEVER change a reply, break a
+        # turn, or add meaningful latency. ``_mri`` is the open trace; ``_stg`` is a tiny
+        # swallow-everything stage recorder so a call site never has to try/except inline.
+        try:
+            from . import telemetry as _telem
+            _telem.get(name).begin(_tid)           # legacy lean bus-style trace (unchanged)
+        except Exception:
+            pass
+        try:
+            from . import telemetry as _telem2
+            _mri = _telem2.open_trace(name, _tid, text)
+        except Exception:
+            _mri = None
+
+        def _stg(*a, **k):
+            try:
+                if _mri is not None:
+                    _mri.stage(*a, **k)
+            except Exception:
+                pass
+
+        # perception frame: entities/sentiment + a SUMMARY of the 9-field percept vector.
+        try:
+            _pv = p.vector()
+            _stg("perception", t_ms=_perc_ms,
+                 in_shape={"text_chars": len(text or "")},
+                 out={"sentiment": round(float(getattr(p, "mood", 0.0)), 3),
+                      "presence": round(float(getattr(p, "presence", 0.0)), 3),
+                      "attention": round(float(getattr(p, "attention", 0.0)), 3),
+                      "distress": round(float(getattr(p, "distress", 0.0)), 3),
+                      "seeking": round(float(getattr(p, "seeking", 0.0)), 3),
+                      "vector": {f: round(float(v), 3)
+                                 for f, v in zip(senses.PERCEPT_FIELDS, _pv.tolist())}},
+                 dropped=["raw_text", "token_stream"],   # text is felt as 9 floats; the words drop here
+                 confidence=round(float(getattr(p, "openness", 0.0)), 3),
+                 note="text -> 9-field affect percept")
+        except Exception:
+            pass
+        # heart frame: feeling vector + neuron-state summary + unrest (the NEURAL layer).
+        try:
+            import numpy as _np_h
+            _feel = heart.feeling()
+            _hvec = heart.h
+            _stg("heart", t_ms=_heart_ms,
+                 in_shape={"percept_dims": len(senses.PERCEPT_FIELDS), "neurons": int(heart.genome.n)},
+                 out={"feeling": {k: round(float(v), 4) for k, v in _feel.items()},
+                      "neurons": {"n": int(heart.genome.n),
+                                  "mean": round(float(_np_h.mean(_hvec)), 4),
+                                  "l2": round(float(_np_h.linalg.norm(_hvec)), 4),
+                                  "max_abs": round(float(_np_h.max(_np_h.abs(_hvec))), 4)},
+                      "unrest": round(float(heart.unrest), 4)},
+                 dropped=[],                              # the heart loses nothing — it integrates all of it
+                 confidence=None, note="LTC continuous-time state read")
+            # shape: how the perception crosses into the heart.
+            if _mri is not None:
+                _mri.shape("perception->heart",
+                           received={"type": "Perception", "fields": len(senses.PERCEPT_FIELDS)},
+                           expected={"type": f"ndarray({len(senses.PERCEPT_FIELDS)},)+internal(4)"},
+                           transformation="Perception.vector() then input_vector(): 9 affect floats "
+                                          "+ 4 body-internal (bias,unrest,tod_sin,tod_cos)",
+                           loss=["entities", "sentiment_label", "word_order"])
+        except Exception:
+            pass
+
         # deterministic capability router: fetch REAL live data (read) or prepare a
         # confirm-gated draft (send) in code, so the mouth narrates only what's proven
         # and NOTHING sends without an explicit confirm.
         from . import route
+        _rt0 = time.perf_counter()
         routed = route.route(name, text)
+        _route_cap_ms = (time.perf_counter() - _rt0) * 1000.0
         cap_note = routed.get("note") if routed else None
-        _tid = "t-%d" % int(now * 1000)            # telemetry: open a flight-recorder trace for this
-        try:                                       # turn (direct/off-bus path — no organs on the bus
-            from . import telemetry as _telem      # yet). Passive: only appends; a recorder failure
-            _telem.get(name).begin(_tid)           # can never break a turn.
-        except Exception:
-            pass
         # Organ 3 (Router): query-aware memory selection — inject ONLY the facts relevant
         # to THIS turn (not the blanket top-N), and decide the cheapest-sufficient path.
         # PII guard: blank the fact block on a cloud brain so private facts never leave.
-        _route_dec, _fact_block = None, None
+        _route_dec, _fact_block, _cloud_on = None, None, False
         try:
             from .organs import router
             from . import cloud as _cl
-            _route_dec = router.route(name, text, {"cloud_on": _cl.is_cloud()})
-            if not _cl.is_cloud():
+            _cloud_on = _cl.is_cloud()
+            _rs0 = time.perf_counter()
+            _route_dec = router.route(name, text, {"cloud_on": _cloud_on})
+            _route_sel_ms = (time.perf_counter() - _rs0) * 1000.0
+            if not _cloud_on:
                 _fact_block = _route_dec.selected_block
         except Exception:
+            _route_sel_ms = 0.0
+
+        # MRI: route frame — facts selected (ids+values) + the routing decision. The rows
+        # themselves aren't kept on RouteDecision, so re-derive them via the SAME
+        # deterministic O(ms) selection the router just ran (pure dict-scan over the
+        # personal store — sub-ms, fully guarded). PII guard: values are redacted under a
+        # cloud brain, exactly as the real fact block is blanked.
+        _bind_rows = []
+        try:
+            from .organs import router as _router_mri
+            _sel_rows, _ = _router_mri.select_facts(name, text)
+            _bind_rows = list(_sel_rows or [])
+        except Exception:
+            _bind_rows = []
+        try:
+            _sel = [{"id": r.get("id"), "trait": r.get("trait"),
+                     "value": ("<cloud:redacted>" if _cloud_on else str(r.get("value"))[:80])}
+                    for r in _bind_rows if isinstance(r, dict)][:40]
+            _mids = list(getattr(_route_dec, "memory_ids", []) or [])
+            _dropped_route = []
+            if _cloud_on and getattr(_route_dec, "selected_block", ""):
+                _dropped_route.append("fact_block(PII: blanked for cloud brain)")
+            _stg("route", t_ms=_route_cap_ms + _route_sel_ms,
+                 in_shape={"text_chars": len(text or ""), "cloud_on": _cloud_on},
+                 out={"capability": (cap_note[:200] if cap_note else None),
+                      "selected_ids": _mids[:40],
+                      "selected": _sel,
+                      "model": getattr(_route_dec, "model", "local"),
+                      "escalation": getattr(_route_dec, "escalation", ""),
+                      "reason": getattr(_route_dec, "reason", "")},
+                 dropped=_dropped_route,
+                 confidence=None, note="capability route + query-aware memory selection")
+            # the brain-choice alternative (the road not taken).
+            if _mri is not None:
+                _sel_model = getattr(_route_dec, "model", "local") or "local"
+                _is_local = not str(_sel_model).startswith("cloud")
+                _mri.alternative("route:brain",
+                                 selected=_sel_model,
+                                 rejected=[{"option": ("cloud" if _is_local else "local"),
+                                            "reason": ("cloud paused for privacy / not configured"
+                                                       if _is_local else
+                                                       "local sufficient — no escalation")}])
+        except Exception:
             pass
+
+        # MRI: bind frame — the bound spine block + per-fact truth-classes. spine.bind is
+        # pure + model-free (sub-ms); it renders the SAME binding contract the mouth uses,
+        # so the trace shows exactly what was bound for this turn and at what truth-class.
+        try:
+            from . import spine as _spine_mri
+            _bs0 = time.perf_counter()
+            _bound = _spine_mri.bind(_bind_rows, text)
+            _tc = {}
+            for r in _bind_rows:
+                if isinstance(r, dict):
+                    _cls = _spine_mri.truth_class(r)
+                    if _cls:
+                        _tc[str(r.get("trait", "?"))] = _cls
+            _bind_ms = (time.perf_counter() - _bs0) * 1000.0
+            _stg("bind", t_ms=_bind_ms,
+                 in_shape={"selected_facts": len(_bind_rows)},
+                 out={"block_len": len(_bound or ""), "truth_classes": _tc,
+                      "bound": bool(_bound)},
+                 dropped=[],
+                 confidence=(1.0 if "KNOWN" in _tc.values() else None),
+                 note="spine.bind: binding-evidence contract")
+        except Exception:
+            pass
+
+        # MRI: situation + meaning — these do NOT run in the live turn path (the Life Graph
+        # cluster and Meaning Objects are built at sleep / read on demand, never per-turn).
+        # Recorded as explicit skip frames with a note so the Viewer shows them as black
+        # boxes for the live turn rather than silently missing. (No latency added.)
+        _stg("situation", t_ms=0.0, in_shape=None, out=None, dropped=[], confidence=None,
+             note="N/A in live turn: world_state.situation() is on-demand/background, not per-turn")
+        _stg("meaning", t_ms=0.0, in_shape=None, out=None, dropped=[], confidence=None,
+             note="N/A in live turn: meaning.meaning() is built at sleep / read on demand, not per-turn")
+
+        # MRI: prompt frame — the memory block fed to the mouth + history depth. NOTE: the
+        # FULL system prompt is assembled INSIDE mouth.respond (mouth.system_prompt) and is
+        # not returned to _turn, so its exact length is a black box here; we record the mem
+        # block (what _turn controls) and flag the rest.
+        try:
+            _memblock = _fact_block if _fact_block else _bound
+            _stg("prompt", t_ms=0.0,
+                 in_shape={"history_turns": len(_HISTORY), "cloud_on": _cloud_on},
+                 out={"mem_block_len": len(_memblock or ""),
+                      "mem_block_present": bool(_memblock),
+                      "cap_note_present": bool(cap_note),
+                      "system_prompt_len": None},   # built inside the mouth — see note
+                 dropped=[], confidence=None,
+                 note="mem block + history; full system prompt assembled inside mouth.respond")
+        except Exception:
+            pass
+
         mouth = _mouth()
         _g0 = time.perf_counter()
         u = mouth.respond(heart, text, history=list(_HISTORY),
                           audio_out=audio_out, perception=p, cap_note=cap_note,
                           fact_block=_fact_block)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
+        # MRI: generate frame — model + reply + token count + tok/s. tok/s is the brain's
+        # real measured rate; token count is estimated from rate*seconds (the brain doesn't
+        # hand back an exact count here). Recorded immediately so the trace pins the FIRST
+        # draft even if the verifier later regenerates/overrides (captured in 'verify').
+        try:
+            _tok_s = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+            _ntok = int(round(_tok_s * gen_s)) if (_tok_s and gen_s) else None
+            _stg("generate", t_ms=gen_s * 1000.0,
+                 in_shape={"mem_block_len": len((_fact_block if _fact_block else _bound) or "")},
+                 out={"model": getattr(u, "backend", ""),
+                      "reply": (getattr(u, "text", "") or "")[:2000],
+                      "reply_chars": len(getattr(u, "text", "") or ""),
+                      "tokens_est": _ntok,
+                      "tok_s": (round(float(_tok_s), 1) if _tok_s else None),
+                      "feeling": getattr(u, "feeling", "")},
+                 dropped=[], confidence=None,
+                 note="first draft (verifier may regenerate — see verify frame)")
+        except Exception:
+            pass
         # Organ 4 (Verifier) + Knowledge Spine ENFORCEMENT: check the draft against its
         # evidence (facts in play + the capability result) BEFORE it ships, and when it
         # overrides for an IGNORED KNOWN FACT (a fact on disk AND asked-for, yet disclaimed
@@ -316,6 +501,24 @@ def _turn(name, text, voice=False):
                     _verdict = verify(text, u.text, _evidence, cap_note=cap_note)
         except Exception:
             pass
+        # MRI: verify frame — verdict + issues + whether it overrode (regenerated/floored).
+        try:
+            _ov = bool(getattr(_verdict, "override", False)) if _verdict is not None else False
+            _issues = [str(i) for i in (getattr(_verdict, "issues", []) or [])] if _verdict is not None else []
+            try:
+                _vconf = float(getattr(_verdict, "confidence", None)) if _verdict is not None else None
+            except (TypeError, ValueError):
+                _vconf = None
+            _stg("verify", t_ms=0.0,
+                 in_shape={"reply_chars": len(getattr(u, "text", "") or ""),
+                           "evidence_facts": (len(_evidence) if "_evidence" in dir() else None)},
+                 out={"verdict": ("override" if _ov else ("ok" if _verdict is not None else "skipped")),
+                      "issues": _issues[:20],
+                      "override": _ov},
+                 dropped=[], confidence=_vconf,
+                 note=("verifier enforced the spine (regenerate/floor)" if _ov else "draft passed"))
+        except Exception:
+            pass
         _HISTORY.append((text, u.text))           # within-session memory
         _save_history(name)                        # survive a restart
         try:                                       # record model use for the cleanup routine
@@ -325,22 +528,59 @@ def _turn(name, text, voice=False):
         except Exception:
             pass
         portrait.log_turn(name, text, u.text)      # logged for the next sleep to distil
+        _lirf_written, _edges_written = [], []
+        _cap_ms = 0.0
         try:                                       # capture durable user-facts NOW (birthday, dog…)
             from . import memory_lirf               # into the LIRF ledger — immediate, not just at
-            memory_lirf.capture(name, text)         # sleep — so a fact told today is known tomorrow.
+            _cs0 = time.perf_counter()
+            _lirf_written = memory_lirf.capture(name, text) or []   # sleep → a fact told today is known tomorrow.
+            _cap_ms += (time.perf_counter() - _cs0) * 1000.0
         except Exception:
             pass
         try:                                       # Personal World State: capture relational/causal
             from . import world_state               # edges from THIS turn (additive, union-safe save,
-            world_state.capture_relations(name, text)  # race-free under _lock) — situations build over time.
+            _ws0 = time.perf_counter()
+            _edges_written = world_state.capture_relations(name, text) or []  # race-free under _lock.
+            _cap_ms += (time.perf_counter() - _ws0) * 1000.0
         except Exception:
             pass
+        # MRI: capture frame — the CONSERVATION ledger of this turn. What durable structure
+        # the turn extracted from the utterance (LIRF facts + world edges WRITTEN) vs. what
+        # it let go: the utterance text itself is NOT stored as a fact unless it names a
+        # durable trait/relation, so everything not lifted is the 'dropped' salient mass.
+        try:
+            def _fact_brief(r):
+                if not isinstance(r, dict):
+                    return {"raw": str(r)[:80]}
+                return {"id": r.get("id"), "trait": r.get("trait"),
+                        "value": str(r.get("value"))[:80], "status": r.get("status")}
+
+            def _edge_brief(e):
+                if not isinstance(e, dict):
+                    return {"raw": str(e)[:80]}
+                return {"subject": e.get("subject"), "predicate": e.get("predicate"),
+                        "object": e.get("object")}
+            _kept = len(_lirf_written) + len(_edges_written)
+            _stg("capture", t_ms=_cap_ms,
+                 in_shape={"utterance_chars": len(text or "")},
+                 out={"lirf_facts_written": [_fact_brief(r) for r in _lirf_written][:40],
+                      "world_edges_written": [_edge_brief(e) for e in _edges_written][:40],
+                      "facts_kept": len(_lirf_written),
+                      "edges_kept": len(_edges_written),
+                      "salient_kept": _kept},
+                 dropped=([] if _kept else ["utterance carried no durable fact/edge to store"]),
+                 confidence=None,
+                 note="conservation: durable structure lifted from this utterance (rest is transient)")
+        except Exception:
+            pass
+        _aside_kind, _aside_gated, _aside_line = None, False, None   # MRI: curiosity-stage tracking
         try:                                       # PROACTIVE ASIDE — at most ONE gentle, optional aside
             from . import curiosity, loops, cloud as _cc  # per session, only on a CASUAL turn (no fact
-            if (not _cc.is_cloud()                  # answered, no capability, no verifier override),
-                    and name not in _CURIOSITY_ASKED   # cloud-off (PII). AFTER capture, so a fact/goal
-                    and not _fact_block and not cap_note   # stated THIS turn is never asked back about.
-                    and not (_verdict is not None and getattr(_verdict, "override", False))):
+            _aside_gated = (not _cc.is_cloud()      # remember WHY the aside was/ wasn't even attempted
+                            and name not in _CURIOSITY_ASKED
+                            and not _fact_block and not cap_note
+                            and not (_verdict is not None and getattr(_verdict, "override", False)))
+            if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
                 try:                                # 1) Opportunity Engine: a grounded, optional OFFER
                     from . import opportunity        # "want me to…?" — paced; an OFFER, never an action
@@ -349,7 +589,7 @@ def _turn(name, text, voice=False):
                         _oc = opportunity.last_opportunity_choice()
                         if _oc:
                             opportunity.mark_offered(name, _oc, line=_op)
-                        _aside = _op.strip()
+                        _aside, _aside_kind = _op.strip(), "opportunity"
                 except Exception:
                     _aside = None
                 if not _aside:
@@ -359,7 +599,7 @@ def _turn(name, text, voice=False):
                             _ch = loops.last_resurface_choice()
                             if _ch:
                                 loops.mark_resurfaced(name, _ch, line=_rl)  # never re-nag (Law 001)
-                            _aside = _rl.strip()
+                            _aside, _aside_kind = _rl.strip(), "loop"
                     except Exception:
                         _aside = None
                 if not _aside:                      # 3) else a contextual curiosity question (Law 002)
@@ -369,14 +609,63 @@ def _turn(name, text, voice=False):
                             _cands = curiosity.candidate_gaps(name)
                             if _cands:
                                 curiosity.mark_asked(name, _cands[0])   # never re-ask this gap (Law 002)
-                            _aside = _q.strip()
+                            _aside, _aside_kind = _q.strip(), "curiosity"
                     except Exception:
                         _aside = None
                 if _aside:                          # surface exactly one, persist, mark the session
+                    _aside_line = _aside
                     u.text = u.text.rstrip() + "\n\n" + _aside
                     _HISTORY[-1] = (text, u.text)                       # within-session coherence
                     _save_history(name)                                 # persist it (Law 001)
                     _CURIOSITY_ASKED.add(name)
+        except Exception:
+            pass
+        # MRI: curiosity frame — the gaps it sees, the candidate questions, which aside (if
+        # any) it SELECTED, and the REJECTED candidates with the reason. Read-only + guarded;
+        # candidate_gaps is the same O(ms) detection the aside used. The 'rejected' list is
+        # the runner-up gaps that lost to the top one this turn (Law 002 pacing).
+        try:
+            from . import curiosity as _cur_mri
+            _gaps, _cands_mri = [], []
+            try:
+                _gaps = _cur_mri.detect_gaps(name) or []
+                _cands_mri = _cur_mri.candidate_gaps(name) or []
+            except Exception:
+                pass
+
+            def _gap_label(g):
+                if not isinstance(g, dict):
+                    return str(g)[:60]
+                return (g.get("entity") or "you") + ":" + (g.get("slot") or g.get("trait") or "?")
+            _cand_labels = [_gap_label(g) for g in _cands_mri][:20]
+            _selected = (_aside_kind + ":" + (_aside_line[:80] if _aside_line else "")) if _aside_kind else None
+            # reasons why the aside stayed silent (the common, important case to SEE).
+            if not _aside_kind:
+                if not _aside_gated:
+                    _why_silent = "gated off: cloud brain / fact answered / capability / override / already asked this session"
+                elif not _cands_mri:
+                    _why_silent = "no un-asked gaps available"
+                else:
+                    _why_silent = "budget/pacing held it silent this turn"
+            else:
+                _why_silent = ""
+            _rejected = []
+            for g in _cands_mri[1:6]:               # runners-up that lost to the top candidate
+                _rejected.append({"option": _gap_label(g),
+                                  "reason": "lower priority than the selected gap this turn"})
+            _stg("curiosity", t_ms=0.0,
+                 in_shape={"gaps_detected": len(_gaps)},
+                 out={"candidates": _cand_labels,
+                      "selected": _selected,
+                      "aside_kind": _aside_kind,
+                      "silent_reason": _why_silent},
+                 dropped=[g["option"] for g in _rejected],
+                 confidence=None,
+                 note=("asked one gentle aside" if _aside_kind else ("silent: " + _why_silent)))
+            if _mri is not None and (_selected or _rejected):
+                _mri.alternative("curiosity:which gap to surface",
+                                 selected=(_cand_labels[0] if (_aside_kind == "curiosity" and _cand_labels) else _selected),
+                                 rejected=_rejected)
         except Exception:
             pass
         save_json(_path(name), heart.to_dict())    # atomic — never half-written
@@ -422,6 +711,14 @@ def _turn(name, text, voice=False):
                     out["draft"] = d["draft"]       # {id, kind, to, body}
             except Exception:
                 pass
+        # MRI: close + flush the full per-turn trace (ONE jsonl line). total_ms is the real
+        # wall-clock for the whole turn. Last thing before returning; fully guarded so a
+        # recorder failure can never touch the reply the user already has in `out`.
+        try:
+            if _mri is not None:
+                _mri.commit(reply=u.text, total_ms=(time.perf_counter() - _turn_t0) * 1000.0)
+        except Exception:
+            pass
         return out
 
 
