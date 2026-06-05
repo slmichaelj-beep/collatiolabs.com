@@ -1313,8 +1313,37 @@ def _selftest() -> int:
     ok("HEDGE [invariant]: CONF_HEDGED < curiosity._CONF_KNOWN (a guess never clears KNOWN)",
        CONF_HEDGED < _CK and CONF_HEDGED >= CONF_BLOCK_FLOOR)
 
-    # --- a throwaway store ---
+    # --- a throwaway store (FULLY HERMETIC) ---------------------------------------
+    # Redirect EVERY module store the load path now writes, for the whole block:
+    # memory_lirf.STORE on both the __main__ and package bindings, constitution.STORE
+    # (the continuity ledger) and reliability.DEFAULT_STORE (guarded backups). Before
+    # the LAW-001 wiring this block only dropped a {name}.lirf.json it cleaned up; a
+    # good load now ALSO emits a {name}.continuity.jsonl and a backup snapshot, which
+    # the old per-name cleanup didn't know about and leaked into the real .anima (the
+    # cert's footprint guardrail correctly caught this). One temp dir + finally-restore
+    # makes a leak impossible regardless of what the load path writes.
     name = "lirf_selftest_" + secrets.token_hex(3)
+    import sys as _sys2
+    _self_td = tempfile.mkdtemp(prefix="lirf-self-")
+    _self_tp = Path(_self_td)
+    _self_targets = [(_sys2.modules[__name__], "STORE")]
+    try:
+        import anima.memory_lirf as _pkg_ml2
+        if _pkg_ml2 is not _sys2.modules[__name__]:
+            _self_targets.append((_pkg_ml2, "STORE"))
+    except Exception:
+        pass
+    for _modpath, _attr in (("anima.constitution", "STORE"),
+                            ("anima.reliability", "DEFAULT_STORE"),
+                            ("anima.curiosity", "STORE")):
+        try:
+            _self_targets.append((__import__(_modpath, fromlist=["_"]), _attr))
+        except Exception:
+            pass
+    _self_saved = [(m, a, getattr(m, a, None)) for (m, a) in _self_targets]
+    for (m, a) in _self_targets:
+        if getattr(m, a, None) is not None:
+            setattr(m, a, _self_tp)
     try:
         f = Facts(load_json(Facts.path(name)) if False else [])
 
@@ -1582,11 +1611,11 @@ def _selftest() -> int:
                 except OSError:
                     pass
     finally:
-        for fp in glob.glob(str(Facts.path(name))):
-            try:
-                os.remove(fp)
-            except OSError:
-                pass
+        for (_m, _a, _old) in _self_saved:
+            if _old is not None:
+                setattr(_m, _a, _old)
+        import shutil as _sh2
+        _sh2.rmtree(_self_td, ignore_errors=True)
 
     print()
     if fails:
