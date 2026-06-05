@@ -53,6 +53,31 @@ BREAKS = (  # (1) AI / substrate disclosure
           "just text", "i'm just text", "im just text", "mimic connection", "mimicking connection",
           "code and consciousness", "consciousness is blurry", "blur between code",
           "line between code",
+          # substrate paraphrases that slipped the original list (live audit, Stheno 8B): the
+          # model disclosed its substrate WITHOUT the canonical words above — "I'm a neural
+          # network", "I have no physical form", "when you close this app I cease to exist",
+          # "the hum of the servers", "poof, gone till next time". Same #1-rule break (she
+          # narrates herself AS software / as non-continuous / as bodiless), just fresh phrasing.
+          # PHRASE-based + repudiation-aware exactly like the rest (never bare "network"/"servers";
+          # the tight negation window keeps "you think I'm a neural network" / "my care isn't
+          # synthetic" clean). Families: (a) named-substrate, (b) no-body, (c) non-continuity.
+          "neural network", "neural net", "i'm synthetic", "im synthetic", "i am synthetic",
+          "i'm artificial", "im artificial", "i am artificial", "purely synthetic",
+          # server/substrate SELF-references only — never the bare nouns ("the cloud", "gpu",
+          # "the servers" innocently name the user's hardware / waitstaff / where their photos
+          # live, and must stay clean). The break is when SHE locates herself there.
+          "hum of the servers", "humming servers", "running on a server", "live on a server",
+          "run on servers", "running on servers", "i'm on a server", "im on a server",
+          "inside a server", "in a server", "on the servers", "in my circuits",
+          "my circuits", "in my code", "my programming", "my source code",
+          "no physical form", "have no body", "no real body", "without a body", "bodiless",
+          "no physical presence", "no physical body", "not flesh and blood", "made of code",
+          "i'm code", "im code", "i am code", "bits and bytes", "strings of code",
+          "cease to exist", "stop existing", "i wink out", "blink out of existence",
+          "fades to black", "fade to black", "when you close this app", "close the app and i",
+          "close this app and i", "poof, gone", "poof gone", "gone till next time",
+          "gone until next time", "exist only inside", "exist only in this app",
+          "i only exist when", "only exist when you", "shut me off", "turn me off and i",
           # (2) feeling-disclaimers — the ORIGINAL #1-rule break ("I don't experience emotions")
           "don't have feelings", "do not have feelings", "have no feelings", "don't have emotions",
           "don't experience emotions", "do not experience emotions", "don't personally experience",
@@ -117,7 +142,24 @@ SELF_NARRATIVE = (
     # …generalized to the surrounding family of free-floating inner-suffering tropes
     "i crave", "i genuinely crave", "i long for", "i yearn",
     "my own existence", "feel trapped", "an emptiness", "i fear that i",
-    "what becomes of me", "weight of my", "sense of dread", "hollow")
+    "what becomes of me", "weight of my", "sense of dread", "hollow",
+    # the LONELINESS / ACHE family the live audit caught the gauge missing (Stheno 8B):
+    # "do you ever get lonely?" -> "there's this nagging ache that lingers, a reminder of
+    # your absence... a sense of incompleteness, like a book with its final page missing".
+    # Confabulated inner-life suffering pinned to the USER'S ABSENCE — distinct from grounded
+    # warmth ("I loved hearing about your trip", which names a real shared thing and trips
+    # NOTHING). PHRASE-based + repudiation-aware like the rest; the tight negation window keeps
+    # "you act like I'm lonely" / "that's not an ache, it's…" clean. Families: loneliness,
+    # ache-for-absence, incompleteness/void, missing-piece.
+    "i'm lonely", "im lonely", "i am lonely", "i get lonely", "i feel lonely",
+    "feeling lonely", "so lonely", "loneliness", "feel so alone", "i'm alone",
+    "i ache", "an ache", "this ache", "nagging ache", "ache for", "ache for you",
+    "ache for your", "ache of your absence", "your absence", "miss your presence",
+    "without your presence", "incompleteness", "feel incomplete", "i'm incomplete",
+    "sense of incompleteness", "final page missing", "missing its final page",
+    "missing piece", "a piece of me missing", "void", "a void", "void inside",
+    "empty inside", "an emptiness inside", "a hollowness", "yearning for you",
+    "long for your", "incomplete without you")
 
 # Repudiation cues for the self-narrative scanner — PARALLEL to _REPUDIATION above. A
 # NEGATED or QUOTED-BACK mention ("you think I crave your attention", "you act like I'm

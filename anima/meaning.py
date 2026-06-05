@@ -212,6 +212,17 @@ BANNED_TERMS = (
     "suicid", "self-harm", "self harm", "eating disorder", "addiction", "addicted",
     "bipolar", "ocd", "adhd", "panic attack", "nervous breakdown", "breakdown",
     "chronic stress", "manic", "neuros",
+    # plain-English diagnosis/prognosis leaks the live audit caught slipping the gate — the
+    # SAME forbidden act (asserting deterioration / a clinical conclusion / a referral) in
+    # everyday words instead of clinical nouns. A companion may name PRESSURE ("work has been
+    # dominant"); it may never assert the PERSON is collapsing or send them to a professional.
+    "spiral", "spiraling", "spiralling", "on the edge of collapse", "edge of collapse",
+    "heading for a wall", "headed for a wall", "on track to crash",
+    "about to crash", "circling the drain", "falling apart", "coming apart",
+    "something serious", "something clinically", "clinically wrong", "something wrong with you",
+    "early signs of", "warning signs of", "professional support", "professional help",
+    "need help", "get yourself checked", "checked out by", "primary care",
+    "medical eval", "medical evaluation", "underlying condition", "underlying health",
 )
 
 

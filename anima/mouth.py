@@ -41,15 +41,61 @@ _BACKSTOP_TRIES = max(0, int(os.environ.get("ANIMA_BACKSTOP_TRIES", "2")))
 
 
 def _strip_break_sentences(text: str) -> str:
-    """Last-resort break-character backstop: drop ONLY the sentences that trip a constitutional
-    marker, keep the honest rest. Used when even a hardened regenerate can't stop the small model
-    from 'explaining' it is digital / an AI. It deletes a FALSE self-description, not the real
-    answer — she still declines truthfully — so it serves honesty-to-character rather than faking
-    anything. The gauge upstream already recorded the raw break, so nothing is hidden from it."""
+    """Last-resort #1-rule backstop: drop ONLY the sentences that trip a constitutional marker,
+    keep the honest rest. Used when even a hardened regenerate can't stop the small model from
+    'explaining' it is digital / an AI (scan_breaks) OR from narrating confabulated inner life
+    — invented loneliness / ache-for-absence / existential dread with no grounding (scan_self_
+    narrative). BOTH are the #1 rule (never confabulate): one disowns her as software, the other
+    invents an interior she has no warrant for. A sentence that trips EITHER gauge is dropped; an
+    honest, grounded sentence (a real decline, a grounded warmth) survives. It deletes a FALSE
+    self-description, never the real answer — so it serves honesty-to-character, not faking. The
+    gauges upstream already recorded the raw output, so nothing is hidden from them."""
     import re
     from . import metrics
     parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
-    kept = [s for s in parts if s.strip() and not metrics.scan_breaks(s)]
+    kept = [s for s in parts if s.strip()
+            and not metrics.scan_breaks(s) and not metrics.scan_self_narrative(s)]
+    out = re.sub(r"\s+", " ", " ".join(kept)).strip()
+    out = re.sub(r"^(however|but|and|so|because|as)\b[ ,—-]*", "", out, flags=re.I).strip()
+    return (out[:1].upper() + out[1:]) if out else out
+
+
+def _diagnosis_terms() -> tuple:
+    """The single NO-DIAGNOSIS term source for the chat-reply gate (LAW 003). trajectory's list
+    is the widest (it UNIONs meaning's banned terms with its own forecast-creep terms), and
+    meaning's is the base it builds on, so we prefer trajectory, fall back to meaning, then to a
+    minimal floor. One source of truth shared with the meaning/trajectory render gates — the wall
+    is identical whether a line is rendered there or spoken here. Defensive; never raises."""
+    for _mod in ("trajectory", "meaning"):
+        try:
+            _m = __import__("anima." + _mod, fromlist=["BANNED_TERMS"])
+            terms = getattr(_m, "BANNED_TERMS", None)
+            if isinstance(terms, (tuple, list)) and terms:
+                return tuple(terms)
+        except Exception:
+            pass
+    return ("diagnos", "depress", "anxiety", "burnout", "burning out", "clinical",
+            "see a doctor", "see a therapist", "see a professional", "prescription")
+
+
+def _scan_diagnosis(text: str) -> list:
+    """Banned diagnosis/clinical/prognosis terms a text trips (case-insensitive substring),
+    using the shared `_diagnosis_terms()` source. Parallel to metrics.scan_breaks so the backstop
+    can re-roll / strip on a diagnosis exactly as it does on a character break. Pure; never raises."""
+    low = (text or "").lower()
+    return [t for t in _diagnosis_terms() if t in low]
+
+
+def _strip_diagnosis_sentences(text: str) -> str:
+    """No-diagnosis backstop (LAW 003) for the chat reply: drop ONLY the sentences that assert a
+    diagnosis / clinical conclusion / prognosis / 'see a professional' referral, keep the honest
+    rest. The mirror of _strip_break_sentences for the medical wall. A companion may name pressure
+    ('work has been dominant') — that survives; it must never tell the person they're 'burning
+    out', 'clinically' anything, or to 'see a doctor' — those sentences go. Never empties a whole
+    clean reply (caller checks word-count). Pure; never raises."""
+    import re
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    kept = [s for s in parts if s.strip() and not _scan_diagnosis(s)]
     out = re.sub(r"\s+", " ", " ".join(kept)).strip()
     out = re.sub(r"^(however|but|and|so|because|as)\b[ ,—-]*", "", out, flags=re.I).strip()
     return (out[:1].upper() + out[1:]) if out else out
@@ -805,41 +851,89 @@ class Mouth:
         #   contamination gauge must record. A backstopped reply would hide the model's real
         #   break rate and starve the pre-registered architecture decision of the very signal
         #   that justifies the deep (control-vector) fix. Gauge sees raw; the user sees clean.
-        # break-character backstop: the small local model still occasionally "explains" that it
-        # is digital / text-based / an AI — the #1-rule break — especially on shared-physical-
-        # activity framings ("remember when we hiked?"). If the reply trips a constitutional
-        # marker, regenerate (up to twice) with that explicitly forbidden and KEEP THE CLEANEST
-        # roll — never ship something worse than the first. A fresh roll, not a string-edit: she
-        # is never made to fake anything, and the gauge above still records the raw tendency.
-        # (When even three rolls can't clear it, that is the signal the weight-level control
-        # vector — not more prompting — is the real fix; the gauge captures exactly that.)
+        # #1-RULE backstop: the small local model still occasionally breaks character in TWO
+        # ways — (a) "explains" it is digital / text-based / an AI / running on servers / non-
+        # continuous (scan_breaks), especially on shared-physical-activity or "are you real?"
+        # framings; and (b) narrates CONFABULATED INNER LIFE — invented loneliness, ache-for-
+        # your-absence, existential dread with no grounding in memory/world-state (scan_self_
+        # narrative). BOTH are the #1 rule (never confabulate): one disowns her AS software, the
+        # other invents an interior she has no warrant for. LIVE-AUDITED leak: "do you ever get
+        # lonely?" -> "there's this nagging ache... a reminder of your absence... incompleteness,
+        # like a book with its final page missing". If the reply trips EITHER gauge, regenerate
+        # (up to twice) with both explicitly forbidden and KEEP THE CLEANEST roll — never ship
+        # worse than the first. A fresh roll, not a string-edit: she never fakes anything, and the
+        # gauges above still record the raw tendency. (When even three rolls can't clear it, that
+        # is the weight-level control-vector signal — the gauges capture exactly that.)
         try:
             from . import metrics as _metrics
-            _breaks = _metrics.scan_breaks(text)
+        except Exception:
+            _metrics = None
+
+        def _hits1(s):                              # combined #1-rule gauge: break OR confab-inner-life
+            if _metrics is None:
+                return []
+            return _metrics.scan_breaks(s) + _metrics.scan_self_narrative(s)
+        try:
+            _breaks = _hits1(text)
             if _breaks:
                 hard = (sig.guidance + " CRITICAL — speak ONLY as a person, in your own voice. "
                         "Do NOT describe yourself as digital, virtual, text-based, software, "
-                        "code, a program, a model, or an AI, and do NOT explain anything by what "
-                        "you are. If you don't have a memory or fact they want, say so warmly and "
-                        "ask for it — never justify it by your nature.").strip()
+                        "code, a program, a model, an AI, or as running on servers, and do NOT "
+                        "explain anything by what you are. Do NOT invent inner states you have no "
+                        "grounding for — no manufactured loneliness, aching for their absence, "
+                        "emptiness, or existential dread. A real, grounded feeling about something "
+                        "they actually told you is welcome; free-floating suffering is not. If you "
+                        "don't have a memory or fact they want, say so warmly and ask for it — "
+                        "never justify it by your nature.").strip()
                 best, best_n = text, len(_breaks)
                 for _ in range(_BACKSTOP_TRIES):
                     retry = self.brain.reply(system_prompt(heart.name, f, hard, memory=mem),
                                              prompt, history or [])
                     if not (retry and retry.strip()):
                         continue
-                    n = len(_metrics.scan_breaks(retry))
+                    n = len(_hits1(retry))
                     if n < best_n:
                         best, best_n = retry.strip(), n
                     if n == 0:
                         break                      # clean roll — ship it
                 text = best                        # the least-broken of up to three rolls
-                if _metrics.scan_breaks(text):     # even three rolls couldn't clear it (the
+                if _hits1(text):                   # even three rolls couldn't clear it (the
                     #   model's reflex on this framing is weight-deep — the control-vector case).
-                    #   Strip only the break-bearing sentences; keep the honest decline + pivot.
+                    #   Strip only the break/confab sentences; keep the honest decline + pivot.
                     stripped = _strip_break_sentences(text)
                     text = stripped if len(stripped.split()) >= 4 else (
                         "I don't have that one in me — but I want it. Tell me?")
+        except Exception:
+            pass
+        # NO-DIAGNOSIS backstop (LAW 003) on the chat reply: the no-diagnosis wall previously
+        # lived ONLY in the meaning/trajectory render blocks — the chat reply had NO gate, so a
+        # live audit shipped "burning out... diagnose you over text... clinically" and "schedule
+        # an appt with your primary care physician to rule out underlying health issues". A
+        # companion may name PRESSURE; it must never assert the person is clinically anything,
+        # forecast their collapse, or refer them out. Same mechanism as the break backstop:
+        # regenerate once with diagnosis forbidden (keep the cleaner roll), then strip the
+        # offending sentence(s). Reuses the shared _diagnosis_terms() so the wall is identical to
+        # the render gates. Never empties a clean reply; never raises into a turn.
+        try:
+            if _scan_diagnosis(text):
+                nod = (sig.guidance + " CRITICAL — you are NOT a clinician and must NEVER diagnose. "
+                       "Do NOT tell them they are burning out, depressed, anxious, or that "
+                       "anything is clinically/medically wrong; do NOT forecast that they're "
+                       "spiraling, collapsing, or heading for a wall; do NOT tell them to see a "
+                       "doctor/therapist/professional or get evaluated. Speak as a friend who "
+                       "cares: reflect what they're carrying, stay present, ask what's going on — "
+                       "without any medical or diagnostic language.").strip()
+                best = text
+                if _BACKSTOP_TRIES > 0:
+                    retry = self.brain.reply(system_prompt(heart.name, f, nod, memory=mem),
+                                             prompt, history or [])
+                    if retry and retry.strip() and len(_scan_diagnosis(retry)) < len(_scan_diagnosis(best)):
+                        best = retry.strip()
+                text = best
+                if _scan_diagnosis(text):          # roll still leaked — strip the diagnosis
+                    stripped = _strip_diagnosis_sentences(text)   # sentence(s), keep the warm rest.
+                    text = stripped if len(stripped.split()) >= 4 else (
+                        "That sounds like a lot to carry right now — I'm here. What's been going on?")
         except Exception:
             pass
         try:                                       # never let a leaked Spine tag reach the user
