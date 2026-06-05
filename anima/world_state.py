@@ -265,17 +265,48 @@ class World:
 
     @classmethod
     def load(cls, name) -> "World":
-        d = load_json(cls.path(name))
+        """Load the relation graph with LAW-001 self-healing (ANIMA LAW 001 — NEVER LOSE
+        CONTINUITY), mirroring memory_lirf.Facts.load. A clean file loads exactly as before
+        (single parse, no added latency).
+
+        A CORRUPT/unreadable world store no longer silently returns 0 relations — the prior
+        raw util.load_json swallowed JSON/decode errors and returned None. Instead
+        reliability.guarded_store_load recovers from the most-recent good backup if one
+        exists, else stops CLEANLY (flagged-empty) and records a constitution.approved_loss.
+        On a clean load we take a guarded snapshot (only when the file is good) so a
+        recoverable backup always exists; a corrupt store can never overwrite a good backup.
+        The reliability layer is optional (isolation-safe fallback to the original load)."""
+        path = cls.path(name)
+        try:
+            from . import reliability                   # type: ignore
+        except Exception:                               # pragma: no cover - isolation/standalone
+            d = load_json(path)
+            rels = d.get("relations", []) if isinstance(d, dict) else []
+            return cls(rels)
+        d, info = reliability.guarded_store_load(
+            name, path, store=STORE, kind="world store", expect_key="relations")
         rels = d.get("relations", []) if isinstance(d, dict) else []
-        return cls(rels)
+        inst = cls(rels)
+        inst._load_flagged_empty = bool(info.get("flagged"))
+        if info.get("ok") and not info.get("empty"):
+            reliability.maybe_backup_store(name, path, store=STORE, kind="world store",
+                                           expect_key="relations")
+        return inst
 
     def save(self, name) -> None:
         """Append-safe persist. CONTINUITY: re-load whatever is on disk and union it with
         our in-memory relations by id (newest wins per id), so a concurrent writer's edges
         are never silently dropped — a save can only ADD or update, never overwrite-and-lose.
+
+        The union re-read is corruption-aware (LAW 001): if the on-disk file is corrupt at
+        save time, raw load_json would return None and we'd silently drop whatever rows it
+        held. We instead try to RECOVER the on-disk view from the latest good backup before
+        the union, so a concurrent writer's good edges are unioned in rather than lost. If no
+        backup exists the corrupt file can't be read either way — but the recovery attempt is
+        guarded and never raises, so the additive-save contract holds.
         """
         STORE.mkdir(exist_ok=True)
-        on_disk = load_json(self.path(name))
+        on_disk = self._safe_disk_view(name)
         disk_rels = on_disk.get("relations", []) if isinstance(on_disk, dict) else []
         merged = {r["id"]: r for r in disk_rels if isinstance(r, dict) and r.get("id")}
         for r in self.relations:                 # our view wins for ids we hold
@@ -285,6 +316,26 @@ class World:
         # adopt the unioned view so the instance stays consistent with disk
         self.relations = out
         self._reindex()
+
+    def _safe_disk_view(self, name) -> Optional[dict]:
+        """The on-disk relations view for the union re-read in save(), corruption-aware.
+
+        Normally just load_json(path). If the on-disk file is CORRUPT, raw load_json returns
+        None and the union would silently drop the disk rows — so we first try to recover the
+        file from the latest good backup (guarded; never raises). Falls back to plain
+        load_json when the reliability layer isn't importable (isolation/standalone)."""
+        path = self.path(name)
+        try:
+            from . import reliability                   # type: ignore
+        except Exception:
+            return load_json(path)
+        try:
+            obj, _info = reliability.guarded_store_load(
+                name, path, store=STORE, kind="world store (save re-read)",
+                expect_key="relations")
+            return obj
+        except Exception:
+            return load_json(path)
 
     # --- write one edge -----------------------------------------------------
     def add(self, subject, predicate, object, *, kind="inference",

@@ -32,7 +32,9 @@ it does not, and exits non-zero if any hard invariant breaks.
 from __future__ import annotations
 
 import contextlib
+import io
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -41,6 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from anima import constitution                      # noqa: E402
 from anima import memory_lirf                        # noqa: E402
+from anima import world_state                         # noqa: E402
 from anima import portrait                           # noqa: E402
 from anima import reliability                        # noqa: E402
 
@@ -271,6 +274,151 @@ def test_backup_preserves():
         ok("[note] oldest snapshot rotated out of the hot backups dir", rotated_out)
 
 
+# ===================================================================================
+# 6. THE SILENT-LOSS BUG, CLOSED. Facts.load / World.load on a CORRUPT store must NEVER
+#    silently return 0 rows: they recover from the latest good backup if one exists, else
+#    fail LOUDLY (flagged-empty) and record an approved_loss. A corrupt load must NEVER
+#    overwrite a good backup, and a CLEAN store must load byte-identically (happy path
+#    unchanged). This is the auditor's 5-mode repro, run on the real load paths.
+#    [Unknown > Lost — a clean stop beats a silently-wrong empty store]
+# ===================================================================================
+# The five ways a JSON store dies on disk. `null` is the sneaky one: valid JSON that decodes
+# to Python None, which the old raw util.load_json silently read as 0 rows.
+_CORRUPTION_MODES = {
+    "truncate": b'{"version":1,"rows":[{"id":"f_x","entity":"you","trait":"birthday"',
+    "empty":    b"",
+    "garbage":  b"\xff\xfe\x00\x01\x02 not valid utf-8",
+    "oops":     b"oops",
+    "null":     b"null",
+}
+
+
+def _seed_lirf(name):
+    """A synthetic creature with facts incl. a birthday (the auditor's seed)."""
+    f = memory_lirf.Facts([])
+    for c in f.capture(name, "my birthday is June 11"):
+        f.merge(c)
+    for c in f.capture(name, "I live in Portland"):
+        f.merge(c)
+    f.save(name)
+    return f
+
+
+def test_lirf_corrupt_load_recovers_or_fails_loud():
+    print("\n[6] memory_lirf.Facts.load — a CORRUPT ledger recovers or fails LOUD, never silent 0 rows")
+    # --- 6a: clean load is byte-identical (happy path unchanged) ---
+    with _temp_store(memory_lirf, constitution) as store:
+        name = "st_clean"
+        _seed_lirf(name)
+        before = (store / f"{name}.lirf.json").read_bytes()
+        with contextlib.redirect_stderr(io.StringIO()) as buf:
+            g = memory_lirf.Facts.load(name)
+        after = (store / f"{name}.lirf.json").read_bytes()
+        ok("[6a] clean load returns the real rows (birthday preserved)",
+           g.value_of("birthday") == "June 11" and len(g.rows) == 2)
+        ok("[6a] clean load is NOT flagged-empty", not getattr(g, "_load_flagged_empty", False))
+        ok("[6a] clean load does NOT rewrite the good file (byte-identical)", after == before)
+        ok("[6a] clean load is silent on stderr (no recovery noise)", buf.getvalue() == "")
+
+    # --- 6b: WITH a good backup, every mode RECOVERS and never clobbers the backup ---
+    for mode, corrupt in _CORRUPTION_MODES.items():
+        with _temp_store(memory_lirf, constitution) as store:
+            name = "st_recover"
+            _seed_lirf(name)
+            reliability.backup(name, store=store, ts="20260101-000000")
+            good_bk = (store / "backups" / "20260101-000000" / f"{name}.lirf.json").read_bytes()
+            (store / f"{name}.lirf.json").write_bytes(corrupt)              # corrupt the LIVE file
+            with contextlib.redirect_stderr(io.StringIO()):
+                g = memory_lirf.Facts.load(name)
+            ok(f"[6b:{mode}] corrupt ledger RECOVERS from backup (rows back, NOT silent 0)",
+               len(g.rows) == 2 and g.value_of("birthday") == "June 11")
+            bk_now = (store / "backups" / "20260101-000000" / f"{name}.lirf.json").read_bytes()
+            ok(f"[6b:{mode}] the corrupt load did NOT clobber the good backup",
+               bk_now == good_bk)
+
+    # --- 6c: WITHOUT a backup, every mode fails LOUD (flagged-empty) + records approved_loss ---
+    for mode, corrupt in _CORRUPTION_MODES.items():
+        with _temp_store(memory_lirf, constitution) as store:
+            name = "st_loud"
+            _seed_lirf(name)
+            if (store / "backups").exists():
+                shutil.rmtree(store / "backups")        # ensure NO good backup exists
+            (store / f"{name}.lirf.json").write_bytes(corrupt)
+            with contextlib.redirect_stderr(io.StringIO()):
+                g = memory_lirf.Facts.load(name)
+            flagged = getattr(g, "_load_flagged_empty", False)
+            losses = constitution.approved_losses(name)
+            ok(f"[6c:{mode}] no backup -> flagged-empty (a clean STOP, never a silent 0-rows)",
+               flagged and len(g.rows) == 0)
+            ok(f"[6c:{mode}] the unrecoverable loss is RECORDED via approved_loss (not silent)",
+               len(losses) >= 1 and losses[-1]["law"] == "ANIMA LAW 001")
+
+
+def test_world_corrupt_load_recovers_or_fails_loud():
+    print("\n[7] world_state.World.load — a CORRUPT relation store recovers or fails LOUD")
+    rels_modes = dict(_CORRUPTION_MODES)
+    rels_modes["truncate"] = b'{"version":1,"relations":[{"id":"f_x"'   # truncate the right container
+
+    def _seed_world(name):
+        w = world_state.World([])
+        w.add("you", "stressed_by", "work", kind="problem")
+        w.add("work", "because", "new manager")
+        w.save(name)
+
+    # clean load unchanged
+    with _temp_store(world_state, memory_lirf, constitution) as store:
+        name = "stw_clean"
+        _seed_world(name)
+        with contextlib.redirect_stderr(io.StringIO()) as buf:
+            w = world_state.World.load(name)
+        ok("[7a] clean world load returns the real relations", len(w.active()) == 2)
+        ok("[7a] clean world load is NOT flagged-empty", not getattr(w, "_load_flagged_empty", False))
+        ok("[7a] clean world load is silent on stderr", buf.getvalue() == "")
+
+    # with a backup -> recover; without -> flagged-empty + approved_loss
+    for mode, corrupt in rels_modes.items():
+        with _temp_store(world_state, memory_lirf, constitution) as store:
+            name = "stw_recover"
+            _seed_world(name)
+            b = reliability.backup(name, store=store, ts="20260101-000000")
+            ok(f"[7b:{mode}] .world.json is covered by backup SPECS (was the missing redundancy)",
+               f"{name}.world.json" in b["files"])
+            (store / f"{name}.world.json").write_bytes(corrupt)
+            with contextlib.redirect_stderr(io.StringIO()):
+                w = world_state.World.load(name)
+            ok(f"[7b:{mode}] corrupt world store RECOVERS from backup (NOT silent 0)",
+               len(w.active()) == 2)
+
+    for mode, corrupt in rels_modes.items():
+        with _temp_store(world_state, memory_lirf, constitution) as store:
+            name = "stw_loud"
+            _seed_world(name)
+            if (store / "backups").exists():
+                shutil.rmtree(store / "backups")
+            (store / f"{name}.world.json").write_bytes(corrupt)
+            with contextlib.redirect_stderr(io.StringIO()):
+                w = world_state.World.load(name)
+            ok(f"[7c:{mode}] no backup -> flagged-empty world store (clean STOP, not silent)",
+               getattr(w, "_load_flagged_empty", False) and len(w.active()) == 0)
+            ok(f"[7c:{mode}] the world-store loss is RECORDED via approved_loss",
+               len(constitution.approved_losses(name)) >= 1)
+
+
+def test_atomic_write_fsyncs():
+    print("\n[8] util._atomic_write — durability barrier (flush + fsync) before publish")
+    import inspect
+    from anima import util
+    src = inspect.getsource(util._atomic_write)
+    ok("[8] _atomic_write calls f.flush() before os.replace", "f.flush()" in src)
+    ok("[8] _atomic_write calls os.fsync(...) before os.replace", "os.fsync(" in src)
+    # and it still actually writes correctly (round-trip)
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "x.json"
+        util.save_json(p, {"rows": [1, 2, 3]})
+        ok("[8] _atomic_write still round-trips content correctly",
+           util.load_json(p) == {"rows": [1, 2, 3]})
+
+
 def main():
     print("=" * 79)
     print("ANIMA LAW 001 — NEVER LOSE CONTINUITY  ::  invariant test on real code paths")
@@ -280,6 +428,9 @@ def main():
     test_lirf_merge_keeps_history()
     test_portrait_consolidate_lossy()
     test_backup_preserves()
+    test_lirf_corrupt_load_recovers_or_fails_loud()
+    test_world_corrupt_load_recovers_or_fails_loud()
+    test_atomic_write_fsyncs()
 
     print("\n" + "=" * 79)
     if _violations:

@@ -22,7 +22,14 @@ def label(title: str) -> None:
 
 
 def _atomic_write(path, text: str) -> None:
-    """Write text atomically (temp file + rename) so a crash can't corrupt it."""
+    """Write text atomically (temp file + rename) so a crash can't corrupt it.
+
+    Durability: the bytes are flushed and fsync'd to the disk BEFORE os.replace, so a
+    crash/power-loss in the window between write and rename cannot leave a zero-length or
+    half-written file in place — the rename only ever publishes a fully-persisted temp file
+    (the failure mode the old docstring promised but didn't actually guard). fsync is
+    best-effort: on the rare platform/FS where it isn't available we still get the atomic
+    rename, just without the extra durability barrier — never a crash."""
     path = str(path)
     directory = os.path.dirname(path) or "."
     os.makedirs(directory, exist_ok=True)
@@ -30,6 +37,11 @@ def _atomic_write(path, text: str) -> None:
     try:
         with os.fdopen(fd, "w") as f:
             f.write(text)
+            f.flush()
+            try:
+                os.fsync(f.fileno())          # persist the data before we publish it
+            except OSError:
+                pass                          # fsync unsupported here — atomic rename still holds
         os.replace(tmp, path)
     except Exception:
         try:

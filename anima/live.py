@@ -176,6 +176,21 @@ def main(argv: list[str] | None = None) -> None:
         print(metrics.dashboard(args.name))
     elif args.cmd == "sleep":
         heart = _load(args.name)
+        # 0) LAW 001 — NEVER LOSE CONTINUITY. Before any consolidation, take a GUARDED
+        # snapshot of the critical stores so a good backup of the heart, the LIRF fact
+        # ledger, and the world-state graph always exists for self-heal on a later corrupt
+        # load. Guarded + throttled: it snapshots only when the live files parse clean (a
+        # corrupt/empty state can never become the backup) and never raises into the cycle.
+        try:
+            from . import reliability
+            reliability.maybe_backup_store(args.name, _path(args.name),
+                                           store=STORE, kind="heart")
+            reliability.maybe_backup_store(args.name, STORE / f"{args.name}.lirf.json",
+                                           store=STORE, kind="LIRF ledger", expect_key="rows")
+            reliability.maybe_backup_store(args.name, STORE / f"{args.name}.world.json",
+                                           store=STORE, kind="world store", expect_key="relations")
+        except Exception:
+            pass
         # 1) lasting memory: distil the day's conversation into the Portrait
         from .mouth import OllamaBrain
         brain = OllamaBrain()

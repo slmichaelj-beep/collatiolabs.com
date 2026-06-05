@@ -160,7 +160,8 @@ SPECS: tuple[Spec, ...] = (
     Spec(".mem.json", "json-vec", required=True, min_bytes=10, structure="memory"),
     Spec(".replay.json", "json-vec", required=False, min_bytes=10, structure="replay"),
     Spec(".history.json", "json", required=False, min_bytes=2, structure="history"),
-    Spec(".lirf.json", "json", required=False, min_bytes=2),                 # the LIRF fact ledger — her strongest memory; LAW 001 demands redundancy
+    Spec(".lirf.json", "json", required=False, min_bytes=2, structure="lirf"),   # the LIRF fact ledger — her strongest memory; LAW 001 demands redundancy
+    Spec(".world.json", "json", required=False, min_bytes=2, structure="world"),  # the world-state relation graph — situations over the facts; LAW 001 redundancy
     Spec(".chat.archive.jsonl", "text", required=False, min_bytes=1),        # permanent raw-conversation archive (Compressed > Forgotten)
     Spec(".portrait.md", "text", required=True, min_bytes=1),
     Spec(".persona.md", "text", required=False, min_bytes=1),
@@ -551,6 +552,12 @@ def _structural_complaint(spec: Spec, obj) -> str | None:
     elif s == "history":
         if not isinstance(obj, list):
             return "history is not a JSON list of turns"
+    elif s == "lirf":
+        if not isinstance(obj, dict) or not isinstance(obj.get("rows"), list):
+            return "LIRF ledger missing its `rows` list (parsed but wrong shape)"
+    elif s == "world":
+        if not isinstance(obj, dict) or not isinstance(obj.get("relations"), list):
+            return "world store missing its `relations` list (parsed but wrong shape)"
     elif s == "values":
         if not isinstance(obj, list):
             return "values is not a JSON list"
@@ -755,6 +762,164 @@ def guarded_load(name: str, path, store=None):
     if err2:
         raise RuntimeError(f"{fn} still unreadable after restoring {stamp}: {err2}")
     return obj2
+
+
+# --- memory-store guarded load (LIRF ledger / world relations) --------------------------
+# The heart's guarded_load RAISES when it can't recover, because a wrong heart is worse than
+# a crash. The high-volume MEMORY stores (the LIRF fact ledger, the world-state relation
+# graph) want a softer landing on the SAME guarantee: a corrupt store must NEVER silently
+# load as 0 rows. It must (1) recover from the latest good backup if one exists, else (2)
+# stop CLEANLY with a clearly-flagged-empty result AND a constitution.approved_loss record
+# — never a silent wrong answer, never a turn-loop crash. This is the function Facts.load /
+# World.load call instead of raw util.load_json.
+
+def _record_unrecoverable_loss(name, fn, why, store) -> None:
+    """Write a LAW-001 approved_loss for a genuinely unrecoverable corrupt store. The loss
+    is real (the on-disk rows could not be parsed and no good backup exists), so it must be
+    RECORDED, never silent. Best-effort: the continuity ledger lives beside the store, so we
+    point constitution.STORE at the SAME store for the write. A failure to record is logged
+    LOUDLY but must not itself crash the load (we still return flagged-empty)."""
+    try:
+        from . import constitution
+    except Exception as e:                              # pragma: no cover - constitution is core
+        _loud(f"could NOT import constitution to record the loss of {fn}: {e}")
+        return
+    saved = getattr(constitution, "STORE", None)
+    try:
+        constitution.STORE = Path(store)
+        constitution.approved_loss(
+            subsystem=f"reliability.guarded_store_load[{fn}]",
+            what=f"all rows in {fn} (corrupt on disk, unparseable: {why})",
+            why="store corrupt/unreadable AND no good backup exists to recover from; "
+                "stopping clean with a flagged-empty store rather than overwriting good "
+                "data or silently reporting 0 rows (Unknown > Lost)",
+            approver="reliability.guarded_store_load",
+            name=name,
+            detail={"file": fn, "reason": why, "store": str(store)},
+        )
+        _loud(f"recorded an approved_loss for the unrecoverable {fn} "
+              f"(see {Path(store) / (name + '.continuity.jsonl')}).")
+    except Exception as e:
+        _loud(f"FAILED to record the approved_loss for {fn}: {e} — the loss is real; "
+              f"returning a flagged-empty store so nothing good is overwritten.")
+    finally:
+        if saved is not None:
+            constitution.STORE = saved
+
+
+def _store_shape_complaint(obj, expect_key) -> str | None:
+    """Structural sanity for a memory store: it must be a JSON object carrying its container
+    list (`rows` for LIRF, `relations` for world). Catches the file that PARSES as JSON but
+    is the WRONG THING — most importantly the literal `null` (valid JSON, decodes to None) or
+    a bare list/number, which the raw loader would silently treat as 0 rows. No `expect_key`
+    => no structural opinion (any parseable JSON is accepted)."""
+    if not expect_key:
+        return None
+    if not isinstance(obj, dict):
+        return (f"store is not a JSON object (got {type(obj).__name__}); "
+                f"missing its `{expect_key}` container")
+    if not isinstance(obj.get(expect_key), list):
+        return f"store missing its `{expect_key}` list"
+    return None
+
+
+def guarded_store_load(name, path, store=None, kind="store", expect_key=None):
+    """Corruption-aware load for a MEMORY store (LIRF ledger / world relations).
+
+    The clean-load happy path is preserved EXACTLY: a good file is read + parsed once (the
+    same corruption-aware way verify_integrity reads), with NO added latency, and returned.
+
+    `expect_key` ("rows" | "relations") adds a structural gate so a file that PARSES as JSON
+    but is the wrong shape — the literal `null`, a bare list, a number — is treated as
+    corruption rather than silently read as 0 rows (the `null` total-loss case).
+
+    On a corrupt/unreadable/wrong-shape store it does NOT silently return an empty default the
+    way util.load_json does — that is the bug. Instead it:
+      1. restores that one file from the most-recent GOOD backup (LOUD stderr) and re-reads;
+      2. if there is no good backup, records a constitution.approved_loss (the loss is real
+         and must be logged, never silent) and returns a clearly-FLAGGED-EMPTY result.
+
+    Returns (obj, info) where `obj` is the parsed JSON (None when flagged-empty) and `info`
+    is a dict: {"ok", "recovered", "restored_from", "empty", "flagged", "why"}. The caller
+    treats a flagged-empty as a clean stop (0 rows is acceptable ONLY because it is loud +
+    recorded, not silent). A corrupt store can NEVER overwrite a good backup, because we only
+    ever RESTORE from backups here and never call backup() on an unparseable file."""
+    store = DEFAULT_STORE if store is None else Path(store)
+    p = Path(path)
+    fn = p.name
+
+    raw = _read_bytes(p)
+    if raw is None and not p.exists():
+        # genuinely absent (a brand-new creature) is NOT corruption — empty, unflagged.
+        return None, {"ok": True, "recovered": False, "restored_from": None,
+                      "empty": True, "flagged": False, "why": "absent (new store)"}
+    if raw is None:
+        err = f"{fn} exists but is unreadable (permissions/IO)"
+        obj = None
+    else:
+        obj, err = _parse_json(raw)                     # decrypt-then-parse; surfaces corruption
+        if not err:
+            err = _store_shape_complaint(obj, expect_key)   # `null`/bare-list/etc. is corruption
+    if not err:
+        return obj, {"ok": True, "recovered": False, "restored_from": None,
+                     "empty": False, "flagged": False, "why": ""}
+
+    # --- corrupt: attempt recovery from the most-recent GOOD backup of THIS file -----------
+    _loud(f"load of {fn} ({kind}) failed: {err} — attempting recovery from the most-recent "
+          f"good backup (a corrupt store will NOT overwrite a good backup).")
+    stamp = latest_good_backup(name, fn, store=store)
+    if stamp:
+        res = restore(name, stamp, store=store, confirm=True, files=[fn])
+        if res.get("applied"):
+            obj2, err2 = _parse_json(_read_bytes(p) or b"")
+            if not err2:
+                err2 = _store_shape_complaint(obj2, expect_key)   # a recovered file must be well-shaped too
+            if not err2:
+                _loud(f"RECOVERED {fn} from backup {stamp} "
+                      f"(pre-recovery state saved as {res.get('pre_restore_backup')}).")
+                return obj2, {"ok": True, "recovered": True, "restored_from": stamp,
+                              "empty": False, "flagged": False, "why": err}
+            _loud(f"{fn} still unreadable after restoring {stamp}: {err2}")
+        else:
+            _loud(f"recovery of {fn} from {stamp} FAILED ({res.get('error')}).")
+
+    # --- no good backup: stop CLEANLY, flagged-empty, and RECORD the loss (never silent) ---
+    _loud(f"NO good backup of {fn} exists — refusing to silently report 0 rows. "
+          f"Recording an approved_loss and returning a FLAGGED-EMPTY {kind}. "
+          f"Inspect {store} and run `python3 -m anima.reliability --name {name} --verify`.")
+    _record_unrecoverable_loss(name, fn, err, store)
+    return None, {"ok": False, "recovered": False, "restored_from": None,
+                  "empty": True, "flagged": True, "why": err}
+
+
+def maybe_backup_store(name, path, store=None, kind="store", expect_key=None) -> dict | None:
+    """Take a GUARDED snapshot at a safe point so a good backup of a memory store always
+    exists — but ONLY when the live file is currently parseable AND well-shaped, so a
+    corrupt/empty/wrong-shape state can never become the backup. Cheap + throttled (reuses
+    maybe_backup's cadence + try/except), and NEVER raises into the caller: a backup failure
+    must not break or slow a load.
+
+    `expect_key` ("rows" | "relations"), when given, additionally requires the file to carry
+    its container list before it is allowed to be snapshotted — so a `null`/bare-list file is
+    never mistaken for good state worth backing up.
+
+    This is the companion to guarded_store_load: the load proves the file is good, then this
+    ensures that good state is captured. Returns the maybe_backup() result, or None if it was
+    skipped (throttled, file not good, or any error — all non-fatal)."""
+    store = DEFAULT_STORE if store is None else Path(store)
+    p = Path(path)
+    try:
+        raw = _read_bytes(p)
+        if raw is None:
+            return None                                 # nothing good to snapshot
+        obj, err = _parse_json(raw)
+        if err or _store_shape_complaint(obj, expect_key):
+            return None                                 # corrupt/wrong-shape: NEVER overwrite a good backup
+        return maybe_backup(name, store=store)
+    except Exception as e:                              # a backup must NEVER take down a load
+        print(f"[anima reliability] guarded store backup of {p.name} skipped ({e})",
+              file=sys.stderr)
+        return None
 
 
 # --- boot health gate (for server main()) ----------------------------------------------

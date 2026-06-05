@@ -506,9 +506,41 @@ class Facts:
 
     @classmethod
     def load(cls, name) -> "Facts":
-        d = load_json(cls.path(name))
+        """Load the LIRF ledger with LAW-001 self-healing (ANIMA LAW 001 — NEVER LOSE
+        CONTINUITY). A clean file loads exactly as before (single parse, no added latency).
+
+        A CORRUPT/unreadable ledger no longer silently returns 0 rows — the prior raw
+        util.load_json swallowed JSON/decode errors and returned None, which is TOTAL SILENT
+        MEMORY LOSS. Instead reliability.guarded_store_load recovers from the most-recent good
+        backup if one exists, else stops CLEANLY (flagged-empty) and records a
+        constitution.approved_loss — a clean stop is strictly better than a silently-wrong
+        empty store. On a clean load we also take a guarded snapshot (only when the file is
+        good) so a recoverable backup always exists. A corrupt store can never overwrite a
+        good backup. The reliability layer is optional: if it cannot be imported we fall back
+        to the original load (degraded, but never a hard dependency on the safety net)."""
+        path = cls.path(name)
+        try:
+            from . import reliability
+        except Exception:                               # pragma: no cover - reliability is core
+            d = load_json(path)
+            rows = d.get("rows", []) if isinstance(d, dict) else []
+            return cls(rows)
+        # reliability calls are keyed on the CURRENT module STORE (honours a redirected
+        # test store), so backups + recovery resolve against the same .anima the ledger uses.
+        d, info = reliability.guarded_store_load(
+            name, path, store=STORE, kind="LIRF ledger", expect_key="rows")
         rows = d.get("rows", []) if isinstance(d, dict) else []
-        return cls(rows)
+        inst = cls(rows)
+        # remember whether this load was a flagged stop (vs a normal empty/new store), so a
+        # caller can tell "honestly empty" from "corrupt + unrecoverable, do not overwrite".
+        inst._load_flagged_empty = bool(info.get("flagged"))
+        if info.get("ok") and not info.get("empty"):
+            # the file parsed clean (incl. after a successful recovery) — capture that good
+            # state so a future corruption always has a snapshot to fall back to. Throttled +
+            # guarded; never raises, never slows the happy path beyond a stat()-cheap check.
+            reliability.maybe_backup_store(name, path, store=STORE, kind="LIRF ledger",
+                                           expect_key="rows")
+        return inst
 
     def save(self, name) -> None:
         STORE.mkdir(exist_ok=True)
