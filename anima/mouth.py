@@ -67,15 +67,18 @@ def _strip_scaffold_leak(text: str) -> str:
     We split it into bracket-tags (excised inline, keeping the warm sentence) and framing
     phrases (whole sentence dropped). Pure, conservative, auto-adapting, never raises."""
     import re
-    try:                                             # the world-state superset already carries the
-        from .world_state import WORLD_SCAFFOLD_TOKENS as TOKENS  # spine tokens + [SITUATION]/[LINK]/
-    except Exception:                                # [KNOWS]; degrade gracefully if it's absent.
+    try:                                             # the meaning superset carries spine + world +
+        from .meaning import MEANING_SCAFFOLD_TOKENS as TOKENS  # meaning tags; fall back through
+    except Exception:                                # world -> spine -> a hardcoded floor if absent.
         try:
-            from .spine import SCAFFOLD_TOKENS as TOKENS
+            from .world_state import WORLD_SCAFFOLD_TOKENS as TOKENS
         except Exception:
-            TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]", "[SITUATION]", "[LINK]",
-                      "[KNOWS]", "THESE ARE THINGS YOU KNOW", "according to my memory",
-                      "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
+            try:
+                from .spine import SCAFFOLD_TOKENS as TOKENS
+            except Exception:
+                TOKENS = ("[KNOWN]", "[SEEN]", "[SENSE]", "[UNKNOWN]", "[SITUATION]", "[LINK]",
+                          "[KNOWS]", "THESE ARE THINGS YOU KNOW", "according to my memory",
+                          "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
     s = text or ""
     # Stray model control/template markers (chat-template end tokens some local models emit
     # into the body, e.g. Stheno's "|done|"). Never scaffolding from us, but they must not

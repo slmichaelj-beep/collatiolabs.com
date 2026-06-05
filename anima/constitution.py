@@ -38,6 +38,9 @@ LAW_TITLE = "NEVER LOSE CONTINUITY"
 LAW_002_ID = "ANIMA LAW 002"
 LAW_002_TITLE = "NEVER MAKE THE SAME DISCOVERY TWICE"
 
+LAW_003_ID = "ANIMA LAW 003"
+LAW_003_TITLE = "UNDERSTANDING BEATS REMEMBERING"
+
 # ---------------------------------------------------------------------------------
 # THE LAW — verbatim. Do not paraphrase, soften, or "improve" this text. Subsystems
 # and tests read THIS constant; if the words ever need to change, they change here,
@@ -87,6 +90,28 @@ LAW_002 = (
     "what it does not, and never re-asks what it already knows."
 )
 
+# ---------------------------------------------------------------------------------
+# THE THIRD LAW — verbatim. Parallel to LAW_001/LAW_002: read THIS constant, never
+# paraphrase. Where the first law forbids LOSING what is known and the second forbids
+# RE-LEARNING it, the third forbids mistaking RECALL for understanding: storing a
+# person's words is not the goal; knowing what MATTERS is. Like the others, this law is
+# ENFORCED, not merely written — the Meaning Engine (anima/meaning.py) makes it real.
+# Every Meaning Object it emits must CITE its evidence (frequency, connectivity, trend)
+# and carry a confidence; significance is COMPUTED, never narrated. The
+# `scripts/test_meaning.py` invariant fails the build if any Meaning Object asserts
+# significance without evidence or beyond its confidence. Enforced beats written — the
+# same principle that gives LAW_001 (`approved_loss()`) and LAW_002 (the gap-tracker)
+# their teeth.
+# ---------------------------------------------------------------------------------
+LAW_003 = (
+    "ANIMA LAW 003 — UNDERSTANDING BEATS REMEMBERING. "
+    "Recall is not the goal; significance is. The system does not merely store what a "
+    "person said — it determines what MATTERS: what is dominant, what is changing, what "
+    "is growing or declining, and what remains unresolved. Meaning is derived from "
+    "evidence (frequency, connectivity, trend), carried with confidence, and never "
+    "asserted beyond it."
+)
+
 
 def law_text() -> str:
     """The full, verbatim law. Single source of truth for prompts, docs, and tests."""
@@ -106,6 +131,19 @@ def law_002_text() -> str:
     `approved_loss()`. The words live in one place so every subsystem reads the same law.
     """
     return LAW_002
+
+
+def law_003_text() -> str:
+    """The full, verbatim third law. Single source of truth for prompts, docs, tests.
+
+    Written here; ENFORCED in anima/meaning.py (the Meaning Engine) and its invariant
+    `scripts/test_meaning.py`, the way LAW_001 is enforced by `approved_loss()` and
+    LAW_002 by the gap-tracker. The Meaning Engine derives significance from EVIDENCE —
+    frequency, connectivity, trend — so every Meaning Object must cite what it is built on
+    and carry a confidence; significance is computed, never narrated, and never asserted
+    beyond the evidence. The words live in one place so every subsystem reads the same law.
+    """
+    return LAW_003
 
 
 def continuity_log_path(name: str) -> Path:
@@ -204,10 +242,14 @@ __all__ = [
     "LAW_002_ID",
     "LAW_002_TITLE",
     "LAW_002",
+    "LAW_003_ID",
+    "LAW_003_TITLE",
+    "LAW_003",
     "COROLLARIES",
     "PRESERVE_OVER_DESTROY",
     "law_text",
     "law_002_text",
+    "law_003_text",
     "corollaries",
     "approved_loss",
     "approved_losses",
@@ -228,8 +270,16 @@ if __name__ == "__main__":
     assert law_002_text() == LAW_002
     assert "LAW_002" in __all__, "LAW_002 must be exported"
 
+    assert LAW_003, "LAW_003 must be present"
+    assert LAW_003.startswith("ANIMA LAW 003"), "LAW_003 must start with 'ANIMA LAW 003'"
+    assert LAW_003_TITLE.upper() in LAW_003, "LAW_003 must contain its title"
+    assert law_003_text() == LAW_003
+    assert "LAW_003" in __all__, "LAW_003 must be exported"
+
     print(LAW_001)
     print()
     print(LAW_002)
     print()
-    print("constitution selftest: OK (LAW_001 + LAW_002 present and verbatim)")
+    print(LAW_003)
+    print()
+    print("constitution selftest: OK (LAW_001 + LAW_002 + LAW_003 present and verbatim)")

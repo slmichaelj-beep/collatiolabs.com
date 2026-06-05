@@ -186,6 +186,14 @@ def main(argv: list[str] | None = None) -> None:
                 print(f"{args.name} reflected on who she's becoming (see: narrative).")
             if portrait.consolidate(args.name, brain):
                 print(f"{args.name} consolidated what she's learned about you (see: portrait).")
+        # 1.5) significance (LAW 003): snapshot today's meaning-state so the NEXT review can see
+        # what CHANGED. Append-only, model-free, read-only over LIRF/world_state — safe every cycle.
+        try:
+            from . import meaning
+            if meaning.snapshot(args.name):
+                print(f"{args.name} took stock of what's been mattering lately (see: meaning).")
+        except Exception:
+            pass
         # 2) feeling: fold lived moments into long-term replay, then learn on them
         mem = Memory.load(_mem_path(args.name))
         replay = Replay.load(_replay_path(args.name))

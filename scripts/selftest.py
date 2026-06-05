@@ -174,12 +174,14 @@ for _f in _glob.glob(".anima/st_src.*") + _glob.glob(".anima/st_dst.*") + _glob.
     try: os.remove(_f)
     except OSError: pass
 
-# --- the two ANIMA LAW invariants run as their own subprocess tests, so the laws have
-# TEETH in CI: a regression that silently breaks continuity (LAW 001) or re-asks a fact
-# the system already knows (LAW 002) fails THIS command — not a script someone forgot. ---
+# --- the ANIMA LAW invariants run as their own subprocess tests, so the laws have
+# TEETH in CI: a regression that silently breaks continuity (LAW 001), re-asks a fact the
+# system already knows (LAW 002), or asserts significance the evidence doesn't support
+# (LAW 003) fails THIS command — not a script someone forgot. ---
 import subprocess as _sub
 for _law, _script in (("LAW 001 — continuity", "test_continuity.py"),
-                      ("LAW 002 — never make the same discovery twice", "test_curiosity.py")):
+                      ("LAW 002 — never make the same discovery twice", "test_curiosity.py"),
+                      ("LAW 003 — understanding beats remembering", "test_meaning.py")):
     _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), _script)
     _r = _sub.run([sys.executable, _p], capture_output=True, text=True)
     ok(f"{_law}: invariant test passes ({_script})", _r.returncode == 0)
