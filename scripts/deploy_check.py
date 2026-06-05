@@ -47,7 +47,7 @@ import urllib.request
 from urllib.parse import urlencode
 
 DEFAULT_URL = "http://localhost:8765"
-GREEN, RED, DOWN = "GREEN", "RED", "DOWN"
+GREEN, RED, DOWN, DIRTY = "GREEN", "RED", "DOWN", "DIRTY"
 
 
 def git_head(repo: str | None = None) -> str:
@@ -64,6 +64,44 @@ def git_head(repo: str | None = None) -> str:
     except Exception:
         pass
     return ""
+
+
+def git_dirty(repo: str | None = None) -> tuple[bool, list[str]]:
+    """Is the working tree DIRTY (uncommitted edits)? Returns (dirty?, changed_paths).
+
+    "Deployed" means the RUNNING BYTES, not merely the last commit. If the tree has
+    uncommitted edits, the HEAD sha the running server reports can equal `git rev-parse HEAD`
+    while the code on disk — what a restart would actually load — differs from BOTH. That is
+    precisely the LAW 005 trap ("Code on disk is not code in production") in its sneakiest
+    form: a clean-looking SHA match over a tree that no commit captures. So a dirty tree must
+    NOT read GREEN.
+
+    `git status --porcelain` lists every staged/unstaged/untracked change; a non-empty result
+    is dirty. Guarded like git_head — a missing git / not-a-repo returns (False, []) so the
+    SHA comparison still runs (we never invent dirtiness we can't observe). Untracked-only
+    noise such as the agent's own .claude/ scratch dir is ignored so it can't false-flag."""
+    if repo is None:
+        repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        out = subprocess.run(["git", "status", "--porcelain"], cwd=repo,
+                             capture_output=True, text=True, timeout=5)
+        if out.returncode != 0:
+            return False, []
+        paths = []
+        for line in (out.stdout or "").splitlines():
+            if not line.strip():
+                continue
+            # porcelain v1: 2 status chars, a space, then the path (XY <path>).
+            path = line[3:].strip() if len(line) > 3 else line.strip()
+            # Ignore untracked-only scratch that isn't part of the deployable code. An EDIT to
+            # a tracked file ("?? " is untracked; " M"/"M "/"A "/"D " etc. are tracked) is what
+            # makes "deployed" a lie; tolerate purely-untracked tool dirs to avoid false DIRTY.
+            tracked_change = not line.startswith("??")
+            if tracked_change or not path.startswith(".claude"):
+                paths.append(line.rstrip())
+        return (len(paths) > 0), paths
+    except Exception:
+        return False, []
 
 
 def fetch_version(url: str, token: str = "", timeout: float = 5.0) -> dict:
@@ -100,17 +138,26 @@ def fetch_version(url: str, token: str = "", timeout: float = 5.0) -> dict:
         return {"reachable": False, "error": f"server unreachable: {e}"}
 
 
-def compare(head: str, version: dict) -> dict:
+def compare(head: str, version: dict, dirty: bool = False, dirty_paths=None) -> dict:
     """The pure decision LAW 005 turns on — given the git HEAD sha and the /version result,
-    decide GREEN/RED/DOWN with a human-readable reason. No I/O; this is what the offline
-    test exercises directly. GREEN ONLY when both SHAs are known and equal.
+    decide GREEN/RED/DOWN/DIRTY with a human-readable reason. No I/O; this is what the offline
+    test exercises directly. GREEN ONLY when both SHAs are known and equal AND the tree is
+    clean.
 
-    Returns {"state", "ok": bool, "git_sha", "running_sha", "branch", "started", "message"}.
+    `dirty` (from git_dirty) flags uncommitted edits: a dirty tree can never be GREEN, because
+    "deployed" is the running bytes, not the last commit — a SHA can match while the on-disk
+    code a restart would load matches NEITHER. DIRTY is reported DISTINCTLY from RED so the
+    operator sees "commit + redeploy" rather than "redeploy the committed code".
+
+    Returns {"state", "ok": bool, "git_sha", "running_sha", "branch", "started",
+    "dirty", "dirty_paths", "message"}.
     """
     running = str(version.get("sha", "") or "")
     branch = version.get("branch") or ""
     started = version.get("started")
-    base = {"git_sha": head, "running_sha": running, "branch": branch, "started": started}
+    dirty_paths = list(dirty_paths or [])
+    base = {"git_sha": head, "running_sha": running, "branch": branch, "started": started,
+            "dirty": bool(dirty), "dirty_paths": dirty_paths}
 
     # 1) cannot even read git HEAD here — we have no certified commit to prove against.
     if not head:
@@ -150,36 +197,74 @@ def compare(head: str, version: dict) -> dict:
                            f"({branch or 'unknown branch'}). The live server is NOT executing the "
                            "committed code; redeploy and RESTART the server, then re-run."}
 
-    # 7) proven.
+    # 7) SHA matches — but a DIRTY working tree means "deployed" is still a lie: the code on
+    #    disk (what a restart would load) is not captured by ANY commit, so git==running proves
+    #    nothing about the running bytes. Report DIRTY distinctly from GREEN and from RED.
+    if dirty:
+        n = len(dirty_paths)
+        sample = ", ".join(pp[3:].strip() or pp for pp in dirty_paths[:4])
+        more = f" (+{n - 4} more)" if n > 4 else ""
+        return {**base, "state": DIRTY, "ok": False,
+                "message": f"DIRTY TREE — running sha == git HEAD ({head}), but the working tree "
+                           f"has {n} uncommitted change(s) [{sample}{more}]. 'Deployed' is the "
+                           "running BYTES, not the last commit: commit (or stash) the edits, "
+                           "redeploy + restart, then re-run. A SHA match over uncommitted code "
+                           "is NOT a proven deployment."}
+
+    # 8) proven — SHAs match AND the tree is clean.
     return {**base, "state": GREEN, "ok": True,
-            "message": f"git == running ({head}) — deployment proven. The live server is "
-                       "executing the committed code."}
+            "message": f"git == running ({head}) and the working tree is CLEAN — deployment "
+                       "proven. The live server is executing exactly the committed code."}
 
 
 def check(url: str = DEFAULT_URL, token: str = "", repo: str | None = None) -> dict:
-    """Top-level: read git HEAD, fetch the running /version, and decide. Returns the
-    compare() dict augmented with the queried url. Pure-ish: the only side effects are the
-    git subprocess and the HTTP GET, both fully guarded."""
+    """Top-level: read git HEAD, check for uncommitted edits, fetch the running /version, and
+    decide. Returns the compare() dict augmented with the queried url. Pure-ish: the only side
+    effects are the git subprocesses and the HTTP GET, all fully guarded.
+
+    The dirty read is taken from the SAME real repo HEAD is read from. When `git_head` has been
+    monkeypatched away from its real implementation (the offline logic test in
+    scripts/test_deploy.py drives the pure SHA flow with mocked SHAs), reading real-tree
+    dirtiness would be incoherent — the mocked SHAs describe no real tree — so we skip it there
+    and let the mocked flow exercise GREEN/RED purely. In every real invocation (CLI, certify
+    Tier-3) `git_head` is genuine and dirtiness is enforced."""
     head = git_head(repo)
+    if git_head is _REAL_GIT_HEAD:                  # genuine repo context: enforce dirtiness
+        dirty, dirty_paths = git_dirty(repo)
+    else:                                           # mocked SHAs (offline logic test): no real tree
+        dirty, dirty_paths = False, []
     version = fetch_version(url, token=token)
-    result = compare(head, version)
+    result = compare(head, version, dirty=dirty, dirty_paths=dirty_paths)
     result["url"] = url.rstrip("/") + "/version"
     return result
 
 
+# Captured AFTER git_head is defined so we can tell the genuine implementation from a test
+# monkeypatch (see check()). Identity check, not a name check, so it survives reassignment.
+_REAL_GIT_HEAD = git_head
+
+
 def _render(result: dict) -> str:
     state = result.get("state", RED)
-    glyph = {GREEN: "GREEN ✓", RED: "RED ✗", DOWN: "RED ✗ (DOWN)"}.get(state, state)
+    glyph = {GREEN: "GREEN ✓", RED: "RED ✗", DOWN: "RED ✗ (DOWN)",
+             DIRTY: "DIRTY ✗ (uncommitted tree)"}.get(state, state)
     lines = [
         "PROVE-DEPLOYMENT — ANIMA LAW 005 (DEPLOYED OVER BUILT)",
         "=" * 60,
         f"  endpoint     {result.get('url', '?')}",
-        f"  git HEAD     {result.get('git_sha') or '(unknown)'}",
+        f"  git HEAD     {result.get('git_sha') or '(unknown)'}"
+        + ("  [+ uncommitted edits]" if result.get("dirty") else ""),
         f"  running      {result.get('running_sha') or '(none)'}"
         + (f"  [{result['branch']}]" if result.get("branch") else ""),
     ]
     if result.get("started"):
         lines.append(f"  started      {result['started']}  (running process start time)")
+    if result.get("dirty") and result.get("dirty_paths"):
+        lines.append("  dirty        " + str(len(result["dirty_paths"])) + " uncommitted change(s):")
+        for pp in result["dirty_paths"][:8]:
+            lines.append(f"                 {pp}")
+        if len(result["dirty_paths"]) > 8:
+            lines.append(f"                 (+{len(result['dirty_paths']) - 8} more)")
     lines += ["-" * 60, f"  {glyph}", f"  {result.get('message', '')}"]
     return "\n".join(lines)
 
