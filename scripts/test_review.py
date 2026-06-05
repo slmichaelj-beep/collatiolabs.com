@@ -300,6 +300,137 @@ def test_law001_compression_invariant():
 
 
 # ===================================================================================
+# 2b. THE LAW-001 DESCRIPTIVE-DIMENSION INVARIANT (the auditor's repro).
+#     A descriptive dimension (what_mattered / what_changed / what_unresolved) capped at
+#     top=8 must NOT silently discard the surplus: the items beyond the cap are ACCOUNTED —
+#     folded into an in-band "+N more" summary line AND recorded as an approved_loss — so an
+#     unresolved fear/promise routed here (not to what_to_remember) is never silently lost.
+#     Mirrors the audit: >8 items in a dimension -> ZERO silent drops, 0 -> N ledger entries.
+# ===================================================================================
+def _synthetic_daily(name, day, *, unresolved_subjects):
+    """Craft + persist a synthetic daily state with a given set of what_unresolved subjects
+    (and nothing load-bearing), straight onto the review ledger in the temp store. Lets the
+    test pin the cap-overflow invariant on the REAL rollup path deterministically, without
+    depending on the Meaning Engine's exact ranking thresholds. Synthetic only."""
+    state = {
+        "level": "daily", "date": day, "period": review.period_key("daily", day),
+        "version": review.VERSION, "chapter": {},
+        review.WHAT_CHANGED: [], review.WHAT_MATTERED: [],
+        review.WHAT_UNRESOLVED: [
+            {"subject": s, "statement": f"{s}: still unsettled.",
+             "confidence": 0.5, "source": "meaning"}
+            for s in unresolved_subjects
+        ],
+        review.WHAT_TO_REMEMBER: [], "narrative": "", "quiet": False,
+        "at": review._now(), "prior": None,
+    }
+    review._append(name, state)
+    return state
+
+
+def test_law001_descriptive_dimension_no_silent_drop():
+    print("\n[2b] LAW 001 — descriptive-dimension cap ACCOUNTS for overflow (no silent drop)")
+    with _temp_store(*_ALL):
+        name = "rv_dim_overflow"
+        # Mirror the auditor's repro EXACTLY: 12 distinct unresolved subjects in one ISO week,
+        # which exceeds the top=8 cap by 4. (Among them, fears/promises a user might state.)
+        from datetime import datetime, timedelta, timezone
+        base = datetime(2026, 3, 9, tzinfo=timezone.utc)   # a Monday
+        week = review.period_key("weekly", base.date().isoformat())
+        subjects = ["work", "money", "father", "moving", "startup", "training",
+                    "promise-to-call-mom", "fear-of-failing", "health", "deadline",
+                    "rent", "relationship"]
+        ok("repro: more than the top-8 cap (12 subjects)", len(subjects) == 12)
+        # Day 1 carries 9 of the subjects, day 2 the other 3 — so the rollup must compress
+        # ACROSS children AND past the cap. (Distinct days avoid the latest-wins per-period
+        # dedupe in states_at; the ISO week holds both days.)
+        _synthetic_daily(name, base.date().isoformat(), unresolved_subjects=subjects[:9])
+        _synthetic_daily(name, (base + timedelta(days=1)).date().isoformat(),
+                         unresolved_subjects=subjects[9:])
+
+        # BEFORE-style direct check on the rollup primitive: it must return AT MOST the cap,
+        # but ACCOUNT for the rest (this is the function the audit pinned the loss to).
+        children = review.states_at(name, "daily", in_period=("weekly", week))
+        seen_subjects = set()
+        for ch in children:
+            for ln in ch.get(review.WHAT_UNRESOLVED, []):
+                seen_subjects.add(ln["subject"])
+        ok("setup: all 12 unresolved subjects are present across the daily children",
+           seen_subjects == set(subjects))
+
+        rolled = review._rollup_dimension(
+            children, review.WHAT_UNRESOLVED, name=name, period=week, level="weekly")
+        ok("cap KEPT: the rolled dimension is still bounded (<= top cap)", len(rolled) <= 8)
+
+        # ZERO SILENT DROPS: every input subject must be accounted — either it appears as a
+        # kept line, OR it is named in the in-band "+N more" overflow line's subjects.
+        kept_subjects = {ln.get("subject") for ln in rolled}
+        overflow_lines = [ln for ln in rolled if ln.get("overflow")]
+        ok("an in-band '+N more' overflow summary line is present (surplus visible)",
+           len(overflow_lines) == 1)
+        overflow_subjects = set()
+        for ln in overflow_lines:
+            overflow_subjects.update(ln.get("overflow_subjects", []))
+        accounted = (kept_subjects - {ln.get("subject") for ln in overflow_lines}) | overflow_subjects
+        silently_dropped = set(subjects) - accounted
+        ok("LAW 001 [dimension]: ZERO subjects silently dropped (all kept or in '+N more')",
+           not silently_dropped)
+        if silently_dropped:
+            law_violation("review._rollup_dimension",
+                          f"{len(silently_dropped)} descriptive '{review.WHAT_UNRESOLVED}' "
+                          f"subject(s) dropped past the cap with no accounting: "
+                          f"{sorted(silently_dropped)[:6]} — Compressed > Forgotten VIOLATED.")
+        ok("the '+N more' line accounts for the exact surplus (12 - 7 kept = 5 folded)",
+           overflow_lines and overflow_lines[0].get("overflow") == len(subjects) - 7)
+
+        # AND the loss is RECORDED in the constitution ledger (the sanctioned Law-001 path):
+        # before this rollup there were no losses; the overflow must have written exactly one.
+        losses = [e for e in constitution.approved_losses(name)
+                  if review.WHAT_UNRESOLVED in e.get("subsystem", "")]
+        ok("LAW 001 [dimension]: the overflow recorded an approved_loss (accounted, not silent)",
+           len(losses) >= 1)
+        if losses:
+            last = losses[-1]
+            ok("the recorded loss names what + why + approver (Law 001 fields)",
+               last.get("what") and last.get("why") and last.get("approver"))
+            # the dropped subjects are named in the ledger entry's `what` (auditable).
+            dropped_named = [s for s in subjects if s in last.get("what", "")]
+            ok("the recorded loss NAMES the compressed-away subjects (auditable)",
+               len(dropped_named) >= (len(subjects) - 7))
+
+        # END-TO-END through weekly_review: the persisted weekly state's what_unresolved keeps
+        # the cap, carries the overflow line, and a fresh loss was logged — no silent drop on
+        # the real entry point either.
+        n_losses_before = len(constitution.approved_losses(name))
+        wk = review.weekly_review(name, period=week)
+        wk_unres = wk.get(review.WHAT_UNRESOLVED, [])
+        ok("weekly_review: what_unresolved respects the cap", len(wk_unres) <= 8)
+        ok("weekly_review: what_unresolved carries the accounted '+N more' line",
+           any(ln.get("overflow") for ln in wk_unres))
+        ok("weekly_review: the rollup logged approved_loss(es) for the surplus (accounted)",
+           len(constitution.approved_losses(name)) > n_losses_before)
+
+        # the accounting line must itself be diagnosis-clean (it rides into render).
+        ok("no-diagnosis: the '+N more' overflow line trips no banned term",
+           all(_clean(ln.get("statement", "")) for ln in wk_unres))
+
+        # backward-compat: a small dimension (<= cap) is returned verbatim, no overflow line,
+        # no loss recorded (the fix is purely additive on the OVERFLOW path).
+        small_name = "rv_dim_small"
+        for i, subj in enumerate(["work", "money", "sleep"]):
+            _synthetic_daily(small_name, (base + timedelta(days=i)).date().isoformat(),
+                             unresolved_subjects=[subj])
+        small_children = review.states_at(small_name, "daily",
+                                          in_period=("weekly", week))
+        small_rolled = review._rollup_dimension(
+            small_children, review.WHAT_UNRESOLVED, name=small_name, period=week, level="weekly")
+        ok("backward-compat: a dimension within the cap is unchanged (no overflow line)",
+           len(small_rolled) == 3 and not any(ln.get("overflow") for ln in small_rolled))
+        ok("backward-compat: no approved_loss recorded when nothing overflows",
+           not constitution.approved_losses(small_name))
+
+
+# ===================================================================================
 # 3. MILESTONES ride up through EVERY level uncompressed.
 # ===================================================================================
 def test_milestones_ride_up():
@@ -482,6 +613,7 @@ def main():
     print("=" * 79)
     test_daily_state()
     test_law001_compression_invariant()
+    test_law001_descriptive_dimension_no_silent_drop()
     test_milestones_ride_up()
     test_queryable()
     test_never_fabricate_and_no_diagnosis()

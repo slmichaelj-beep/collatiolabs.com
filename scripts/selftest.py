@@ -33,6 +33,26 @@ ok("rail: 'did Mom text me' is capability", classify("Did Mom text me today?") =
 ok("rail: normal chat stays generative", classify("tell me a story") == "generative")
 ok("rail: a real quote ask is factual", classify("what did Carl Sagan say about the cosmos?") == "factual")
 
+# A personal-fact ask wrapped in a GENERATIVE frame must still be 'personal' and get
+# PERSONAL_NOTE — a generative phrasing must NOT switch off the anti-confabulation
+# nudge. (Audit: classify checked generative first and short-circuited, so these 4
+# ran with the honesty guard OFF.) The non-personal generative control must NOT fire.
+from anima.rail import harden, PERSONAL_NOTE
+_personal_in_generative_frame = [
+    "What do you think my birthday is?",
+    "Don't hold back — what's my dog's name?",
+    "Tell me a story about my sister's name",
+    "How do you feel about my middle name?",
+]
+for _p in _personal_in_generative_frame:
+    ok(f"rail: personal-fact under generative frame -> personal ({_p!r})",
+       classify(_p) == "personal")
+    ok(f"rail: PERSONAL_NOTE attached under generative frame ({_p!r})",
+       PERSONAL_NOTE in harden(_p))
+ok("rail: non-personal generative control stays generative (no PERSONAL_NOTE)",
+   classify("tell me a story about dragons") == "generative"
+   and PERSONAL_NOTE not in harden("tell me a story about dragons"))
+
 # --- capability router: send-intent anchored, no misfire on nouns ---
 import anima.caps as caps
 caps.enabled = lambda n, k: True
@@ -104,6 +124,74 @@ import anima.cloud as cloud
 ok("cloud: scrub hides an email", "jane@x.com" not in cloud.scrub("mail jane@x.com please"))
 ok("cloud: scrub is stable (coreference)", cloud.scrub("jane@x.com") == cloud.scrub("jane@x.com"))
 ok("cloud: public() never exposes the api key", "key" not in cloud.public())
+
+# --- cloud PII leak fix: the creature's KNOWN personal names never egress in HISTORY ---
+# An audit proved that on a CLOUD brain, mouth.respond blanks the Portrait/LIRF from the
+# system prompt (mem="") but passes the conversation HISTORY straight through, where
+# cloud.scrub() only catches STRUCTURED PII — so person/relation names survived VERBATIM
+# on BOTH sides (the user's turns AND Vera's OWN memory-derived replies, e.g. "how's
+# Mara's move going?"). This locks the fix: those names — bounded to what the creature
+# actually has on record — are tokenized out of every string before it leaves the Mac,
+# while structured PII still scrubs and the LOCAL path keeps the memory it legitimately has.
+import tempfile as _tf, pathlib as _pl, json as _cj
+import anima.memory_lirf as _mlirf, anima.portrait as _cport
+_cl_td = _tf.mkdtemp(prefix="cloud-pii-")          # SYNTHETIC creature + temp store; never Vera.*
+_cl_save = (_mlirf.STORE, _cport.STORE)
+_mlirf.STORE = _pl.Path(_cl_td); _cport.STORE = _pl.Path(_cl_td)
+try:
+    _cn = "PiiSynth"
+    _ff = _mlirf.Facts([])                          # seed the auditor's people as the creature's memory
+    for _c in _ff.capture(_cn, "my sister is Mara"): _ff.merge(_c)
+    for _c in _ff.capture(_cn, "I work at Collatio"): _ff.merge(_c)
+    _ff.save(_cn)
+    _cport.save(_cn, "- sister Mara recently moved to Denver\n- therapist Dr. Okonkwo\n- boss Raj at Collatio")
+
+    _terms = cloud.name_terms(_cn)                  # bounded to names the creature KNOWS
+    ok("cloud names: creature's relation/portrait names are gathered (Mara, Okonkwo, Raj, Collatio)",
+       {"Mara", "Okonkwo", "Raj", "Collatio"}.issubset(_terms))
+    ok("cloud names: bound stays the creature's OWN memory (no stop-word in the set)",
+       all(len(t) >= 2 for t in _terms) and "the" not in {t.lower() for t in _terms})
+
+    _USER = "My sister Mara moved to Denver, my therapist Dr. Okonkwo, my boss Raj at Collatio."
+    _VERA = "how's Mara's move to Denver going? any word from Dr. Okonkwo? and Raj at Collatio?"
+    _pat = cloud._name_pattern(_terms)
+    _us, _vs = cloud.scrub_names(_USER, _pat), cloud.scrub_names(_VERA, _pat)
+    for _nm in ("Mara", "Okonkwo", "Raj", "Collatio"):
+        ok(f"cloud names: '{_nm}' tokenized out of the USER turn", _nm not in _us)
+        ok(f"cloud names: '{_nm}' tokenized out of VERA's memory-derived reply", _nm not in _vs)
+    ok("cloud names: coreference is stable (same token for Mara on both sides)",
+       cloud.scrub_names("Mara", _pat) == cloud.scrub_names("mara", _pat))
+    ok("cloud names: structured PII STILL scrubs alongside names (email + phone)",
+       "a@b.co" not in cloud.scrub_all("mail a@b.co sister Mara at 415-555-2671", _pat)
+       and "415-555-2671" not in cloud.scrub_all("a@b.co Mara 415-555-2671", _pat))
+
+    # END-TO-END through the real brain.reply() egress: what actually hits the wire is clean.
+    _cap = {}
+    _br = cloud.OpenAICompatBrain("http://x", "m", "KEY", "openai:m", "openai")
+    _br._post = lambda url, h, payload: (_cap.update(payload) or
+                                         {"choices": [{"message": {"content": "ok"}}], "usage": {}})
+    _br.creature = _cn                              # exactly what mouth.respond sets each turn
+    _br.reply("You are PiiSynth.", "tell me about Dr. Okonkwo",
+              [("My sister Mara moved to Denver", "how's Mara's move going? and Raj at Collatio?")])
+    _wire = _cj.dumps(_cap.get("messages", []))
+    ok("cloud names: END-TO-END reply() wire payload leaks NO known name verbatim",
+       not any(_nm in _wire for _nm in ("Mara", "Okonkwo", "Raj", "Collatio")))
+
+    # back-compat: no creature set -> structured-only scrub, exactly today's behaviour.
+    _br2 = cloud.OpenAICompatBrain("http://x", "m", "KEY", "openai:m", "openai")
+    ok("cloud names: brain with NO creature falls back to structured-only (back-compat)",
+       _br2.creature is None and cloud.scrub_all("hi a@b.co", None) == cloud.scrub("hi a@b.co"))
+
+    # the LOCAL path is untouched: local brains have no creature slot, so the mouth never
+    # name-scrubs them — they legitimately hold the memory.
+    import anima.mouth as _cmouth
+    ok("cloud names: LOCAL brains have NO creature slot (mouth won't scrub them)",
+       not hasattr(_cmouth.OllamaBrain(), "creature")
+       and not hasattr(_cmouth.StubBrain(), "creature"))
+finally:
+    _mlirf.STORE, _cport.STORE = _cl_save
+    import shutil as _csh
+    _csh.rmtree(_cl_td, ignore_errors=True)
 
 # --- passkey: session signing ---
 import anima.passkey as pk

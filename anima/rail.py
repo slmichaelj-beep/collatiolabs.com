@@ -110,15 +110,24 @@ CAPABILITY_NOTE = ("[honesty check — this asks you to read, count, quote, or a
 
 
 def classify(text: str) -> str:
-    """'factual'/'personal' if it demands a specific detail; else 'generative'."""
-    if any(r.search(text) for r in _GENERATIVE_RE):
-        return "generative"
+    """'factual'/'personal' if it demands a specific detail; else 'generative'.
+
+    Precedence matters. The honesty-bearing intents (capability, personal, factual)
+    are checked BEFORE the generative catch-all, because a confabulation-prone ask is
+    often wrapped in a generative frame — "what do you think my birthday is?", "tell me
+    a story about my sister's name", "how do you feel about my middle name?", "don't
+    hold back — what's my dog's name?". Those still reference a PERSONAL FACT, so the
+    anti-confabulation nudge must stay ON; a generative phrasing must not switch it off.
+    Generative remains the catch-all, so a purely generative non-personal ask ("tell me
+    a story about dragons") still classifies as generative and gets no note."""
     if any(r.search(text) for r in _CAPABILITY_RE):
         return "capability"
     if any(r.search(text) for r in _PERSONAL_RE):
         return "personal"
     if any(r.search(text) for r in _FACTUAL_RE):
         return "factual"
+    if any(r.search(text) for r in _GENERATIVE_RE):
+        return "generative"
     return "generative"
 
 

@@ -809,12 +809,25 @@ def _carry_forward(name: str, children: list, period: str, level: str) -> tuple:
     return kept, []
 
 
-def _rollup_dimension(children: list, dim: str, top: int = 8) -> list:
+def _rollup_dimension(children: list, dim: str, top: int = 8, *,
+                      name: Optional[str] = None, period: str = "",
+                      level: str = "") -> list:
     """Compress one descriptive dimension (changed / mattered / unresolved) across the
     children into a representative, de-duplicated summary, keeping the highest-confidence
     line per subject. PRESERVES the salient ones; this is a lossy-but-honest digest of the
     descriptive colour (the LOAD-BEARING continuity is ``what_to_remember``, handled
-    separately and invariant-checked). Diagnosis-clean."""
+    separately and invariant-checked). Diagnosis-clean.
+
+    LAW 001 — Compressed > Forgotten, EXTENDED to the descriptive dimensions. The cap is
+    KEPT (an unbounded rollup would defeat compression), but the items it drops are NEVER
+    discarded silently: the overflow is (a) FOLDED into a trailing accounted ``+N more``
+    summary line that rides IN-BAND in the dimension — so a reader/the render still sees that
+    N further themes were present and nothing vanishes unaccounted — and (b) RECORDED as a
+    ``constitution.approved_loss`` ledger entry (when ``name`` is supplied) naming exactly
+    which descriptive subjects were compressed away, why, and on whose authority. Without a
+    ``name`` (legacy/pure callers) the in-band ``+N more`` line alone still guarantees the
+    surplus is accounted, never silently dropped. The load-bearing ``what_to_remember``
+    continuity is unaffected (it is threaded separately by ``_carry_forward``)."""
     best = {}
     order = []
     for ch in children:
@@ -839,7 +852,51 @@ def _rollup_dimension(children: list, dim: str, top: int = 8) -> list:
     lines = [best[s] for s in order]
     # rank by how persistent (occurrences) then confident the theme was across the period.
     lines.sort(key=lambda d: (-d["occurrences"], -d["confidence"], d["subject"]))
-    return lines[:max(1, top)]
+
+    cap = max(1, top)
+    if len(lines) <= cap:
+        return lines
+
+    # OVERFLOW — beyond the cap. Account for every dropped descriptive line under Law 001
+    # rather than silently truncate. We keep ``cap - 1`` salient lines and reserve the final
+    # slot for an accounted ``+N more`` summary, so the returned list still honours the cap
+    # (the rollup stays bounded) while NOTHING vanishes unaccounted.
+    kept = lines[:cap - 1]
+    overflow = lines[cap - 1:]
+    dropped_subjects = [str(o.get("subject", "")) for o in overflow]
+
+    # (b) ledger the loss when we know who we are. Best-effort: if it cannot be recorded the
+    # in-band ``+N more`` line below still accounts for the surplus (Unknown > Lost), so the
+    # caller may safely proceed — the descriptive colour is a digest, not the load-bearing
+    # what_to_remember (which is NEVER dropped without a recorded approved_loss).
+    if name:
+        named = ", ".join(s for s in dropped_subjects if s) or f"{len(overflow)} item(s)"
+        _approved_loss(
+            name,
+            subsystem=f"review.{level or 'rollup'}._rollup_dimension[{dim}]",
+            what=f"{len(overflow)} lower-salience '{dim}' line(s) for {period or '?'} "
+                 f"compressed past the top-{cap} cap: {named[:200]}",
+            why=f"descriptive-dimension digest capped at {cap}; surplus folded into a "
+                f"'+N more' summary line and accounted here (Compressed > Forgotten)",
+            approver="review.rollup/sleep-cycle")
+
+    # (a) in-band accounting: a trailing summary line so the surplus is visible in the
+    # dimension itself (and in render). Diagnosis-clean by construction (no statement text is
+    # echoed — only the count + the neutral subject names). It carries occurrences/confidence
+    # of 0 so it always sorts/reads LAST and is never mistaken for a salient theme.
+    more_subjects = ", ".join(s for s in dropped_subjects if s)
+    summary_stmt = f"+{len(overflow)} more this period" + (
+        f" ({more_subjects})" if more_subjects else "")
+    summary_stmt = _safe(summary_stmt, f"+{len(overflow)} more this period")
+    kept.append({
+        "subject": f"+{len(overflow)}-more",
+        "statement": summary_stmt,
+        "confidence": 0.0,
+        "occurrences": 0,
+        "overflow": len(overflow),
+        "overflow_subjects": [s for s in dropped_subjects if s],
+    })
+    return kept
 
 
 def _rollup_chapter(children: list) -> dict:
@@ -871,9 +928,9 @@ def _rollup(name: str, level: str, period: str, brain=None,
 
         kept, dropped = _carry_forward(name, children, period, level)
         chapter = _rollup_chapter(children)
-        mattered = _rollup_dimension(children, WHAT_MATTERED)
-        changed = _rollup_dimension(children, WHAT_CHANGED)
-        unresolved = _rollup_dimension(children, WHAT_UNRESOLVED)
+        mattered = _rollup_dimension(children, WHAT_MATTERED, name=name, period=period, level=level)
+        changed = _rollup_dimension(children, WHAT_CHANGED, name=name, period=period, level=level)
+        unresolved = _rollup_dimension(children, WHAT_UNRESOLVED, name=name, period=period, level=level)
 
         milestones = [it for it in kept if it.get("milestone")]
         quiet = not (kept or mattered or changed or unresolved)
@@ -974,9 +1031,9 @@ def compress_with_loss(name: str, level: str, period: str, *, drop_keys: list,
             survivors.append(it)
 
         chapter = _rollup_chapter(children)
-        mattered = _rollup_dimension(children, WHAT_MATTERED)
-        changed = _rollup_dimension(children, WHAT_CHANGED)
-        unresolved = _rollup_dimension(children, WHAT_UNRESOLVED)
+        mattered = _rollup_dimension(children, WHAT_MATTERED, name=name, period=period, level=level)
+        changed = _rollup_dimension(children, WHAT_CHANGED, name=name, period=period, level=level)
+        unresolved = _rollup_dimension(children, WHAT_UNRESOLVED, name=name, period=period, level=level)
         milestones = [it for it in survivors if it.get("milestone")]
         quiet = not (survivors or mattered or changed or unresolved)
 

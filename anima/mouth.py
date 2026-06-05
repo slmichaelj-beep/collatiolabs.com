@@ -838,6 +838,17 @@ class Mouth:
                           % (len(_prompt_frags), _total)))
         except Exception:
             pass
+        # Tell a CLOUD brain which creature this turn belongs to, so its egress scrub can
+        # tokenize THIS creature's known personal names (sister Mara, boss Raj, Collatio…)
+        # out of the history it's about to send — closing the leak where those names ride
+        # the conversation HISTORY (both the user's turns AND Vera's own memory-derived
+        # replies) even though `mem` is blanked above. A local brain has no `creature`
+        # slot, so this is a cloud-only hook and the LOCAL path is wholly unchanged.
+        if hasattr(self.brain, "creature"):
+            try:
+                self.brain.creature = heart.name
+            except Exception:
+                pass
         _t0 = _time.perf_counter()
         try:
             text = self.brain.reply(_sys_prompt, prompt, history or [])

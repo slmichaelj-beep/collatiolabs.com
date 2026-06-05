@@ -53,6 +53,144 @@ def scrub(text: str) -> str:
     text = _IP.sub(lambda m: _tok("ip", m.group(0)), text)
     return text
 
+
+# --- name scrub: the personal names the creature ALREADY KNOWS ---------------------
+# Structured `scrub()` cannot catch free-form NAMES (sister Mara, Dr. Okonkwo, boss
+# Raj at Collatio) — that needs NER. The guarantee here is narrower and exact instead
+# of statistical: NEVER egress the creature's OWN personal memory. We blank the
+# Portrait/LIRF from the system prompt already; this closes the OTHER door — the
+# conversation HISTORY, where those same person/relation names live on BOTH sides
+# (the user said them; Vera's memory-derived replies echo them, e.g. "how's Mara's
+# move going?"). So we tokenize exactly the names the creature has on record — bounded
+# to its own ledger, not the open world — out of any text leaving the Mac. A known
+# name -> a stable ⟨name:…⟩ token (coreference preserved, value never sent).
+
+# Relation/identity traits whose VALUE is a person's name (per memory_lirf). The LIRF
+# value for these rows is exactly the name to protect ("sister"->"Mara", "employer"->
+# "Collatio"). List-valued ones (children/siblings) hold several. We read VALUES, so a
+# trait we don't enumerate just isn't scrubbed — never a crash.
+_NAME_TRAITS = (
+    "name", "middle_name", "mother", "father", "partner", "brother", "sister",
+    "son", "daughter", "friend", "children", "siblings", "dog_name", "cat_name",
+    "employer", "business", "married_to",
+)
+# A bare token that is never a name even if it appears as a value — so a stray "you"/
+# "the" can never be turned into a scrub pattern (which would tokenize whole sentences).
+# Also covers the common Capitalised sentence/bullet-initial words the Portrait scan
+# would otherwise mistake for names (verbs, articles, honorifics, relation nouns). Names
+# always survive this; only non-names are filtered, so the bound stays "names she knows".
+_NAME_STOP = frozenset((
+    "you", "your", "me", "i", "we", "us", "the", "a", "an", "and", "or", "is", "it",
+    "they", "them", "he", "she", "his", "her", "him", "their", "my", "our", "to", "of",
+    "in", "on", "at", "by", "for", "with", "started", "a company", "started a company",
+    # honorifics / generic relation + role nouns (the NAME beside them is what we keep)
+    "dr", "mr", "mrs", "ms", "mx", "prof", "sir", "aunt", "uncle", "grandma", "grandpa",
+    "boss", "manager", "therapist", "doctor", "mom", "mum", "dad", "sister", "brother",
+    "son", "daughter", "wife", "husband", "partner", "friend", "mother", "father", "kid",
+    # common Capitalised bullet/sentence-initial words in a distilled profile
+    "has", "have", "had", "lives", "live", "works", "work", "sees", "see", "likes",
+    "loves", "wants", "needs", "moved", "named", "called", "recently", "currently",
+    "now", "also", "still", "born", "grew", "enjoys", "prefers", "uses", "runs", "owns",
+    "is a", "was", "were", "this", "that", "these", "those", "when", "where", "what",
+    "who", "why", "how", "if", "but", "so", "then", "today", "yesterday", "tomorrow",
+))
+
+
+def _split_name_words(value) -> list:
+    """Yield the individual capitalised name-words inside a LIRF value. 'Dr. Okonkwo'
+    -> ['Okonkwo'] (the title is generic); 'Mary Jane' -> ['Mary', 'Jane']; a list
+    value is flattened. Tokenizing each WORD (not the whole phrase) catches the name
+    however it later recurs ('Okonkwo', 'Dr Okonkwo', 'Mara's move'). Pure; never raises."""
+    out: list = []
+    vals = value if isinstance(value, list) else [value]
+    for v in vals:
+        for w in re.split(r"[^A-Za-z'’-]+", str(v or "")):
+            w = w.strip(" '’-.")
+            # keep real name-words only: >=2 chars, not a generic honorific/stop word.
+            if len(w) >= 2 and w.lower() not in _NAME_STOP:
+                out.append(w)
+    return out
+
+
+def name_terms(creature: str) -> set:
+    """The set of personal NAMES `creature` already knows, gathered from its OWN memory
+    (LIRF relation/identity facts + the prose Portrait). These are exactly the strings
+    that must never leave the Mac for a cloud brain. Bounded to the creature's ledger —
+    no open-world NER. Read-only and fully guarded: any failure yields a smaller set
+    (or empty), never an exception and never a crash into a live turn."""
+    names: set = set()
+    if not creature:
+        return names
+    # 1) LIRF relation/identity facts: the VALUE of a name-trait IS a person's name.
+    try:
+        from .memory_lirf import Facts, SELF
+        f = Facts.load(creature)
+        for r in f.rows:
+            if r.get("status") != "active":
+                continue
+            trait = str(r.get("trait", ""))
+            ent = r.get("entity", SELF)
+            # a name-bearing trait's value, OR any third-party entity key that is itself
+            # a proper name (a person stored under their own key, e.g. entity="Mara").
+            if trait in _NAME_TRAITS:
+                for w in _split_name_words(r.get("value")):
+                    names.add(w)
+            if isinstance(ent, str) and ent != SELF:
+                for w in _split_name_words(ent):
+                    names.add(w)
+    except Exception:
+        pass
+    # 2) Portrait prose: the distilled "people in their life (names + relationships)".
+    #    We can't parse relationships, but every Capitalised word in the profile that
+    #    survives the stop-list is a candidate personal name the creature has on record.
+    #    Conservative: only multi-letter Capitalised tokens, never lowercase common words.
+    try:
+        from . import portrait
+        prose = portrait.load(creature) or ""
+        for w in re.findall(r"\b[A-Z][a-zA-Z'’-]{1,}\b", prose):
+            wl = w.lower()
+            if wl not in _NAME_STOP and wl != str(creature).lower():
+                names.add(w)
+    except Exception:
+        pass
+    # never scrub the creature's OWN name (it's not the user's personal memory) or any
+    # 1-char fragment.
+    names.discard(str(creature))
+    return {n for n in names if len(n) >= 2}
+
+
+def _name_pattern(names: set):
+    """Compile ONE case-insensitive, word-boundary alternation over the known names,
+    longest-first so 'Okonkwo' wins before any shorter overlap. None if no names.
+    Case-INSENSITIVE so a lowercased recurrence ('i miss mara') is caught too; the token
+    keys on the lowercased match, so every casing of a name coreferences to one token."""
+    toks = sorted({n for n in (names or set()) if n and len(n) >= 2}, key=len, reverse=True)
+    if not toks:
+        return None
+    # \b on each side; the value itself is escaped so a name with a regex char is literal.
+    return re.compile(r"\b(?:" + "|".join(re.escape(t) for t in toks) + r")\b", re.I)
+
+
+def scrub_names(text: str, names) -> str:
+    """Tokenize the creature's KNOWN personal names out of `text`, on top of (after)
+    the structured `scrub()`. Each known name -> a stable ⟨name:…⟩ token keyed on the
+    LOWERCASED name, so 'Mara' and 'mara' and "Mara's" all coreference to one token and
+    the real value never reaches the cloud. Pure; never raises."""
+    if not text:
+        return text
+    pat = names if hasattr(names, "sub") else _name_pattern(names)
+    if pat is None:
+        return text
+    return pat.sub(lambda m: _tok("name", m.group(0).lower()), text)
+
+
+def scrub_all(text: str, names=None) -> str:
+    """The full egress scrub: structured PII (scrub) THEN the creature's known personal
+    names (scrub_names). One call for every string that leaves the Mac, so neither door
+    can be left open. `names` is a set of known names or a precompiled pattern (or None,
+    which degrades to structured-only — exactly today's behaviour)."""
+    return scrub_names(scrub(text), names)
+
 # Named providers. OpenAI-compatible ones share one request shape; Anthropic differs.
 PRESETS = {
     "openai":    {"base": "https://api.openai.com/v1",   "model": "gpt-4o-mini",                "kind": "openai"},
@@ -250,9 +388,24 @@ class _CloudBrain:
         self.model, self.key, self.name, self.provider = model, key, name, provider
         self.last_tok_s = None
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
+        # The creature whose conversation this is. Set by the mouth each turn (it knows
+        # heart.name); used ONLY to fetch that creature's KNOWN personal names so they
+        # can be scrubbed out of history before egress. None -> structured-scrub only
+        # (today's behaviour), so a brain used without a creature still never crashes.
+        self.creature = None
 
     def available(self) -> bool:
         return bool(self.key)
+
+    def _name_pat(self):
+        """Compiled pattern of the active creature's KNOWN personal names, for the egress
+        name-scrub. Rebuilt per send (cheap: an O(ms) ledger read) so a name the creature
+        learned THIS session is protected immediately. Fully guarded -> None on any slip,
+        which degrades to structured-scrub-only, never an exception into a turn."""
+        try:
+            return _name_pattern(name_terms(self.creature)) if self.creature else None
+        except Exception:
+            return None
 
     def _post(self, url, headers, payload):
         body = json.dumps(payload).encode()
@@ -271,10 +424,12 @@ class OpenAICompatBrain(_CloudBrain):
     def reply(self, system: str, user: str, history) -> str:
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
-        msgs = [{"role": "system", "content": scrub(system)}]   # scrub at the egress
-        for u, a in history:
-            msgs += [{"role": "user", "content": scrub(u)}, {"role": "assistant", "content": scrub(a)}]
-        msgs.append({"role": "user", "content": scrub(user)})
+        _np = self._name_pat()                                  # known-name scrub (history PII)
+        msgs = [{"role": "system", "content": scrub_all(system, _np)}]   # scrub at the egress
+        for u, a in history:                                    # BOTH sides — user words AND
+            msgs += [{"role": "user", "content": scrub_all(u, _np)},     # Vera's memory-derived
+                     {"role": "assistant", "content": scrub_all(a, _np)}]  # replies (echo names)
+        msgs.append({"role": "user", "content": scrub_all(user, _np)})
         d = self._post(self.base + "/chat/completions",
                        {"Content-Type": "application/json", "Authorization": "Bearer " + self.key},
                        {"model": self.model, "messages": msgs,
@@ -296,14 +451,16 @@ class AnthropicBrain(_CloudBrain):
     def reply(self, system: str, user: str, history) -> str:
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
+        _np = self._name_pat()                                  # known-name scrub (history PII)
         msgs = []
-        for u, a in history:
-            msgs += [{"role": "user", "content": scrub(u)}, {"role": "assistant", "content": scrub(a)}]
-        msgs.append({"role": "user", "content": scrub(user)})
+        for u, a in history:                                    # BOTH sides of history
+            msgs += [{"role": "user", "content": scrub_all(u, _np)},
+                     {"role": "assistant", "content": scrub_all(a, _np)}]
+        msgs.append({"role": "user", "content": scrub_all(user, _np)})
         d = self._post(self.base + "/v1/messages",
                        {"Content-Type": "application/json", "x-api-key": self.key,
                         "anthropic-version": "2023-06-01"},
-                       {"model": self.model, "system": scrub(system), "messages": msgs,
+                       {"model": self.model, "system": scrub_all(system, _np), "messages": msgs,
                         "max_tokens": self.max_tokens})
         text = "".join(b.get("text", "") for b in d.get("content", []) if b.get("type") == "text").strip()
         u = d.get("usage") or {}                 # fall back to an estimate so the cap can't be bypassed
