@@ -641,12 +641,12 @@ def _selftest() -> int:
        any(_norm_unit(str(f.get("value"))) == _norm_unit("Riley") for f in led_c["extracted"]["facts"])
        and not any(u["surface"] == "Riley" for u in led_c["lost"]))
 
-    # "My daughter Maya started kindergarten" is APPOSITION (no copula) — the LIRF rule
-    # needs "my daughter is/named Maya", so Maya is GENUINELY lost. The tool must SURFACE
-    # that, not paper over it. (A real finding: appositive names slip the net.)
+    # "My daughter Maya started kindergarten" is APPOSITION (no copula). Wave A (#35) taught
+    # the LIRF extractor an appositive-name rule, so 'Maya' is now CAPTURED, not lost — the
+    # tool honestly reflects the improved capture. (Updated: appositive names no longer slip.)
     led = conservation_ledger("My daughter Maya started kindergarten last week")
-    ok("ledger: appositive 'Maya' is honestly reported LOST (rule needs a copula)",
-       any(u["surface"] == "Maya" and u["category"] == "entity" for u in led["lost"]))
+    ok("ledger: appositive 'Maya' is now CAPTURED (Wave A appositive-name rule), not lost",
+       not any(u["surface"] == "Maya" and u["category"] == "entity" for u in led["lost"]))
     ok("ledger: rate is a probability in [0,1]", 0.0 <= led["conservation_rate"] <= 1.0)
     ok("ledger: total_salient == captured + lost",
        led["total_salient"] == led["captured_salient"] + len(led["lost"]))
@@ -664,15 +664,13 @@ def _selftest() -> int:
     ok("ledger: lost_by_category counts tone losses",
        led_t["lost_by_category"]["tone"] >= 1)
 
-    # --- the headline finding: a rich causal input the capture path stores NOTHING for ---
-    # "I moved to Austin because my manager changed": LIRF has no "I moved to X" rule, and
-    # world_state's causal rule needs a stress/worry cue (none here). So the ENTIRE input is
-    # lost. The conservation tool exists precisely to make this visible.
+    # --- once a TOTAL-LOSS input, now captured. Wave A (#35) added the "I moved to X" rule +
+    # the move/cause world-state edge, so this rich causal input now stores facts + edges and
+    # 'Austin' is CAPTURED. The conservation tool tracks the improvement honestly. ---
     led_r = conservation_ledger("I moved to Austin because my manager changed")
     stored = len(led_r["extracted"]["facts"]) + len(led_r["extracted"]["edges"])
-    ok("ledger: 'moved to Austin because manager' is a TOTAL-LOSS input (honestly surfaced)",
-       stored == 0 and led_r["conservation_rate"] < 1.0
-       and any(u["surface"] == "Austin" for u in led_r["lost"]))
+    ok("ledger: 'moved to Austin because manager' now CAPTURES (Wave A move rule), not total-loss",
+       stored > 0 and not any(u["surface"] == "Austin" for u in led_r["lost"]))
 
     # --- battery rollup is coherent ---
     rep = run_battery()
