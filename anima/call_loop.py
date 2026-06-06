@@ -34,6 +34,21 @@ _VAD_RMS = float(os.environ.get("ANIMA_VAD_RMS", "600"))
 _UTT_GAP_FRAMES = max(3, int(os.environ.get("ANIMA_UTT_GAP_MS", "700")) // FRAME_MS)
 _SILENCE_TIMEOUT = float(os.environ.get("ANIMA_CALL_SILENCE", "25"))   # seconds before she gives up
 
+# --- Barge-in constants -------------------------------------------------------
+# NOTE ON AEC: there is NO acoustic echo cancellation on this path.  The mic
+# physically hears Vera's own speaker output, so her TTS playback registers as
+# non-zero RMS on every incoming frame while she speaks.  To avoid self-triggering
+# (i.e. Vera "hearing" herself and interrupting herself), barge-in must require:
+#   (a) a HIGHER energy threshold than normal VAD  — her playback echo sits well
+#       below the level of a human voice speaking over her, and
+#   (b) several CONSECUTIVE frames above that threshold — a real barge-in is
+#       sustained; her echo is shaped to the TTS waveform and may momentarily
+#       spike but won't look like a persistent human talker.
+# Tune these upward if she self-interrupts on louder TTS; downward if real
+# barge-ins are missed.  Both are env-overridable.
+_BARGE_RMS = float(os.environ.get("ANIMA_BARGE_RMS", "2000"))    # ~3-4× _VAD_RMS
+_BARGE_FRAMES = int(os.environ.get("ANIMA_BARGE_FRAMES", "5"))   # consecutive frames required
+
 # On a live call a long pause is worse than slightly plainer phrasing, so cap the break-character
 # backstop at ONE re-roll here (the sentence-strip still guarantees a clean ship). Set before
 # mouth is imported in this process so it picks up the lower default. Text chat keeps its 2.
@@ -123,6 +138,26 @@ def _reply_to(name: str, user_text: str, history: list) -> str:
         return "Sorry — my words got slow there. Say that again?"
 
 
+# --- pure barge-in decision (no WebRTC imports needed; fully unit-testable) --
+def _is_barge(rms_window: list, barge_rms: float, barge_frames: int) -> bool:
+    """Return True iff the last `barge_frames` entries in `rms_window` are ALL
+    above `barge_rms`.
+
+    This is the sole gate for treating incoming audio as a human barge-in while
+    Vera is speaking.  Both conditions must hold simultaneously:
+      - energy above the (higher) barge threshold — rules out echo of her own TTS
+      - sustained for barge_frames consecutive frames — rules out brief plosive spikes
+
+    Callers maintain `rms_window` as a sliding list; this function is side-effect
+    free and can be exercised without importing aiortc or any hardware.
+    """
+    if barge_frames <= 0:
+        return False
+    if len(rms_window) < barge_frames:
+        return False
+    return all(r > barge_rms for r in rms_window[-barge_frames:])
+
+
 # --- outgoing track: she speaks by pushing samples into this ----------------
 class SpeakerTrack(MediaStreamTrack):
     kind = "audio"
@@ -139,6 +174,27 @@ class SpeakerTrack(MediaStreamTrack):
 
     def speaking(self) -> bool:
         return self._q.qsize() > 0 or len(self._buf) > 0
+
+    def flush(self) -> None:
+        """Stop Vera mid-speech: atomically drain the queued TTS chunks and
+        clear the partially-consumed output buffer.
+
+        Called from the barge-in path inside `_listen()` when the user talks
+        over her.  Safe to call from the same asyncio thread that owns the
+        event loop (the asyncio.Queue drain loop is non-blocking because we
+        only call get_nowait; _buf is a plain ndarray replaced atomically).
+
+        After this returns, `speaking()` is False and `recv()` will emit
+        silence frames until new audio is pushed.
+        """
+        # drain every pending chunk from the async queue (non-blocking)
+        while True:
+            try:
+                self._q.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        # drop any partially-consumed buffer so recv() emits silence next
+        self._buf = np.zeros(0, dtype=np.int16)
 
     async def recv(self):
         if self._t0 is None:
@@ -207,6 +263,9 @@ class CallSession:
         speech: list = []
         in_speech = False
         gap = 0
+        # sliding window of per-frame RMS values, used exclusively for the
+        # barge-in sustained-energy check while Vera is speaking
+        barge_window: list = []
         loop = asyncio.get_running_loop()
         _log("listening for your voice (VAD rms>%d, end-gap %d frames)…" % (_VAD_RMS, _UTT_GAP_FRAMES))
         try:
@@ -215,10 +274,34 @@ class CallSession:
                 got = resampler.resample(frame)
                 for rf in (got if isinstance(got, list) else [got]):
                     pcm = rf.to_ndarray().reshape(-1).astype(np.int16)
-                    if self.speaker.speaking():        # don't transcribe her own voice
-                        in_speech, speech, gap = False, [], 0
-                        continue
                     rms = float(np.sqrt(np.mean((pcm.astype(np.float32)) ** 2))) if len(pcm) else 0.0
+
+                    if self.speaker.speaking():
+                        # --- half-duplex / barge-in gate ---
+                        # The mic captures Vera's own TTS playback (no AEC),
+                        # so we cannot simply pass every energetic frame through
+                        # to the transcriber.  Instead we use the higher-threshold
+                        # + sustain test: only a real human voice talking OVER her
+                        # will exceed _BARGE_RMS for _BARGE_FRAMES consecutive frames.
+                        barge_window.append(rms)
+                        # keep the window bounded to the required look-back length
+                        if len(barge_window) > _BARGE_FRAMES:
+                            barge_window.pop(0)
+                        if _is_barge(barge_window, _BARGE_RMS, _BARGE_FRAMES):
+                            _log("barge-in detected (rms=%.0f sustained %d frames) — flushing speaker" % (
+                                rms, _BARGE_FRAMES))
+                            self.speaker.flush()
+                            barge_window.clear()
+                            # fall through: treat this frame as the start of
+                            # the user's utterance (in_speech reset below)
+                        else:
+                            # no confirmed barge-in yet — discard frame,
+                            # keeping the normal no-self-transcription guarantee
+                            in_speech, speech, gap = False, [], 0
+                            continue
+
+                    # --- normal VAD path (also entered after a confirmed barge-in) ---
+                    barge_window.clear()   # she is no longer speaking; reset guard
                     if rms > _VAD_RMS:
                         in_speech = True
                         gap = 0
