@@ -163,6 +163,8 @@ SPECS: tuple[Spec, ...] = (
     Spec(".lirf.json", "json", required=False, min_bytes=2, structure="lirf"),   # the LIRF fact ledger — her strongest memory; LAW 001 demands redundancy
     Spec(".world.json", "json", required=False, min_bytes=2, structure="world"),  # the world-state relation graph — situations over the facts; LAW 001 redundancy
     Spec(".lerf.json", "json", required=False, min_bytes=2, structure="lerf-objects"),  # the LERF cognitive-object ledger (skills/concepts/procedures); LAW 001 redundancy
+    Spec(".reference.json", "json", required=False, min_bytes=2, structure="reference"),  # the intake Reference Library — citable source documents (NOT trained into LERF); LAW 001 redundancy
+    Spec(".intake_queue.json", "json", required=False, min_bytes=2, structure="intake-queue"),  # the intake training queue — append-only per-source lifecycle (raw->…->active/archived/rejected)
     Spec(".chat.archive.jsonl", "text", required=False, min_bytes=1),        # permanent raw-conversation archive (Compressed > Forgotten)
     Spec(".portrait.md", "text", required=True, min_bytes=1),
     Spec(".persona.md", "text", required=False, min_bytes=1),

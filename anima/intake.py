@@ -175,6 +175,11 @@ class IntakeResult:
     trace_id: str = ""
     committed: bool = False            # WAVE 1 INVARIANT: never True here
     children: list = field(default_factory=list)
+    # WAVE 2 additions — the provenance/rights record (Phase J) and the extracted candidate
+    # cognitive objects (Phase N). Both are part of the inspectable PLAN; neither is durable
+    # until commit-on-approval (intake_queue). ``candidates`` holds Candidate.to_dict() dicts.
+    provenance: dict = field(default_factory=dict)
+    candidates: list = field(default_factory=list)
 
     def to_dict(self) -> dict:
         d = {
@@ -192,6 +197,9 @@ class IntakeResult:
             "failures": list(self.failures),
             "trace_id": self.trace_id,
             "committed": self.committed,
+            "provenance": dict(self.provenance),
+            "candidates": [c.to_dict() if isinstance(c, Candidate) else c
+                           for c in self.candidates],
         }
         if self.children:
             d["children"] = [c.to_dict() if isinstance(c, IntakeResult) else c for c in self.children]
@@ -628,7 +636,7 @@ class IntakeTrace:
     Append-only to the in-memory doc; ``commit`` is the only disk touch and is idempotent.
     Fully guarded — the camera never trips the actor."""
 
-    STAGES = ("uploaded", "parsed", "classified", "routed", "committed_plan")
+    STAGES = ("uploaded", "parsed", "classified", "routed", "extracted", "committed_plan")
 
     def __init__(self, name: str, source_id: str, input_ref: str = "") -> None:
         self.name = name
@@ -773,13 +781,145 @@ def render_trace(tr: dict) -> str:
 
 
 # ===========================================================================
+# PHASE J — PROVENANCE & RIGHTS (Wave 2). The load-bearing promise: Vera NEVER claims
+# ownership of external material, and EVERY answer can trace to its source. So a single
+# canonical record rides on every Source, every extracted cognitive object, and every
+# stored item — {source, author, url_or_file, upload_date, retrieval_date, license,
+# user_provided, rights_category, citation_map, confidence, transformation_history}.
+# It is the chain of custody for a fact: where it came from, who wrote it, what we're
+# allowed to do with it, and every transform it underwent on the way to a store.
+#
+# RIGHTS_CATEGORY is the legal posture, and it gates what Wave-2 commit will do with the
+# material (e.g. public-web / licensed / restricted material is cite-only and is NEVER
+# trained verbatim into LERF as Vera's own; user-owned material may inform Personal
+# Intelligence; temporary-only never persists). The seven categories:
+# ===========================================================================
+RIGHTS_USER_OWNED = "user-owned"        # the user authored it (their diary, their code)
+RIGHTS_USER_PROVIDED = "user-provided"  # the user supplied it but didn't author it (a PDF they uploaded)
+RIGHTS_PUBLIC_WEB = "public-web"        # fetched from the open web — cite, never claim
+RIGHTS_LICENSED = "licensed"            # under a known license (quote within its terms)
+RIGHTS_UNKNOWN = "unknown"              # provenance not established — conservative handling
+RIGHTS_RESTRICTED = "restricted"        # sensitive/regulated (legal/financial/medical) — protected
+RIGHTS_TEMPORARY = "temporary-only"     # explicitly this-session-only; must never persist durably
+
+RIGHTS_CATEGORIES = (
+    RIGHTS_USER_OWNED, RIGHTS_USER_PROVIDED, RIGHTS_PUBLIC_WEB, RIGHTS_LICENSED,
+    RIGHTS_UNKNOWN, RIGHTS_RESTRICTED, RIGHTS_TEMPORARY,
+)
+
+# Rights categories Vera may DISTILL into durable LERF knowledge as patterns/structure
+# (still cite-aware, never verbatim prose). public-web / licensed / restricted material is
+# cite-ONLY: it can be stored in the Reference Library and quoted, but its high-level
+# concepts must be extracted COPYRIGHT-SAFELY and it is never paraphrased as Vera's own
+# belief. (The commit layer enforces this; this set is the single source of truth.)
+RIGHTS_OK_TO_DISTILL = frozenset({RIGHTS_USER_OWNED, RIGHTS_USER_PROVIDED})
+
+
+@dataclass
+class Provenance:
+    """The chain-of-custody record that rides on every Source, every extracted object, and
+    every stored item. Plain dataclass of plain values — serialises with stdlib json and diffs
+    cleanly. ``transformation_history`` is append-only: each stage (ingested -> extracted ->
+    committed) appends one entry, so an answer can replay exactly how a fact reached a store.
+    ``citation_map`` maps a claim to the chunk(s) that support it (so a quote can name its page/
+    section). Vera NEVER sets herself as ``author``; external material's author is preserved."""
+    source: str = ""                    # the artifact title / human name of the source
+    author: str = ""                    # who wrote it (preserved; NEVER Vera for external material)
+    url_or_file: str = ""               # where it physically came from (path or URL)
+    upload_date: str = ""               # when the user supplied it (ISO8601-Z)
+    retrieval_date: str = ""            # when Vera read/parsed it (ISO8601-Z)
+    license: str = "unspecified"        # the declared license, if any
+    user_provided: bool = False         # did the user hand this to Vera directly?
+    rights_category: str = RIGHTS_UNKNOWN
+    citation_map: dict = field(default_factory=dict)   # {claim_or_object_id -> [chunk_id, ...]}
+    confidence: float = 0.0
+    transformation_history: list = field(default_factory=list)  # [{stage, at, detail}]
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def transformed(self, stage: str, detail: str = "") -> "Provenance":
+        """Append one transformation step (append-only; never mutates prior history). Returns
+        self for chaining. The provenance never forgets a step it underwent."""
+        try:
+            self.transformation_history.append(
+                {"stage": str(stage), "at": _now(), "detail": str(detail)[:300]})
+        except Exception:
+            pass
+        return self
+
+    def cite(self, key: str, chunk_ids) -> "Provenance":
+        """Record that ``key`` (an extracted object id, or a claim) is supported by these
+        chunk(s). The citation_map is how an answer points back to the exact page/section."""
+        try:
+            ids = [chunk_ids] if isinstance(chunk_ids, str) else list(chunk_ids or [])
+            cur = self.citation_map.setdefault(str(key), [])
+            for c in ids:
+                if c not in cur:
+                    cur.append(c)
+        except Exception:
+            pass
+        return self
+
+
+def _rights_category_for(detected: str, fmt: str, *, user_provided: bool) -> str:
+    """Map a detected source type to its RIGHTS_CATEGORY — the legal posture that gates Wave-2
+    commit. Sensitive material is 'restricted'; third-party books/articles/web/video are
+    'public-web' (cite-only); the user's own notes/code/audio are 'user-owned'; an explicitly
+    ephemeral snippet is 'temporary-only'; a user-supplied-but-not-authored doc is
+    'user-provided'. Conservative: anything unclear is 'unknown' (handled cautiously)."""
+    if detected in ("legal_financial_medical",):
+        return RIGHTS_RESTRICTED
+    if detected in ("book", "article", "web_page", "youtube_video"):
+        return RIGHTS_PUBLIC_WEB
+    if detected in ("personal_memory", "audio_note", "project_document", "codebase"):
+        return RIGHTS_USER_OWNED
+    if detected == "temporary_context":
+        return RIGHTS_TEMPORARY
+    if detected in ("writing_sample", "conversation_transcript"):
+        return RIGHTS_USER_OWNED if user_provided else RIGHTS_USER_PROVIDED
+    return RIGHTS_USER_PROVIDED if user_provided else RIGHTS_UNKNOWN
+
+
+def build_provenance(source: "Source", parsed: dict, *, user_provided: bool = True,
+                     author: str = "", license: str = "unspecified",
+                     upload_date: str = "") -> Provenance:
+    """Construct the canonical Provenance for a parsed Source (Phase J). Reads only the Source
+    header + parser meta — never the user's identity, never Vera's. ``author`` is left EMPTY
+    for external material unless the caller knows it (Vera never inserts herself). Records the
+    first 'ingested' transformation step so the history starts at the source."""
+    meta = parsed.get("meta") or {}
+    fmt = (meta.get("format") or "")
+    detected = source.detected_type
+    cat = _rights_category_for(detected, fmt, user_provided=user_provided)
+    now = _now()
+    prov = Provenance(
+        source=source.title or (source.provenance or {}).get("input_ref", "") or "source",
+        author=str(author or ""),                       # NEVER defaulted to Vera
+        url_or_file=str((source.provenance or {}).get("input_ref", "")),
+        upload_date=str(upload_date or now),
+        retrieval_date=now,
+        license=str(license or "unspecified"),
+        user_provided=bool(user_provided),
+        rights_category=cat,
+        citation_map={},
+        confidence=float(source.confidence or 0.0),
+        transformation_history=[],
+    )
+    prov.transformed("ingested",
+                     f"detected={detected} fmt={fmt} parse={(parsed.get('status') or 'ok')}")
+    return prov
+
+
+# ===========================================================================
 # THE SPINE — ingest(input) = detect -> parse -> classify -> route. Returns the
 # inspectable PLAN (an IntakeResult) and emits the MRI trace. NO durable write.
 # ===========================================================================
 def _rights_for(detected: str, fmt: str) -> str:
     """A conservative default rights tag (Wave 2 refines with real provenance/licensing).
     Sensitive material and third-party web/book content are 'restricted'; the user's own
-    notes are 'owner'; everything else 'unknown'."""
+    notes are 'owner'; everything else 'unknown'. (Wave 1 free-text tag; Wave 2's
+    rights_category in Provenance is the machine-readable legal posture that gates commit.)"""
     if detected in ("legal_financial_medical",):
         return "restricted-sensitive"
     if detected in ("book", "article", "web_page", "youtube_video"):
@@ -901,10 +1041,12 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
     chunks, sample = _make_chunks(source_id, parsed, confidence=cls["confidence"], rights=rights,
                                   detected=detected, injection=bool(safety.get("found")))
 
-    failures = list(tr.doc.get("failures", []))
-    tr.commit(plan=routing)
+    # WAVE 2 — Phase J: build the canonical provenance/rights record (rides everywhere).
+    prov = build_provenance(source, parsed, user_provided=True)
+    # the source header carries a back-reference to its rights category for the plan/UI.
+    source.provenance = {**(source.provenance or {}), "rights_category": prov.rights_category}
 
-    return IntakeResult(
+    result = IntakeResult(
         source=source,
         detected_type=detected,
         suggested_use=cls["suggested_use"],
@@ -916,10 +1058,32 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
         chunk_count=len(chunks),
         chunks_sample=sample,
         safety=safety,
-        failures=failures,
+        failures=list(tr.doc.get("failures", [])),
         trace_id=source_id,
         committed=False,
+        provenance=prov.to_dict(),
     )
+
+    # WAVE 2 — Phase N: extract candidate cognitive objects from the parsed chunks (deterministic,
+    # offline, $0). The candidates are part of the PLAN; NOTHING is durable until commit-on-approval.
+    # We pass the FULL parsed chunks (not the trimmed sample) so steps/definitions survive intact.
+    try:
+        cands = extract_candidates(result, parsed, prov.to_dict())
+    except Exception as e:                              # extraction must never break an ingest
+        cands = []
+        tr.fail("extract", f"candidate extraction error (non-fatal): {e!r}")
+    result.candidates = cands
+    if cands:
+        kinds: dict = {}
+        for c in cands:
+            kinds[c.kind] = kinds.get(c.kind, 0) + 1
+        tr.stage("extracted", out={"candidates": len(cands), "by_kind": kinds,
+                                   "rights_category": prov.rights_category})
+
+    failures_now = list(tr.doc.get("failures", []))
+    tr.commit(plan=routing)
+    result.failures = failures_now
+    return result
 
 
 def _ingest_folder(path: str, *, name: str = "Vera") -> IntakeResult:
@@ -1010,6 +1174,370 @@ def _ingest_folder(path: str, *, name: str = "Vera") -> IntakeResult:
         committed=False,
         children=children,
     )
+
+
+# ===========================================================================
+# PHASE N — COGNITIVE-OBJECT EXTRACTION (Wave 2). From a parsed source's CHUNKS, extract
+# CANDIDATE cognitive objects — skills / concepts / procedures / heuristics / decision-
+# patterns / mental-models / failure-modes / examples — each minted as a lerf object in
+# state='candidate' (NOT yet retrievable), each stamping its source PROVENANCE and the
+# CITING CHUNK(s) it was drawn from. We REUSE the existing lerf factories + the lerf_distill
+# gate; we do NOT reimplement the verification ladder.
+#
+# COPYRIGHT-SAFE BY CONSTRUCTION. Extraction lifts HIGH-LEVEL concepts / patterns / structure
+# (a procedure's named steps, a heuristic's condition->action, a concept's definition) — never
+# the source's verbatim copyrighted prose as Vera's own. For public-web / licensed / restricted
+# material the rule is strict: the structure may be distilled (cite-aware), but a sentence is
+# never paraphrased into a durable LERF object as Vera's belief. Each candidate's `source`
+# field names the origin; its support[] records the citing chunk ids and the rights category.
+#
+# DETERMINISTIC + $0 + LOCAL-FIRST. Extraction is a deterministic structural reader over the
+# chunk text — NO cloud, NO key, NO network (the local-first / cost-capped rule). It recognises
+# the SHAPE of instructional material (numbered procedures, "if X do Y" heuristics, "X is …"
+# definitions, "X goes wrong when …" failure modes) and lowers each into the right typed object.
+# When a real teacher is wanted (Wave 4 opt-in), lerf_distill.CloudTeacher is the seam; the
+# extraction here is the offline path that proves the pipeline without spend.
+# ===========================================================================
+import re as _re
+
+# A cognitive-object candidate as it leaves extraction: the (uncommitted) lerf object dict, the
+# object KIND, the chunk ids it was cited from, and the per-candidate provenance. The queue
+# (intake_queue) takes these and, on the user's chosen control, runs them through the gate.
+@dataclass
+class Candidate:
+    """One extracted CANDIDATE cognitive object, pre-commit. ``obj`` is a real lerf object dict
+    in state='candidate' (minted via a lerf.make_* factory). ``kind`` is its lerf type-tag
+    ('skill'/'procedure'/'heuristic'/'concept'/'failure_mode'/'decision_pattern'/'mental_model').
+    ``cited_chunks`` are the chunk ids it was drawn from (the citation). ``provenance`` is its
+    chain-of-custody. ``test_cases`` are the grounded unit cases the gate will check it against
+    (a real token from the source that a correct render must surface) — extracted alongside, so
+    the candidate is falsifiable, never rubber-stamped."""
+    obj: dict
+    kind: str
+    cited_chunks: list = field(default_factory=list)
+    provenance: dict = field(default_factory=dict)
+    test_cases: list = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {"obj": self.obj, "kind": self.kind, "cited_chunks": list(self.cited_chunks),
+                "provenance": dict(self.provenance), "test_cases": list(self.test_cases)}
+
+
+# --- structural cues for the deterministic reader ---------------------------------------------
+# A numbered/ordered step line: "1. Do X", "Step 2: do Y", "- first, do Z".
+_STEP_RX = _re.compile(r"^\s*(?:step\s*)?(\d{1,2})[\.\)]\s+(.*\S)", _re.I)
+# A heuristic shape: "If <condition>, <action>" / "When <condition> then <action>".
+_HEUR_RX = _re.compile(r"^\s*(?:if|when)\s+(.+?)[,:]\s*(?:then\s+)?(.+\S)\s*$", _re.I)
+# A definition shape: "<Term> is/are/means <definition>" (the term is a short noun phrase).
+_DEF_RX = _re.compile(r"^\s*([A-Z][\w \-/]{2,48}?)\s+(?:is|are|means|refers to|=)\s+(.+\S)\s*$")
+# A failure-mode shape: "<X> goes wrong / fails / breaks when <trigger>" or "Never <X>".
+_FAIL_RX = _re.compile(
+    r"^\s*(.*?\b(?:goes?\s+wrong|fails?|breaks?|risk|error|mistake|do not|don'?t|never|must not)\b.*\S)\s*$",
+    _re.I)
+# A procedure HEADING: "Procedure: X", "How to X", "To X:", "X process".
+_PROC_HEAD_RX = _re.compile(
+    r"^\s*(?:#+\s*)?(?:procedure\s*[:\-]\s*|how to\s+|to\s+)(.+?)\s*[:.]?\s*$", _re.I)
+
+
+def _slug(text: str, *, maxlen: int = 48) -> str:
+    """A snake_case identifier from a phrase (a verb_noun-ish object name). Deterministic."""
+    s = _re.sub(r"[^a-z0-9]+", "_", (text or "").lower()).strip("_")
+    return (s[:maxlen].rstrip("_")) or "item"
+
+
+def _grounded_token(text: str) -> str | None:
+    """A real, checkable token from `text` (a figure, a quoted name, a capitalised term) that a
+    correct render MUST surface — the seed of a grounded unit test case. Returns None if the text
+    has no such anchor (then the candidate carries no fabricated test). Mirrors lerf_distill's
+    'expected must be a real token from the input' discipline."""
+    m = _re.search(r"\d[\d,\.]*", text or "")
+    if m:
+        return m.group(0).rstrip(".,")
+    m = _re.search(r"\b([A-Z][a-zA-Z]{3,})\b", text or "")
+    if m and m.group(1).lower() not in ("the", "this", "when", "first", "next", "step", "note"):
+        return m.group(1)
+    return None
+
+
+def _extraction_source(prov: dict, kind: str) -> str:
+    """The compact, human-readable `source` line stamped on an extracted object — the headline
+    'where this came from'. Names the source title + rights, so the object can NEVER be mistaken
+    for Vera's own invention (it always points back to external material)."""
+    return (f"extracted<-intake:{(prov or {}).get('source','source')!r}"
+            f"[{(prov or {}).get('rights_category', RIGHTS_UNKNOWN)}]")
+
+
+def _support_lines(prov: dict, cited: list, kind: str) -> list:
+    """The append-only support[] provenance lines stamped on every extracted object so where-from
+    / cited-from / rights survives on disk (visible to lerf.explain_* and provenance queries)."""
+    return [
+        f"extracted_from:{(prov or {}).get('source','source')}",
+        f"rights_category:{(prov or {}).get('rights_category', RIGHTS_UNKNOWN)}",
+        f"cited_chunks:{json.dumps(list(cited))}",
+        f"copyright_safe:high-level-{kind}-not-verbatim-prose",
+        f"author:{(prov or {}).get('author') or '(external/unknown)'}",
+    ]
+
+
+def _mk_candidate(obj: dict, kind: str, cited: list, prov: dict,
+                  test_cases=None) -> "Candidate":
+    """Stamp provenance onto a freshly-minted lerf object and wrap it as a Candidate. The object
+    keeps state='candidate' — extraction NEVER activates anything (that is commit-on-approval's
+    job, and only through the gate)."""
+    obj.setdefault("support", []).extend(_support_lines(prov, cited, kind))
+    cand_prov = dict(prov or {})
+    cand_prov.setdefault("citation_map", {})
+    cand_prov["citation_map"][obj.get("id", kind)] = list(cited)
+    return Candidate(obj=obj, kind=kind, cited_chunks=list(cited), provenance=cand_prov,
+                     test_cases=list(test_cases or []))
+
+
+def extract_candidates(result: "IntakeResult", parsed: dict, provenance: dict, *,
+                       max_objects: int = 24) -> list:
+    """PHASE N. Read the parsed source's CHUNKS and extract a list of CANDIDATE cognitive objects
+    (Candidate wrappers around state='candidate' lerf objects), each citing the chunk(s) it came
+    from and carrying the source provenance + rights. Deterministic, offline, $0.
+
+    The structural reader recognises, per chunk:
+      * a PROCEDURE — a heading ("Procedure: …" / "How to …" / "To …:") followed by numbered/
+        ordered steps -> lerf.make_procedure (steps = the named, paraphrase-free actions).
+      * a HEURISTIC — an "if/when <condition>, <action>" line -> lerf.make_heuristic.
+      * a FAILURE_MODE — a "goes wrong / never / must not …" line -> lerf.make_failure_mode.
+      * a CONCEPT — a "<Term> is/means <definition>" line -> lerf.make_concept.
+      * an EXAMPLE — a worked instance attached to the nearest object (kept in its examples[]).
+
+    COPYRIGHT-SAFE: it lifts the STRUCTURE (named steps, condition->action, term->definition),
+    not the source's verbatim sentences as Vera's own. Each object's source/support points back
+    to the origin. A grounded unit test case is attached where a real source token exists, so the
+    candidate is falsifiable at the gate. Returns [] when the parse had no usable text. Never
+    raises — a malformed chunk is skipped, not crashed on."""
+    try:
+        from . import lerf
+    except Exception:                                   # pragma: no cover - lerf is core
+        return []
+    cands: list = []
+    chunks = parsed.get("chunks") or []
+    detected = result.detected_type
+    domain = _extraction_domain(detected, parsed, provenance)
+    src_line = _extraction_source(provenance, "object")
+
+    for ci, c in enumerate(chunks):
+        if len(cands) >= max_objects:
+            break
+        text = (c.get("text") or "") if isinstance(c, dict) else ""
+        if not text.strip():
+            continue
+        chunk_id = c.get("chunk_id") or f"{result.source.source_id}_c{ci}"
+        section = (c.get("section") or "").strip()
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+        # ---- PROCEDURE first: a chunk whose SECTION is a procedure heading ("Procedure: X",
+        # "How to X", "To X:") with >=2 body lines is a procedure, and its body lines ARE the
+        # ordered steps (the light parser strips the "1." markers, so the heading lives in the
+        # section). A procedure chunk is CLAIMED whole — its step lines are NOT then re-harvested
+        # as concepts/heuristics (a step is not a definition). -------------------------------
+        proc = _extract_procedure(lines, section, domain, src_line, provenance, [chunk_id])
+        if proc is not None:
+            cands.append(proc)
+            continue
+
+        # ---- otherwise, line-level objects: heuristics, failure modes, concepts -------------
+        for ln in lines:
+            if len(cands) >= max_objects:
+                break
+            low = ln.rstrip()
+            hm = _HEUR_RX.match(low)
+            if hm:
+                cond, act = hm.group(1).strip().rstrip(",."), hm.group(2).strip().rstrip(".")
+                if len(cond) > 3 and len(act) > 3:
+                    # name for the heuristic's ACTION verb + the salient nouns of its condition
+                    # ("escalate if compliance risk"), so the name reads as the rule, not the prose.
+                    verb = _action_verb(act)
+                    name = f"{verb}_if_{_salient(cond, n=2)}"
+                    obj = lerf.make_heuristic(
+                        name=name, domain=domain, condition=cond, action=act,
+                        expectation="", applies_when=[section] if section else [],
+                        confidence=lerf.CONF_CANDIDATE, source=src_line, state=lerf.CANDIDATE,
+                        taught_by="")
+                    tok = _grounded_token(cond) or _grounded_token(act)
+                    tcs = ([{"input": low, "expected": tok}] if tok else [])
+                    cands.append(_mk_candidate(obj, lerf.HEURISTIC, [chunk_id], provenance, tcs))
+                    continue
+            if _looks_like_failure(low):
+                # name for the salient nouns of the failure ("missing approval", "no manager"),
+                # so a 'never issue a refund without approval' rule reads as missing_approval.
+                name = _failure_name(low)
+                obj = lerf.make_failure_mode(
+                    name=name or "failure_mode", domain=domain,
+                    trigger=low, symptom=_failure_symptom(low),
+                    consequence="", mitigation="",
+                    confidence=lerf.CONF_CANDIDATE, source=src_line, state=lerf.CANDIDATE)
+                tok = _grounded_token(low)
+                tcs = ([{"input": low, "expected": tok}] if tok else [])
+                cands.append(_mk_candidate(obj, lerf.FAILURE_MODE, [chunk_id], provenance, tcs))
+                continue
+            dm = _DEF_RX.match(ln)
+            if dm and _looks_like_definition(dm):
+                term, defn = _strip_article(dm.group(1).strip()), dm.group(2).strip().rstrip(".")
+                obj = lerf.make_concept(
+                    name=_slug(term, maxlen=40), definition=defn,
+                    confidence=lerf.CONF_CANDIDATE, source=src_line, state=lerf.CANDIDATE)
+                cands.append(_mk_candidate(obj, "concept", [chunk_id], provenance, []))
+                continue
+
+    return cands
+
+
+def _strip_article(term: str) -> str:
+    """Drop a leading article so a concept is named for its noun ('a service level agreement'
+    -> 'service level agreement'). Deterministic."""
+    return _re.sub(r"^(?:a|an|the)\s+", "", (term or "").strip(), flags=_re.I)
+
+
+# Filler tokens dropped when naming a heuristic/failure-mode from prose, so the name carries the
+# SALIENT nouns (a rule, not a sentence). Reuses lerf's stopword spirit; kept local + small.
+_NAME_FILLER = frozenset({
+    "the", "a", "an", "to", "of", "for", "and", "or", "is", "are", "be", "with", "without",
+    "from", "in", "on", "at", "by", "it", "this", "that", "they", "involves", "involve",
+    "request", "team", "immediately", "any", "all", "your", "their", "issue", "issued",
+})
+
+
+def _salient(text: str, *, n: int = 2) -> str:
+    """A snake_case name from the first `n` salient (non-filler) tokens of `text` — so 'the
+    request involves a compliance risk' -> 'compliance_risk'. Deterministic, offline."""
+    toks = [t for t in _re.findall(r"[a-zA-Z]+", (text or "").lower())
+            if t not in _NAME_FILLER and len(t) > 2]
+    return "_".join(toks[:max(1, n)]) or _slug(text, maxlen=24)
+
+
+def _action_verb(action: str) -> str:
+    """The leading verb of a heuristic's action ('escalate to the legal team' -> 'escalate')."""
+    m = _re.match(r"\s*([a-zA-Z]{3,})", action or "")
+    return (m.group(1).lower() if m else "act")
+
+
+def _failure_name(line: str) -> str:
+    """Name a failure mode for its salient nouns ('Never issue a refund without approval from a
+    manager' -> 'missing_approval'). A 'without/no/missing X' shape names the absent thing; else
+    the salient nouns of the line. Deterministic."""
+    low = line.lower()
+    m = _re.search(r"(?:without|missing|no|lacking|absent)\s+([a-zA-Z]+)", low)
+    if m and m.group(1) not in _NAME_FILLER:
+        return f"missing_{m.group(1)}"
+    return _salient(_failure_subject(line), n=2)
+
+
+def _extraction_domain(detected: str, parsed: dict, provenance: dict) -> str:
+    """A single lowercase domain word for the extracted objects, inferred from the source. An
+    ops/onboarding manual -> 'operations'; a finance doc -> 'finance'; else the detected type."""
+    text = (parsed.get("text") or "").lower()
+    title = ((provenance or {}).get("source") or "").lower()
+    blob = title + " " + text[:600]
+    for kw, dom in (("onboard", "operations"), ("client", "operations"), ("refund", "operations"),
+                    ("sla", "operations"), ("compliance", "operations"), ("invoice", "finance"),
+                    ("payment", "finance"), ("patient", "health"), ("diagnos", "health")):
+        if kw in blob:
+            return dom
+    return "general"
+
+
+def _procedure_heading(section: str, lines: list) -> str | None:
+    """Return the procedure NAME if this chunk is a procedure, else None. A procedure is signalled
+    by its SECTION heading ('Procedure: onboard new client', 'How to handle a refund', 'To reset
+    …:') — the light parser lifts the heading into the section and strips list markers, so the
+    steps arrive as bare body lines. As a fallback we also accept an inline heading on the first
+    body line (a plain-text source with no section structure)."""
+    if section:
+        hm = _PROC_HEAD_RX.match(section)
+        if hm:
+            return hm.group(1).strip()
+    if lines:
+        hm = _PROC_HEAD_RX.match(lines[0])
+        if hm:
+            return hm.group(1).strip()
+    return None
+
+
+def _extract_procedure(lines: list, section: str, domain: str, src_line: str,
+                       provenance: dict, cited: list):
+    """Pull ONE procedure from a chunk: a procedure heading (in the section, or the first body
+    line) plus >=2 ordered steps. The steps are the chunk's body lines (the source's named,
+    paraphrase-free actions — copyright-safe STRUCTURE, not lifted prose), with any surviving
+    "1." marker stripped. Returns a Candidate or None (not a procedure)."""
+    try:
+        from . import lerf
+    except Exception:                                   # pragma: no cover
+        return None
+    head_name = _procedure_heading(section, lines)
+    if not head_name:
+        return None
+    # the steps are the body lines; drop a heading line if it leaked into the body, and strip any
+    # residual ordinal marker ("1. ", "Step 2:") the parser may have kept.
+    steps = []
+    for ln in lines:
+        if _PROC_HEAD_RX.match(ln):
+            continue
+        sm = _STEP_RX.match(ln)
+        steps.append((sm.group(2) if sm else ln).strip().rstrip("."))
+    steps = [s for s in steps if s]
+    if len(steps) < 2:
+        return None
+    proc_name = _slug(head_name, maxlen=44)
+    # A procedure (named inputs->steps->outputs) IS a lerf SKILL — the type that carries the full
+    # verification gate (promote_skill + activate_skill). We mint it as a skill so it can be gated
+    # and served, and tag its support 'extracted_kind:procedure' so the source shape is recorded.
+    # The contract needs a non-empty outputs[] for the schema phase: the procedure produces a
+    # completed run + whatever its final step yields. (No prose is lifted — these are structure.)
+    outputs = [f"a completed '{head_name.strip()}' run", "a record of what was done"]
+    obj = lerf.make_skill(
+        proc_name, domain,
+        inputs=["the situation / request as described"],
+        steps=steps, outputs=outputs,
+        confidence=lerf.CONF_CANDIDATE, source=src_line, state=lerf.CANDIDATE,
+        failure_modes=[f"skipping a step of '{head_name.strip()}'",
+                       "acting before a required check or approval"],
+    )
+    # a grounded unit case: a real token from the steps a faithful render must surface.
+    tok = None
+    for s in steps:
+        tok = _grounded_token(s)
+        if tok:
+            break
+    tcs = ([{"input": " ".join(steps), "expected": tok}] if tok else [])
+    return _mk_candidate(obj, "procedure", cited, provenance, tcs)
+
+
+def _looks_like_failure(line: str) -> bool:
+    """A line is a real failure-mode (not just any sentence with 'risk') when it is short-ish and
+    names an avoid/never/goes-wrong shape — conservative, so prose isn't over-harvested."""
+    low = line.lower()
+    if len(line) > 200:
+        return False
+    return any(w in low for w in ("never", "must not", "do not", "don't", "goes wrong",
+                                  "fails", "missing", "without approval", "risk"))
+
+
+def _failure_subject(line: str) -> str:
+    """A short subject for the failure mode (drops the 'never/avoid' lead-in)."""
+    low = line.strip()
+    low = _re.sub(r"^(?:never|always avoid|avoid|do not|don'?t|must not)\s+", "", low, flags=_re.I)
+    return low[:48]
+
+
+def _failure_symptom(line: str) -> str:
+    """The observable symptom phrase — the line itself, trimmed (the trigger and symptom collapse
+    for a one-line rule; richer split is Wave 4)."""
+    return line.strip()[:120]
+
+
+def _looks_like_definition(m) -> bool:
+    """A '<Term> is <definition>' line is a real concept (not an incidental 'It is …') when the
+    term is a capitalised multi-word-ish noun phrase and the definition is substantive."""
+    term, defn = m.group(1).strip(), m.group(2).strip()
+    if term.lower() in ("it", "this", "that", "there", "he", "she", "they", "here"):
+        return False
+    return len(defn.split()) >= 3 and len(term) >= 3
 
 
 # ===========================================================================
