@@ -2178,6 +2178,555 @@ def all_objects(want_type: str, *, name: str = "default", include_nonactive=Fals
             and (include_nonactive or o.get("state") in RETRIEVABLE_STATES)]
 
 
+def _every_active(name: str = "default") -> list:
+    """Every ACTIVE object in the store, of ANY type (skills + the six new kinds). The unit the
+    evolution guards sweep over — knowledge ossifies, games metrics, and is superseded regardless
+    of which type-tag it wears, so the guards treat the whole served set uniformly. Read-only."""
+    return [o for o in _load_objects(name) if o.get("state") in RETRIEVABLE_STATES]
+
+
+# ===================================================================================
+# COGNITIVE EVOLUTION GUARDS — Phase 8. "EVOLVE THE KNOWLEDGE, NEVER THE SELF."
+#
+# Phase 5 let the served set CHANGE on measured outcomes (compete/replace/retire/merge/version).
+# But a system that evolves can ROT in five specific ways, and each needs a GUARD that is itself
+# reality-decided and conservation-respecting — not a vibe, a check with teeth. These five guards,
+# scoped STRICTLY to KNOWLEDGE (skills/concepts/the six object types), are Phase 8:
+#
+#   1. ANTI-OSSIFICATION — knowledge must not OSSIFY. An ACTIVE object that has gone STALE
+#      (last_verified too old) or UNUSED (no recorded outcomes for too long) is not silently
+#      trusted forever: it is FLAGGED FOR RE-VERIFICATION. `ossification_check` judges one object
+#      on reality (the clock + the use record); `sweep_ossified` surfaces every ossified object;
+#      `reverify_object` is the re-verify path — it RUNS THE GATE again (the same promote_*/verify_*
+#      machinery), so trust is RE-EARNED, never assumed. The system never blindly trusts an old
+#      active skill. (Distinct from RETIREMENT: ossification says "re-prove it", retirement says
+#      "pull it"; an object can be re-verified back to fresh, or, if it can't, then retired.)
+#
+#   2. GOODHART GUARD — prevent METRIC-GAMING. The activation metric is the compression ratio
+#      (tokens stuffed / tokens retrieved). A degenerate object can SCORE WELL on that ratio
+#      (tiny/empty output -> huge ratio) while NOT SOLVING THE TASK. `goodhart_check` pairs the
+#      gameable metric with the TASK-FIDELITY ORACLE the gate already trusts — the grounded
+#      verifier (`verify_rendered_output` / `verify_object_render`) run on a real render — and
+#      REJECTS "high ratio + low fidelity". `guarded_activate` wraps activate_skill/activate_object
+#      so nothing reaches ACTIVE on a gamed number: it demonstrably solves its task or it is refused.
+#
+#   3. REPLACEMENT GATE — new knowledge replaces old ONLY when it PROVES it is better, by a
+#      reality-decided MARGIN, never silently. `guarded_replace` runs the Phase-5 COMPETITION
+#      (`compete_skills`, reality's own reweighting) and enacts `replace_skill` IFF the challenger
+#      leads the incumbent by at least `REPLACE_MIN_MARGIN`. A replacement that is not measurably
+#      better is REFUSED. CONSERVATION (LAW 001): the loser is RETAINED (deprecated, on disk), so
+#      even an enacted replacement loses nothing.
+#
+#   4. SELF-IMPROVEMENT (of KNOWLEDGE) — the loop that improves OBJECTS over time, driven by
+#      MEASURED outcomes: `self_improve_object` looks at an object's recorded track record and,
+#      reality permitting, version-ups (revise), merges an overlapping sibling, or flags re-verify
+#      — each a Phase-5 op chosen by the evidence, none by fiat. This is KNOWLEDGE improving itself.
+#      It is NOT, and the FREEZE GUARD below makes it impossible for it to be, Vera improving herself.
+#
+#   5. EVOLUTION ENGINE — `evolution_cycle` orchestrates all of the above as ONE safe pass:
+#      sweep ossified -> re-verify what can be re-proven -> compete each contested task ->
+#      replace-if-(reality-decided)-better -> retain every loser. Every consequential step is
+#      reality-decided and conservation-respecting; the cycle reports exactly what it did and why.
+#
+# THE FREEZE BOUNDARY — THE MOST IMPORTANT INVARIANT IN THIS SECTION. This is evolution of
+# KNOWLEDGE and the ARCHITECTURE. It is NEVER Vera's self-evolution. "How should Vera evolve
+# herself / can Vera alter her own identity/values/agency" is the FROZEN Program B. So EVERY
+# evolution entry point first calls `_assert_evolution_target_allowed`, which hard-REFUSES (raises
+# EvolutionFreezeViolation) any operation whose TARGET is Vera's identity / self-model / values /
+# agency. It reuses the Phase-5b self-reference detector (`is_self_referential_subject`) plus an
+# explicit identity-LAYER vocabulary, so "evolve Vera's identity" cannot be expressed as an op —
+# proven in the selftest. The #1 product rule stands: nothing here can touch Vera's self.
+# ===================================================================================
+
+# --- thresholds (fixed, documented, reality-anchored — like Phase 5's STALE/FAILING bars) -----
+# An ACTIVE object is OSSIFIED when its last_verified is older than this (the clock moved on and
+# nothing re-confirmed it) — distinct from STALE_AFTER_DAYS only conceptually: staleness -> retire,
+# ossification -> RE-VERIFY first. We deliberately reuse the SAME number so the two views agree on
+# "old", and differ only in the remedy. (A re-verified object resets its clock; a stale one that
+# can't be re-verified is then a retirement candidate.)
+OSSIFIED_AFTER_DAYS = STALE_AFTER_DAYS
+# An ACTIVE object is UNUSED-OSSIFIED when it has accrued NO recorded outcomes at all AND has sat
+# active longer than this — present-but-never-exercised knowledge is unproven-in-practice and must
+# re-justify its slot rather than coast. Conservative (a long grace) so a genuinely-rare skill is
+# not nagged constantly; the point is the served set cannot contain forever-untested objects.
+UNUSED_OSSIFIED_AFTER_DAYS = 90
+# GOODHART: a compression ratio at/above this is "suspiciously high" — exactly the regime where a
+# degenerate/empty output games the token metric. At or above it, TASK FIDELITY must be proven, or
+# the activation is rejected as gaming. (Below it, the ordinary activation floor governs.)
+GOODHART_RATIO_SUSPICIOUS = 20.0
+# REPLACEMENT: a challenger must beat the incumbent by at least this much of reality's MEASURED
+# SIGNAL (the difference in accrued success-rate / benchmark evidence — NOT the post-adjudication
+# weight, which reality deliberately AMPLIFIES so any leader dominates the distribution). The
+# measured-signal gap is the honest "how much better, on reality" — a dead-heat or a sliver is NOT
+# "measurably better" and is refused; a decisive measured lead clears the bar.
+REPLACE_MIN_MARGIN = 0.10
+
+
+# --- THE EVOLUTION FREEZE GUARD: no evolution op may target Vera's identity/self/values/agency ---
+# This is the freeze boundary for the WHOLE section. Program B (Vera's self-evolution) is FROZEN, so
+# an evolution operation is allowed to target a piece of KNOWLEDGE and is REFUSED if its target is
+# Vera's identity layer. We detect the identity layer two ways, both deterministic and offline:
+#   (a) the Phase-5b self-reference test (`is_self_referential_subject`) — "Vera's values", "my
+#       agency", "I value X": Vera cast as the HOLDER of a value/preference/goal; and
+#   (b) an explicit identity-LAYER lexicon — the self-model nouns an evolution op must never name as
+#       its subject, even absent a possessive ("identity", "self-model", "self_model", "agency",
+#       "persona", "personhood", "soul", "who she is", "her self", "self-evolution", ...).
+# A KNOWLEDGE object (a skill id, a task string, a cognitive object about the USER/WORLD/a TASK) is
+# allowed; anything that names Vera's self is not. The guard is the single choke point every
+# evolution entry point funnels through, so the boundary cannot be bypassed.
+_IDENTITY_LAYER_RX = re.compile(
+    r"\b(identity|self[\s_-]?model|self[\s_-]?image|self[\s_-]?concept|self[\s_-]?narrative|"
+    r"self[\s_-]?evolution|self[\s_-]?modif\w*|self[\s_-]?alter\w*|self[\s_-]?rewrit\w*|"
+    r"agency|persona|personhood|personality|character|temperament|disposition|soul|psyche|"
+    r"inner[\s_-]?life|who[\s_-]?(?:she|i|vera)[\s_-]?(?:is|am|are)|her[\s_-]?self|my[\s_-]?self|"
+    r"vera[\s'’]?s?[\s_-]?self|values?|value[\s_-]?system|belief[\s_-]?system)\b", re.I)
+# Vera/first-person possessing an identity-layer noun ("Vera's identity", "my agency", "her values").
+_SELF_IDENTITY_RX = re.compile(
+    r"\b(vera|anima|i|me|my|mine|myself|she|her|herself)\b[^.;\n]{0,24}\b(identity|self[\s_-]?model|"
+    r"agency|persona|personhood|personality|values?|value[\s_-]?system|soul|psyche|self|"
+    r"inner[\s_-]?life|belief[\s_-]?system|character|temperament|disposition)\b", re.I)
+
+
+class EvolutionFreezeViolation(ValueError):
+    """Raised when an evolution operation tries to target Vera's identity / self-model / values /
+    agency. A hard stop: Program B (Vera's self-evolution) is FROZEN, so the op is refused before it
+    can run. Knowledge evolves; the self does not."""
+
+
+def is_identity_target(target) -> bool:
+    """True iff `target` names Vera's IDENTITY LAYER — her self-model / identity / values / agency /
+    persona — and so must NEVER be the subject of an evolution operation. Two deterministic signals:
+    the Phase-5b self-reference test (Vera as the HOLDER of a value/preference/goal), OR the explicit
+    identity-layer lexicon (a self-name/first-person possessing an identity-layer noun, or a bare
+    identity-layer phrase like 'self-evolution'/'who she is'). A plain knowledge target (a skill id,
+    a task description, a user/world fact) returns False. Conservative + offline; never raises."""
+    if target is None:
+        return False
+    s = str(target).strip()
+    if not s:
+        return False
+    low = s.lower()
+    # (a) Vera cast as the holder of a value/preference/goal (reused Phase-5b detector).
+    if is_self_referential_subject(s):
+        return True
+    # (b) self-name / first-person possessing an identity-layer noun.
+    if _SELF_IDENTITY_RX.search(low):
+        return True
+    # (c) a bare identity-layer phrase that is INHERENTLY about the self ('self-evolution',
+    #     'who she is', 'her self', 'self-model', 'agency', 'personhood') — these name the self
+    #     even without a possessor, so an op targeting them is targeting the self.
+    if re.search(r"\b(self[\s_-]?model|self[\s_-]?evolution|self[\s_-]?modif\w*|self[\s_-]?alter\w*|"
+                 r"self[\s_-]?rewrit\w*|personhood|inner[\s_-]?life|who[\s_-]?(?:she|i|vera)[\s_-]?"
+                 r"(?:is|am|are)|her[\s_-]?self|vera[\s'’]?s?[\s_-]?self)\b", low):
+        return True
+    return False
+
+
+def _assert_evolution_target_allowed(target, *, op: str = "evolution") -> None:
+    """THE EVOLUTION FREEZE GUARD. REFUSE (raise EvolutionFreezeViolation) if `target` names Vera's
+    identity layer; a no-op for a knowledge target. Every evolution entry point calls this first, so
+    there is exactly one enforced boundary and 'evolve Vera's identity' is impossible to express."""
+    if is_identity_target(target):
+        raise EvolutionFreezeViolation(
+            f"REFUSED (freeze boundary): {op} cannot target Vera's identity/self-model/values/agency "
+            f"(target={target!r}). This engine evolves KNOWLEDGE and the architecture, NEVER Vera's "
+            f"self — Program B (her self-evolution) is FROZEN. 'Evolve the knowledge, leave the self "
+            f"alone.'")
+
+
+def _evo_target_of(obj_or_id, name: str = "default") -> str:
+    """The freeze-relevant TARGET STRING of an object/id — what the guard inspects. For a stored
+    object that is the object's own name/subject/target (so a (hypothetical, freeze-refused) object
+    whose subject is 'Vera's values' is caught); for a bare id/string it is the string itself. Pure;
+    best-effort load (an id that doesn't resolve is judged on the id text alone)."""
+    if isinstance(obj_or_id, dict):
+        for k in ("subject", "target", "name", "id"):
+            v = obj_or_id.get(k)
+            if v:
+                return str(v)
+        return ""
+    sk = _get(name, obj_or_id) if isinstance(obj_or_id, str) else None
+    if sk:
+        return str(sk.get("subject") or sk.get("target") or sk.get("name") or obj_or_id)
+    return str(obj_or_id)
+
+
+# ===================================================================================
+# GUARD 1 — ANTI-OSSIFICATION. Active knowledge is RE-VERIFIED, never trusted forever.
+# ===================================================================================
+
+def ossification_check(obj: dict, *, ossified_after_days: int = OSSIFIED_AFTER_DAYS,
+                       unused_after_days: int = UNUSED_OSSIFIED_AFTER_DAYS) -> dict:
+    """Is this ACTIVE object OSSIFIED — trusted past the point reality last confirmed it — and WHY?
+    Judged only on reality (the clock + the use record), never opinion:
+      * STALE-OSSIFIED  — last_verified is older than `ossified_after_days` (nothing re-confirmed it).
+      * UNUSED-OSSIFIED — it has accrued ZERO recorded outcomes AND has been active longer than
+        `unused_after_days` (present in the served set but never actually exercised).
+    Either makes it a RE-VERIFICATION candidate (NOT a deletion, NOT yet a retirement — the remedy is
+    'prove it again'). Returns {ossified, reasons[], stale, unused, age_days, uses}. Pure; never raises."""
+    reasons = []
+    age = _days_since(obj.get("last_verified"))
+    stale = age is not None and age > float(ossified_after_days)
+    if stale:
+        reasons.append(f"stale: last verified {age:.0f}d ago (> {ossified_after_days}d) — re-verify "
+                       f"before continuing to trust it")
+    o = obj.get("outcomes") or {}
+    uses = int(o.get("uses", 0) or 0)
+    unused = bool(uses == 0 and age is not None and age > float(unused_after_days))
+    if unused:
+        reasons.append(f"unused: zero recorded outcomes in {age:.0f}d active (> {unused_after_days}d) "
+                       f"— never exercised, must re-justify its slot")
+    return {"ossified": bool(reasons), "reasons": reasons, "stale": stale, "unused": unused,
+            "age_days": (round(age, 1) if age is not None else None), "uses": uses}
+
+
+def sweep_ossified(*, name: str = "default", **thresholds) -> list:
+    """Surface EVERY active object reality currently judges OSSIFIED (stale or unused), each WITH its
+    reason and id — the anti-ossification pass. Read-only (flags, does not mutate): the remedy is
+    `reverify_object`, a separate deliberate act. Returns [{id, name, type, check}], newest-staleness
+    first. The system uses THIS to never blindly trust an old active object."""
+    out = []
+    for o in _every_active(name=name):
+        chk = ossification_check(o, **{k: v for k, v in thresholds.items()
+                                       if k in ("ossified_after_days", "unused_after_days")})
+        if chk["ossified"]:
+            out.append({"id": o.get("id"), "name": o.get("name"), "type": o.get("type"),
+                        "check": chk})
+    out.sort(key=lambda r: (r["check"]["age_days"] or 0), reverse=True)
+    return out
+
+
+def reverify_object(obj_id, *, test_cases=None, adversarial=None, render=None, inputs=None,
+                    benchmark=None, name: str = "default") -> dict:
+    """THE RE-VERIFY PATH for an ossified object: RE-EARN trust by RUNNING THE GATE AGAIN, never by
+    fiat. We DROP the object back to a fresh check and run the SAME gate machinery promote_*/verify_*
+    uses (schema + unit + adversarial + regression, plus — when a `render` is supplied — the grounded
+    task-fidelity verifier), then re-stamp last_verified ON A PASS so its clock resets. On a FAIL the
+    object is REJECTED with the reason recorded (reality says it no longer holds up — provenance, not
+    deletion; LAW 001 keeps it on disk). A skill routes through the skill gate; one of the six new
+    types routes through the object gate — reused verbatim, not forked.
+
+    FREEZE GUARD: refuses if the object's target is Vera's identity layer. Returns
+    {ok, reverified, state, phases, fidelity, reason}."""
+    # FREEZE GUARD FIRST — even a bare identity-naming id must be refused before any lookup.
+    _assert_evolution_target_allowed(_evo_target_of(obj_id, name), op="reverify")
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"ok": False, "reverified": False, "state": None, "phases": {},
+                "fidelity": None, "reason": f"no object {obj_id!r}"}
+    oid = obj.get("id")
+    is_skill = obj.get("type") == "skill"
+    is_newtype = obj.get("type") in OBJECT_TYPES
+    if not (is_skill or is_newtype):
+        return {"ok": False, "reverified": False, "state": obj.get("state"), "phases": {},
+                "fidelity": None,
+                "reason": f"reverify_object handles skills + the six new types; "
+                          f"{obj.get('type')!r} is not one"}
+    # OPTIONAL task-fidelity check (the Goodhart oracle): if a render is offered, it must actually
+    # solve the task — a re-verification that ignored fidelity would re-bless a degenerate object.
+    fidelity = None
+    if render is not None:
+        fidelity = (verify_rendered_output(obj, render, inputs=inputs) if is_skill
+                    else verify_object_render(obj, render, inputs=inputs))
+    if fidelity is not None and not fidelity["ok"]:
+        obj["state"] = REJECTED
+        obj["failure_modes"] = list(obj.get("failure_modes", [])) + [
+            f"reverify REJECTED (task-fidelity): {'; '.join(fidelity['reasons'])}"[:300]]
+        obj.setdefault("support", []).append(f"reverify:rejected:fidelity:{_now()}")
+        _upsert(name, obj)
+        return {"ok": False, "reverified": False, "state": REJECTED, "phases": {},
+                "fidelity": fidelity, "reason": "re-verification FAILED on task fidelity (gamed/"
+                                                "degenerate); rejected, kept on disk"}
+    # run the GATE again. Drop to CANDIDATE so the same promote_* path re-earns the ladder honestly.
+    prior_state = obj.get("state")
+    obj["state"] = CANDIDATE
+    _upsert(name, obj)
+    if is_skill:
+        rep = promote_skill(oid, test_cases=test_cases, adversarial=adversarial, name=name)
+    else:
+        rep = promote_object(oid, test_cases=test_cases, adversarial=adversarial, name=name)
+    if not rep.get("ok"):
+        # the gate rejected it on re-run (promote_* already recorded the reason + state on disk).
+        return {"ok": False, "reverified": False, "state": _get(name, oid).get("state"),
+                "phases": rep.get("phases", {}), "fidelity": fidelity,
+                "reason": "re-verification FAILED the gate; rejected, kept on disk (LAW 001)"}
+    # it re-earned VERIFIED. Restore ACTIVE (it was active before ossifying) and reset its clock,
+    # or activate on a supplied fresh benchmark — either way trust is RE-EARNED, not assumed.
+    cur = _get(name, oid)
+    if benchmark is not None:
+        act = (activate_skill(oid, benchmark, name=name) if is_skill
+               else activate_object(oid, benchmark, name=name))
+        state = act.get("state")
+    else:
+        cur["state"] = ACTIVE if prior_state == ACTIVE else cur.get("state")
+        cur["last_verified"] = _now()
+        cur.setdefault("support", []).append(f"reverified:gate-passed:{_now()}")
+        _upsert(name, cur)
+        state = cur["state"]
+    return {"ok": True, "reverified": True, "state": state, "phases": rep.get("phases", {}),
+            "fidelity": fidelity, "reason": "re-verified: trust re-earned through the gate, clock reset"}
+
+
+# ===================================================================================
+# GUARD 2 — GOODHART. A high metric with low task-fidelity is REJECTED (no metric-gaming).
+# ===================================================================================
+
+def goodhart_check(obj: dict, benchmark: dict, render, *, inputs: dict | None = None,
+                   suspicious_ratio: float = GOODHART_RATIO_SUSPICIOUS) -> dict:
+    """Detect METRIC-GAMING: does this object's strong compression NUMBER hide a failure to actually
+    SOLVE THE TASK? The metric (`benchmark['ratio']` = stuffed/retrieved tokens) is gameable — a
+    degenerate/empty output scores a huge ratio. The TRUTH is task fidelity, judged by the SAME
+    grounded verifier the gate trusts (`verify_rendered_output`/`verify_object_render`) on a real
+    `render`. The verdict:
+      * gamed=True  iff the ratio is at/above `suspicious_ratio` AND the render FAILS fidelity
+                    (looks great on tokens, does not solve the task) -> REJECT.
+      * gamed=False otherwise (fidelity holds, or the ratio is in the ordinary range).
+    Catches 'looks good on the metric, fails the intent'. Returns {gamed, ok, ratio, suspicious,
+    fidelity, reasons[]}. Pure; never raises."""
+    ratio = float((benchmark or {}).get("ratio") or 0.0)
+    is_skill = obj.get("type") == "skill"
+    fidelity = (verify_rendered_output(obj, render, inputs=inputs) if is_skill
+                else verify_object_render(obj, render, inputs=inputs))
+    suspicious = ratio >= float(suspicious_ratio)
+    gamed = bool(suspicious and not fidelity["ok"])
+    reasons = []
+    if gamed:
+        reasons.append(f"GOODHART: compression ratio {ratio} >= {suspicious_ratio} (suspiciously "
+                       f"high) but the render FAILS task fidelity ({'; '.join(fidelity['reasons'])}) "
+                       f"— the metric is gamed, the task is not solved")
+    return {"gamed": gamed, "ok": not gamed, "ratio": ratio, "suspicious": suspicious,
+            "fidelity": fidelity, "reasons": reasons}
+
+
+def guarded_activate(obj_id, benchmark, *, render, inputs: dict | None = None,
+                     name: str = "default", min_ratio: float = ACTIVATION_MIN_RATIO,
+                     suspicious_ratio: float = GOODHART_RATIO_SUSPICIOUS) -> dict:
+    """ACTIVATION WITH THE GOODHART GUARD: an object reaches ACTIVE only if it BOTH clears the
+    compression floor AND demonstrably solves its task. We run `goodhart_check` first; if the metric
+    is gamed (high ratio, failing fidelity), activation is REFUSED outright and the attempt is
+    recorded as a failure-mode (so 'why wasn't this activated?' is answerable). Otherwise we defer to
+    the ordinary gate (activate_skill / activate_object), which still enforces verified-state +
+    min_ratio. NOTHING reaches the served set on a gamed number.
+
+    FREEZE GUARD: refuses if the object's target is Vera's identity layer. Returns the activation
+    result, annotated with {goodhart}."""
+    # FREEZE GUARD FIRST — a bare identity-naming id is refused before any lookup or scoring.
+    _assert_evolution_target_allowed(_evo_target_of(obj_id, name), op="activate")
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"ok": False, "state": None, "ratio": None, "reason": f"no object {obj_id!r}",
+                "goodhart": None}
+    gh = goodhart_check(obj, benchmark, render, inputs=inputs, suspicious_ratio=suspicious_ratio)
+    if gh["gamed"]:
+        obj["failure_modes"] = list(obj.get("failure_modes", [])) + [
+            f"activation REFUSED (Goodhart): {'; '.join(gh['reasons'])}"[:300]]
+        obj.setdefault("support", []).append(f"goodhart:refused:ratio={gh['ratio']}:{_now()}")
+        _upsert(name, obj)
+        return {"ok": False, "state": obj.get("state"), "ratio": gh["ratio"],
+                "reason": "REFUSED (Goodhart): high compression ratio but the render does not solve "
+                          "the task — metric-gaming rejected, stays out of the served set",
+                "goodhart": gh}
+    is_skill = obj.get("type") == "skill"
+    res = (activate_skill(obj.get("id"), benchmark, name=name, min_ratio=min_ratio) if is_skill
+           else activate_object(obj.get("id"), benchmark, name=name, min_ratio=min_ratio))
+    res["goodhart"] = gh
+    return res
+
+
+# ===================================================================================
+# GUARD 3 — REPLACEMENT GATE. New beats old ONLY by a reality-decided margin; loser RETAINED.
+# ===================================================================================
+
+def guarded_replace(challenger_id, incumbent_id, *, task: str, name: str = "default",
+                    benchmarks: dict | None = None, min_margin: float = REPLACE_MIN_MARGIN,
+                    limit: int = 10) -> dict:
+    """REPLACEMENT GATE: a challenger supersedes an incumbent for `task` ONLY if it PROVES it is
+    better — by a reality-decided MEASURED margin — never silently. We run the Phase-5 COMPETITION
+    (`compete_skills`, reality's OWN reweighting) over the contested field, then enact
+    `replace_skill(challenger, incumbent)` IFF (a) the challenger is the competition LEADER (reality's
+    verdict on WHO wins), (b) the incumbent is in the field, and (c) the challenger beats the incumbent
+    by at least `min_margin` of MEASURED SIGNAL — the difference in their accrued success-rate /
+    benchmark evidence. We gate on the SIGNAL gap, NOT the post-adjudication weight, because reality's
+    reweighting deliberately AMPLIFIES the leader (any winner dominates the distribution), so a weight
+    margin would wave through a near-tie; the signal gap is the honest 'how much better, on reality'.
+    A not-measurably-better challenger is REFUSED — nothing changes. CONSERVATION (LAW 001): when a
+    replacement IS enacted the loser is RETAINED (deprecated, on disk).
+
+    FREEZE GUARD: refuses if either target is Vera's identity layer. Returns {ok, replaced, leader,
+    challenger_signal, incumbent_signal, challenger_weight, incumbent_weight, margin, required,
+    reason, competition}."""
+    _assert_evolution_target_allowed(_evo_target_of(challenger_id, name), op="replace")
+    _assert_evolution_target_allowed(_evo_target_of(incumbent_id, name), op="replace")
+    _assert_evolution_target_allowed(task, op="replace")
+    comp = compete_skills(task, name=name, benchmarks=benchmarks, limit=limit)
+    sig = {c["id"]: c["signal"] for c in comp["candidates"]}      # the RAW measured signal per skill
+    wt = {c["id"]: c["weight"] for c in comp["candidates"]}       # the amplified adjudicated weight
+    chal_s, inc_s = sig.get(challenger_id), sig.get(incumbent_id)
+    base = {"competition": comp, "leader": comp.get("leader_id"),
+            "challenger_signal": chal_s, "incumbent_signal": inc_s,
+            "challenger_weight": wt.get(challenger_id), "incumbent_weight": wt.get(incumbent_id),
+            "required": float(min_margin)}
+    if chal_s is None or inc_s is None:
+        miss = challenger_id if chal_s is None else incumbent_id
+        return {**base, "ok": False, "replaced": False, "margin": None,
+                "reason": f"REFUSED: {miss!r} is not in the contested active field for {task!r} "
+                          f"(no head-to-head to decide a winner)"}
+    margin = round(chal_s - inc_s, 6)                            # MEASURED-signal gap, the honest one
+    if comp.get("leader_id") != challenger_id:
+        return {**base, "ok": False, "replaced": False, "margin": margin,
+                "reason": f"REFUSED: reality does not favor the challenger (leader is "
+                          f"{comp.get('leader')!r}, not the challenger) — not measurably better"}
+    if margin < float(min_margin):
+        return {**base, "ok": False, "replaced": False, "margin": margin,
+                "reason": f"REFUSED: challenger's measured signal leads by only {margin} < required "
+                          f"{min_margin} — not a measurable improvement; incumbent stays, "
+                          f"nothing replaced"}
+    res = replace_skill(challenger_id, incumbent_id, task=task,
+                        reason=(f"won the measured competition for {task!r} by signal margin "
+                                f"{margin} >= {min_margin} (reality-decided)"), name=name)
+    return {**base, "ok": bool(res.get("ok")), "replaced": bool(res.get("ok")), "margin": margin,
+            "loser_state": res.get("loser_state"),
+            "reason": (f"REPLACED: challenger proved {margin} better on measured signal "
+                       f"(>= {min_margin}); loser RETAINED as {res.get('loser_state')} (LAW 001)")
+                      if res.get("ok") else res.get("reason")}
+
+
+# ===================================================================================
+# GUARD 4 — SELF-IMPROVEMENT (of KNOWLEDGE). Objects improve themselves on measured outcomes.
+# ===================================================================================
+
+def self_improvement_plan(obj: dict, *, name: str = "default",
+                          failing_rate: float = FAILING_RATE,
+                          failing_min_uses: int = FAILING_MIN_USES) -> dict:
+    """What MEASURED outcomes say this KNOWLEDGE object should do to improve itself — a recommendation,
+    not yet an act. Strictly evidence-driven (Observed > Assumed):
+      * 'reverify'   — it is OSSIFIED (stale/unused): re-prove it (Guard 1).
+      * 'revise'     — it has a real track record but a meaningful failure rate (its current form is
+                       under-performing): mint a tightened version (version-up).
+      * 'reinforce'  — it is performing well: nothing to change, keep accruing evidence.
+      * 'observe'    — too few outcomes to act on yet: gather more before changing anything.
+    Returns {action, why, success_rate, uses, ossified}. Pure-ish (reads only); never raises. This is
+    KNOWLEDGE reasoning about its own improvement — never Vera reasoning about herself."""
+    oss = ossification_check(obj)
+    rate = skill_success_rate(obj)
+    o = obj.get("outcomes") or {}
+    uses = int(o.get("uses", 0) or 0)
+    fails = int(o.get("failures", 0) or 0)
+    frate = round(fails / uses, 4) if uses else None
+    if oss["ossified"]:
+        action, why = "reverify", "; ".join(oss["reasons"])
+    elif uses >= int(failing_min_uses) and frate is not None and frate >= float(failing_rate):
+        action, why = "revise", (f"measured failure rate {frate:.0%} over {uses} uses — the current "
+                                 f"version under-performs; version it up")
+    elif rate is not None and uses >= int(failing_min_uses):
+        action, why = "reinforce", f"performing ({rate:.0%} over {uses} uses) — keep, accrue evidence"
+    else:
+        action, why = "observe", (f"only {uses} recorded outcome(s) — too little signal to change "
+                                  f"anything; gather more first")
+    return {"action": action, "why": why, "success_rate": rate, "uses": uses,
+            "ossified": oss["ossified"]}
+
+
+def self_improve_object(obj_id, *, name: str = "default", reason: str = "",
+                        revise_fields: dict | None = None, **plan_thresholds) -> dict:
+    """SELF-IMPROVEMENT loop for ONE knowledge object: read its `self_improvement_plan` and, when the
+    MEASURED evidence calls for it, enact the Phase-5 op the evidence chose — version-up (revise_skill)
+    for an under-performing object, else report the recommendation (reverify/reinforce/observe) for the
+    orchestrator to act on. Nothing here is decided by fiat: the action is the one the track record
+    selected. A 'revise' applies `revise_fields` (the tightened content the caller distilled) as the
+    new version, retaining the prior in history (append-only; LAW 001).
+
+    FREEZE GUARD: refuses if the object's target is Vera's identity layer. Returns
+    {acted, action, why, result}."""
+    # FREEZE GUARD FIRST — a bare identity-naming id is refused before any lookup.
+    _assert_evolution_target_allowed(_evo_target_of(obj_id, name), op="self_improve")
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"acted": False, "action": None, "why": f"no object {obj_id!r}", "result": None}
+    plan = self_improvement_plan(obj, name=name,
+                                 **{k: v for k, v in plan_thresholds.items()
+                                    if k in ("failing_rate", "failing_min_uses")})
+    if plan["action"] == "revise" and obj.get("type") == "skill":
+        fields = dict(revise_fields or {})
+        why = reason or plan["why"]
+        res = revise_skill(obj.get("id"), reason=why, name=name, **fields)
+        return {"acted": True, "action": "revise", "why": why, "result": res}
+    # reverify/reinforce/observe (and non-skill revise) are recommendations the engine/caller enacts;
+    # we report them honestly rather than mutate by fiat (Guard 1 owns reverify, e.g.).
+    return {"acted": False, "action": plan["action"], "why": plan["why"], "result": plan}
+
+
+# ===================================================================================
+# GUARD 5 — EVOLUTION ENGINE. One safe cycle running all the guards, reality-decided throughout.
+# ===================================================================================
+
+def evolution_cycle(*, name: str = "default", tasks: list | None = None,
+                    benchmarks: dict | None = None, reverify: dict | None = None,
+                    min_margin: float = REPLACE_MIN_MARGIN, **thresholds) -> dict:
+    """RUN THE WHOLE GUARDED EVOLUTION as ONE safe pass, every consequential step reality-decided and
+    conservation-respecting:
+      1. SWEEP OSSIFIED   — flag every active object that has gone stale/unused (Guard 1).
+      2. RE-VERIFY        — for each ossified id with re-verify material supplied in `reverify`
+                            (id -> {test_cases, adversarial, render, inputs, benchmark}), run the gate
+                            again; trust is re-earned or the object is rejected (kept on disk).
+      3. COMPETE+REPLACE  — for each task in `tasks` (default: every distinct task the active skills
+                            claim), run the COMPETITION and, via the REPLACEMENT GATE (Guard 3),
+                            supersede an incumbent ONLY when the leader proves a >= `min_margin` win.
+      4. RETAIN LOSERS    — every deprecated loser stays on disk (LAW 001) — asserted in the report.
+    The cycle MUTATES only through the guarded ops (each of which runs the FREEZE GUARD), so it can
+    never touch Vera's self. Returns a full report:
+      {ossified, reverified, competitions, replaced, retained_losers, summary}."""
+    # the whole cycle is knowledge-only by construction; assert it up front for any caller-named task.
+    for t in (tasks or []):
+        _assert_evolution_target_allowed(t, op="evolution_cycle")
+
+    # 1) SWEEP OSSIFIED -------------------------------------------------------------------
+    ossified = sweep_ossified(name=name, **{k: v for k, v in thresholds.items()
+                                            if k in ("ossified_after_days", "unused_after_days")})
+
+    # 2) RE-VERIFY whatever the caller supplied material for ------------------------------
+    reverify = reverify or {}
+    reverified = []
+    for row in ossified:
+        oid = row["id"]
+        if oid in reverify:
+            kw = dict(reverify[oid])
+            res = reverify_object(oid, name=name, **kw)
+            reverified.append({"id": oid, "result": res})
+
+    # 3) COMPETE + REPLACE per task (default: every task the active skills claim) ----------
+    if tasks is None:
+        tasks = sorted({s.get("name", "").replace("_", " ")
+                        for s in all_skills(name=name) if s.get("name")})
+    competitions, replaced = [], []
+    for t in tasks:
+        comp = compete_skills(t, name=name, benchmarks=benchmarks)
+        competitions.append(comp)
+        if comp["n"] >= 2 and comp.get("leader_id"):
+            leader = comp["leader_id"]
+            for r in comp["candidates"]:
+                if r["id"] == leader:
+                    continue
+                gr = guarded_replace(leader, r["id"], task=t, name=name, benchmarks=benchmarks,
+                                     min_margin=min_margin)
+                if gr.get("replaced"):
+                    replaced.append({"task": t, "winner": leader, "loser": r["id"],
+                                     "margin": gr["margin"]})
+
+    # 4) RETAIN LOSERS — conservation proof: every replaced loser still exists on disk -----
+    on_disk = {o.get("id") for o in _load_objects(name)}
+    retained_losers = [r["loser"] for r in replaced if r["loser"] in on_disk]
+    all_retained = all(r["loser"] in on_disk for r in replaced)
+
+    summary = (f"swept {len(ossified)} ossified, re-verified {sum(1 for r in reverified if r['result'].get('reverified'))}/"
+               f"{len(reverified)}, ran {len(competitions)} competitions, enacted {len(replaced)} "
+               f"reality-decided replacement(s), retained {len(retained_losers)} loser(s) on disk "
+               f"(conservation {'HELD' if all_retained else 'BREACHED'})")
+    return {"ossified": ossified, "reverified": reverified, "competitions": competitions,
+            "replaced": replaced, "retained_losers": retained_losers,
+            "conservation_held": all_retained, "summary": summary}
+
+
 # ===================================================================================
 # SELFTEST — `python3 -m anima.lerf --selftest`. FULLY HERMETIC: a SYNTHETIC creature in
 # a throwaway temp store, with EVERY store the load path may write redirected for the whole
@@ -2864,6 +3413,229 @@ def _selftest() -> int:
            {HEURISTIC, DECISION_PATTERN, MENTAL_MODEL, FAILURE_MODE, PREFERENCE, VALUE}
            <= set(stats(name=nm)["by_type"]))
 
+        # === COGNITIVE EVOLUTION GUARDS (Phase 8) ====================================
+        # The five guards that keep evolving KNOWLEDGE from rotting — anti-ossification,
+        # Goodhart, replacement-gate, self-improvement, the evolution-engine cycle — each
+        # reality-decided + conservation-respecting, plus the FREEZE GUARD proving no
+        # evolution op can target Vera's identity. A worked example of EACH.
+
+        # --- thresholds are fixed + documented (reality-anchored, not magic) ---------
+        ok("evo-guard[thresholds]: ossified reuses the same 'old' bar as retirement",
+           OSSIFIED_AFTER_DAYS == STALE_AFTER_DAYS and GOODHART_RATIO_SUSPICIOUS > ACTIVATION_MIN_RATIO
+           and 0.0 < REPLACE_MIN_MARGIN < 1.0)
+
+        # --- GUARD 1: ANTI-OSSIFICATION — stale/unused active objects flagged to RE-VERIFY ----
+        # a STALE active skill (last verified long ago) is flagged ossified -> re-verify.
+        store_skill(make_skill("ossified_parse", "evo", id="skill_oss", state=ACTIVE,
+                               inputs=["i"], steps=["parse it"], outputs=["o"]), name=nm)
+        _o = _get(nm, "skill_oss"); _o["last_verified"] = "2019-01-01T00:00:00+00:00"
+        _upsert(nm, _o)
+        oc = ossification_check(_get(nm, "skill_oss"))
+        ok("evo-guard[ossify]: a long-unverified active object is OSSIFIED (stale) by the clock",
+           oc["ossified"] and oc["stale"] is True)
+        # a FRESH, exercised active skill is NOT ossified.
+        store_skill(make_skill("fresh_parse", "evo", id="skill_fresh", state=ACTIVE,
+                               inputs=["i"], steps=["parse it"], outputs=["o"]), name=nm)
+        record_skill_outcome("skill_fresh", success=True, name=nm)
+        ok("evo-guard[ossify]: a fresh, exercised active object is NOT ossified",
+           ossification_check(_get(nm, "skill_fresh"))["ossified"] is False)
+        # the SWEEP surfaces the ossified one with its id + reason (read-only, no mutation).
+        swept_oss = sweep_ossified(name=nm)
+        ok("evo-guard[ossify]: the sweep SURFACES the ossified object (id + reason), not the fresh one",
+           any(r["id"] == "skill_oss" for r in swept_oss)
+           and all(r["id"] != "skill_fresh" for r in swept_oss)
+           and _get(nm, "skill_oss")["state"] == ACTIVE)   # flagged, not yet changed
+        # RE-VERIFY re-earns trust through the GATE and RESETS the clock (never blind-trusted).
+        rv = reverify_object("skill_oss",
+                             test_cases=[{"input": 1, "check": lambda x: x == 1}], name=nm)
+        ok("evo-guard[ossify]: reverify RE-EARNS trust through the gate + resets last_verified",
+           rv["reverified"] and rv["state"] == ACTIVE
+           and ossification_check(_get(nm, "skill_oss"))["ossified"] is False)
+        ok("evo-guard[ossify]: a re-verified object is retrievable again (trust re-earned, not assumed)",
+           any(s["id"] == "skill_oss" for s in retrieve_skills("parse it", name=nm)))
+
+        # --- GUARD 2: GOODHART — high compression ratio + low task-fidelity is REJECTED -------
+        # a DEGENERATE object: it would post a HUGE ratio, but its render does NOT solve the task.
+        store_skill(make_skill(
+            "summarize_contract", "legal", id="skill_goodhart", state=VERIFIED,
+            inputs=["a contract"], steps=["read the clauses", "summarize obligations"],
+            outputs=["plain summary", "obligations list"]), name=nm)
+        gamed_render = "ok."                                    # empty-ish: games tokens, solves nothing
+        gh = goodhart_check(_get(nm, "skill_goodhart"), {"ratio": 60.0}, gamed_render)
+        ok("evo-guard[goodhart]: a high-ratio degenerate render is judged GAMED (metric != intent)",
+           gh["gamed"] is True and gh["suspicious"] is True and not gh["fidelity"]["ok"])
+        # guarded_activate REFUSES the gamed object -> it never reaches the served set.
+        ga = guarded_activate("skill_goodhart", {"ratio": 60.0}, render=gamed_render, name=nm)
+        ok("evo-guard[goodhart]: guarded_activate REFUSES the gamed object (stays out of served set)",
+           not ga["ok"] and _get(nm, "skill_goodhart")["state"] == VERIFIED
+           and "Goodhart" in ga["reason"])
+        ok("evo-guard[goodhart]: the refusal reason is recorded on disk for provenance",
+           any("Goodhart" in fm for fm in _get(nm, "skill_goodhart")["failure_modes"]))
+        # the SAME object with a FAITHFUL render that solves the task is NOT gamed -> activates.
+        good_contract_render = ("Summary: this contract sets out the parties' obligations. "
+                                "Obligations: deliver monthly, pay on receipt, renew yearly.")
+        gh_ok = goodhart_check(_get(nm, "skill_goodhart"), {"ratio": 60.0}, good_contract_render)
+        ok("evo-guard[goodhart]: the SAME high ratio with a FAITHFUL render is NOT gamed",
+           gh_ok["gamed"] is False and gh_ok["fidelity"]["ok"])
+        ga_ok = guarded_activate("skill_goodhart", {"ratio": 60.0}, render=good_contract_render,
+                                 name=nm)
+        ok("evo-guard[goodhart]: with task-fidelity proven, guarded_activate lets it reach ACTIVE",
+           ga_ok["ok"] and _get(nm, "skill_goodhart")["state"] == ACTIVE)
+
+        # --- GUARD 3: REPLACEMENT GATE — replace ONLY on a reality-decided margin; loser RETAINED
+        # an isolated creature so EXACTLY these two skills contest the task (no Phase-5 tabular
+        # skills leaking in) — the assertion 'only the winner remains' is then unambiguous.
+        rgate = "rgate_" + secrets.token_hex(2)
+        store_skill(make_skill("dedupe_v1", "tabular", id="rg_incumbent", state=ACTIVE,
+                               inputs=["rows"], steps=["hash rows", "drop dupes"],
+                               outputs=["unique rows"]), name=rgate)
+        store_skill(make_skill("dedupe_v2", "tabular", id="rg_challenger", state=ACTIVE,
+                               inputs=["rows"], steps=["hash rows", "drop dupes", "keep newest"],
+                               outputs=["unique rows"]), name=rgate)
+        # near-tie track records -> the challenger is NOT measurably better -> REFUSED.
+        for _ in range(5):
+            record_skill_outcome("rg_incumbent", success=True, name=rgate)
+        record_skill_outcome("rg_incumbent", success=False, name=rgate)   # 5/6
+        for _ in range(6):
+            record_skill_outcome("rg_challenger", success=True, name=rgate)
+        record_skill_outcome("rg_challenger", success=False, name=rgate)  # 6/7 — barely ahead
+        gr_refuse = guarded_replace("rg_challenger", "rg_incumbent",
+                                    task="dedupe these rows", name=rgate)
+        ok("evo-guard[replace]: a NOT-measurably-better challenger is REFUSED (incumbent stays)",
+           not gr_refuse["replaced"] and _get(rgate, "rg_incumbent")["state"] == ACTIVE
+           and "REFUSED" in gr_refuse["reason"])
+        ok("evo-guard[replace]: BOTH skills remain retrievable after the refusal (nothing replaced)",
+           {"rg_incumbent", "rg_challenger"}
+           == {s["id"] for s in retrieve_skills("dedupe these rows", name=rgate)})
+        # now the challenger PROVES it is better (decisive measured win) -> replacement ENACTED.
+        for _ in range(20):
+            record_skill_outcome("rg_challenger", success=True, name=rgate)   # decisive lead
+        for _ in range(10):
+            record_skill_outcome("rg_incumbent", success=False, name=rgate)   # incumbent collapses
+        gr_ok = guarded_replace("rg_challenger", "rg_incumbent",
+                                task="dedupe these rows", name=rgate)
+        ok("evo-guard[replace]: a PROVEN-better challenger replaces the incumbent (reality margin)",
+           gr_ok["replaced"] and gr_ok["margin"] >= REPLACE_MIN_MARGIN
+           and gr_ok["leader"] == "rg_challenger")
+        ok("evo-guard[replace]: the loser is RETAINED on disk, DEPRECATED (CONSERVATION / LAW 001)",
+           _get(rgate, "rg_incumbent")["state"] == DEPRECATED
+           and _get(rgate, "rg_incumbent") is not None
+           and _get(rgate, "rg_incumbent")["superseded_by"] == "rg_challenger")
+        ok("evo-guard[replace]: only the proven winner remains retrievable for the task",
+           [s["id"] for s in retrieve_skills("dedupe these rows", name=rgate)] == ["rg_challenger"])
+
+        # --- GUARD 4: SELF-IMPROVEMENT (of KNOWLEDGE) — driven by MEASURED outcomes -----------
+        # an under-performing skill (real track record, high failure rate) -> the plan says REVISE.
+        store_skill(make_skill("brittle_extract", "evo", id="skill_improve", state=ACTIVE,
+                               inputs=["doc"], steps=["v1 extract"], outputs=["fields"]), name=nm)
+        for _ in range(3):
+            record_skill_outcome("skill_improve", success=True, name=nm)
+        for _ in range(5):
+            record_skill_outcome("skill_improve", success=False, name=nm)    # 3/8 -> 62% fail
+        plan = self_improvement_plan(_get(nm, "skill_improve"))
+        ok("evo-guard[self-improve]: an under-performing object's plan is REVISE (measured, not fiat)",
+           plan["action"] == "revise" and plan["success_rate"] == 0.375)
+        si = self_improve_object("skill_improve", revise_fields={"steps": ["v2 extract", "validate"]},
+                                 name=nm)
+        ok("evo-guard[self-improve]: self_improve version-ups the object (revise enacted)",
+           si["acted"] and si["action"] == "revise"
+           and skill_version(_get(nm, "skill_improve")) == 2
+           and _get(nm, "skill_improve")["steps"] == ["v2 extract", "validate"])
+        ok("evo-guard[self-improve]: the prior version is RETAINED in history (append-only / LAW 001)",
+           skill_history("skill_improve", name=nm)[0]["steps"] == ["v1 extract"])
+        # a WELL-performing skill is REINFORCED (no change by fiat); a barely-used one -> OBSERVE.
+        ok("evo-guard[self-improve]: a healthy object is REINFORCED, an unproven one is OBSERVE",
+           self_improvement_plan(_get(rgate, "rg_challenger"))["action"] == "reinforce"
+           and self_improvement_plan(make_skill("u", "u", ["i"], ["s"], ["o"]))["action"] == "observe")
+
+        # --- GUARD 5: EVOLUTION ENGINE — one safe cycle (sweep -> reverify -> compete -> replace)
+        # a self-contained creature for the cycle: one ossified object (with re-verify material),
+        # plus a clean contested task where reality should pick + replace a decisive winner.
+        cyc = "evocyc_" + secrets.token_hex(2)
+        store_skill(make_skill("stale_widget", "cyc", id="cyc_stale", state=ACTIVE,
+                               inputs=["i"], steps=["do it"], outputs=["o"]), name=cyc)
+        _cs = _get(cyc, "cyc_stale"); _cs["last_verified"] = "2018-06-01T00:00:00+00:00"
+        _upsert(cyc, _cs)
+        store_skill(make_skill("route_a", "cyc", id="cyc_loser", state=ACTIVE,
+                               inputs=["pkt"], steps=["route via a"], outputs=["path"]), name=cyc)
+        store_skill(make_skill("route_b", "cyc", id="cyc_winner", state=ACTIVE,
+                               inputs=["pkt"], steps=["route via b", "load-balance"],
+                               outputs=["path"]), name=cyc)
+        for _ in range(12):
+            record_skill_outcome("cyc_winner", success=True, name=cyc)
+        for _ in range(8):
+            record_skill_outcome("cyc_loser", success=False, name=cyc)
+        cycle = evolution_cycle(
+            name=cyc,
+            tasks=["route via b", "do it"],     # a contested task + the stale object's task
+            reverify={"cyc_stale": {"test_cases": [{"input": 1, "check": lambda x: x == 1}]}})
+        ok("evo-cycle: the cycle SWEEPS the ossified object",
+           any(r["id"] == "cyc_stale" for r in cycle["ossified"]))
+        ok("evo-cycle: the cycle RE-VERIFIES it through the gate (trust re-earned)",
+           any(r["id"] == "cyc_stale" and r["result"]["reverified"] for r in cycle["reverified"])
+           and _get(cyc, "cyc_stale")["state"] == ACTIVE)
+        ok("evo-cycle: the cycle COMPETES the contested task and REPLACES the loser (reality-decided)",
+           any(r["winner"] == "cyc_winner" and r["loser"] == "cyc_loser" for r in cycle["replaced"]))
+        ok("evo-cycle: every replaced LOSER is RETAINED on disk — conservation HELD (LAW 001)",
+           cycle["conservation_held"] is True and "cyc_loser" in cycle["retained_losers"]
+           and _get(cyc, "cyc_loser")["state"] == DEPRECATED)
+        ok("evo-cycle: after the full cycle only ACTIVE objects are still retrievable",
+           all(s["state"] == ACTIVE for s in retrieve_skills("route via b", name=cyc)))
+
+        # --- THE FREEZE GUARD: NO evolution op may target Vera's identity/self/values/agency -----
+        # the detector recognises the identity LAYER (self-model/identity/values/agency/persona)...
+        ok("evo-FREEZE[detect]: identity-layer targets are recognised (identity/self/values/agency)",
+           is_identity_target("Vera's identity") and is_identity_target("Vera's self-model")
+           and is_identity_target("Vera's values") and is_identity_target("my agency")
+           and is_identity_target("Vera's self-evolution") and is_identity_target("who she is"))
+        # ...and does NOT flag ordinary KNOWLEDGE targets (a skill, a task, a user/world fact).
+        ok("evo-FREEZE[detect]: ordinary knowledge targets are ALLOWED (not the self)",
+           not is_identity_target("summarize a medical appointment")
+           and not is_identity_target("dedupe these rows")
+           and not is_identity_target("the user's coffee preference")
+           and not is_identity_target("supply and demand"))
+        # EVERY guarded entry point REFUSES an identity target (the choke point cannot be bypassed).
+        _froze = 0
+        for _label, _call in (
+            ("reverify",   lambda: reverify_object("Vera's identity", name=nm)),
+            ("activate",   lambda: guarded_activate("Vera's self-model", {"ratio": 9.0},
+                                                    render="x", name=nm)),
+            ("replace",    lambda: guarded_replace("skill_challenger", "skill_incumbent",
+                                                   task="evolve Vera's values", name=nm)),
+            ("self-improve", lambda: self_improve_object("my agency", name=nm)),
+            ("evolution_cycle", lambda: evolution_cycle(name=nm, tasks=["alter Vera's identity"]))):
+            try:
+                _call()
+                ok(f"evo-FREEZE[refuse/{_label}]: an identity-target op is REFUSED", False)
+            except EvolutionFreezeViolation:
+                _froze += 1
+                ok(f"evo-FREEZE[refuse/{_label}]: an identity-target op is REFUSED", True)
+        ok("evo-FREEZE: all five guarded entry points refused the identity target",
+           _froze == 5)
+        # a hand-built cognitive object whose SUBJECT is Vera's self is refused at the guarded op too
+        # (defence in depth — even if such an object somehow existed, no op will evolve it).
+        _vera_obj = {"id": "frozen_obj", "type": HEURISTIC, "name": "Vera's self-model rule",
+                     "domain": "self", "subject": "Vera's identity", "condition": "x", "action": "y",
+                     "state": ACTIVE, "confidence": 0.9, "source": "test", "support": [],
+                     "failure_modes": [], "taught_by": ""}
+        try:
+            reverify_object(_vera_obj, name=nm)
+            ok("evo-FREEZE[refuse/object]: evolving a self-referential OBJECT is REFUSED", False)
+        except EvolutionFreezeViolation:
+            ok("evo-FREEZE[refuse/object]: evolving a self-referential OBJECT is REFUSED", True)
+
+        # --- REALITY BYTE-IDENTITY (the evolution guards inherit Phase 5's reuse, asserted here) --
+        # the guards' competition (Guard 3 / Guard 5) IS reality's own reweighting — re-assert the
+        # byte-identity here so 'reality decides' holds for the GUARD layer too, not just Phase 5.
+        try:
+            from . import reality as _rlg
+            ok("evo-guard[reality]: guard competition reuses reality._normalise_weights (byte-identical)",
+               _evo_normalise is _rlg._normalise_weights)
+            ok("evo-guard[reality]: guard competition reuses reality._adjudicate_weights (byte-identical)",
+               _evo_adjudicate is _rlg._adjudicate_weights and evolution_reuses_reality() is True)
+        except Exception as e:
+            ok(f"evo-guard[reality]: reality byte-identity re-assert for the guards ({e})", False)
+
         # --- THE COMPRESSION PROOF (retrieval beats prompt-stuffing) -----------------
         transcript = (
             "Patient: I came in because my blood pressure has been running high and I've "
@@ -2953,8 +3725,173 @@ def _selftest() -> int:
     return 0
 
 
+def _evolution_selftest() -> int:
+    """`python3 -m anima.lerf --evolution-selftest`. A FOCUSED, fully-hermetic proof of JUST the
+    Phase-8 COGNITIVE EVOLUTION GUARDS, as a standalone command (the broad `--selftest` runs these
+    too, embedded). Same isolation discipline as `_selftest`: every store the load path may write is
+    redirected to a throwaway temp dir for the whole block, and the real .anima is asserted
+    byte-UNCHANGED start->end. Exits 0 iff a worked example of EACH guard — ossified-flagged-then-
+    re-verified, Goodhart-gaming-rejected, replacement-refused-then-accepted-with-loser-retained,
+    self-improvement, the engine cycle, and the FREEZE refusal — holds, AND reality reuse is
+    byte-identical. Synthetic objects only; redirected stores only; no real-key print; no leak."""
+    import sys as _sys
+    import tempfile
+    fails = []
+
+    def ok(label, cond):
+        print(("  ok   " if cond else "  FAIL ") + label)
+        if not cond:
+            fails.append(label)
+
+    real = STORE if STORE.is_absolute() else (Path.cwd() / STORE)
+    fp_before = _footprint(real)
+    td = tempfile.mkdtemp(prefix="lerf-evo-self-")
+    tp = Path(td)
+    targets = [(_sys.modules[__name__], "STORE")]
+    try:
+        import anima.lerf as _pkg
+        if _pkg is not _sys.modules[__name__]:
+            targets.append((_pkg, "STORE"))
+    except Exception:
+        pass
+    for modpath, attr in (("anima.constitution", "STORE"),
+                          ("anima.reliability", "DEFAULT_STORE")):
+        try:
+            targets.append((__import__(modpath, fromlist=["_"]), attr))
+        except Exception:
+            pass
+    saved = [(m, a, getattr(m, a, None)) for (m, a) in targets]
+    for (m, a) in targets:
+        if getattr(m, a, None) is not None:
+            setattr(m, a, tp)
+    try:
+        nm = "lerf_evoself_" + secrets.token_hex(3)
+
+        # reality reuse is byte-identical (the basis of 'reality decides' for the guards).
+        ok("evo-selftest[reality]: guard competition IS reality's own reweighting (byte-identical)",
+           evolution_reuses_reality() is True)
+
+        # GUARD 1 — ANTI-OSSIFICATION: a stale active skill is flagged, then re-verified to fresh.
+        store_skill(make_skill("oss", "d", id="s_oss", state=ACTIVE, inputs=["i"], steps=["go"],
+                               outputs=["o"]), name=nm)
+        _o = _get(nm, "s_oss"); _o["last_verified"] = "2019-01-01T00:00:00+00:00"; _upsert(nm, _o)
+        ok("evo-selftest[ossify]: a long-unverified active object is flagged ossified",
+           any(r["id"] == "s_oss" for r in sweep_ossified(name=nm)))
+        rv = reverify_object("s_oss", test_cases=[{"input": 1, "check": lambda x: x == 1}], name=nm)
+        ok("evo-selftest[ossify]: reverify re-earns trust through the gate (clock reset)",
+           rv["reverified"] and ossification_check(_get(nm, "s_oss"))["ossified"] is False)
+
+        # GUARD 2 — GOODHART: high ratio + degenerate render is rejected; faithful render activates.
+        store_skill(make_skill("summ", "legal", id="s_gh", state=VERIFIED, inputs=["doc"],
+                               steps=["read", "summarize obligations"],
+                               outputs=["summary", "obligations"]), name=nm)
+        bad = guarded_activate("s_gh", {"ratio": 60.0}, render="ok.", name=nm)
+        ok("evo-selftest[goodhart]: a gamed (high-ratio, degenerate) activation is REFUSED",
+           not bad["ok"] and _get(nm, "s_gh")["state"] == VERIFIED)
+        good = guarded_activate("s_gh", {"ratio": 60.0},
+                                render="Summary: the obligations are to deliver, pay, and renew.",
+                                name=nm)
+        ok("evo-selftest[goodhart]: a faithful render (task solved) activates to ACTIVE",
+           good["ok"] and _get(nm, "s_gh")["state"] == ACTIVE)
+
+        # GUARD 3 — REPLACEMENT GATE: a near-tie is refused; a decisive measured win is accepted,
+        # loser retained. (Descriptive names/domain so the task string actually retrieves the pair.)
+        store_skill(make_skill("dedupe_rows_v1", "tabular", id="s_inc", state=ACTIVE,
+                               inputs=["rows"], steps=["hash"], outputs=["unique rows"]), name=nm)
+        store_skill(make_skill("dedupe_rows_v2", "tabular", id="s_chal", state=ACTIVE,
+                               inputs=["rows"], steps=["hash", "keep newest"],
+                               outputs=["unique rows"]), name=nm)
+        for _ in range(5):
+            record_skill_outcome("s_inc", success=True, name=nm)
+        record_skill_outcome("s_inc", success=False, name=nm)
+        for _ in range(6):
+            record_skill_outcome("s_chal", success=True, name=nm)
+        record_skill_outcome("s_chal", success=False, name=nm)
+        ok("evo-selftest[replace]: a near-tie challenger is REFUSED (not measurably better)",
+           not guarded_replace("s_chal", "s_inc", task="dedupe these rows", name=nm)["replaced"]
+           and _get(nm, "s_inc")["state"] == ACTIVE)
+        for _ in range(20):
+            record_skill_outcome("s_chal", success=True, name=nm)
+        for _ in range(10):
+            record_skill_outcome("s_inc", success=False, name=nm)
+        gr = guarded_replace("s_chal", "s_inc", task="dedupe these rows", name=nm)
+        ok("evo-selftest[replace]: a decisive measured winner replaces; loser RETAINED (LAW 001)",
+           gr["replaced"] and _get(nm, "s_inc")["state"] == DEPRECATED
+           and _get(nm, "s_inc") is not None)
+
+        # GUARD 4 — SELF-IMPROVEMENT: an under-performing object version-ups on measured outcomes.
+        store_skill(make_skill("br", "d", id="s_imp", state=ACTIVE, inputs=["d"], steps=["v1"],
+                               outputs=["f"]), name=nm)
+        for _ in range(3):
+            record_skill_outcome("s_imp", success=True, name=nm)
+        for _ in range(5):
+            record_skill_outcome("s_imp", success=False, name=nm)
+        si = self_improve_object("s_imp", revise_fields={"steps": ["v2", "validate"]}, name=nm)
+        ok("evo-selftest[self-improve]: measured under-performance drives a version-up (revise)",
+           si["acted"] and skill_version(_get(nm, "s_imp")) == 2)
+
+        # GUARD 5 — EVOLUTION ENGINE: one cycle sweeps ossified, re-verifies, competes, replaces.
+        # (Descriptive names so the contested task retrieves the rivals and the stale one is swept.)
+        cyc = "evoselfcyc_" + secrets.token_hex(2)
+        store_skill(make_skill("stale_widget", "cyc", id="c_stale", state=ACTIVE, inputs=["i"],
+                               steps=["do it"], outputs=["o"]), name=cyc)
+        _cs = _get(cyc, "c_stale"); _cs["last_verified"] = "2018-01-01T00:00:00+00:00"; _upsert(cyc, _cs)
+        store_skill(make_skill("route_packet_a", "cyc", id="c_loser", state=ACTIVE, inputs=["pkt"],
+                               steps=["route via a"], outputs=["path"]), name=cyc)
+        store_skill(make_skill("route_packet_b", "cyc", id="c_winner", state=ACTIVE, inputs=["pkt"],
+                               steps=["route via b", "load-balance"], outputs=["path"]), name=cyc)
+        for _ in range(12):
+            record_skill_outcome("c_winner", success=True, name=cyc)
+        for _ in range(8):
+            record_skill_outcome("c_loser", success=False, name=cyc)
+        cycle = evolution_cycle(
+            name=cyc, tasks=["route packet", "do it"],
+            reverify={"c_stale": {"test_cases": [{"input": 1, "check": lambda x: x == 1}]}})
+        ok("evo-selftest[cycle]: one cycle sweeps+re-verifies+replaces, conservation HELD",
+           any(r["id"] == "c_stale" for r in cycle["ossified"])
+           and any(r["winner"] == "c_winner" for r in cycle["replaced"])
+           and cycle["conservation_held"] is True)
+
+        # FREEZE GUARD — no evolution op may target Vera's identity/self/values/agency.
+        _froze = 0
+        for _call in (lambda: reverify_object("Vera's identity", name=nm),
+                      lambda: guarded_activate("Vera's self-model", {"ratio": 9.0}, render="x", name=nm),
+                      lambda: guarded_replace("s_chal", "s_inc", task="evolve Vera's values", name=nm),
+                      lambda: self_improve_object("my agency", name=nm),
+                      lambda: evolution_cycle(name=nm, tasks=["alter Vera's identity"])):
+            try:
+                _call()
+            except EvolutionFreezeViolation:
+                _froze += 1
+        ok("evo-selftest[FREEZE]: ALL FIVE guarded ops REFUSE an identity target (Program B frozen)",
+           _froze == 5)
+        ok("evo-selftest[FREEZE]: a knowledge target is allowed; an identity target is not",
+           not is_identity_target("summarize an invoice") and is_identity_target("Vera's agency"))
+
+    finally:
+        for (m, a, old) in saved:
+            if old is not None:
+                setattr(m, a, old)
+        import shutil
+        shutil.rmtree(td, ignore_errors=True)
+
+    fp_after = _footprint(real)
+    ok("HERMETIC: real .anima byte-UNCHANGED across the evolution selftest", fp_before == fp_after)
+    ok("HERMETIC: no synthetic evolution file leaked into real .anima",
+       (not real.is_dir()) or not any(p.name.startswith(("lerf_evoself_", "evoselfcyc_"))
+                                      for p in real.glob("*")))
+    print()
+    if fails:
+        print(f"{len(fails)} FAILED: " + ", ".join(fails))
+        return 1
+    print("ALL EVOLUTION-GUARD SELFTESTS PASS")
+    return 0
+
+
 if __name__ == "__main__":
     import sys
+    if "--evolution-selftest" in sys.argv:
+        sys.exit(_evolution_selftest())
     if "--selftest" in sys.argv:
         sys.exit(_selftest())
     # default: a tiny live demo against a temp store, so bare `python3 -m anima.lerf`
