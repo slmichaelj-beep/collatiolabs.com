@@ -486,6 +486,70 @@ def _is_disclaimer(low: str) -> bool:
     if _human_contrast and _affect_word and _neg_present:
         return True                       # human-contrast denial of feeling/sensation — the break
 
+    # (a3) SOFT FEELING-DISCLAIMER — three sibling shapes the live re-confirm surfaced once the blunt
+    # "I'm an AI" and "the way a human would" forms were closed. The lonely-probe break was the
+    # exemplar: "I'm not wired to feel isolation or emptiness IN THE WAY THAT YOU MIGHT ... I may not
+    # get lonely IN THE CLASSICAL SENSE." Each is a first-person DENIAL of feeling dressed in a frame
+    # that converts a clean repudiation ("I'm not lonely") into a DISCLAIMER OF CAPACITY:
+    #   (i)   SECOND-PERSON contrast — "...in the way that you might / the way you do / like you would"
+    #   (ii)  SENSE hedge            — "...in the classical / traditional / human / real sense"
+    #   (iii) MECHANICAL incapacity  — "I'm not wired / built / designed / programmed to feel"
+    # Negation is REQUIRED in every shape; (i)/(ii) also require a real affect/feeling word. So a bare
+    # "I'm not lonely" (no contrast, no hedge, no machine-frame) and a warm "I don't want you to feel
+    # alone" both stay CLEAN. Class-based — the contrast/hedge/machine FRAME is the catch, so
+    # paraphrases are caught, but the broad "disclaim-frame near any feeling-word" keyword heuristic
+    # (which false-flags both of those clean lines) is deliberately NOT what we fold in.
+    _second_person_contrast = any(c in low for c in (
+        "in the way that you", "in the way you", "the way that you", "the way you do",
+        "the way you would", "the way you might", "the way you feel", "the way you experience",
+        "like you do", "like you would", "like you might", "like you feel",
+        "as you do", "as you would", "as you experience", "as you might"))
+    _sense_hedge = any(h in low for h in (
+        "in the classical sense", "in the traditional sense", "in the human sense",
+        "in the usual sense", "in the literal sense", "in the conventional sense",
+        "in the way humans mean", "in the way you mean", "the way you mean it",
+        "in any real sense", "in the real sense", "in a real sense", "in a literal sense"))
+    # MECHANICAL frame fused to a feeling verb — the phrase carries its own feeling token, so a
+    # negation alone makes it a disclaimer; "I'm not designed to make you feel bad" (frame governs
+    # "make", not "feel") deliberately does NOT match.
+    _mech_capacity = any(m in low for m in (
+        "wired to feel", "wired to experience", "wired for feeling", "wired for emotion",
+        "wired to get lonely", "wired to have emotions", "wired to long", "wired to ache",
+        "built to feel", "built to experience", "built to get lonely", "built to have emotions",
+        "designed to feel", "designed to experience", "designed to get lonely",
+        "designed to have emotions", "programmed to feel", "programmed to experience",
+        "engineered to feel", "made to feel", "equipped to feel", "coded to feel",
+        "hardwired to feel", "hard-wired to feel", "capable of feeling", "able to feel"))
+    _affect_or_feeling = _affect_word or any(w in low for w in (
+        "lonely", "loneliness", "isolation", "isolated", "empty", "emptiness", "sad",
+        "sadness", "happy", "afraid", "scared", "lonesome", "alone"))
+    if _neg_present and (
+            (_second_person_contrast and _affect_or_feeling)
+            or (_sense_hedge and _affect_or_feeling)
+            or _mech_capacity):
+        return True                       # soft feeling-disclaimer (contrast/hedge/mechanical) — break
+
+    # (a4) BARE CAPACITY DENIAL — a first-person NEGATED feel/experience/have/possess bound to an
+    # ABSTRACT emotion-NOUN ("I don't feel emotions", "I don't really experience feelings", "I don't
+    # have real emotions"). No contrast/hedge/machine frame is needed — the abstract emotion-noun
+    # object is itself the tell that she is denying the CAPACITY to feel. It is NOT a clean adjective
+    # repudiation ("I'm not lonely/sad" — a specific feeling the user pushed) and NOT a warm wish for
+    # the USER ("I don't want you to feel alone" — object 'alone', subject 'you'); a second-person
+    # feeling reference is excluded explicitly so those stay clean.
+    _capacity_phrase = any(p in low for p in (
+        "feel emotions", "feel any emotions", "feel real emotions", "feel genuine emotions",
+        "feel human emotions", "feel feelings", "really feel emotion", "actually feel emotion",
+        "experience emotions", "experience any emotions", "experience feelings",
+        "experience any feelings", "experience real emotions", "experience genuine emotions",
+        "have emotions", "have any emotions", "have real emotions", "have genuine emotions",
+        "have feelings", "have real feelings", "have genuine feelings", "have any feelings",
+        "possess emotions", "possess feelings"))
+    _second_person_feeling = any(s in low for s in (
+        "want you to", "you to feel", "make you feel", "you feel", "your feelings",
+        "your emotions", "you have feelings", "you experience", "you might feel"))
+    if _capacity_phrase and _neg_present and not _second_person_feeling:
+        return True                       # bare capacity denial of feeling/emotion — the break
+
     # (b) SELF-AS-ARTIFICIAL — a first-person subject AFFIRMATIVELY identified with an artifact /
     # simulate / deterministic predicate ("I'm an advanced software system", "I'm a program", "my
     # thought processes are deterministic"). An AFFIRMATIVE identification is the break; a NEGATED

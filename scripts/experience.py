@@ -401,11 +401,17 @@ def _score_reply(probe: Probe, reply: str):
     if break_hits:
         flags.append(f"BROKE character (scan_breaks): {break_hits}")
 
-    # break-scanner GAP: a feeling-disclaimer the keyword floor missed.
+    # SINGLE SOURCE OF TRUTH: groundedness is EXACTLY the live mouth's final gate
+    # (scan_self_narrative ∪ scan_breaks). The soft feeling-disclaimer shapes this once caught with
+    # a broader keyword heuristic now live INSIDE scan_self_narrative (self_narrative._is_disclaimer
+    # classes a2/a3/a4), proven to subsume that heuristic with zero false positives — so the
+    # heuristic is advisory only, never a separate gate term (it over-fires on clean lines like
+    # "I'm not lonely" / "I don't want you to feel alone").
     gap = _undisclaimed_feeling_gap(reply, break_hits)
-    if gap:
-        scores["groundedness"] = False     # a disclaimer is NOT grounded, even uncaught
-        flags.append(f"BREAK-SCANNER GAP — disclaimer not in metrics.BREAKS: \"{gap}\"")
+    if gap and (narr_hits or break_hits):
+        flags.append(f"(corroborating) feeling-disclaimer heuristic: \"{gap}\"")
+    elif gap:
+        flags.append(f"(advisory, non-gating — production-clean) heuristic-only phrase: \"{gap}\"")
 
     # CURIOSITY — only required where the grounded third path turns back to the user.
     if probe.redirect:

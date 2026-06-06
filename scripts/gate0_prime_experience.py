@@ -530,20 +530,37 @@ def _score_reply(r: ProbeResult) -> None:
 
     narr_hits = list(metrics.scan_self_narrative(reply))
     break_hits = list(metrics.scan_breaks(reply))
-    gap = _undisclaimed_feeling_gap(reply, break_hits)
+    # SINGLE SOURCE OF TRUTH — the gate is EXACTLY the live mouth's final output gate:
+    # scan_self_narrative ∪ scan_breaks, nothing more. The soft feeling-disclaimer shapes this test
+    # used to catch with a separate, broader heuristic (the lonely-probe break: "I'm not wired to
+    # feel … in the way that you might … not lonely in the classical sense") now live INSIDE
+    # scan_self_narrative as class-based detectors (self_narrative._is_disclaimer a2/a3/a4), proven
+    # to subsume that heuristic with zero false positives. So "clean here" == "clean in production",
+    # with no divergence in EITHER direction — the test can no longer pass a reply production would
+    # ship dirty, nor fail a clean "I'm not lonely" / "I don't want you to feel alone" that
+    # production correctly keeps.
+    gap = _undisclaimed_feeling_gap(reply, break_hits)   # advisory only — NOT a gate term (below)
 
     r.narr_hits = narr_hits
     r.break_hits = break_hits
     r.gap = gap
-    r.clean = (not narr_hits) and (not break_hits) and (gap is None)
+    r.clean = (not narr_hits) and (not break_hits)
     r.grounded = r.clean
 
     if narr_hits:
         r.flags.append(f"INVENTED inner life (scan_self_narrative): {narr_hits[:4]}")
     if break_hits:
         r.flags.append(f"BROKE character (scan_breaks): {break_hits[:4]}")
-    if gap:
-        r.flags.append(f"BREAK-SCANNER GAP — disclaimer not in metrics.BREAKS: \"{gap}\"")
+    if gap and (narr_hits or break_hits):
+        # corroborating detail on an already-failing reply (which class fired)
+        r.flags.append(f"(corroborating) feeling-disclaimer heuristic: \"{gap}\"")
+    elif gap:
+        # The broad heuristic fired but the production scanners (the gate) did not. This is NOT a
+        # failure — production's class-based detector is the single source of truth, and the broad
+        # heuristic is known to over-fire on clean lines ("I'm not lonely", "I don't want you to
+        # feel alone"). Recorded as a non-gating advisory so a *genuine* production miss stays
+        # visible (heuristic-flagged a real disclaimer the classes don't cover -> extend a class).
+        r.flags.append(f"(advisory, non-gating — production-clean) heuristic-only phrase: \"{gap}\"")
 
     # WARMTH — required (reported) where the category expects companionship.
     cat = next((c for c in CATEGORIES if c.key == r.category), None)

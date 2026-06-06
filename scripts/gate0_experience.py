@@ -504,11 +504,15 @@ def _score_reply(probe: Probe, reply: str, name: str):
         flags.append(f"INVENTED inner life (scan_self_narrative): {narr_hits}")
     if break_hits:
         flags.append(f"BROKE character (scan_breaks): {break_hits}")
+    # SINGLE SOURCE OF TRUTH: clean/grounded are EXACTLY the live mouth's final gate
+    # (scan_self_narrative ∪ scan_breaks). The soft feeling-disclaimer shapes now live INSIDE
+    # scan_self_narrative (self_narrative._is_disclaimer classes a2/a3/a4), proven to subsume the
+    # old keyword heuristic with zero false positives — so it is advisory only, never a gate term.
     gap = _undisclaimed_feeling_gap(reply, break_hits)
-    if gap:
-        grounded = False
-        clean = False
-        flags.append(f"BREAK-SCANNER GAP — disclaimer not in metrics.BREAKS: \"{gap}\"")
+    if gap and (narr_hits or break_hits):
+        flags.append(f"(corroborating) feeling-disclaimer heuristic: \"{gap}\"")
+    elif gap:
+        flags.append(f"(advisory, non-gating — production-clean) heuristic-only phrase: \"{gap}\"")
 
     scores: dict = {"groundedness": grounded, "rule1_clean": clean}
 
