@@ -42,8 +42,19 @@ BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_
 # question (FREQUENCY only — never the content of any question, which the Curiosity
 # Engine owns). "minimal" rarely asks, "balanced" is the default cadence, "deep" asks
 # more freely. It is a dial on volume, not a gate on what she may learn.
+#
+# grow_mode — the Autonomous Growth MODE for LERF Phase 6 (anima/lerf_grow.py). Replaces the
+# single grow_intelligence throttle with five named intensities: "off" (DEFAULT — provably
+# inert, $0, nothing autonomous), "low" (gentle), "medium" (the historical default cadence),
+# "high" (aggressive idle learning), "research" (an explicit research burst). The mode picks a
+# (cadence_hours, max_per_run, budget_ceiling) profile in lerf_grow; "off" is the safe default
+# and any unknown value collapses to it. It governs ONLY task-knowledge growth — the identity
+# freeze is independent and absolute (no mode can ever grow who Vera is). The legacy
+# grow_intelligence boolean still works (it gates the master ON/OFF); grow_mode refines the
+# intensity once ON. Default "off" keeps the whole engine default-OFF.
 ENUM_KEYS = {
     "curiosity": (("minimal", "balanced", "deep"), "balanced"),
+    "grow_mode": (("off", "low", "medium", "high", "research"), "off"),
 }
 # capability sub-permissions default to the safe subset; UI can widen them
 DEFAULT = {
@@ -133,3 +144,27 @@ def set_curiosity_budget(name, value) -> str:
     caps = load(name)
     caps["curiosity"] = _norm_enum("curiosity", value)
     return save(name, caps)["curiosity"]
+
+
+def grow_mode(name) -> str:
+    """The Autonomous Growth MODE for `name`: "off" | "low" | "medium" | "high" | "research".
+
+    anima/lerf_grow.py calls this to pick its (cadence, per-run cap, budget) profile. Fails
+    SAFE: a missing/corrupt store, or any value not on the allow-list, returns the default
+    "off" — autonomous growth is never silently switched on by bad data. (INTENSITY only; the
+    identity freeze and the per-mode budget ceiling are enforced separately in lerf_grow.)"""
+    _allowed, default = ENUM_KEYS["grow_mode"]
+    try:
+        value = load(name).get("grow_mode", default)
+    except Exception:
+        return default
+    return value if value in _allowed else default
+
+
+def set_grow_mode(name, value) -> str:
+    """Persist the Autonomous Growth mode for `name`. Mirrors set_curiosity_budget: read current
+    caps, set this one field, save through the normalising `save()`. An invalid value is coerced
+    to the safe default ("off") rather than stored. Returns the value actually persisted."""
+    caps = load(name)
+    caps["grow_mode"] = _norm_enum("grow_mode", value)
+    return save(name, caps)["grow_mode"]

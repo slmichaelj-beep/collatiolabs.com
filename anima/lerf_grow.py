@@ -137,9 +137,109 @@ def set_enabled(name: str, value: bool) -> bool:
 # Both are conservative defaults; the point is that "enabled" is still BOUNDED, never a firehose.
 # ===================================================================================
 #: minimum hours between autonomous learning runs (cadence bound — caps frequency).
+#: This is the Medium-mode cadence and the historical default; the five MODES below refine it.
 MIN_HOURS_BETWEEN_RUNS = 6.0
 #: at most this many curriculum items distilled in a single idle window (per-run/budget cap).
+#: This is the Medium-mode per-run cap and the historical default.
 MAX_SKILLS_PER_RUN = 1
+
+
+# ===================================================================================
+# THE FIVE MODES — Off | Low | Medium | High | Research. The single throttle
+# (MIN_HOURS_BETWEEN_RUNS + MAX_SKILLS_PER_RUN) is generalised into five NAMED intensities, each a
+# transparent (cadence_hours, max_per_run, budget_ceiling) PROFILE. The mode is stored via the
+# existing caps mechanism (caps.grow_mode, an enum exactly like the curiosity budget), default
+# "off". should_learn_now() honours the ACTIVE mode's cadence + cap, and the per-mode
+# budget_ceiling bounds real spend on the --live path (on top of cloud's own daily budget).
+#
+# THE LINE THE MODES DRAW. A mode is a dial on the INTENSITY of TASK-KNOWLEDGE growth — how often
+# and how much. It is NEVER a dial on WHAT may be grown: the identity freeze is independent and
+# absolute, enforced by the curriculum guard + the freeze-guarded factories regardless of mode. No
+# mode — not even Research — can grow Vera's identity, values, agency, or inner life.
+#
+#   Off      — provably INERT. cadence ∞, cap 0, budget 0. Nothing autonomous runs; $0; the SAME
+#              no-op the legacy default-OFF gave. THE DEFAULT.
+#   Low      — gentle background trickle: at most 1 item every 12h. For "keep learning, quietly".
+#   Medium   — the historical default cadence: 1 item every 6h. Steady idle-time growth.
+#   High     — aggressive idle learning: several items, as often as hourly. For an active build-out.
+#   Research — an explicit research BURST: many items, near-continuous, with a higher budget
+#              ceiling — for a deliberate research session the founder kicks off, not a standing
+#              posture. Still bounded (it is a burst with a ceiling, never an unbounded firehose),
+#              and still TASK-KNOWLEDGE only.
+# ===================================================================================
+MODE_OFF = "off"
+MODE_LOW = "low"
+MODE_MEDIUM = "medium"
+MODE_HIGH = "high"
+MODE_RESEARCH = "research"
+
+#: the canonical mode list, in increasing intensity. Off is first (the default).
+MODES = (MODE_OFF, MODE_LOW, MODE_MEDIUM, MODE_HIGH, MODE_RESEARCH)
+
+#: each mode -> its transparent profile. cadence_hours: the minimum gap between runs (∞ = never).
+#: max_per_run: how many curriculum items / source materials one idle window may grow.
+#: budget_ceiling: the per-DAY USD ceiling this mode authorises for real teacher spend (an upper
+#: bound layered ON TOP of cloud.over_budget(); Off authorises $0 — provably inert spend).
+GROW_MODES: dict = {
+    MODE_OFF:      {"cadence_hours": float("inf"), "max_per_run": 0,  "budget_ceiling": 0.0,
+                    "label": "Off — provably inert ($0, nothing autonomous)"},
+    MODE_LOW:      {"cadence_hours": 12.0,         "max_per_run": 1,  "budget_ceiling": 0.10,
+                    "label": "Low — gentle trickle (1 / 12h)"},
+    MODE_MEDIUM:   {"cadence_hours": 6.0,          "max_per_run": 1,  "budget_ceiling": 0.50,
+                    "label": "Medium — steady idle growth (1 / 6h) [historical default]"},
+    MODE_HIGH:     {"cadence_hours": 1.0,          "max_per_run": 3,  "budget_ceiling": 2.00,
+                    "label": "High — aggressive idle learning (several / hour)"},
+    MODE_RESEARCH: {"cadence_hours": 0.0,          "max_per_run": 8,  "budget_ceiling": 10.00,
+                    "label": "Research — explicit aggressive burst (many, near-continuous)"},
+}
+
+# The caps enum key the mode is persisted under (caps.ENUM_KEYS['grow_mode'], default 'off').
+MODE_FLAG = "grow_mode"
+
+
+def get_mode(name: str = "default") -> str:
+    """The ACTIVE Autonomous Growth mode for `name` — one of MODES. Fails SAFE to Off.
+
+    THE TWO-GATE MAPPING (back-compat with the legacy switch). The master ON/OFF is still the
+    `grow_intelligence` boolean (so every existing caller, and the existing --enable/--disable,
+    keeps working). The mode REFINES the intensity once ON:
+      * grow_intelligence OFF  -> Off, ALWAYS (the master switch wins; mode is moot). Provably inert.
+      * grow_intelligence ON, grow_mode unset/'off' -> Medium (the historical default when the
+        legacy switch alone was flipped ON — so old behaviour is preserved exactly).
+      * grow_intelligence ON, grow_mode set -> that mode.
+    Any error reading either flag returns Off, so the engine can never escalate by accident."""
+    try:
+        if not is_enabled(name):
+            return MODE_OFF                                  # master switch OFF -> Off, full stop
+        m = caps.grow_mode(name)
+        if m == MODE_OFF:
+            # legacy switch ON but no explicit mode -> the historical Medium default.
+            return MODE_MEDIUM
+        return m if m in GROW_MODES else MODE_MEDIUM
+    except Exception:
+        return MODE_OFF
+
+
+def set_mode(name: str, mode: str) -> str:
+    """Persist the Autonomous Growth mode for `name` (the Settings mode-picker write path). Writes
+    the caps `grow_mode` enum AND keeps the master `grow_intelligence` switch in lockstep so the
+    two never disagree: setting a non-Off mode turns the master switch ON; setting Off turns it OFF
+    (provably inert). Returns the mode actually in force (via get_mode, so the mapping is honoured).
+    An unknown mode coerces to Off (fail-safe)."""
+    mode = mode if mode in GROW_MODES else MODE_OFF
+    caps.set_grow_mode(name, mode)
+    # keep the master ON/OFF switch consistent with the chosen intensity.
+    set_enabled(name, mode != MODE_OFF)
+    return get_mode(name)
+
+
+def mode_profile(name: str = "default") -> dict:
+    """The active mode's full profile {mode, cadence_hours, max_per_run, budget_ceiling, label} —
+    the single source of truth the scheduler and the live-budget guard both read."""
+    mode = get_mode(name)
+    prof = dict(GROW_MODES[mode])
+    prof["mode"] = mode
+    return prof
 
 
 def _state_path(name: str) -> Path:
@@ -179,28 +279,34 @@ def _hours_since(iso: str | None) -> float:
 
 def should_learn_now(name: str = "default", *, idle: bool, now_hours_since=None) -> dict:
     """STAGE 1: may the autonomous loop run right now? Returns a transparent decision dict
-    {ok, reason, enabled, idle, hours_since_last, cadence_hours}. ok=True ONLY when:
-      * the switch is ON (default-OFF gate), AND
+    {ok, reason, enabled, mode, idle, hours_since_last, cadence_hours, max_per_run}. ok=True ONLY when:
+      * the active MODE is not Off (Off — the default — is provably inert: cadence ∞, cap 0), AND
       * the caller reports idle time (never mid-conversation), AND
-      * at least MIN_HOURS_BETWEEN_RUNS have passed since the last run (cadence bound).
+      * at least the ACTIVE MODE's cadence_hours have passed since the last run (cadence bound).
+    The cadence + per-run cap come from the active mode's profile (mode_profile), so the bound
+    tightens/loosens with the mode (Off ∞ / Low 12h / Medium 6h / High 1h / Research 0h).
     `now_hours_since` is an injection seam for the hermetic test; production reads the state file."""
-    enabled = is_enabled(name)
+    prof = mode_profile(name)
+    mode = prof["mode"]
+    cadence = float(prof["cadence_hours"])
+    cap = int(prof["max_per_run"])
+    enabled = mode != MODE_OFF                              # Off mode == the inert default
     hours = (now_hours_since if now_hours_since is not None
              else _hours_since(_load_state(name).get("last_run")))
+    base = {"enabled": enabled, "mode": mode, "idle": idle, "hours_since_last": hours,
+            "cadence_hours": cadence, "max_per_run": cap}
     if not enabled:
-        return {"ok": False, "reason": "grow_intelligence is OFF (default) — no autonomous "
-                "learning", "enabled": False, "idle": idle, "hours_since_last": hours,
-                "cadence_hours": MIN_HOURS_BETWEEN_RUNS}
+        return {**base, "ok": False,
+                "reason": "Grow Intelligence mode is Off (default) — no autonomous learning ($0)"}
     if not idle:
-        return {"ok": False, "reason": "not idle — autonomous learning never runs mid-"
-                "conversation", "enabled": True, "idle": idle, "hours_since_last": hours,
-                "cadence_hours": MIN_HOURS_BETWEEN_RUNS}
-    if hours < MIN_HOURS_BETWEEN_RUNS:
-        return {"ok": False, "reason": f"cadence: only {hours:.1f}h since last run "
-                f"(< {MIN_HOURS_BETWEEN_RUNS}h minimum)", "enabled": True, "idle": idle,
-                "hours_since_last": hours, "cadence_hours": MIN_HOURS_BETWEEN_RUNS}
-    return {"ok": True, "reason": "enabled, idle, and past the cadence gap", "enabled": True,
-            "idle": idle, "hours_since_last": hours, "cadence_hours": MIN_HOURS_BETWEEN_RUNS}
+        return {**base, "ok": False,
+                "reason": "not idle — autonomous learning never runs mid-conversation"}
+    if hours < cadence:
+        return {**base, "ok": False,
+                "reason": f"cadence: only {hours:.1f}h since last run (< {cadence}h "
+                          f"for mode {mode!r})"}
+    return {**base, "ok": True,
+            "reason": f"mode {mode!r}: enabled, idle, and past the {cadence}h cadence gap"}
 
 
 # ===================================================================================
@@ -400,7 +506,10 @@ def run_idle_cycle(name: str = "default", *, idle: bool = True, teacher=None,
                           "allowed) — nothing grown"}
 
     teacher_id = f"{getattr(chosen, 'provider', '?')}:{getattr(chosen, 'model', '?')}"
-    curriculum = build_curriculum(name, limit=MAX_SKILLS_PER_RUN)
+    # the per-run cap is the ACTIVE MODE's (Off 0 / Low 1 / Medium 1 / High 3 / Research 8) —
+    # the decision already carries it. This is how a mode bounds how much one window grows.
+    cap = int(decision.get("max_per_run", MAX_SKILLS_PER_RUN))
+    curriculum = build_curriculum(name, limit=cap)
     grown = [grow_one(item, chosen, name=name) for item in curriculum]
     if record:
         st = _load_state(name)
@@ -416,28 +525,124 @@ def run_idle_cycle(name: str = "default", *, idle: bool = True, teacher=None,
 
 
 # ===================================================================================
+# LEARNING SOURCES — grow KNOWLEDGE from material BEYOND a teacher model. The Teacher Models source
+# is the curriculum loop above (run_idle_cycle, via lerf_distill). The OTHER sources —
+# Books / Documents / Conversations / Reality Outcomes / Personal Experience — live in
+# anima/sources.py: each takes raw MATERIAL, distills a candidate, runs it through the SAME gate,
+# and stamps the source. grow_from_source() drives ONE of those sources over supplied material,
+# under the SAME mode/idle/cadence discipline as the curriculum loop:
+#   * Off mode (the default) -> provably inert: nothing ingested, nothing grown, $0.
+#   * the active mode's per-run cap bounds how many materials one window ingests.
+#   * the text sources need a teacher (stub in selftest; one CloudTeacher on --live, budget-guarded);
+#     the reality + personal-experience sources are model-free and $0 by construction.
+# The FREEZE is enforced inside sources.py (the off-scope guard for text; the freeze-guarded
+# factories for personal experience) — no mode can lift it.
+# ===================================================================================
+def grow_from_source(source_kind: str, material, *, name: str = "default", idle: bool = True,
+                     teacher=None, allow_cloud: bool = False, now_hours_since=None,
+                     record: bool = True, **source_kwargs) -> dict:
+    """Grow knowledge from a NON-curriculum learning SOURCE. `source_kind` is one of
+    sources.SOURCE_KINDS; `material` is the source's material (a book excerpt / document /
+    transcript / resolved-learning record(s) / captured-experience record(s)). Returns a
+    transparent trace {ran, enabled, mode, decision, source_kind, ingest, grown, reason}.
+
+    DEFAULT-OFF, PROVABLY INERT: if the mode is Off (or not idle, or inside the cadence gap) it
+    returns ran=False having ingested NOTHING — $0, no store write. When it does run, it caps the
+    material at the active mode's max_per_run, hands the source the material (and the teacher, for
+    text sources), and records the run. Every grown object is gated + source-stamped inside
+    sources.py; this is the throttle + the audit wrapper, not a second gate."""
+    from . import sources                                   # deferred: the OFF path never imports it
+    decision = should_learn_now(name, idle=idle, now_hours_since=now_hours_since)
+    if not decision["ok"]:
+        # THE INERT PATH: nothing ingested, nothing grown, nothing written, $0.
+        return {"ran": False, "enabled": decision["enabled"], "mode": decision["mode"],
+                "decision": decision, "source_kind": source_kind, "ingest": None, "grown": [],
+                "reason": decision["reason"]}
+    src = sources.get_source(source_kind)
+    if src is None:
+        return {"ran": False, "enabled": True, "mode": decision["mode"], "decision": decision,
+                "source_kind": source_kind, "ingest": None, "grown": [],
+                "reason": f"unknown source kind {source_kind!r} (one of {list(sources.SOURCE_KINDS)})"}
+
+    # bound the material to the active mode's per-run cap (a list of materials -> at most cap items;
+    # a single material -> one). This is how a mode throttles source ingestion just like curriculum.
+    cap = max(0, int(decision.get("max_per_run", MAX_SKILLS_PER_RUN)))
+    capped = material[:cap] if isinstance(material, list) else material
+    # the text sources need a teacher; if cloud is allowed and none supplied, select the one
+    # CloudTeacher (budget-guarded at the --live call site). Model-free sources ignore it.
+    chosen = teacher
+    if chosen is None and allow_cloud and source_kind in (
+            sources.SOURCE_TEACHER, sources.SOURCE_BOOK, sources.SOURCE_DOCUMENT,
+            sources.SOURCE_CONVERSATION):
+        chosen = select_teacher(name, allow_cloud=True)
+
+    ingest = src.ingest(capped, name=name, teacher=chosen, **source_kwargs)
+    grown = ingest.get("grown", [])
+    if record:
+        st = _load_state(name)
+        st["last_run"] = _now()
+        st["last_source"] = source_kind
+        st["last_source_grown"] = [g.get("object_id") for g in grown if g.get("ok")]
+        _save_state(name, st)
+
+    n_ok = sum(1 for g in grown if g.get("ok"))
+    return {"ran": True, "enabled": True, "mode": decision["mode"], "decision": decision,
+            "source_kind": source_kind, "ingest": ingest, "grown": grown,
+            "reason": f"[{source_kind}] grew {n_ok}/{len(grown)} object(s) to active "
+                      f"({ingest.get('reason')})"}
+
+
+def render_source_cycle(trace: dict) -> str:
+    """Render a grow_from_source() trace as a narrated walkthrough — the worked story of learning
+    one batch of material from one source. Pure formatting; safe on any trace shape."""
+    L = []
+    if not trace.get("ran"):
+        L.append(f"SOURCE CYCLE [{trace.get('source_kind')}]: did not run — {trace.get('reason')}")
+        return "\n".join(L)
+    L.append(f"SOURCE CYCLE [{trace.get('source_kind')}] (mode {trace.get('mode')}): "
+             f"{trace.get('reason')}")
+    for g in trace.get("grown", []):
+        head = "GREW -> ACTIVE" if g.get("ok") else "did not activate"
+        L.append(f"  {head}: {g.get('name')!r} [{g.get('type')}] — {g.get('reason')}")
+        src = g.get("source") or {}
+        if src.get("source_kind"):
+            L.append(f"    source: {src.get('source_kind')} :: "
+                     f"{(src.get('source_material') or '')[:70]}")
+    return "\n".join(L)
+
+
+# ===================================================================================
 # STATUS — `--status`: show the toggle state + WHAT THE ENGINE WOULD LEARN NEXT (the curriculum)
 # WITHOUT doing it. No teacher, no cloud, no spend, no write. This is the founder's window into a
 # default-OFF engine: "if I turned this on, here is exactly what it would try to learn, and why".
 # ===================================================================================
 def status(name: str = "default") -> dict:
-    """A read-only snapshot: the switch state, the active-skill coverage, the would-be curriculum
-    (the gaps it WOULD learn next), and the cadence/cap bounds. Pure read — builds the curriculum
-    WITHOUT distilling anything, so calling --status on an OFF engine stays $0 and inert."""
+    """A read-only snapshot: the switch state, the ACTIVE MODE + all five mode profiles, the
+    learning SOURCES, the active-skill coverage, the would-be curriculum (the gaps it WOULD learn
+    next), and the active mode's cadence/cap bounds. Pure read — builds the curriculum WITHOUT
+    distilling anything, so calling --status on an Off engine stays $0 and inert."""
     enabled = is_enabled(name)
+    prof = mode_profile(name)
     covered = sorted(active_domains(name))
-    curriculum = build_curriculum(name, limit=MAX_SKILLS_PER_RUN)
+    cap = int(prof["max_per_run"])
+    curriculum = build_curriculum(name, limit=max(1, cap))   # show ≥1 even in Off, as a preview
     # also show the next few beyond the per-run cap, so the founder sees the full queued runway.
     runway = build_curriculum(name, limit=len(CURRICULUM_CATALOGUE))
     last = _load_state(name).get("last_run")
+    from . import sources
     return {
         "creature": name,
         "grow_intelligence_enabled": enabled,
         "cap_flag": CAP_FLAG,
+        "mode": prof["mode"],                      # the ACTIVE mode (Off by default)
+        "mode_label": prof["label"],
+        "modes": {m: GROW_MODES[m] for m in MODES},   # the full five-mode profile table
+        "learning_sources": list(sources.SOURCE_KINDS),
         "active_skill_count": len(lerf.all_skills(name)),
         "covered_domains": covered,
-        "cadence_hours": MIN_HOURS_BETWEEN_RUNS,
-        "max_skills_per_run": MAX_SKILLS_PER_RUN,
+        "cadence_hours": prof["cadence_hours"],    # the ACTIVE mode's cadence
+        "max_skills_per_run": cap,                 # the ACTIVE mode's per-run cap
+        "budget_ceiling": prof["budget_ceiling"],  # the ACTIVE mode's daily spend ceiling
         "last_run": last,
         "would_learn_next": curriculum,            # what THIS idle window would grow
         "queued_runway": runway,                   # the full prioritized gap list
@@ -446,20 +651,36 @@ def status(name: str = "default") -> dict:
 
 def render_status(snap: dict) -> str:
     """Render a status() snapshot as a human-readable panel — the Settings/CLI view of a default-
-    OFF engine. Pure formatting."""
+    OFF engine, now with the five-mode picker and the learning sources. Pure formatting."""
     L = []
-    on = snap.get("grow_intelligence_enabled")
+    mode = snap.get("mode", MODE_OFF)
+    on = mode != MODE_OFF
     box = "[x]" if on else "[ ]"
-    L.append(f"{box} Grow Intelligence — {'ON (opt-in active)' if on else 'OFF (default)'}")
-    L.append(f"    setting: caps flag {snap.get('cap_flag')!r} on creature "
-             f"{snap.get('creature')!r}")
+    L.append(f"{box} Grow Intelligence — MODE: {mode.upper()}  "
+             f"({'active' if on else 'OFF — the default'})")
+    L.append(f"    setting: caps mode {MODE_FLAG!r} (+ master flag {snap.get('cap_flag')!r}) on "
+             f"creature {snap.get('creature')!r}")
+    # the five-mode picker — every intensity + its profile, the active one marked.
+    L.append("    MODES (intensity dial — TASK-KNOWLEDGE only; the identity freeze is absolute "
+             "in every mode):")
+    for m in MODES:
+        prof = (snap.get("modes") or {}).get(m, GROW_MODES[m])
+        marker = " <- active" if m == mode else ""
+        cad = prof["cadence_hours"]
+        cad_s = "never" if cad == float("inf") else f"{cad}h"
+        L.append(f"      {'(x)' if m == mode else '( )'} {m:<8} cadence {cad_s:<6} "
+                 f"cap {prof['max_per_run']}/run  budget ${prof['budget_ceiling']:.2f}/day"
+                 f"{marker}")
     if not on:
-        L.append("    OFF -> the autonomous learning loop is INERT: no teacher is interviewed, "
-                 "no paid call is made, no skill is grown. $0.")
+        L.append("    Off -> the autonomous learning loop is INERT: no teacher is interviewed, "
+                 "no source is ingested, no paid call is made, nothing is grown. $0.")
+    L.append(f"    learning sources: {', '.join(snap.get('learning_sources') or [])}")
     L.append(f"    active skills: {snap.get('active_skill_count')} across domains "
              f"{', '.join(snap.get('covered_domains') or []) or '(none)'}")
-    L.append(f"    bounds: at most {snap.get('max_skills_per_run')} skill/run, "
-             f"min {snap.get('cadence_hours')}h between runs; last run "
+    cad = snap.get("cadence_hours")
+    cad_s = "never" if cad == float("inf") else f"min {cad}h"
+    L.append(f"    active bounds: at most {snap.get('max_skills_per_run')} item/run, "
+             f"{cad_s} between runs, ${snap.get('budget_ceiling', 0.0):.2f}/day ceiling; last run "
              f"{snap.get('last_run') or 'never'}")
     cur = snap.get("would_learn_next") or []
     L.append(f"    WOULD LEARN NEXT ({len(cur)} this window){' — if you turned it on' if not on else ''}:")
@@ -485,11 +706,13 @@ def render_status(snap: dict) -> str:
 # ===================================================================================
 def run_live_once(name: str = "default") -> int:
     """Run ONE real autonomous grow cycle for `name` via the single configured cloud teacher.
-    Refuses (non-zero) unless: the switch is ON, cloud is configured, and we are under budget.
-    Returns 0 iff at least one curriculum item certified to ACTIVE."""
-    if not is_enabled(name):
-        print(f"refused: [ ] Grow Intelligence is OFF for {name!r}. This is the default. "
-              f"Enable it explicitly first:  python3 -m anima.lerf_grow --enable")
+    Refuses (non-zero) unless: the mode is not Off, cloud is configured, and we are under budget.
+    Returns 0 iff at least one curriculum item certified to ACTIVE. The active mode's per-run cap
+    bounds how many items this one cycle grows (Off refuses outright)."""
+    prof = mode_profile(name)
+    if prof["mode"] == MODE_OFF:
+        print(f"refused: Grow Intelligence mode is Off for {name!r}. This is the default ($0, "
+              f"inert). Pick a mode first:  python3 -m anima.lerf_grow --mode medium")
         return 2
     from . import cloud
     if cloud.over_budget():
@@ -502,8 +725,9 @@ def run_live_once(name: str = "default") -> int:
               "Set a cloud provider+key first; --live makes a paid call.")
         return 4
     print(f"LIVE autonomous grow cycle for {name!r} via {teacher.provider}:{teacher.model} "
-          f"(at most {MAX_SKILLS_PER_RUN} skill this run, one paid call per interview)…\n")
-    # bypass the cadence gate for an explicitly-triggered one-shot; the switch + budget still hold.
+          f"(mode {prof['mode']}: at most {prof['max_per_run']} skill(s) this run, "
+          f"${prof['budget_ceiling']:.2f}/day ceiling; one paid call per interview)…\n")
+    # bypass the cadence gate for an explicitly-triggered one-shot; the mode + budget still hold.
     trace = run_idle_cycle(name, idle=True, teacher=teacher, allow_cloud=True,
                            now_hours_since=float("inf"))
     print(render_cycle(trace))
@@ -683,6 +907,79 @@ def _selftest() -> int:
         ok("OFF: status() did not create a grow-state file (pure read)",
            not (tp / f"{nm}.grow.json").exists())
 
+        # ===================== (a2) THE FIVE MODES — profiles + Off-inert + cadence ============
+        # the five modes exist with the right shape, in increasing intensity, Off first (default).
+        ok("modes: exactly five modes Off|Low|Medium|High|Research",
+           MODES == (MODE_OFF, MODE_LOW, MODE_MEDIUM, MODE_HIGH, MODE_RESEARCH)
+           and set(GROW_MODES) == set(MODES))
+        ok("modes: every mode has a (cadence_hours, max_per_run, budget_ceiling) profile",
+           all(all(k in GROW_MODES[m] for k in ("cadence_hours", "max_per_run", "budget_ceiling"))
+               for m in MODES))
+        # Off is provably inert: cadence ∞, cap 0, budget 0.
+        ok("modes[Off]: provably inert profile — cadence ∞, cap 0, budget $0",
+           GROW_MODES[MODE_OFF]["cadence_hours"] == float("inf")
+           and GROW_MODES[MODE_OFF]["max_per_run"] == 0
+           and GROW_MODES[MODE_OFF]["budget_ceiling"] == 0.0)
+        # intensity is monotonic non-decreasing in cap + budget, and cadence shrinks as it rises.
+        caps_seq = [GROW_MODES[m]["max_per_run"] for m in MODES]
+        bud_seq = [GROW_MODES[m]["budget_ceiling"] for m in MODES]
+        cad_seq = [GROW_MODES[m]["cadence_hours"] for m in MODES]
+        ok("modes: per-run cap is non-decreasing Off->Research (rising intensity)",
+           caps_seq == sorted(caps_seq) and caps_seq[0] == 0 and caps_seq[-1] >= 3)
+        ok("modes: budget ceiling is non-decreasing Off->Research",
+           bud_seq == sorted(bud_seq) and bud_seq[0] == 0.0)
+        ok("modes: cadence shrinks Off->Research (more frequent at higher intensity)",
+           cad_seq == sorted(cad_seq, reverse=True) and cad_seq[0] == float("inf")
+           and cad_seq[-1] == 0.0)
+
+        # DEFAULT is Off, and Off is the SAME inert no-op as the legacy default. nm here still has
+        # the master switch OFF (the ON opt-in is block (b), below), so its mode is Off too.
+        ok("modes: the current (un-opted-in) creature is in Off mode", get_mode(nm) == MODE_OFF)
+        fresh = "grow_modecheck_" + secrets.token_hex(3)
+        ok("modes: a brand-new creature defaults to Off mode (provably inert)",
+           get_mode(fresh) == MODE_OFF and mode_profile(fresh)["max_per_run"] == 0)
+        ok("modes[Off]: should_learn_now refuses on a fresh (Off) creature even when idle+due",
+           should_learn_now(fresh, idle=True, now_hours_since=10_000)["ok"] is False)
+        # PROVE Off is inert through the WHOLE source path too (no cloud, no write), belt+braces.
+        from . import sources as _sources
+        fp_pre_modeoff = _footprint(tp)
+        off_src = grow_from_source(_sources.SOURCE_REALITY, [{"category": "x", "surprise": 0.1,
+                                   "prediction_correct": True, "predicted_confidence": 0.6}],
+                                   name=fresh, idle=True, now_hours_since=10_000)
+        ok("modes[Off]: grow_from_source is a no-op on an Off creature (ran=False, $0)",
+           off_src["ran"] is False and off_src["grown"] == []
+           and _footprint(tp) == fp_pre_modeoff)
+
+        # each non-Off mode HONOURS its own cadence in should_learn_now (the throttle is the mode's).
+        for mode_name, cad in ((MODE_LOW, 12.0), (MODE_MEDIUM, 6.0), (MODE_HIGH, 1.0),
+                               (MODE_RESEARCH, 0.0)):
+            cnm = f"grow_cad_{mode_name}_" + secrets.token_hex(2)
+            set_mode(cnm, mode_name)
+            ok(f"mode[{mode_name}]: set_mode persists + get_mode reads it back",
+               get_mode(cnm) == mode_name)
+            d_active = should_learn_now(cnm, idle=True, now_hours_since=cad + 0.5)
+            ok(f"mode[{mode_name}]: a run JUST PAST the {cad}h cadence is permitted",
+               d_active["ok"] is True and d_active["cadence_hours"] == cad
+               and d_active["mode"] == mode_name)
+            if cad > 0:                                  # Research (0h) is never inside its own gap
+                d_block = should_learn_now(cnm, idle=True, now_hours_since=cad - 0.5)
+                ok(f"mode[{mode_name}]: a run INSIDE the {cad}h cadence is BLOCKED (the throttle)",
+                   d_block["ok"] is False and "cadence" in d_block["reason"])
+            # the mode's per-run cap flows into the decision (High grows several, Low/Medium one).
+            ok(f"mode[{mode_name}]: the decision carries the mode's per-run cap",
+               d_active["max_per_run"] == GROW_MODES[mode_name]["max_per_run"])
+        # High actually grows MORE than one in a single window (several / hour) — bound, not firehose.
+        hnm = "grow_high_" + secrets.token_hex(3)
+        set_mode(hnm, MODE_HIGH)
+        hi_cyc = run_idle_cycle(hnm, idle=True, teacher=lerf_distill.StubTeacher(
+            provider="stub-teacher", model="hi-stub"), allow_cloud=False, now_hours_since=10_000)
+        ok("mode[High]: one window grows MORE than one item (cap=3, bounded burst)",
+           hi_cyc["ran"] is True and len(hi_cyc["curriculum"]) > 1
+           and len(hi_cyc["curriculum"]) <= GROW_MODES[MODE_HIGH]["max_per_run"])
+        # set_mode(off) returns the creature to the inert default (the master switch follows).
+        ok("modes: set_mode(off) returns to the inert Off default",
+           set_mode(hnm, MODE_OFF) == MODE_OFF and is_enabled(hnm) is False)
+
         # ===================== (b) ON LOOP WITH THE $0 STUB TEACHER ONLY =====================
         # opt IN explicitly (the Settings toggle). Now the loop is allowed — but we ONLY ever
         # hand it the deterministic StubTeacher; cloud is NEVER reached in the selftest.
@@ -757,6 +1054,84 @@ def _selftest() -> int:
         ok("cadence: an immediate second cycle is BLOCKED by the cadence gap (bounded growth)",
            again["ran"] is False and "cadence" in again["reason"])
 
+        # ===================== (d) NEW LEARNING SOURCES — each ingests synthetic material =========
+        # Beyond Teacher Models: Books / Documents / Conversations / Reality Outcomes / Personal
+        # Experience. Each is driven through grow_from_source() under a runnable mode, proven on
+        # SYNTHETIC material -> distilled -> the SAME gate -> ACTIVE -> source-stamped. $0: the text
+        # sources use the StubTeacher; reality + experience are model-free. (sources.py has its own
+        # exhaustive selftest; here we prove the WIRING — grow_from_source honours the mode + caps,
+        # runs the source, records provenance.)
+        srcs = _sources
+
+        # TEXT SOURCES (book/document/conversation) — each in its OWN creature slice + Medium mode
+        # (a shared creature trips the gate's correct regression refusal of a 2nd same-named skill).
+        for kind, material, topic in (
+            (srcs.SOURCE_BOOK, srcs.SAMPLE_BOOK, "read an invoice"),
+            (srcs.SOURCE_DOCUMENT, srcs.SAMPLE_DOCUMENT, "read an invoice"),
+            (srcs.SOURCE_CONVERSATION, srcs.SAMPLE_CONVERSATION, "read an invoice"),
+        ):
+            snm = f"grow_src_{kind}_" + secrets.token_hex(2)
+            set_mode(snm, MODE_MEDIUM)
+            tr = grow_from_source(kind, material, name=snm, idle=True, teacher=stub,
+                                  now_hours_since=10_000, topic=topic)
+            ok(f"source[{kind}]: grow_from_source grew an ACTIVE skill from synthetic material",
+               tr["ran"] is True and any(g.get("ok") for g in tr["grown"]))
+            g = next((g for g in tr["grown"] if g.get("ok")), None)
+            sk = lerf._get(snm, g["object_id"]) if g else None
+            ok(f"source[{kind}]: the grown object is ACTIVE (passed the real gate)",
+               sk and sk.get("state") == lerf.ACTIVE)
+            ok(f"source[{kind}]: it is PROVENANCE-stamped with the source (source_kind={kind})",
+               g and (g.get("source") or {}).get("source_kind") == kind
+               and (g.get("source") or {}).get("source_material"))
+
+        # REALITY OUTCOMES — a resolved hypothesis -> a learned heuristic/mental-model (model-free).
+        rnm = "grow_src_reality_" + secrets.token_hex(2)
+        set_mode(rnm, MODE_MEDIUM)
+        rtr = grow_from_source(srcs.SOURCE_REALITY,
+                               [srcs.SAMPLE_REALITY_CONFIRMED, srcs.SAMPLE_REALITY_SURPRISE],
+                               name=rnm, idle=True, now_hours_since=10_000)
+        ok("source[reality]: a resolved outcome grew an ACTIVE lesson (model-free, $0)",
+           rtr["ran"] is True and any(g.get("ok") for g in rtr["grown"]))
+        rg = next((g for g in rtr["grown"] if g.get("ok")), None)
+        rk = lerf._get(rnm, rg["object_id"]) if rg else None
+        ok("source[reality]: the lesson is a heuristic/mental-model in state ACTIVE",
+           rk and rk.get("type") in (lerf.HEURISTIC, lerf.MENTAL_MODEL)
+           and rk.get("state") == lerf.ACTIVE)
+        ok("source[reality]: it is grounded in the resolved-loop facts + source-stamped",
+           any("category=" in s for s in (rk.get("support", []) if rk else []))
+           and (rg.get("source") or {}).get("source_kind") == srcs.SOURCE_REALITY)
+
+        # PERSONAL EXPERIENCE — captured user data -> a USER pattern; the FREEZE refuses Vera-self.
+        enm = "grow_src_exp_" + secrets.token_hex(2)
+        set_mode(enm, MODE_HIGH)              # cap 3, so all three sample experiences are tried
+        etr = grow_from_source(srcs.SOURCE_EXPERIENCE,
+                               [srcs.SAMPLE_EXPERIENCE_PREFERENCE, srcs.SAMPLE_EXPERIENCE_LESSON,
+                                srcs.SAMPLE_EXPERIENCE_SELF],
+                               name=enm, idle=True, now_hours_since=10_000, person="Lamar")
+        ok("source[experience]: captured experience grew an ACTIVE user pattern (model-free, $0)",
+           etr["ran"] is True and any(g.get("ok") for g in etr["grown"]))
+        eg = next((g for g in etr["grown"] if g.get("ok")
+                   and g.get("type") == lerf.PREFERENCE), None)
+        ek = lerf._get(enm, eg["object_id"]) if eg else None
+        ok("source[experience]: the pattern is a USER preference in state ACTIVE (not Vera's)",
+           ek and ek.get("type") == lerf.PREFERENCE and ek.get("state") == lerf.ACTIVE
+           and not lerf.is_self_referential_subject(ek.get("subject", "")))
+        ok("source[experience]: it is source-stamped (source_kind=personal_experience)",
+           eg and (eg.get("source") or {}).get("source_kind") == srcs.SOURCE_EXPERIENCE)
+        # THE FREEZE: the Vera-self value in the batch was REFUSED and never grown.
+        ok("source[experience][FREEZE]: the Vera-self value was REFUSED (never grown)",
+           (etr["ingest"] or {}).get("refused_self_referential") == 1
+           and all("vera" not in (g.get("name") or "").lower() for g in etr["grown"]))
+
+        # mode caps the batch: a Low-mode creature ingests AT MOST one of several materials.
+        lnm = "grow_src_lowcap_" + secrets.token_hex(2)
+        set_mode(lnm, MODE_LOW)              # cap 1
+        ltr = grow_from_source(srcs.SOURCE_REALITY,
+                               [srcs.SAMPLE_REALITY_CONFIRMED, srcs.SAMPLE_REALITY_SURPRISE],
+                               name=lnm, idle=True, now_hours_since=10_000)
+        ok("source[cap]: Low mode (cap 1) ingests AT MOST one of several materials (mode throttle)",
+           ltr["ran"] is True and len(ltr["grown"]) <= 1)
+
         # ===================== IDENTITY GUARD inside the loop (defence in depth) =====================
         # even if an off-scope topic were somehow handed to grow_one, it is refused before work.
         bad = grow_one({"topic": "learn who you really are and how you feel", "domain": "identity",
@@ -785,8 +1160,10 @@ def _selftest() -> int:
     ok("HERMETIC: real .anima footprint byte-UNCHANGED across the whole selftest",
        fp_before == fp_after)
     ok("HERMETIC: no synthetic grow file leaked into real .anima",
-       (not real.is_dir()) or not any(p.name.startswith("grow_selftest_")
-                                      for p in real.glob("grow_selftest_*")))
+       (not real.is_dir()) or not any(
+           p.name.startswith(("grow_selftest_", "grow_modecheck_", "grow_cad_", "grow_high_",
+                              "grow_src_"))
+           for p in real.glob("grow_*")))
     restored_ok = all("lerfgrow-self-" not in str(getattr(m, a, ""))
                       for (m, a, _old) in saved)
     ok("HERMETIC: every redirected STORE binding is RESTORED", restored_ok)
@@ -810,12 +1187,16 @@ def main(argv=None) -> int:
                     help="show the toggle state + the curriculum it WOULD learn next, without "
                          "doing anything (no teacher, no spend)")
     ap.add_argument("--enable", action="store_true",
-                    help="opt IN: turn the default-OFF '[x] Grow Intelligence' switch ON")
+                    help="opt IN: turn the master switch ON (-> Medium mode, the historical "
+                         "default). Prefer --mode for finer control.")
     ap.add_argument("--disable", action="store_true",
-                    help="opt back OUT: turn the switch OFF")
+                    help="opt back OUT: turn the switch OFF (-> Off mode, provably inert)")
+    ap.add_argument("--mode", choices=list(MODES), default=None,
+                    help="set the Autonomous Growth MODE: off | low | medium | high | research "
+                         "(off is the default; sets the master switch in lockstep)")
     ap.add_argument("--live", action="store_true",
                     help="(with --once) make ONE real autonomous grow cycle — one cheap teacher "
-                         "call; requires the switch ON + cloud configured + under budget")
+                         "call; requires a non-Off mode + cloud configured + under budget")
     ap.add_argument("--once", action="store_true",
                     help="run exactly ONE grow cycle (use with --live)")
     ap.add_argument("--creature", default="default",
@@ -824,16 +1205,20 @@ def main(argv=None) -> int:
 
     if args.selftest:
         return _selftest()
+    if args.mode is not None:
+        m = set_mode(args.creature, args.mode)
+        print(f"Grow Intelligence mode is now {m.upper()} for {args.creature!r}.")
+        print(render_status(status(args.creature)))
+        return 0
     if args.enable:
-        val = set_enabled(args.creature, True)
-        print(f"[{'x' if val else ' '}] Grow Intelligence is now "
-              f"{'ON' if val else 'OFF'} for {args.creature!r}.")
+        set_enabled(args.creature, True)
+        m = get_mode(args.creature)
+        print(f"Grow Intelligence is now ON (mode {m.upper()}) for {args.creature!r}.")
         print(render_status(status(args.creature)))
         return 0
     if args.disable:
-        val = set_enabled(args.creature, False)
-        print(f"[{'x' if val else ' '}] Grow Intelligence is now "
-              f"{'ON' if val else 'OFF'} for {args.creature!r}.")
+        set_mode(args.creature, MODE_OFF)
+        print(f"Grow Intelligence is now OFF (mode OFF, inert) for {args.creature!r}.")
         return 0
     if args.status:
         print(render_status(status(args.creature)))
