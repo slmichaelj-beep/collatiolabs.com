@@ -213,6 +213,185 @@ def _ensure(name, neurons):
         save_json(_path(name), Heart.born(name, n=neurons).to_dict())
 
 
+# ===================================================================================
+# LERF-FIRST — the live wiring of the cognitive substrate into the reply path.
+#
+# THE SHIFT. Before this seam the live mouth was "LLM + LERF": every turn went to the
+# language model, and LERF was a library tried nowhere on the hot path. This block makes
+# the runtime LERF-FIRST for TASK-shaped requests: a matching ACTIVE skill is retrieved
+# as compact context, rendered by the SMALL local model, and GROUNDED-verified — the full
+# LLM/cloud is reached ONLY on verifier-failure or no-match. The LLM becomes the LAST
+# resort, not the default.
+#
+# WHAT IT NEVER TOUCHES (non-negotiable). This path fires for TASK requests ONLY. Self-
+# narrative / conversational / "how are you" / personal-feeling / personal-fact / device-
+# capability turns are EXCLUDED here and flow through the EXISTING pipeline unchanged
+# (rail -> honesty -> spine/memory -> mouth.respond's #1-rule guard). The #1 product rule
+# (never break character, never confabulate an inner life) lives in mouth.respond and is
+# the gate for every self turn; LERF routing must not, and does not, intercept those.
+# This is TASK-EXECUTION routing — orthogonal to Vera's identity/agency (FROZEN until
+# 2026-07-03). Nothing here asserts, denies, or shapes any self-model.
+# ===================================================================================
+
+# Per-turn route ledger — a lightweight JSONL append, one line per turn, NOT a heavy
+# observatory. scripts/lerf_utilization.py reads it to compute the LERF Utilization Rate
+# and the token/latency/cost deltas vs the all-LLM baseline.
+class _SkipConvVerifier(Exception):
+    """Internal sentinel: a LERF-solved task answer skips the conversational ignored-known-
+    fact / confabulation backstop (that backstop is for self/personal replies). Raised inside
+    the verifier try-block and swallowed by its existing `except Exception`, so the skip is a
+    clean no-op with zero behaviour change for non-LERF turns."""
+
+
+# The creature whose LERF skill library the live mouth retrieves from. SKILLS ARE A SHARED,
+# creature-INDEPENDENT capability vault ("summarize a medical note", "plan errands") — the
+# production library is .anima/default.lerf.json, which a population run keeps filling. This is
+# DISTINCT from per-creature PERSONAL memory (facts/portrait/world-state), which always stays
+# under the live creature's own name. So: task SKILLS come from this shared store; the memory/
+# honesty/#1-rule path is untouched and remains per-creature. Env-overridable for a creature
+# that grows its own private skill set later.
+_LERF_SKILL_LIBRARY = os.environ.get("ANIMA_LERF_LIBRARY", "default")
+
+
+def _routes_path(name):
+    return STORE / f"{name}.lerf_routes.jsonl"
+
+
+def _record_route(name, record):
+    """Append ONE structured route decision for THIS turn. Fully guarded: a ledger hiccup
+    can NEVER change a reply or break a turn (it runs after the reply is in hand)."""
+    try:
+        STORE.mkdir(exist_ok=True)
+        record = dict(record or {})
+        record.setdefault("ts", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        with open(_routes_path(name), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+
+
+# The system prompt that drives the small local model when LERF EXECUTES a task. It is a
+# TASK-EXECUTION instruction handed the retrieved skill as its whole context — deliberately
+# NOT the persona/self system prompt. It carries no identity content and asks for no inner
+# life: it is the language organ rendering a certified procedure, nothing more. The grounded
+# verifier (lerf.verify_rendered_output) adjudicates the output before it is ever served.
+_LERF_TASK_SYS = (
+    "You are completing a concrete task. You have been given a verified skill describing "
+    "exactly how to do it: its inputs, its steps, and the outputs it must produce. Follow "
+    "that skill. Use ONLY the information in the user's request and the skill — do NOT invent "
+    "facts, numbers, names, or dates that were not given. If a required detail is missing, "
+    "say plainly what you need rather than guessing. Produce the outputs the skill specifies, "
+    "clearly and concisely."
+)
+
+
+def _lerf_eligible(name, text, cap_note, cloud_on):
+    """Is THIS turn a TASK the LERF substrate should try FIRST? Returns the matched
+    :class:`Route` (rung 3, lerf_skill) when eligible, else None.
+
+    The gate is deliberately NARROW — three independent exclusions must ALL pass before
+    a single skill is even considered, so a self/personal/conversational turn can never be
+    captured by an incidental keyword match:
+
+      1. A deterministic capability (route.py / cap_note) already owns the turn -> never LERF.
+      2. The honesty rail classes this as PERSONAL or CAPABILITY (a personal-fact ask or a
+         device-data ask) -> the EXISTING memory/honesty pipeline owns it -> never LERF.
+      3. The router's own decision must be exactly `lerf_skill` (rung 3): a real ACTIVE skill
+         scored above the match floor. Any other route (deterministic_rule, lirf_memory,
+         cloud, no_local_faculty) means "not a LERF-skill turn" -> fall through unchanged.
+
+    Pure + guarded: any hiccup returns None (fall through to the existing pipeline), so the
+    LERF path can only ever ADD a fast local answer, never remove the safe default."""
+    if cap_note:                                    # (1) code already owns this turn
+        return None
+    try:
+        from . import rail
+        kind = rail.classify(text or "")
+    except Exception:
+        kind = "generative"
+    if kind in ("personal", "capability"):          # (2) memory/honesty/device path owns it
+        return None
+    try:
+        from . import lerf_router
+        # Route over the SHARED skill library (_LERF_SKILL_LIBRARY), not the creature's personal
+        # store — the certified skills are a creature-independent vault. (We already excluded the
+        # personal/capability turns above, so the router's memory/rule rungs are not in play here;
+        # we only ever ACCEPT a rung-3 lerf_skill match below.)
+        r = lerf_router.route_task(text or "", name=_LERF_SKILL_LIBRARY,
+                                   caps_state={"cloud_on": bool(cloud_on)})
+    except Exception:
+        return None
+    # (3) ONLY a genuine rung-3 skill match proceeds. Everything else is the existing path.
+    if r.route == "lerf_skill" and r.skill_id:
+        return r
+    return None
+
+
+def _lerf_task_first(name, text, route, mouth, cloud_on):
+    """Execute a TASK with the LERF substrate: render the matched skill with the SMALL local
+    model, then GROUNDED-verify. Returns (reply_text, ledger_record) on a verified solve, or
+    (None, ledger_record) when it could not solve locally (no usable model output, or the
+    verifier WITHHELD a contract-violating render) so the caller escalates to the LLM.
+
+    GROUNDED CONTRACT: a render that fails lerf.verify_rendered_output is NEVER served — it is
+    withheld and the turn escalates. The verifier is the gate, exactly as the router specifies.
+    Fully guarded: any exception returns (None, record) -> the caller falls through to the LLM."""
+    from . import lerf, lerf_router
+    import time as _time
+    t0 = _time.perf_counter()
+    lib = _LERF_SKILL_LIBRARY                        # the shared certified-skill vault
+    # Compact context: just the retrieved skill, explained — hundreds of tokens, not a stuffed
+    # transcript. This is the prompt the small local model renders the task from.
+    try:
+        skill_ctx = lerf.assemble_skill_context(text, name=lib, limit=1)
+    except Exception:
+        skill_ctx = ""
+    if not skill_ctx.strip():
+        rec = {"route": "lerf_skill", "rung": route.rung, "solved": False,
+               "outcome": "no_context", "skill_id": route.skill_id,
+               "skill_name": route.skill_name, "score": route.score,
+               "latency_ms": round((_time.perf_counter() - t0) * 1000.0, 1)}
+        return None, rec
+    user_msg = f"{skill_ctx}\n\nTASK:\n{text}"
+    prompt_tokens = lerf.count_tokens(_LERF_TASK_SYS) + lerf.count_tokens(user_msg)
+    # Render with the SAME local brain the mouth uses — but with the TASK-EXECUTION prompt,
+    # never the persona/self prompt. No history is fed (a task render is self-contained on the
+    # skill), which also keeps it off the conversational/self surface entirely.
+    rendered = ""
+    try:
+        rendered = mouth.brain.reply(_LERF_TASK_SYS, user_msg, []) or ""
+    except Exception as e:
+        import sys
+        print(f"[anima lerf] task render failed: {e}", file=sys.stderr)
+        rendered = ""
+    gen_ms = round((_time.perf_counter() - t0) * 1000.0, 1)
+    if not rendered.strip():
+        rec = {"route": "lerf_skill", "rung": route.rung, "solved": False,
+               "outcome": "empty_render", "skill_id": route.skill_id,
+               "skill_name": route.skill_name, "score": route.score,
+               "prompt_tokens": prompt_tokens, "latency_ms": gen_ms}
+        return None, rec
+    # GROUNDED VERIFY — adjudicate the render against the skill CONTRACT via the router's rung
+    # 5, over the SAME shared library the skill came from. The task text is the only grounded
+    # input we have, so a fabricated figure not present in the request fails the check and the
+    # render is WITHHELD.
+    verdict = lerf_router.route_task(text, name=lib, rendered=rendered,
+                                     inputs={"request": text},
+                                     caps_state={"cloud_on": bool(cloud_on)})
+    if verdict.route == "small_local_verified" and verdict.grounded:
+        rec = {"route": "lerf_skill", "rung": 5, "solved": True, "outcome": "verified_local",
+               "skill_id": route.skill_id, "skill_name": route.skill_name, "score": route.score,
+               "grounded": True, "prompt_tokens": prompt_tokens, "latency_ms": gen_ms}
+        return rendered.strip(), rec
+    # Verifier FAILED -> withhold the render, escalate to the LLM. (GROUNDED: never serve it.)
+    rec = {"route": "lerf_skill_then_llm", "rung": verdict.rung, "solved": False,
+           "outcome": "verifier_withheld", "skill_id": route.skill_id,
+           "skill_name": route.skill_name, "score": route.score, "grounded": False,
+           "verifier_reasons": (verdict.why or "")[:300],
+           "prompt_tokens": prompt_tokens, "latency_ms": gen_ms}
+    return None, rec
+
+
 def _turn(name, text, voice=False):
     """One exchange: feel it, record it, reply from state. Serialised for safety."""
     with _lock:
@@ -416,10 +595,51 @@ def _turn(name, text, voice=False):
             pass
 
         mouth = _mouth()
+        # ── LERF-FIRST SEAM (ATTACHES: Wave 3) ────────────────────────────────────────────
+        # Before the LLM speaks, ask the cognitive substrate to solve this turn. For a TASK-
+        # shaped request with a matching ACTIVE skill, LERF retrieves the skill as compact
+        # context, the SMALL local model renders it, and the GROUNDED verifier adjudicates the
+        # output. On a verified solve we serve THAT and the LLM is never reached for this turn.
+        # On a self/personal/conversational turn, or no skill match, or a verifier-withheld
+        # render, this is a no-op and the EXISTING pipeline below runs UNCHANGED (the #1-rule
+        # guard in mouth.respond remains the gate for every self turn). Fully guarded.
+        _lerf_solved = False
+        _lerf_reply = None
+        _lerf_rec = None
+        try:
+            _lroute = _lerf_eligible(name, text, cap_note, _cloud_on)
+            if _lroute is not None:
+                _lerf_reply, _lerf_rec = _lerf_task_first(name, text, _lroute, mouth, _cloud_on)
+                _lerf_solved = bool(_lerf_reply)
+        except Exception:
+            _lerf_solved, _lerf_reply, _lerf_rec = False, None, None
         _g0 = time.perf_counter()
-        u = mouth.respond(heart, text, history=list(_HISTORY),
-                          audio_out=audio_out, perception=p, cap_note=cap_note,
-                          fact_block=_fact_block)
+        if _lerf_solved:
+            # The task was solved LOCALLY by a certified skill, grounded-verified. Wrap it in an
+            # Utterance so the SAME downstream bookkeeping (history, durable-fact capture, save,
+            # telemetry) runs — but the conversational #1-rule/confabulation backstop and the
+            # casual-turn aside are SKIPPED below (this is task output, not a self/feeling turn).
+            from .mouth import Utterance as _Utt
+            _hints = {"register": "plain", "rate": 1.0}
+            try:
+                _f_now = heart.feeling()
+                from .mouth import delivery as _deliv
+                _hints = _deliv(_f_now, 0)
+            except Exception:
+                pass
+            _backend = getattr(getattr(mouth, "brain", None), "name", "local")
+            u = _Utt(text=_lerf_reply, delivery=_hints,
+                     backend=f"lerf:{_backend}", feeling="", audio_path=None)
+            # Optional voice: synth the served task answer so the phone still gets audio.
+            if voice and audio_out and getattr(mouth, "voice", None) is not None:
+                try:
+                    u.audio_path = mouth.voice.speak(_lerf_reply, _hints, audio_out)
+                except Exception:
+                    u.audio_path = None
+        else:
+            u = mouth.respond(heart, text, history=list(_HISTORY),
+                              audio_out=audio_out, perception=p, cap_note=cap_note,
+                              fact_block=_fact_block)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         # MRI: generate frame — model + reply + token count + tok/s. tok/s is the brain's
         # real measured rate; token count is estimated from rate*seconds (the brain doesn't
@@ -450,8 +670,14 @@ def _turn(name, text, voice=False):
         # Strictly gated on a KNOWN fact existing, so an honest "I don't have that yet" on a
         # genuinely-unknown trait is NEVER touched (honesty preserved). Fully guarded: any
         # spine/verifier hiccup degrades to shipping the original draft — never breaks a turn.
+        # A LERF-solved task answer was ALREADY grounded-verified against the skill contract
+        # (lerf.verify_rendered_output) before it was served. The conversational ignored-known-
+        # fact / confabulation backstop below is for self/personal replies and has no role on
+        # certified task output, so the whole block is skipped for a LERF-solved turn.
         _verdict = None
         try:
+            if _lerf_solved:
+                raise _SkipConvVerifier()
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
             from . import spine as _spine
@@ -615,6 +841,7 @@ def _turn(name, text, voice=False):
             _aside_gated = (not _cc.is_cloud()      # remember WHY the aside was/ wasn't even attempted
                             and name not in _CURIOSITY_ASKED
                             and not _fact_block and not cap_note
+                            and not _lerf_solved    # a certified task answer is not a casual turn
                             and not (_verdict is not None and getattr(_verdict, "override", False)))
             if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
@@ -747,6 +974,50 @@ def _turn(name, text, voice=False):
                     out["draft"] = d["draft"]       # {id, kind, to, body}
             except Exception:
                 pass
+        # LERF ROUTE LEDGER — one structured line per turn (which rung solved it, full-solve
+        # vs partial vs LLM-required, prompt tokens used vs the all-LLM baseline, latency). This
+        # is what makes the LERF Utilization Rate measurable. Lightweight + guarded — appended
+        # after the reply is already in `out`, so it can never change or slow the served answer.
+        try:
+            _total_ms = round((time.perf_counter() - _turn_t0) * 1000.0, 1)
+            # The all-LLM baseline: what an LLM-only turn pays in prompt tokens — the full system
+            # prompt + the injected memory/fact block + the conversation history. Estimated with
+            # lerf.count_tokens so it is comparable to the LERF prompt-token figure.
+            from . import lerf as _lerf_tok
+            _baseline_src = " ".join(str(x) for x in (
+                (_fact_block or _bound or ""),
+                str(text or ""),
+                " ".join((a or "") + " " + (b or "") for a, b in list(_HISTORY)[-6:]),
+            ))
+            _llm_baseline_tokens = _lerf_tok.count_tokens(_baseline_src) + 220  # +persona floor
+            if _lerf_solved and _lerf_rec is not None:
+                _rec = dict(_lerf_rec)
+                _rec["solver"] = "lerf_skill"
+                _rec["llm_required"] = False
+                _rec["llm_baseline_tokens"] = _llm_baseline_tokens
+                _rec["total_ms"] = _total_ms
+            else:
+                # The turn went to the existing pipeline. Name the rung that actually carried it:
+                # a deterministic capability (route.py), the LIRF memory/fact path (a fact block
+                # was bound), or the LLM as the genuine last resort. If LERF was ATTEMPTED but
+                # withheld by the verifier, carry that provenance through.
+                if cap_note:
+                    _solver, _rt = "deterministic_rule", "deterministic_rule"
+                elif _fact_block or _bound:
+                    _solver, _rt = "lirf_memory", "lirf_memory"
+                else:
+                    _solver, _rt = "llm", "llm"
+                _rec = {"route": _rt, "solver": _solver, "solved": _solver != "llm",
+                        "llm_required": _solver == "llm",
+                        "prompt_tokens": _llm_baseline_tokens,
+                        "llm_baseline_tokens": _llm_baseline_tokens,
+                        "latency_ms": round(gen_s * 1000.0, 1), "total_ms": _total_ms}
+                if _lerf_rec is not None:        # LERF was tried first but did not solve locally
+                    _rec["lerf_attempt"] = {k: _lerf_rec.get(k) for k in
+                                            ("outcome", "skill_name", "score", "grounded")}
+            _record_route(name, _rec)
+        except Exception:
+            pass
         # MRI: close + flush the full per-turn trace (ONE jsonl line). total_ms is the real
         # wall-clock for the whole turn. Last thing before returning; fully guarded so a
         # recorder failure can never touch the reply the user already has in `out`.
