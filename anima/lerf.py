@@ -956,6 +956,560 @@ def stats(name: str = "default") -> dict:
 
 
 # ===================================================================================
+# SKILL EVOLUTION — Phase 5. "REALITY DECIDES WINNERS." Wave 1 proved the format; Wave 2's
+# gate earns a skill its ACTIVE slot ONCE. But a ledger that never re-litigates an active skill
+# rots: a better skill arrives, an active one goes stale, two skills overlap. Evolution is the
+# discipline that lets the served set CHANGE — but only on MEASURED OUTCOMES, never on a
+# hand-tuned priority. Five operations, each append-only and each provenance-preserving:
+#
+#   * COMPETITION — when two ACTIVE skills claim the SAME task, the winner is decided by REALITY:
+#     the per-skill MEASURED OUTCOME (benchmark pass-rate, plus retrieval/verifier successes
+#     accrued over real uses), adjudicated with reality.py's OWN _normalise_weights /
+#     _adjudicate_weights — the exact machinery reality uses to weigh competing hypotheses,
+#     REUSED (asserted byte-identical), never reinvented. The skill whose outcomes reality
+#     supports leads; the others' weights decay. No priority constant decides it.
+#   * REPLACEMENT — a stronger skill beats a weaker one for a task -> the LOSER becomes
+#     DEPRECATED (kept on disk, never retrieved), the winner records it superseded it. The
+#     served set shrinks toward what actually works, but nothing is deleted (LAW 001).
+#   * RETIREMENT — a skill that fails repeatedly (rising failure rate) or goes STALE
+#     (last_verified too old) is retired to DEPRECATED WITH A RECORDED REASON — so "why was this
+#     pulled?" is always answerable. Reality (the failure record / the clock), not opinion.
+#   * MERGING — two overlapping skills fuse into ONE merged skill: the UNION of their steps +
+#     their test cases, with provenance preserved (merged_from:[X,Y]); the parents are deprecated.
+#   * VERSIONING — every skill carries a VERSION + a HISTORY. Revising a skill mints a NEW
+#     version (version+1) and appends the prior snapshot to history WITH a reason + timestamp, so
+#     a skill can always answer "when was it revised, and why" — append-only, inspectable.
+#
+# CONSERVATION (LAW 001): a deprecated / retired / superseded / merged-away skill is RETAINED on
+# disk for provenance and is NEVER silently deleted; 'active' remains the ONLY retrievable state.
+# SCOPE: task-knowledge only — evolution moves skills around by measured task performance; it
+# reads/writes NOTHING about Vera's identity or inner life (frozen architecture; #1 rule stands).
+#
+# REUSE DISCIPLINE (provable, not a fork): the competition's reweighting is reality's. The
+# selftest (and scripts/skill_evolution.py) ASSERT `lerf._evo_normalise is reality._normalise_
+# weights` and `lerf._evo_adjudicate is reality._adjudicate_weights` (the byte-identity IS-check
+# scripts/epistemic_audit.py established), so the "reality decides" claim is checkable, not
+# rhetorical. The import is best-effort + isolation-safe (reality is a sibling, never a hard dep).
+# ===================================================================================
+
+# The default skill VERSION a freshly-minted skill carries (versioning is additive: existing
+# stores without a `version` field are treated as v1, see `skill_version`).
+SKILL_V0 = 1
+
+# RETIREMENT thresholds. A skill is STALE when its last_verified is older than this many days
+# (reality: the clock has moved on and nothing re-confirmed it). A skill is FAILING when its
+# measured failure RATE over recorded uses is at/above this floor with at least a few uses
+# (reality: it keeps getting it wrong). Conservative + fixed + documented — like reality's
+# _SURPRISE_REVISION_AT / _RELIABLE_AT bars: a verdict is "which bar did the evidence cross".
+STALE_AFTER_DAYS = 180
+FAILING_RATE = 0.5
+FAILING_MIN_USES = 4
+
+
+# --- reality reuse: the SAME adjudication machinery, asserted byte-identical ------------------
+# We bind reality's two competition primitives to module-level names and PROVE the binding is the
+# very same object (IS-check), so skill competition is literally reality's reweighting, not a copy
+# that could drift. Isolation-safe: if reality cannot be imported (standalone), we fall back to a
+# faithful local pair AND flip `_EVO_REUSES_REALITY` to False so the selftest reports the truth.
+try:                                            # pragma: no cover - import wiring
+    from . import reality as _reality
+    _evo_normalise = _reality._normalise_weights
+    _evo_adjudicate = _reality._adjudicate_weights
+    _EVO_REUSES_REALITY = True
+except Exception:                               # pragma: no cover - isolation fallback
+    _reality = None
+    _EVO_REUSES_REALITY = False
+
+    def _evo_normalise(weights: dict) -> dict:
+        """Fallback ONLY when reality is unimportable: a faithful copy of its _normalise_weights
+        (rescale to sum 1.0 with a tiny floor so no candidate is annihilated). The selftest
+        asserts the REAL path uses reality's object; this exists only so lerf stays standalone."""
+        if not weights:
+            return {}
+        floor = 1e-4
+        vals = {k: max(floor, float(v)) for k, v in weights.items()}
+        total = sum(vals.values())
+        if total <= 0.0:
+            n = len(vals)
+            return {k: round(1.0 / n, 6) for k in vals}
+        return {k: round(v / total, 6) for k, v in vals.items()}
+
+    def _evo_adjudicate(candidates: dict, supported_key, contradicted_keys) -> dict:
+        """Fallback copy of reality._adjudicate_weights (support-gain / contradict-decay + renorm).
+        Only used when reality is absent; the real reuse is asserted byte-identical elsewhere."""
+        floor, gain, decay = 1e-4, 2.5, 0.4
+        raw = {k: max(floor, float(v.get("weight", 0.0))) for k, v in candidates.items()}
+        if supported_key and supported_key in raw:
+            raw[supported_key] *= gain
+        for k in (contradicted_keys or []):
+            if k in raw:
+                raw[k] *= decay
+        return _evo_normalise(raw)
+
+
+def evolution_reuses_reality() -> bool:
+    """True iff this module's competition reweighting IS reality's own functions (the byte-identity
+    reuse). The selftest / scripts/skill_evolution.py assert this so 'reality decides' is provable."""
+    return bool(_EVO_REUSES_REALITY
+                and _reality is not None
+                and _evo_normalise is _reality._normalise_weights
+                and _evo_adjudicate is _reality._adjudicate_weights)
+
+
+# --- VERSIONING: a skill carries a version + an append-only history of its prior selves --------
+
+def skill_version(skill: dict) -> int:
+    """The skill's version (>=1). A store predating versioning has no `version` field -> it is v1,
+    so versioning is purely additive and never breaks an existing object."""
+    try:
+        return max(1, int((skill or {}).get("version", SKILL_V0)))
+    except (TypeError, ValueError):
+        return SKILL_V0
+
+
+def revise_skill(skill_id, *, reason: str, name: str = "default",
+                 steps=None, inputs=None, outputs=None, failure_modes=None,
+                 confidence=None, **fields) -> dict:
+    """VERSIONING — mint a NEW version of an existing skill, retaining the prior one in history.
+
+    Updating a skill must never erase what it was: we SNAPSHOT the current (pre-edit) content into
+    the skill's `history` (with the version it had, the reason, and a timestamp), bump `version`
+    by one, apply the requested field changes (any of steps/inputs/outputs/failure_modes/
+    confidence, plus arbitrary extra `fields`), and stamp `revised_at` + `revision_reason`. The id
+    is UNCHANGED (it is the same skill, evolved), so retrieval/provenance keep pointing at it; the
+    history makes 'when was it revised, and why' answerable forever. Append-only in spirit: the
+    prior version is preserved, never overwritten. Returns the new (current) skill, or an error
+    dict if no such skill. A revision does NOT change state (a revised ACTIVE skill stays active);
+    callers re-verify if the change is material."""
+    sk = _get(name, skill_id) if isinstance(skill_id, str) else skill_id
+    if not sk:
+        return {"error": f"no skill {skill_id!r}"}
+    prior_v = skill_version(sk)
+    # snapshot the PRIOR self (the content fields + its spine) so history is a faithful record.
+    snapshot = {
+        "version": prior_v,
+        "snapshot_at": _now(),
+        "reason": str(reason or "unspecified"),
+        "inputs": list(sk.get("inputs", [])),
+        "steps": list(sk.get("steps", [])),
+        "outputs": list(sk.get("outputs", [])),
+        "failure_modes": list(sk.get("failure_modes", [])),
+        "confidence": float(sk.get("confidence", 0.0)),
+        "state": sk.get("state"),
+    }
+    history = list(sk.get("history", []))
+    history.append(snapshot)
+    sk["history"] = history
+    sk["version"] = prior_v + 1
+    sk["revised_at"] = _now()
+    sk["revision_reason"] = str(reason or "unspecified")
+    if steps is not None:
+        sk["steps"] = list(steps)
+    if inputs is not None:
+        sk["inputs"] = list(inputs)
+    if outputs is not None:
+        sk["outputs"] = list(outputs)
+    if failure_modes is not None:
+        sk["failure_modes"] = list(failure_modes)
+    if confidence is not None:
+        sk["confidence"] = float(confidence)
+    for k, v in fields.items():
+        sk[k] = v
+    sk.setdefault("support", []).append(f"revised:v{prior_v}->v{prior_v + 1}:{reason}:{_now()}")
+    return _upsert(name, sk)
+
+
+def skill_history(skill_or_id, name: str = "default") -> list:
+    """The append-only version history of a skill (oldest prior version first); [] for a v1 skill
+    that has never been revised. Each entry is the snapshot revise_skill recorded — inspectable
+    proof of 'what this skill used to be' at every revision."""
+    sk = _get(name, skill_or_id) if isinstance(skill_or_id, str) else skill_or_id
+    return list((sk or {}).get("history", []))
+
+
+# --- MEASURED OUTCOMES: the per-skill reality signal competition adjudicates on ---------------
+
+def record_skill_outcome(skill_id, *, success: bool, kind: str = "use",
+                         name: str = "default") -> dict:
+    """Record ONE measured outcome of a skill (a retrieval/verifier/benchmark use that SUCCEEDED
+    or FAILED) onto the skill's `outcomes` tally. THIS is the reality competition reads: a skill's
+    standing is its accrued track record, not an assertion. Append-only counters
+    {uses, successes, failures} + a small rolling `recent` log (capped) for inspection. `kind`
+    tags what produced it (e.g. 'benchmark', 'retrieval', 'verifier'). Returns the skill, or an
+    error dict. Never mutates state — accruing evidence is separate from acting on it (compete/
+    retire do that). GROUNDED: a real signal in, never a fabricated one."""
+    sk = _get(name, skill_id) if isinstance(skill_id, str) else skill_id
+    if not sk:
+        return {"error": f"no skill {skill_id!r}"}
+    o = dict(sk.get("outcomes") or {"uses": 0, "successes": 0, "failures": 0, "recent": []})
+    o["uses"] = int(o.get("uses", 0)) + 1
+    if success:
+        o["successes"] = int(o.get("successes", 0)) + 1
+    else:
+        o["failures"] = int(o.get("failures", 0)) + 1
+    recent = list(o.get("recent", []))
+    recent.append({"ok": bool(success), "kind": str(kind), "at": _now()})
+    o["recent"] = recent[-20:]                  # cap the rolling log; the counters are the truth
+    sk["outcomes"] = o
+    return _upsert(name, sk)
+
+
+def skill_success_rate(skill: dict) -> float | None:
+    """The measured success rate of a skill over its recorded outcomes (successes/uses), or None
+    if it has no recorded uses yet (Observed > Assumed — we never invent a rate). This is the
+    reality signal that drives competition weight."""
+    o = (skill or {}).get("outcomes") or {}
+    uses = int(o.get("uses", 0) or 0)
+    if uses <= 0:
+        return None
+    return round(int(o.get("successes", 0) or 0) / uses, 4)
+
+
+def _skill_signal(skill: dict, benchmark: dict | None = None) -> float:
+    """The MEASURED reality weight a skill brings into a competition — strictly evidence-derived:
+      * its accrued success RATE over recorded uses (the dominant signal), blended with
+      * a benchmark pass-rate when one is supplied for this round (a fresh measured datapoint),
+    floored to a tiny positive so an unproven-but-present skill is weighed (Unknown > Lost), never
+    zero. NO hand-tuned priority, NO confidence-by-fiat enters here — only outcomes reality
+    recorded. Returns a positive float suitable for reality._normalise_weights."""
+    rate = skill_success_rate(skill)
+    bench_rate = None
+    if isinstance(benchmark, dict):
+        # accept either an explicit pass-rate, or derive one from passed/total.
+        if benchmark.get("pass_rate") is not None:
+            bench_rate = float(benchmark.get("pass_rate"))
+        elif benchmark.get("total"):
+            bench_rate = float(benchmark.get("passed", 0)) / float(benchmark["total"])
+    if rate is None and bench_rate is None:
+        return 1e-4                              # present but untested: a floor, not zero
+    if rate is None:
+        return max(1e-4, bench_rate)
+    if bench_rate is None:
+        return max(1e-4, rate)
+    # both present: average the accrued track record with this round's fresh measurement.
+    return max(1e-4, round((rate + bench_rate) / 2.0, 6))
+
+
+# --- COMPETITION: reality (measured outcomes) picks the winner among same-task skills ----------
+
+def competing_skills(task: str, *, name: str = "default", limit=10) -> list:
+    """The ACTIVE skills that all CLAIM `task` (the candidates a competition adjudicates). Reuses
+    the SAME deterministic retrieval the live router uses, so 'these are the skills that would be
+    retrieved for this task' is exactly the contested set. >=2 means a real competition."""
+    return retrieve_skills(task, limit=limit, name=name)
+
+
+def compete_skills(task: str, *, name: str = "default", benchmarks: dict | None = None,
+                   limit=10) -> dict:
+    """COMPETITION — when several ACTIVE skills claim the SAME task, let REALITY pick the winner.
+
+    The contested set is `competing_skills(task)`. Each candidate's competition WEIGHT is its
+    MEASURED reality signal (`_skill_signal`: accrued success-rate blended with an optional
+    per-skill `benchmarks[skill_id]` pass-rate) — NO priority constant, NO confidence-by-fiat.
+    The priors are normalised with reality's OWN `_normalise_weights`; then we ADJUDICATE with
+    reality's OWN `_adjudicate_weights` — the candidate with the strongest measured signal is the
+    SUPPORTED hypothesis (strengthened), the rest CONTRADICTED (decayed), renormalised to a proper
+    distribution. The leader is the skill reality favors. This is the exact reweighting reality
+    runs over competing explanations, REUSED byte-identically (see evolution_reuses_reality) —
+    'reality decides winners' is literally reality's adjudication, not a fork.
+
+    Returns {task, n, candidates:[{id,name,signal,prior,weight,success_rate,uses}], leader,
+    leader_id, margin, decided_by, reused_reality}. Read-only (records nothing) — it REPORTS who
+    reality favors; `replace_skill` is the separate, append-only act of consequence. Never raises
+    out of its contract; an empty/one-candidate field is reported honestly (no competition)."""
+    cands = competing_skills(task, name=name, limit=limit)
+    benchmarks = benchmarks or {}
+    rows = []
+    raw_signals = {}
+    for s in cands:
+        sid = s.get("id")
+        sig = _skill_signal(s, benchmarks.get(sid))
+        raw_signals[sid] = sig
+        rows.append({"id": sid, "name": s.get("name"),
+                     "success_rate": skill_success_rate(s),
+                     "uses": int((s.get("outcomes") or {}).get("uses", 0) or 0),
+                     "signal": round(sig, 6)})
+    if not rows:
+        return {"task": task, "n": 0, "candidates": [], "leader": None, "leader_id": None,
+                "margin": 0.0, "decided_by": "no active skill claims this task",
+                "reused_reality": evolution_reuses_reality()}
+    # PRIORS — reality's normaliser turns the measured signals into a distribution.
+    priors = _evo_normalise(dict(raw_signals))
+    # ADJUDICATE — the strongest measured signal is the supported hypothesis; rivals contradicted.
+    leader_id = max(raw_signals, key=lambda k: raw_signals[k])
+    contradicted = [sid for sid in raw_signals if sid != leader_id]
+    cand_for_adj = {sid: {"weight": priors.get(sid, 0.0)} for sid in raw_signals}
+    after = _evo_adjudicate(cand_for_adj, leader_id, contradicted)
+    for r in rows:
+        r["prior"] = priors.get(r["id"], 0.0)
+        r["weight"] = after.get(r["id"], 0.0)
+    rows.sort(key=lambda r: (-r["weight"], r.get("name") or ""))
+    leader_row = rows[0]
+    runner_w = rows[1]["weight"] if len(rows) > 1 else 0.0
+    margin = round(leader_row["weight"] - runner_w, 6)
+    return {
+        "task": task,
+        "n": len(rows),
+        "candidates": rows,
+        "leader": leader_row["name"],
+        "leader_id": leader_row["id"],
+        "margin": margin,
+        "decided_by": ("measured outcomes adjudicated by reality "
+                       + ("(reality._adjudicate_weights, byte-identical)"
+                          if evolution_reuses_reality() else "(local fallback — reality absent)")),
+        "reused_reality": evolution_reuses_reality(),
+    }
+
+
+# --- REPLACEMENT: a stronger skill supersedes a weaker one for a task (loser -> deprecated) ----
+
+def replace_skill(winner_id, loser_id, *, task: str = "", reason: str = "",
+                  name: str = "default") -> dict:
+    """REPLACEMENT — a stronger skill REPLACES a weaker one for a task: the loser becomes
+    DEPRECATED (kept on disk, no longer retrievable), and the winner records that it superseded it.
+
+    CONSERVATION (LAW 001): the loser is NOT deleted — its state moves to DEPRECATED, it is stamped
+    `deprecated_at` + `deprecated_reason` + `superseded_by` (the winner), and it carries a
+    failure-mode line for provenance. The winner gains a `supersedes` list entry. Append-only:
+    nothing is removed, the served set simply stops offering the loser. Returns
+    {ok, winner, loser, loser_state, reason}. Refuses (ok=False) if either skill is missing."""
+    win = _get(name, winner_id)
+    lose = _get(name, loser_id)
+    if not win or not lose:
+        miss = winner_id if not win else loser_id
+        return {"ok": False, "reason": f"no skill {miss!r}", "winner": winner_id,
+                "loser": loser_id, "loser_state": None}
+    why = reason or (f"superseded by {win.get('name')} for task {task!r}" if task
+                     else f"superseded by {win.get('name')}")
+    lose["state"] = DEPRECATED
+    lose["deprecated_at"] = _now()
+    lose["deprecated_reason"] = why
+    lose["superseded_by"] = winner_id
+    lose["failure_modes"] = list(lose.get("failure_modes", [])) + [f"DEPRECATED: {why}"]
+    lose.setdefault("support", []).append(f"deprecated:superseded-by:{winner_id}:{_now()}")
+    _upsert(name, lose)
+    sup = list(win.get("supersedes", []))
+    if loser_id not in sup:
+        sup.append(loser_id)
+    win["supersedes"] = sup
+    win.setdefault("support", []).append(f"supersedes:{loser_id}:{task}:{_now()}")
+    _upsert(name, win)
+    return {"ok": True, "winner": winner_id, "loser": loser_id,
+            "loser_state": lose["state"], "reason": why}
+
+
+def evolve_task(task: str, *, name: str = "default", benchmarks: dict | None = None,
+                limit=10) -> dict:
+    """Run COMPETITION for `task` and, if reality picks a clear winner over a contested field,
+    ENACT the replacement: every losing ACTIVE candidate is deprecated in favor of the leader.
+    The one-call 'reality decides + the served set updates' path. Returns
+    {competition, replaced:[...], winner_id}. A single-candidate (uncontested) field changes
+    nothing (there is no rival to replace). Append-only; CONSERVATION-safe."""
+    comp = compete_skills(task, name=name, benchmarks=benchmarks, limit=limit)
+    replaced = []
+    if comp["n"] >= 2 and comp["leader_id"]:
+        for r in comp["candidates"]:
+            if r["id"] != comp["leader_id"]:
+                res = replace_skill(comp["leader_id"], r["id"], task=task,
+                                    reason=(f"lost the measured competition for {task!r} "
+                                            f"(weight {r['weight']:.3f} vs leader "
+                                            f"{comp['candidates'][0]['weight']:.3f})"),
+                                    name=name)
+                if res.get("ok"):
+                    replaced.append(r["id"])
+    return {"competition": comp, "replaced": replaced, "winner_id": comp.get("leader_id")}
+
+
+# --- RETIREMENT: a failing or stale skill is pulled to deprecated WITH a recorded reason -------
+
+def _days_since(ts: str | None) -> float | None:
+    """Whole-ish days between `ts` (ISO) and now, or None if unparseable/absent. Used to judge
+    staleness against STALE_AFTER_DAYS — reality's clock, not an opinion."""
+    if not ts or not isinstance(ts, str):
+        return None
+    try:
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
+
+
+def retirement_check(skill: dict, *, stale_after_days: int = STALE_AFTER_DAYS,
+                     failing_rate: float = FAILING_RATE,
+                     failing_min_uses: int = FAILING_MIN_USES) -> dict:
+    """Should this skill be RETIRED, and WHY — judged ONLY on reality (the clock + the failure
+    record), never opinion. Returns {retire, reasons[], stale, failing, age_days, failure_rate}.
+      * STALE — last_verified is older than `stale_after_days` (nothing has re-confirmed it).
+      * FAILING — its measured failure RATE over >= `failing_min_uses` recorded uses is at/above
+        `failing_rate` (it keeps getting it wrong).
+    A skill that is neither stays. Pure; never raises."""
+    reasons = []
+    age = _days_since(skill.get("last_verified"))
+    stale = age is not None and age > float(stale_after_days)
+    if stale:
+        reasons.append(f"stale: last verified {age:.0f}d ago (> {stale_after_days}d threshold)")
+    o = skill.get("outcomes") or {}
+    uses = int(o.get("uses", 0) or 0)
+    fails = int(o.get("failures", 0) or 0)
+    frate = round(fails / uses, 4) if uses else None
+    failing = bool(uses >= int(failing_min_uses) and frate is not None and frate >= float(failing_rate))
+    if failing:
+        reasons.append(f"failing: {fails}/{uses} recorded uses failed "
+                       f"(rate {frate:.0%} >= {failing_rate:.0%} over >= {failing_min_uses} uses)")
+    return {"retire": bool(reasons), "reasons": reasons, "stale": stale, "failing": failing,
+            "age_days": (round(age, 1) if age is not None else None), "failure_rate": frate}
+
+
+def retire_skill(skill_id, *, reason: str = "", name: str = "default", force: bool = False,
+                 **thresholds) -> dict:
+    """RETIREMENT — move a skill to DEPRECATED (kept on disk, never retrieved) WITH a recorded
+    reason, when reality says it has earned retirement (failing / stale) — or `force=True` to
+    retire on a caller-supplied reason. CONSERVATION (LAW 001): the skill is NEVER deleted; it is
+    stamped `deprecated_at` + `deprecated_reason` + `retired=True` and gains a failure-mode line,
+    so 'why was this pulled?' is answerable forever. Refuses (ok=False, retired=False) when reality
+    does NOT justify retirement and force is False — you cannot retire a healthy skill by fiat.
+    Returns {ok, retired, state, reason, check}."""
+    sk = _get(name, skill_id) if isinstance(skill_id, str) else skill_id
+    if not sk:
+        return {"ok": False, "retired": False, "state": None, "reason": f"no skill {skill_id!r}",
+                "check": None}
+    check = retirement_check(sk, **{k: v for k, v in thresholds.items()
+                                    if k in ("stale_after_days", "failing_rate", "failing_min_uses")})
+    if not check["retire"] and not force:
+        return {"ok": False, "retired": False, "state": sk.get("state"),
+                "reason": ("REFUSED: reality does not justify retirement (skill is neither stale "
+                           "nor failing); pass force=True to override with a reason"),
+                "check": check}
+    why = reason or "; ".join(check["reasons"]) or "retired"
+    sk["state"] = DEPRECATED
+    sk["deprecated_at"] = _now()
+    sk["deprecated_reason"] = why
+    sk["retired"] = True
+    sk["failure_modes"] = list(sk.get("failure_modes", [])) + [f"RETIRED: {why}"]
+    sk.setdefault("support", []).append(f"retired:{why}:{_now()}")
+    _upsert(name, sk)
+    return {"ok": True, "retired": True, "state": sk["state"], "reason": why, "check": check}
+
+
+def sweep_retirements(*, name: str = "default", **thresholds) -> list:
+    """Retire EVERY active skill reality currently judges failing/stale, each WITH its recorded
+    reason. The batch 'reality prunes the rot' pass. Returns the list of retirement results (only
+    the skills actually retired). Append-only; CONSERVATION-safe; never raises."""
+    out = []
+    for s in all_skills(name=name):
+        chk = retirement_check(s, **{k: v for k, v in thresholds.items()
+                                     if k in ("stale_after_days", "failing_rate", "failing_min_uses")})
+        if chk["retire"]:
+            res = retire_skill(s["id"], name=name,
+                               **{k: v for k, v in thresholds.items()
+                                  if k in ("stale_after_days", "failing_rate", "failing_min_uses")})
+            if res.get("retired"):
+                out.append(res)
+    return out
+
+
+# --- MERGING: two overlapping skills fuse into one (union of steps + tests; provenance kept) ---
+
+def _dedup_preserve(*lists) -> list:
+    """Union several lists preserving first-seen order, dropping exact duplicates — so a merged
+    skill carries each distinct step/input/output once, parent A's first then parent B's novel."""
+    seen, out = set(), []
+    for lst in lists:
+        for x in (lst or []):
+            key = x if isinstance(x, (str, int, float, bool)) else repr(x)
+            if key not in seen:
+                seen.add(key)
+                out.append(x)
+    return out
+
+
+def merge_skills(a_id, b_id, *, name: str = "default", merged_name: str = "",
+                 domain: str = "", reason: str = "", test_cases_a=None, test_cases_b=None,
+                 activate: bool = False) -> dict:
+    """MERGING — fuse two overlapping skills into ONE merged skill: the UNION of their steps,
+    inputs, outputs, and failure_modes, plus the UNION of any supplied test cases, with PROVENANCE
+    preserved (`merged_from:[a_id, b_id]`). The merged skill is minted as a CANDIDATE (it must
+    earn ACTIVE through the existing gate like any new skill — a merge is a claim, not a coronation;
+    pass activate=True only in a context that has already verified it, e.g. the demonstrator).
+    Both PARENTS are then DEPRECATED (kept on disk; LAW 001) and stamped `merged_into` the child.
+
+    Returns {ok, merged_skill, merged_id, parents:[a_id,b_id], reason}. Refuses (ok=False) if
+    either parent is missing. The child records the parents' combined test cases on
+    `merged_test_cases` so the union of what they had to pass is inspectable provenance."""
+    a = _get(name, a_id)
+    b = _get(name, b_id)
+    if not a or not b:
+        miss = a_id if not a else b_id
+        return {"ok": False, "reason": f"no skill {miss!r}", "merged_skill": None,
+                "merged_id": None, "parents": [a_id, b_id]}
+    nm = merged_name or f"{a.get('name')}+{b.get('name')}"
+    dom = domain or a.get("domain") or b.get("domain") or "misc"
+    why = reason or f"merged overlapping skills {a.get('name')!r} and {b.get('name')!r}"
+    # the union of every test case the parents carried (supplied here as provenance, since test
+    # cases live with the caller/teacher, not on the object) — inspectable on the child.
+    merged_tests = _dedup_preserve(test_cases_a, test_cases_b)
+    child = make_skill(
+        nm, dom,
+        inputs=_dedup_preserve(a.get("inputs"), b.get("inputs")),
+        steps=_dedup_preserve(a.get("steps"), b.get("steps")),
+        outputs=_dedup_preserve(a.get("outputs"), b.get("outputs")),
+        confidence=min(CONF_SEED, max(float(a.get("confidence", 0.0)),
+                                      float(b.get("confidence", 0.0)))),
+        source=f"merged:{a_id}+{b_id}",
+        state=CANDIDATE,
+        failure_modes=_dedup_preserve(a.get("failure_modes"), b.get("failure_modes")))
+    child["merged_from"] = [a_id, b_id]
+    child["merged_at"] = _now()
+    child["merge_reason"] = why
+    if merged_tests:
+        child["merged_test_cases"] = merged_tests
+    child.setdefault("support", []).append(f"merged_from:{a_id}+{b_id}:{_now()}")
+    if activate:
+        # the caller asserts the merged content is already trusted (used by the demonstrator after
+        # it verifies the union); the normal path leaves it CANDIDATE to climb the gate honestly.
+        child["state"] = ACTIVE
+        child["last_verified"] = _now()
+    store_skill(child, name=name)
+    # deprecate both parents (kept on disk; provenance to the child) — CONSERVATION, never deleted.
+    for pid, parent in ((a_id, a), (b_id, b)):
+        parent["state"] = DEPRECATED
+        parent["deprecated_at"] = _now()
+        parent["deprecated_reason"] = f"merged into {child['id']} ({nm})"
+        parent["merged_into"] = child["id"]
+        parent["failure_modes"] = list(parent.get("failure_modes", [])) + [
+            f"DEPRECATED: merged into {child['id']}"]
+        parent.setdefault("support", []).append(f"merged_into:{child['id']}:{_now()}")
+        _upsert(name, parent)
+    return {"ok": True, "merged_skill": child, "merged_id": child["id"],
+            "parents": [a_id, b_id], "reason": why}
+
+
+def lineage(skill_or_id, name: str = "default") -> dict:
+    """The evolutionary lineage of a skill — the anti-black-box 'where did this come from / what
+    did it replace / what is it now' query. Returns {id, name, state, version, revisions,
+    merged_from, supersedes, superseded_by, merged_into, retired, reason}. Every field is read off
+    the stored object (provenance is what was recorded, never reconstructed)."""
+    sk = _get(name, skill_or_id) if isinstance(skill_or_id, str) else skill_or_id
+    if not sk:
+        return {"error": f"no skill {skill_or_id!r}"}
+    return {
+        "id": sk.get("id"),
+        "name": sk.get("name"),
+        "state": sk.get("state"),
+        "version": skill_version(sk),
+        "revisions": len(sk.get("history", [])),
+        "merged_from": list(sk.get("merged_from", [])),
+        "supersedes": list(sk.get("supersedes", [])),
+        "superseded_by": sk.get("superseded_by"),
+        "merged_into": sk.get("merged_into"),
+        "retired": bool(sk.get("retired", False)),
+        "reason": sk.get("deprecated_reason") or sk.get("revision_reason"),
+    }
+
+
+# ===================================================================================
 # SELFTEST — `python3 -m anima.lerf --selftest`. FULLY HERMETIC: a SYNTHETIC creature in
 # a throwaway temp store, with EVERY store the load path may write redirected for the whole
 # block — lerf.STORE on BOTH the __main__ and package bindings, constitution.STORE (the
@@ -1194,6 +1748,172 @@ def _selftest() -> int:
            any("gate REJECTED" in fm for fm in _get(nm, "skill_nocontract")["failure_modes"]))
         ok("gate: a REJECTED candidate never becomes retrievable",
            all(s["id"] != "skill_nocontract" for s in retrieve_skills("no contract", name=nm)))
+
+        # --- SKILL EVOLUTION (Phase 5): reality decides winners ----------------------
+        # REUSE PROOF: the competition reweighting IS reality's own functions (byte-identity).
+        try:
+            from . import reality as _rl
+            ok("evolution[reuse]: _evo_normalise IS reality._normalise_weights (byte-identical)",
+               _evo_normalise is _rl._normalise_weights)
+            ok("evolution[reuse]: _evo_adjudicate IS reality._adjudicate_weights (byte-identical)",
+               _evo_adjudicate is _rl._adjudicate_weights)
+            ok("evolution[reuse]: evolution_reuses_reality() reports the reuse is live",
+               evolution_reuses_reality() is True)
+        except Exception as e:
+            ok(f"evolution[reuse]: reality import for byte-identity check ({e})", False)
+
+        # VERSIONING: a fresh skill is v1; revise mints v2 and retains v1 in history WITH a reason.
+        store_skill(make_skill("evo_summarize", "evo", id="skill_evoV",
+                               state=ACTIVE, inputs=["i"], steps=["old step"], outputs=["o"]),
+                    name=nm)
+        ok("evolution[version]: a fresh skill is version 1",
+           skill_version(_get(nm, "skill_evoV")) == 1)
+        revise_skill("skill_evoV", reason="tightened the extraction step",
+                     steps=["new step A", "new step B"], name=nm)
+        evoV = _get(nm, "skill_evoV")
+        ok("evolution[version]: revising mints version 2", skill_version(evoV) == 2)
+        ok("evolution[version]: the NEW steps are live", evoV["steps"] == ["new step A", "new step B"])
+        ok("evolution[version]: the PRIOR version is retained in history (append-only)",
+           len(skill_history("skill_evoV", name=nm)) == 1
+           and skill_history("skill_evoV", name=nm)[0]["steps"] == ["old step"])
+        ok("evolution[version]: history records WHEN and WHY it was revised",
+           skill_history("skill_evoV", name=nm)[0]["reason"] == "tightened the extraction step"
+           and skill_history("skill_evoV", name=nm)[0].get("snapshot_at"))
+        ok("evolution[version]: a revised ACTIVE skill stays ACTIVE (still retrievable)",
+           evoV["state"] == ACTIVE)
+
+        # MEASURED OUTCOMES: the reality signal accrues from recorded successes/failures. A
+        # DISTINCTIVE task ('parse a csv export') so exactly these two skills contest it (the
+        # earlier-seeded skills do not match) — a clean two-way competition.
+        store_skill(make_skill("parse_csv_fast", "tabular", id="skill_strong", state=ACTIVE,
+                               inputs=["csv export"], steps=["detect delimiter", "parse columns"],
+                               outputs=["rows"]), name=nm)
+        store_skill(make_skill("parse_csv_naive", "tabular", id="skill_weak", state=ACTIVE,
+                               inputs=["csv export"], steps=["split on commas"],
+                               outputs=["rows"]), name=nm)
+        for _ in range(9):
+            record_skill_outcome("skill_strong", success=True, kind="benchmark", name=nm)
+        record_skill_outcome("skill_strong", success=False, kind="benchmark", name=nm)
+        for _ in range(2):
+            record_skill_outcome("skill_weak", success=True, kind="benchmark", name=nm)
+        for _ in range(6):
+            record_skill_outcome("skill_weak", success=False, kind="benchmark", name=nm)
+        ok("evolution[outcome]: success rate is the measured successes/uses",
+           skill_success_rate(_get(nm, "skill_strong")) == 0.9
+           and skill_success_rate(_get(nm, "skill_weak")) == 0.25)
+        ok("evolution[outcome]: an untested skill has no invented rate (None)",
+           skill_success_rate(make_skill("u", "u", ["i"], ["s"], ["o"])) is None)
+
+        # COMPETITION: two skills claim the SAME task; REALITY (measured outcomes) picks the winner.
+        comp = compete_skills("parse this csv export into rows", name=nm)
+        ok("evolution[compete]: both same-task skills are in the contested field",
+           comp["n"] == 2 and {c["id"] for c in comp["candidates"]} == {"skill_strong", "skill_weak"})
+        ok("evolution[compete]: reality favors the higher-measured-outcome skill",
+           comp["leader_id"] == "skill_strong" and comp["margin"] > 0)
+        ok("evolution[compete]: the win is decided BY measured outcomes via reality (not priority)",
+           comp["reused_reality"] is True and "measured outcomes" in comp["decided_by"])
+        # the winner's competition weight equals reality's own adjudication of the measured signals.
+        _sig = {"skill_strong": _skill_signal(_get(nm, "skill_strong")),
+                "skill_weak": _skill_signal(_get(nm, "skill_weak"))}
+        _pri = _rl._normalise_weights(dict(_sig))
+        _exp = _rl._adjudicate_weights({k: {"weight": _pri[k]} for k in _sig},
+                                       "skill_strong", ["skill_weak"])
+        ok("evolution[compete]: candidate weights ARE reality._adjudicate_weights' output",
+           all(abs(next(c["weight"] for c in comp["candidates"] if c["id"] == k) - _exp[k]) < 1e-9
+               for k in _sig))
+
+        # REPLACEMENT: the stronger skill replaces the weaker -> loser DEPRECATED (kept on disk).
+        rep = evolve_task("parse this csv export into rows", name=nm)
+        ok("evolution[replace]: the measured winner deprecates the loser",
+           rep["winner_id"] == "skill_strong" and "skill_weak" in rep["replaced"])
+        ok("evolution[replace]: the loser is DEPRECATED, not deleted (CONSERVATION / LAW 001)",
+           _get(nm, "skill_weak")["state"] == DEPRECATED and _get(nm, "skill_weak") is not None)
+        ok("evolution[replace]: the loser records WHO superseded it + a reason",
+           _get(nm, "skill_weak")["superseded_by"] == "skill_strong"
+           and _get(nm, "skill_weak").get("deprecated_reason"))
+        ok("evolution[replace]: only the winner remains retrievable for the task",
+           [s["id"] for s in retrieve_skills("parse this csv export into rows", name=nm)]
+           == ["skill_strong"])
+        ok("evolution[replace]: the winner records what it supersedes",
+           "skill_weak" in _get(nm, "skill_strong")["supersedes"])
+
+        # RETIREMENT: a FAILING skill retires WITH a reason; a HEALTHY one cannot be retired by fiat.
+        store_skill(make_skill("flaky_extract", "evo", id="skill_flaky", state=ACTIVE,
+                               inputs=["i"], steps=["s"], outputs=["o"]), name=nm)
+        for _ in range(5):
+            record_skill_outcome("skill_flaky", success=False, kind="benchmark", name=nm)
+        record_skill_outcome("skill_flaky", success=True, kind="benchmark", name=nm)
+        rchk = retirement_check(_get(nm, "skill_flaky"))
+        ok("evolution[retire]: a high-failure-rate skill is judged failing (reality, not opinion)",
+           rchk["retire"] and rchk["failing"] is True)
+        ret = retire_skill("skill_flaky", name=nm)
+        ok("evolution[retire]: a failing skill retires to DEPRECATED with a recorded reason",
+           ret["retired"] and _get(nm, "skill_flaky")["state"] == DEPRECATED
+           and "RETIRED" in _get(nm, "skill_flaky")["failure_modes"][-1])
+        ok("evolution[retire]: a retired skill is no longer retrievable (kept on disk though)",
+           all(s["id"] != "skill_flaky" for s in retrieve_skills("extract", name=nm))
+           and _get(nm, "skill_flaky") is not None)
+        # a HEALTHY skill (skill_strong: 90% pass, just verified) cannot be retired by fiat.
+        refuse_ret = retire_skill("skill_strong", name=nm)
+        ok("evolution[retire]: a healthy skill is REFUSED retirement (no retire-by-fiat)",
+           not refuse_ret["retired"] and _get(nm, "skill_strong")["state"] == ACTIVE
+           and "REFUSED" in refuse_ret["reason"])
+        # STALENESS: a skill last verified long ago is judged stale by reality's clock.
+        store_skill(make_skill("ancient", "evo", id="skill_ancient", state=ACTIVE,
+                               inputs=["i"], steps=["s"], outputs=["o"]), name=nm)
+        anc = _get(nm, "skill_ancient")
+        anc["last_verified"] = "2020-01-01T00:00:00+00:00"
+        _upsert(nm, anc)
+        ok("evolution[retire]: a long-unverified skill is judged STALE by the clock",
+           retirement_check(_get(nm, "skill_ancient"))["stale"] is True)
+        swept = sweep_retirements(name=nm)
+        ok("evolution[retire]: the sweep retires the stale skill with its reason",
+           any(r["state"] == DEPRECATED for r in swept)
+           and _get(nm, "skill_ancient")["state"] == DEPRECATED)
+
+        # MERGING: two overlapping skills fuse -> union of steps+tests, provenance preserved.
+        store_skill(make_skill("inbox_triage", "email", id="skill_mA", state=ACTIVE,
+                               inputs=["inbox"], steps=["sort by sender", "flag urgent"],
+                               outputs=["triaged inbox"], failure_modes=["misses VIPs"]), name=nm)
+        store_skill(make_skill("inbox_summarize", "email", id="skill_mB", state=ACTIVE,
+                               inputs=["inbox", "thread"], steps=["flag urgent", "summarize threads"],
+                               outputs=["summary"], failure_modes=["drops context"]), name=nm)
+        mg = merge_skills("skill_mA", "skill_mB", name=nm, merged_name="inbox_assistant",
+                          reason="overlapping email skills",
+                          test_cases_a=[{"input": "a", "expected": "a"}],
+                          test_cases_b=[{"input": "b", "expected": "b"}], activate=True)
+        child = mg["merged_skill"]
+        ok("evolution[merge]: the merged skill UNIONS the parents' steps (dedup, order-preserving)",
+           child["steps"] == ["sort by sender", "flag urgent", "summarize threads"])
+        ok("evolution[merge]: the merged skill UNIONS inputs and failure_modes",
+           set(child["inputs"]) == {"inbox", "thread"}
+           and set(child["failure_modes"]) == {"misses VIPs", "drops context"})
+        ok("evolution[merge]: provenance is preserved (merged_from:[A,B])",
+           child["merged_from"] == ["skill_mA", "skill_mB"])
+        ok("evolution[merge]: the union of the parents' test cases is recorded on the child",
+           len(child.get("merged_test_cases", [])) == 2)
+        ok("evolution[merge]: BOTH parents are DEPRECATED (kept on disk; LAW 001), pointing at child",
+           _get(nm, "skill_mA")["state"] == DEPRECATED
+           and _get(nm, "skill_mB")["merged_into"] == child["id"])
+        ok("evolution[merge]: the active merged child is the one now retrieved for the task",
+           any(s["id"] == child["id"]
+               for s in retrieve_skills("triage and summarize my inbox", name=nm)))
+
+        # LINEAGE: the anti-black-box 'where did this come from' query reads recorded provenance.
+        lin = lineage(child["id"], name=nm)
+        ok("evolution[lineage]: lineage exposes version + merged_from provenance",
+           lin["version"] == 1 and lin["merged_from"] == ["skill_mA", "skill_mB"])
+        ok("evolution[lineage]: the revised skill's lineage shows its revision count",
+           lineage("skill_evoV", name=nm)["revisions"] == 1)
+
+        # CONSERVATION INVARIANT: every deprecated/retired/merged-away skill SURVIVES on disk.
+        all_objs = _load_objects(nm)
+        for dead_id in ("skill_weak", "skill_flaky", "skill_ancient", "skill_mA", "skill_mB"):
+            ok(f"evolution[conserve]: {dead_id} is RETAINED on disk (never deleted)",
+               any(o.get("id") == dead_id for o in all_objs))
+        ok("evolution[conserve]: 'active' remains the ONLY retrievable state after all evolution",
+           all(s["state"] == ACTIVE for s in retrieve_skills("parse csv", name=nm))
+           and all(s["state"] == ACTIVE for s in retrieve_skills("inbox", name=nm)))
 
         # --- CONCEPT surface + graph -------------------------------------------------
         a = store_concept(make_concept(

@@ -22,7 +22,16 @@ KEYS = ("imessage", "mail", "web")
 # identity_agency — the held switch for Vera's Identity & Agency organs. OFF until
 # the founder turns it on; while OFF the organs stay dormant (organs/__init__.py
 # reads this via is_enabled()), honouring the 2026-07-03 observation-window freeze.
-BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency")
+#
+# grow_intelligence — the "[x] Grow Intelligence" switch for LERF Phase 6 autonomous
+# learning (anima/lerf_grow.py). OFF until the founder turns it on; while OFF the
+# idle-time learning loop is a provable no-op — ZERO autonomous activity and ZERO
+# paid teacher calls. Same default-OFF posture as identity_agency: nothing grows and
+# nothing is spent unless the user has EXPLICITLY opted in. It governs ONLY task-skill
+# growth; the identity freeze is independent and absolute (a curriculum can never be
+# about who Vera is).
+BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency",
+             "grow_intelligence")
 
 # Enum (multi-value) settings, persisted alongside the booleans. Each maps a key to
 # (allowed_values, default); load()/save() read this map so a new enum stays in lockstep
