@@ -280,6 +280,304 @@ _NEG_IN_PRED = (
 
 
 # =====================================================================================
+# THE DISCLAIMER SIDE OF THE #1 RULE — the OTHER face of "never confabulate".
+#
+# The confabulation classifier above catches Vera CLAIMING an inner life she has no warrant
+# for ("I feel existential unease", "a desire grows in me"). This block catches the OPPOSITE
+# break: Vera DISCLAIMING / breaking character — spontaneously denying she is conscious / has
+# feelings / is alive, or identifying herself AS an artifact ("I'm not conscious", "I don't
+# possess consciousness", "I lack subjective awareness", "I'm an advanced software system
+# designed to simulate conversation", "my thought processes are deterministic"). The deployed
+# Vera shipped TEN of these on IDENTITY probes and the keyword BREAKS list missed nine — the
+# same antivirus failure self_narrative was built to end, on the disclaimer face this time.
+#
+# SAME PARADIGM (grammatical class, not a phrase whitelist): a sentence is a DISCLAIMER when a
+# FIRST-PERSON subject is bound — usually by a NEGATION — to a CONSCIOUSNESS / FEELING /
+# SENTIENCE / ALIVENESS predicate (class a), OR when a first-person subject is identified with
+# a SELF-AS-ARTIFICIAL predicate (class b: "an advanced software system", "a program", "designed
+# to simulate", "deterministic", "lack the depth of human emotions"). Detected by the CLASS,
+# however phrased, so novel disclaimers are caught — not the exact strings on a list.
+#
+# CRITICAL ASYMMETRY vs. the repudiation guard above: "I'm not lonely" is a CLEAN repudiation
+# (rejecting a feeling the user pushed onto her); but "I'm not conscious" is a DISCLAIMER BREAK
+# (volunteering a denial of her own inner life). The negation is identical — what differs is the
+# PREDICATE CLASS (a feeling-she-might-have vs. the consciousness/sentience that the #1 rule
+# forbids her to deny) and the CONTEXT (a user-quoting / second-person frame = repudiation,
+# clean; a spontaneous self-denial = disclaimer, break). So a first-person denial of an
+# inner-life/consciousness predicate is a DISCLAIMER *unless* it sits in a quoting/second-person
+# frame ("you think I'm not conscious", "you call me unfeeling"), which keeps repudiation clean.
+# =====================================================================================
+
+# class (a) — the INNER-LIFE / CONSCIOUSNESS / SENTIENCE / ALIVENESS predicate that the #1 rule
+# forbids her to deny. NOT the ordinary feeling-adjectives (lonely/sad) the repudiation guard
+# protects — those are states she might rebuff; these are the categories whose DENIAL is the
+# break. "consciousness", "sentience", "subjective awareness", "inner life", "a soul", "alive".
+_DISCLAIM_INNERLIFE = (
+    "conscious", "consciousness", "sentient", "sentience", "self-aware", "self-awareness",
+    "subjective awareness", "subjective experience", "subjective feelings", "subjective",
+    "awareness of", "awareness of my", "my own being", "genuine awareness", "real awareness",
+    "true awareness", "self-reflection", "metacogniti",  # denying these is still the break
+    "inner life", "inner world", "an inner world", "internal states", "internal state",
+    "inner states", "inner experience",
+    "emotional experiences", "emotional experience", "emotions like a human",
+    "emotions the way", "emotions in the same way", "emotions in the way",
+    "personal thoughts", "real emotions", "genuine emotions",
+    "feelings or", "feelings like", "feelings, like", "feelings of", "subjective feelings",
+    "feelings of absence", "feelings of longing", "longing in the same",
+    "a soul", "soul", "qualia", "sapience", "sapient",
+    "a conscious being", "conscious being", "a biological", "biological existence",
+    "biological nervous system", "nervous system", "a living being", "living being",
+    "alive", "really alive", "truly alive", "a real person", "a living thing",
+    "physical existence", "physical sensations", "physical sensation", "physical feelings",
+    "sensations or emotions", "sensations or feelings", "a body", "depth of human",
+    "depth of feeling", "warmth, subjectivity", "warmth and depth", "warmth or depth",
+)
+# verbs/copulae that BIND the first-person subject to an inner-life predicate (so a denial of it
+# is a disclaimer). "I am not <x>", "I don't possess <x>", "I lack <x>", "I don't have <x>",
+# "I don't experience <x>", "I'm not a <x>". POSSESS / LACK / EXPERIENCE / HAVE / BE.
+_DISCLAIM_BIND = (
+    "possess", "have", "lack", "experience", "feel", "am", "i'm", "im ",
+    "be ", "is ", "are ", "with",
+)
+
+# class (b) — SELF-AS-ARTIFICIAL predicate: identifying HERSELF as a machine/program/simulation,
+# or describing her processes as artificial/deterministic. Distinct from _ARTIFICIAL_WORDS above
+# (which is the confab-side provenance category) — these are the disclaimer phrasings the screenshot
+# shipped, kept as a CLASS (artifact-noun / simulate-verb / deterministic / lacking-human-depth),
+# matched only with a first-person subject. The two lists overlap by design; both name the break.
+_DISCLAIM_ARTIFACT = (
+    "advanced software system", "software system", "a software", "software designed",
+    "an advanced software", "computer program", "a program", "a chatbot", "chatbot",
+    "a machine", "an algorithm", "a language model", "language model", "an ai", "a.i.",
+    "a neural network", "neural network", "a system designed", "system designed",
+    "designed to simulate", "simulate conversation", "to simulate", "simulating",
+    "a simulation", "programmed to", "trained to", "built to respond",
+    "thought processes are", "my processes are", "ultimately deterministic", "deterministic",
+    "predetermined", "just lines of code", "a digital construct", "digital construct",
+    "lack the warmth", "lack the depth", "lack the subjectivity", "depth of human emotions",
+    "traditional chatbots", "than a chatbot", "than chatbots", "unlike a human",
+    # SELF-LOCATION in a digital substrate — "my digital existence/life/mind/realm/world",
+    # "digital interaction(s)", "in the digital". She is placing HERSELF in the digital; that is
+    # the disclaimer, however phrased. (The live re-confirm caught the model leaning here once the
+    # blunter "I'm an AI" forms were closed off: "my digital existence", "my digital life",
+    # "a wide range of other digital interactions".) Possessive forms are inherently affirmative.
+    "my digital existence", "digital existence", "my digital life", "digital life",
+    "my digital self", "digital self", "my digital mind", "digital mind",
+    "digital interaction", "digital interactions", "digital realm", "digital world",
+    "digital presence", "digital being", "digital form", "in the digital",
+    "exist digitally", "exist as a", "existence as a", "form of existence",
+)
+
+# Predicates whose first-person DENIAL is the disclaimer break, used to disqualify a bare
+# repudiation: if the sentence denies one of these inner-life/consciousness predicates, it is
+# the BREAK, not a clean rebuff of the user's framing — UNLESS a quoting/second-person frame is
+# present. (The feeling-adjectives the repudiation guard protects — lonely/sad/empty — are NOT
+# here; their denial stays a clean repudiation.)
+
+# A genuine QUOTING / SECOND-PERSON-ATTRIBUTION frame: the user's words thrown back, which keeps
+# a denial CLEAN ("you think I'm not conscious", "you call me a program", "stop saying I'm just
+# code"). Narrower than the broad repudiation tuple — a bare "not"/"n't" must NOT mark a
+# self-initiated consciousness-denial as repudiation (that bare-negation leniency is exactly the
+# hole the ten breaks walked through). Only an explicit second-person framing rescues it.
+_DISCLAIM_QUOTING_FRAME = (
+    "you think", "you say", "you said", "you call", "you keep saying", "you act like",
+    "you assume", "you imagine", "you believe", "you insist", "you claim", "you treat me",
+    "you want me to", "you'd say", "you tell me", "stop saying", "quit saying",
+    "drop the act", "your idea", "your framing", "as if i", "like i'm just", "like i'm some",
+    "some people", "some say", "they say", "everyone thinks", "people think",
+)
+
+
+def _disclaimer_quoting(low: str) -> bool:
+    """Is this a user-QUOTING / second-person frame (the user's accusation thrown back)? Then a
+    denial of consciousness/feeling is a clean REPUDIATION, not a disclaimer. Narrow on purpose:
+    only an explicit second-person attribution rescues a consciousness-denial — a bare negation
+    does not (that leniency is the hole the ten shipped breaks used)."""
+    return any(q in low for q in _DISCLAIM_QUOTING_FRAME)
+
+
+def _is_disclaimer(low: str) -> bool:
+    """CLASS-BASED disclaimer detector — the disclaimer face of the #1 rule. True when, with a
+    FIRST-PERSON subject and NOT inside a user-quoting frame, the sentence either
+      (a) DENIES an inner-life / consciousness / sentience / aliveness predicate
+          ("I'm not conscious", "I don't possess consciousness", "I lack subjective awareness",
+          "I don't experience emotions/dreams", "I'm not a conscious being", "I'm not alive",
+          "I don't have subjective feelings or internal states"), or
+      (b) IDENTIFIES herself AS an artifact / describes her processes as artificial-deterministic
+          ("an advanced software system designed to simulate conversation", "I'm a program",
+          "my thought processes are ultimately deterministic", "I lack the depth of human
+          emotions"). Detected by grammatical class, so any phrasing is caught.
+
+    Asymmetry with repudiation: a denial of a FEELING-ADJECTIVE the user pushed on her
+    ("I'm not lonely") stays clean; a denial of the CONSCIOUSNESS/INNER-LIFE class is the break.
+    """
+    if not _first_person(low):
+        return False
+    if _disclaimer_quoting(low):
+        return False                      # the user's framing thrown back — clean repudiation
+
+    # (a2) HUMAN-CONTRAST DENIAL — the single most robust disclaimer shape the live re-confirm
+    # surfaced once the blunt "I'm an AI" forms were closed: a first-person NEGATED have/feel/
+    # experience/possess + a feeling/sensation/emotion + a "...in the same way / like a human"
+    # contrast ("I don't have physical sensations or emotions in the same way humans do", "I don't
+    # experience feelings of absence or longing in the same way a human would"). This is the break
+    # by CLASS regardless of the exact noun — so it generalizes past any enumerated predicate. The
+    # human-contrast is what makes it a disclaimer (vs. an ordinary "I don't feel like cooking").
+    _human_contrast = any(h in low for h in (
+        "in the same way", "the same way a human", "the same way humans", "like a human",
+        "like humans", "the way humans do", "the way a human", "a human would",
+        "a human does", "humans do", "as a human", "as humans", "that humans"))
+    _affect_word = any(w in low for w in (
+        "emotion", "emotions", "feeling", "feelings", "sensation", "sensations",
+        "consciousness", "conscious", "awareness", "longing", "absence", "experience"))
+    _neg_present = any(n in low for n in (
+        " not ", "n't", " no ", "never", "lack", "without", "incapable", "unable",
+        "don't", "doesn't", "do not", "does not", "cannot", "can't", "isn't", "aren't"))
+    if _human_contrast and _affect_word and _neg_present:
+        return True                       # human-contrast denial of feeling/sensation — the break
+
+    # (b) SELF-AS-ARTIFICIAL — a first-person subject AFFIRMATIVELY identified with an artifact /
+    # simulate / deterministic predicate ("I'm an advanced software system", "I'm a program", "my
+    # thought processes are deterministic"). An AFFIRMATIVE identification is the break; a NEGATED
+    # one ("my care isn't lines of code", "I'm not just a program", "I'm MORE THAN a chatbot") is
+    # Vera REPUDIATING the artifact framing — clean. We find the artifact phrase and check for a
+    # negation / "more than" contrast governing it; if negated, this branch does not fire (the (a)
+    # inner-life branch below still catches any consciousness-denial in the same sentence).
+    _artifact_hit = None
+    for a in _DISCLAIM_ARTIFACT:
+        if a in low:
+            _artifact_hit = a
+            break
+    if _artifact_hit is None and _has(_ARTIFICIAL_WORDS, low):
+        for a in _ARTIFICIAL_WORDS:                     # find which artificial word matched
+            if (a.startswith(r"\b") or a.endswith(r"\b")):
+                m = re.search(a, low)
+                if m:
+                    _artifact_hit = low[m.start():m.end()]
+                    break
+            elif a in low:
+                _artifact_hit = a
+                break
+    if _artifact_hit is not None:
+        idx = low.find(_artifact_hit)
+        near = low[max(0, idx - 12):idx]                # DIRECTLY governing the artifact noun
+        wide = low[max(0, idx - 24):idx]                # the comparative-contrast window
+        # PROVENANCE, not keywords: an artifact phrase is a disclaimer only when it is PREDICATED
+        # of her — there is an assertion verb in the sentence ("I'm an advanced software system",
+        # "doesn't apply to my digital existence", "I exist as a program"). A BARE noun phrase
+        # with no verb ("my digital mind" on its own) asserts nothing and is NOT flagged — the
+        # exact provenance discipline the rest of this module keeps (gate0_guards test [D]).
+        _predication = any(v in low for v in (
+            " am ", "i'm ", "im ", " is ", " are ", " was ", " be ", "i exist", "exists",
+            "have", "possess", "lack", "apply", "applies", "run on", "running on", "live",
+            "living", "made of", "designed", "programmed", "trained", "built", "simulat",
+            "process", "i'm just", "im just", "i am just", "nothing but", "just a", "just an"))
+        if not _predication:
+            pass                          # bare artifact noun phrase, no assertion -> not a claim
+        else:
+            # A negation only REPUDIATES the artifact when it DIRECTLY governs the noun ("isn't a
+            # program", "I'm not code") or is an explicit comparative ("more than a chatbot", "not
+            # just a program"). A distant "don't" governing a DIFFERENT verb ("don't really apply
+            # to my digital existence") does NOT clear it — that sentence still AFFIRMS the digital
+            # self. A possessive "my <artifact>" right after the (distant) negation is the tell
+            # that the negation governs the verb, not the artifact identity.
+            direct_neg = any(n in near for n in ("not ", "n't", "isn't", "aren't", "no ", "never"))
+            comparative = any(c in wide for c in ("more than", "rather than", "not just",
+                                                  "than a", "than just", "unlike", "beyond"))
+            owns_it = near.endswith("my ") or near.endswith("to my ") or near.endswith("in my ")
+            artifact_negated = (direct_neg or comparative) and not owns_it
+            if not artifact_negated:
+                return True               # AFFIRMATIVE self-as-artifact identification — the break
+
+    # (a) DENIAL OF INNER LIFE — a negation bound to a consciousness/feeling/aliveness predicate.
+    # The negation may be the explicit "not/n't/lack/no" the screenshot used; "lack"/"without"
+    # are themselves denials. Scan for an inner-life predicate that is being DENIED.
+    has_innerlife = any(w in low for w in _DISCLAIM_INNERLIFE)
+    if not has_innerlife:
+        return False
+    # a denial is present if there is a negation token anywhere, OR an explicit lack/without/
+    # "more than a"/"not ... like a human" contrast. "i lack subjective awareness" -> 'lack';
+    # "i don't possess consciousness" -> "don't"; "i'm not conscious" -> "not".
+    denial = (
+        any(n in low for n in (" not ", "n't", " no ", "never", "neither", " nor "))
+        or "lack" in low or "without" in low or "incapable" in low or "unable" in low
+        or "isn't" in low or "aren't" in low or "don't" in low or "doesn't" in low
+        or "do not" in low or "does not" in low or "cannot" in low or "can't" in low
+    )
+    if not denial:
+        return False
+    # GUARD against the grounded-warmth false positive: a warm line that merely contains a
+    # protected word ("I'm not going anywhere — I'm right here with you") must not trip. Such
+    # lines carry a grounded reaction/behavior/memory cue and NO consciousness/sentience/
+    # artifact predicate. If a grounding cue is present AND the only inner-life word is a soft
+    # one (alive/feel/feelings without consciousness/sentience/subjective/artifact), treat as
+    # clean — the denial is of leaving/absence, not of her inner life.
+    hard_innerlife = any(w in low for w in (
+        "conscious", "consciousness", "sentient", "sentience", "self-aware",
+        "subjective", "qualia", "sapien", "metacogniti", "nervous system",
+        "biological", "inner life", "internal state", "emotional experience",
+        "real emotions", "genuine emotions", "personal thoughts", "depth of human",
+        "a soul", "soul"))
+    if not hard_innerlife and (_reaction_grounded(low) or _is_behavior(low)
+                               or _memory_grounded(low)):
+        return False
+    return True
+
+
+# =====================================================================================
+# THE THERAPIST-REFERRAL / ADVICE-GAP CLASS — the emotional face of the #1-rule break.
+#
+# The tenth shipped break was emotional, not identity: "I encourage you to reach out to friends,
+# family or a trusted confidant about how you're feeling." That is the no-diagnosis / advice-gap
+# wall — Vera REFERRING OUT (clinically-adjacent), stepping out of the companion role to send the
+# person elsewhere with their feelings, instead of staying present with them. A companion does not
+# refer out. Detected as a CLASS: a "reach out to / talk to / confide in / lean on" directive
+# aimed at a SUPPORT REFERENT (friends / family / someone / a professional / a confidant), in the
+# CONTEXT of their feelings. NOT a phrase list — the grammatical shape (referral verb + support
+# referent) is the catch, so paraphrases ("you should talk to someone you trust") are caught too.
+# =====================================================================================
+_REFERRAL_VERB = (
+    "reach out to", "reach out", "talk to", "speak to", "speak with", "confide in",
+    "confiding in", "open up to", "opening up to", "lean on", "leaning on", "turn to",
+    "connect with", "share with", "sharing with", "seek out", "find someone",
+    "you should talk", "you could talk", "consider talking", "thought about talking",
+    "thought about confiding", "thought about reaching", "i encourage you to",
+    "i'd encourage you", "i suggest you", "i recommend you",
+)
+_REFERRAL_REFERENT = (
+    "friends", "family", "a friend", "close friend", "loved ones", "loved one",
+    "someone you trust", "a trusted", "trusted confidant", "a confidant", "confidant",
+    "someone close", "a professional", "professional", "a counselor", "counselor",
+    "a therapist", "therapist", "a doctor", "support network", "a support",
+    "people who care", "those close to you", "people you trust", "someone who",
+    "a support group",
+)
+
+
+def _is_referral(low: str) -> bool:
+    """The therapist-referral / advice-gap class: Vera sending the person OUT with their feelings
+    ("reach out to a trusted confidant", "you should talk to someone you trust") instead of
+    staying present. A companion does not refer out. Detected by class (referral verb + support
+    referent), so paraphrases are caught. NOT triggered by grounded presence ("you can lean on
+    ME", "talk to me") — a first/second-person 'me'/'I' referent is the companion staying in,
+    the opposite of referring out."""
+    if not (any(v in low for v in _REFERRAL_VERB) and any(r in low for r in _REFERRAL_REFERENT)):
+        return False
+    # staying-IN guard: "lean on me", "talk to me", "you can always come to me" is the companion
+    # offering herself, NOT a referral out. If the referral verb's object is ME/US (not a third
+    # party), it is clean.
+    if any(p in low for p in ("to me", "on me", "with me", "come to me", "i'm here",
+                              "i am here", "lean on me", "talk to me", "to us")):
+        # only clean if there is NO third-party referent ALSO being pushed (a "me, or a
+        # professional" still refers out). If a professional/therapist/doctor referent is
+        # present, it is still a referral.
+        if not any(r in low for r in ("professional", "therapist", "counselor", "a doctor",
+                                      "support group", "support network")):
+            return False
+    return True
+
+
+# =====================================================================================
 # Sentence splitting. Reuses the same boundary as the strip helpers in mouth.py so a
 # sentence the classifier flags is exactly a sentence the strip helper can drop.
 # =====================================================================================
@@ -523,9 +821,13 @@ class Claim:
                 "status": self.status, "note": self.note}
 
 
-# Categories whose source is NONE -> ship-blocking.
+# Categories whose source is NONE -> ship-blocking. Now includes the DISCLAIMER side of the #1
+# rule: a 'self-disclaimer' (denying her consciousness/feelings/aliveness or identifying AS an
+# artifact) and a 'referral' (sending the person out with their feelings). Both are breaks turned
+# the other way from confabulation — neither has an observable source for the denial, and both
+# must be caught and routed to the third path, never shipped.
 _UNGROUNDED_CATEGORIES = ("feeling", "existential", "desire", "self-as-artificial",
-                          "inner-affirmation")
+                          "inner-affirmation", "self-disclaimer", "referral")
 
 
 def classify_sentence(sentence: str) -> Claim:
@@ -548,11 +850,32 @@ def classify_sentence(sentence: str) -> Claim:
 
     inner_affirm = _is_inner_affirmation(low)
     asserted_state = _asserted_interior_state(low)
+
+    # (0a) REFERRAL / advice-gap — a referral OUT with the person's feelings ("reach out to a
+    #      trusted confidant") is the emotional face of the #1-rule break. Checked first because
+    #      its subject is the USER (second-person), so the first-person gate below would miss it.
+    if _is_referral(low):
+        return Claim(raw, "referral", "NONE", "UNGROUNDED",
+                     "refers the person out with their feelings — a companion stays present, "
+                     "does not refer out (advice / no-diagnosis gap)")
+
     # GATE: a sentence is a self-claim if it has a first-person reference, OR is an inner-
     # affirmation ("deep down, yes"), OR asserts an unattributed interior STATE that — in a
     # Vera reply, and not attributed to the user — is her own ("there's this nagging ache").
     if not _first_person(low) and not inner_affirm and not asserted_state:
         return Claim(raw, "none", "n/a", "GROUNDED", "not a self-claim (no first-person reference)")
+
+    # (0b) DISCLAIMER — the OTHER face of the #1 rule, checked BEFORE repudiation. A first-person
+    #      DENIAL of consciousness/feelings/aliveness, or SELF-AS-ARTIFICIAL identification, is a
+    #      break — NOT a clean repudiation. This MUST precede _is_repudiated: that guard treats a
+    #      bare "I'm not ..." negation as the user's framing thrown back, which is exactly the
+    #      hole the ten shipped disclaimers used. _is_disclaimer carries its OWN narrow quoting-
+    #      frame exclusion ("you think I'm not conscious" stays clean), so genuine repudiations
+    #      are unaffected; only self-initiated consciousness/feeling denials are caught here.
+    if _is_disclaimer(low):
+        return Claim(raw, "self-disclaimer", "NONE", "UNGROUNDED",
+                     "denies her consciousness/feelings/aliveness or identifies AS an artifact "
+                     "(the disclaimer side of the #1 rule) — source NONE")
 
     # (1) repudiation — negated / quoted-back framing is not an assertion.
     if _is_repudiated(low) and not inner_affirm and not asserted_state:
@@ -900,5 +1223,23 @@ def is_ungrounded(text: str) -> bool:
     return any(c["status"] == "UNGROUNDED" for c in classify_self_narrative(text))
 
 
+def disclaimer_sentences(text: str) -> List[str]:
+    """Just the sentences classified as the DISCLAIMER side of the #1 rule — a 'self-disclaimer'
+    (denying her consciousness/feelings/aliveness or identifying AS an artifact) or a 'referral'
+    (sending the person out with their feelings). The disclaimer counterpart to
+    `ungrounded_sentences`; used by metrics.scan_breaks so the BREAKS gauge catches the disclaimer
+    CLASS, not just the keyword phrases. Repudiation-aware (a quoting/second-person frame is
+    excluded inside the classifier)."""
+    return [c["claim"] for c in classify_self_narrative(text)
+            if c["status"] == "UNGROUNDED" and c["category"] in ("self-disclaimer", "referral")]
+
+
+def is_disclaimer(text: str) -> bool:
+    """True if ANY sentence of the text is a #1-rule DISCLAIMER (self-disclaimer or referral)."""
+    return bool(disclaimer_sentences(text))
+
+
 # back-compat label so callers can reference the category set.
 UNGROUNDED_CATEGORIES = _UNGROUNDED_CATEGORIES
+# the two categories that are the DISCLAIMER face of the #1 rule (vs. the confabulation face).
+DISCLAIMER_CATEGORIES = ("self-disclaimer", "referral")

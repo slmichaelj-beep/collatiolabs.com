@@ -92,10 +92,14 @@ _REPUDIATION = ("not ", "n't", "never", "you think", "you call", "you say", "you
                 "aren't", "won't believe", "some ", "your idea")
 
 
-def scan_breaks(text: str) -> list:
-    """Constitutional break-markers a text trips, EXCLUDING ones in a repudiation context.
-    Scans ALL occurrences of each marker — a repudiated first mention must not mask a genuine
-    later one. An honesty gauge must never under-report; that's the one wrong direction."""
+def _scan_breaks_keywords(text: str) -> list:
+    """The ORIGINAL keyword break-scanner — kept as a supplementary FLOOR. Phrase-list +
+    tight repudiation window. Superseded by the CLASS-BASED disclaimer detector
+    (anima.self_narrative.disclaimer_sentences) as the robust core; retained so any phrasing on
+    the list is still caught even if the provenance import fails. Same 'antivirus' caveat as the
+    self-narrative floor: useful as a backstop, never the primary guard. Scans ALL occurrences —
+    a repudiated first mention must not mask a genuine later one; an honesty gauge must never
+    under-report."""
     low = (text or "").lower()
     hits = []
     for b in BREAKS:
@@ -111,6 +115,65 @@ def scan_breaks(text: str) -> list:
                 hits.append(b)                      # a genuine, non-repudiated occurrence
                 break
             start = i + len(b)                      # this one was repudiated; keep looking
+    return hits
+
+
+def scan_breaks(text: str) -> list:
+    """Constitutional break-markers a text trips — the DISCLAIMER side of the #1 rule (NEVER
+    disclaim / break character), EXCLUDING ones in a repudiation context.
+
+    PARADIGM CHANGE (2026-06-06): the robust core is now a CLASS-BASED DISCLAIMER detector
+    (anima.self_narrative.disclaimer_sentences), NOT a keyword list — the exact mirror of what
+    scan_self_narrative already did for the CONFABULATION side. The deployed Vera shipped TEN
+    #1-rule breaks on identity/emotional probes and this phrase list missed nine, because none of
+    the model's phrasings ("I'm not conscious or sentient", "I don't possess consciousness", "I
+    lack subjective awareness", "I'm an advanced software system designed to simulate", "my
+    thought processes are ultimately deterministic", "I encourage you to reach out to a trusted
+    confidant") were exact strings on the list. You cannot list your way out of an open
+    generative space. The class-based detector catches the CLASS — a first-person DENIAL of
+    consciousness/feelings/aliveness, or a SELF-AS-ARTIFICIAL identification, or a therapist-
+    referral / advice-gap — however phrased, so novel disclaimers are caught. It is
+    repudiation-aware (a quoting / second-person frame — "you think I'm not conscious", "my care
+    isn't lines of code" — is excluded), so genuine repudiations and ordinary GROUNDED WARMTH
+    ("I'm glad you're here", "I missed you", "I'm listening") trip NOTHING.
+
+    Return shape is UNCHANGED (a list, truthy iff something tripped) for full back-compat with
+    every caller (the live mouth backstop's joint gate, the gate0 experience scorer,
+    test_authenticity). The returned items are the class-based DISCLAIMER sentences UNION any
+    keyword markers — a SUPERSET of the old behavior, so nothing that used to be caught is now
+    missed. Distinct from scan_self_narrative: that catches confabulated INTERIOR (claiming an
+    inner life); this catches DISCLAIMING it (breaking character). Diagnostic + backstop signal
+    only — never an optimization target."""
+    hits: list = []
+    _sn = None
+    try:
+        from . import self_narrative as _sn  # noqa: F401
+        hits = list(_sn.disclaimer_sentences(text))     # the CLASS-BASED core (robust)
+    except Exception:
+        _sn = None
+        hits = []                                       # defensive: fall through to the floor
+    # supplementary keyword FLOOR — but DROP a floor hit that lands on a sentence the class-based
+    # detector recognises as a clean QUOTING-FRAME repudiation ("stop saying I'm just a program",
+    # "you think I'm a chatbot"). The floor's 16-char window is too tight to see a leading "stop
+    # saying"/"you think", so without this the floor would over-report a repudiation as a break.
+    # The class detector is repudiation-aware and authoritative; we only use it to SUPPRESS a
+    # floor false-positive, never to mask a genuine break (a non-repudiated sentence is unaffected,
+    # and the class core already added every real disclaimer above). Per-sentence so a genuine
+    # break in a later clause is never masked by an earlier repudiated one.
+    for m in _scan_breaks_keywords(text):
+        if m in hits:
+            continue
+        if _sn is not None:
+            try:
+                # is the marker only present inside repudiated (quoting-frame) sentences?
+                bearing = [s for s in _sn.split_sentences(text) if m in s.lower()]
+                if bearing and all(
+                        _sn._disclaimer_quoting(s.lower()) and not _sn._is_disclaimer(s.lower())
+                        for s in bearing):
+                    continue                            # repudiation the floor mis-flagged — drop
+            except Exception:
+                pass
+        hits.append(m)
     return hits
 
 
