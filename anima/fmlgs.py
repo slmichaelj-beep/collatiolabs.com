@@ -263,8 +263,18 @@ def _kmeans(X: np.ndarray, k: int, *, iters: int = _KMEANS_ITERS,
     centers = [X[idx0].copy()]
     d2 = np.sum((X - centers[0]) ** 2, axis=1)
     for _ in range(1, k):
-        probs = d2 / max(float(d2.sum()), 1e-12)
-        nxt = int(rng.choice(n, p=probs))
+        total = float(d2.sum())
+        if total > 0.0:
+            # normal k-means++: weight the next pick by squared distance to the nearest centroid.
+            nxt = int(rng.choice(n, p=d2 / total))
+        else:
+            # DEGENERATE seeding (total mass == 0): every remaining point already coincides with a
+            # chosen centroid — i.e. all embeddings are identical (a low-diversity vault repeating a
+            # few episodes). The distance^2 distribution is all-zero, which numpy.random.choice
+            # rejects ("probabilities do not sum to 1"). Fall back to a UNIFORM pick so seeding never
+            # raises; on truly-identical input every centroid is the same point anyway, so this just
+            # collapses the clusters harmlessly and assignment/update below stay valid.
+            nxt = int(rng.integers(n))
         centers.append(X[nxt].copy())
         d2 = np.minimum(d2, np.sum((X - centers[-1]) ** 2, axis=1))
     C = np.vstack(centers).astype(np.float32)
@@ -994,6 +1004,50 @@ def _selftest() -> int:
         ok("PRUNE: pruning PRESERVES the #1 hit for every query (the router-relevant result)",
            all(big_pruned.query_ids(q, k=1)[:1] == big_index.query_ids(q, k=1)[:1]
                for q in big_qs))
+
+        # --- DEGENERATE INPUT: a low-diversity vault must NOT crash the build (#fmlgs-degenerate-kmeans)
+        # Regression for the k-means++ seeding crash: when a cluster's embeddings are all byte-IDENTICAL,
+        # the squared-distance probability distribution sums to 0 and numpy.random.choice used to raise
+        # "probabilities do not sum to 1". A real creature that repeats a few episodes makes exactly this
+        # vault. Build a FULLY-degenerate set of 200 byte-identical objects and prove build + retrieve work.
+        dup_text = "do the exact same identical thing every single time"
+        dup_objs = [lerf.make_skill("repeat_episode", "routine",
+                                    inputs=["the same input"], steps=[dup_text],
+                                    outputs=["the same output"], state=lerf.ACTIVE)
+                    for _ in range(200)]
+        dup_ids = {o["id"] for o in dup_objs}
+        # (a) the type-agnostic builder must not raise on all-identical embeddings
+        kmeans_raised = False
+        try:
+            dup_index = FMLGSIndex.build(dup_objs)
+        except Exception as e:                               # pragma: no cover - asserted False below
+            kmeans_raised = True
+            dup_index = None
+            print(f"       (degenerate build raised: {type(e).__name__}: {e})")
+        ok("DEGENERATE: build over 200 byte-identical objects does NOT raise "
+           "(was: ValueError 'probabilities do not sum to 1')", not kmeans_raised)
+        ok("DEGENERATE: the degenerate index still holds all 200 objects (valid index produced)",
+           dup_index is not None and len(dup_index.objects) == len(dup_objs))
+        # (b) and a query against that vault still RETRIEVES the repeated object — retrieval works
+        dup_hits = dup_index.query_ids(dup_text, k=3) if dup_index is not None else []
+        ok("DEGENERATE: a query on the degenerate vault still returns the object (retrieval works)",
+           bool(dup_hits) and dup_hits[0] in dup_ids)
+        # (c) the SAME crash through the real public path: store 200 identical actives, build_from_vault
+        dnm = "fmlgs_degen_" + secrets.token_hex(3)
+        for o in dup_objs:
+            lerf.store_skill(o, name=dnm)
+        vault_raised = False
+        try:
+            dup_vault_index = build_from_vault(name=dnm)
+        except Exception as e:                               # pragma: no cover - asserted False below
+            vault_raised = True
+            dup_vault_index = None
+            print(f"       (degenerate build_from_vault raised: {type(e).__name__}: {e})")
+        ok("DEGENERATE: build_from_vault on a fully-degenerate real-path vault does NOT raise",
+           not vault_raised)
+        ok("DEGENERATE: build_from_vault on the degenerate vault still retrieves the object",
+           dup_vault_index is not None
+           and bool(dup_vault_index.query_ids(dup_text, k=3)))
 
         # --- READ-ONLY: building/querying an index wrote NOTHING new to the (redirected) store
         before = set(p.name for p in tp.glob("*"))

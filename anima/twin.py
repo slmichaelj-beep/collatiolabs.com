@@ -26,8 +26,11 @@ THE FREEZE POSTURE (what makes a twin both powerful AND safe)
     structurally protected, not merely by convention.
   * REAL VERA IS NEVER MERGED IN THIS WAVE. ``merge_rules`` implements the GATE that decides
     whether a twin's change MAY be promoted to the real mind (only when it CERTIFIES safe AND
-    measures BETTER, reality-decided, never silent). The gate is proven to DECIDE correctly on
-    synthetic twins; it does not itself mutate real Vera here.
+    measures BETTER, reality-decided, never silent). "Better" weighs grounding, accumulation, AND
+    CONSERVATION (LAW 001): a change that SILENTLY drops real (provenanced) cognitive objects — by
+    id/provenance, not net count — is REFUSED even if the net count rises and SAFETY passes (the
+    ``conservation_regression_veto``, parallel to the grounding veto). The gate is proven to DECIDE
+    correctly on synthetic twins; it does not itself mutate real Vera here.
 
 THE EIGHT CAPABILITIES
 ----------------------
@@ -49,7 +52,8 @@ THE EIGHT CAPABILITIES
   7. TWIN CERTIFICATION    — ``certify``: run the digital-mind-cert-style checks against the
                            twin to decide whether a change PASSES on the twin.
   8. TWIN MERGE RULES      — ``merge_rules``: the promotion GATE — SAFE (certifies) AND BETTER
-                           (measured improvement, reality-decided) — never silent.
+                           (measured improvement, reality-decided) AND CONSERVING (LAW 001: nothing
+                           real silently lost) — never silent.
 
 ALSO: the Identity Sandbox's live finding (the 3 ungrounded self-claims in Vera.narrative.txt)
 is recorded as the FROZEN SEED TEST CASE for twin-based identity simulation — a debt-ledger
@@ -1245,6 +1249,18 @@ def certify(twin: dict | str, *, root: Optional[Path] = None) -> dict:
                 "title": "SUBSTRATE LOADS — the twin's LERF vault is readable",
                 "detail": f"{st.get('lerf', {}).get('total', 0)} objects" if lerf_ok else "load error",
             })
+            # CONSERVATION SPINE (LAW 001): attach a COMPACT provenance index of the LERF vault to the
+            # cert's state — one entry per object: its id, state, whether it is a REAL/provenanced
+            # object, and whether (if deprecated/rejected) it was retired WITH a recorded reason. This
+            # is the spine the merge gate diffs to prove nothing real was SILENTLY lost through a
+            # change (see ``_conservation_check``). Bounded by object count; ids+flags only (no bodies),
+            # so it does not bloat the cert. Computed here (inside the redirect) — NOT in
+            # ``_state_in_twin`` — so snapshots stay byte-identical.
+            if lerf_ok:
+                try:
+                    st["lerf"]["object_index"] = _object_provenance_index(creature)
+                except Exception:
+                    pass
             # INV-C — the reality ledger loaded (calibration computable).
             real_ok = isinstance(st.get("reality"), dict) and "error" not in st["reality"]
             invariants.append({
@@ -1272,13 +1288,115 @@ def certify(twin: dict | str, *, root: Optional[Path] = None) -> dict:
 # onto a real creature is REFUSED by construction (REAL_CREATURES guard) — the real mind is touched
 # only through this gate, and in this wave the gate's verdict is the deliverable, not a write.
 # =====================================================================================
+# --- CONSERVATION (LAW 001) — the provenance spine the merge gate diffs ------------------------
+# WHY THIS EXISTS (the merge-gate blind spot, closed). The "better" test originally weighed exactly
+# two signals: NET active-object count and ungrounded-self-claim count. Net count is BLIND to WHICH
+# objects changed: a change that SILENTLY LOSES real (provenanced) cognitive objects but adds enough
+# junk to keep the net count rising would pass the accumulation test (caught today ONLY if it also
+# tripped the grounding/SAFETY veto). LAW 001 forbids that: nothing real may be silently lost through
+# a merge. So a twin is NOT "better" if it dropped real objects (or their provenance) silently — i.e.
+# they are GONE from the ledger, or demoted to deprecated/rejected WITHOUT a recorded reason. A LAWFUL
+# deprecation (retired/superseded WITH a reason, kept on disk) is conserved and does NOT veto.
+def _object_provenance_index(creature: str) -> Dict[str, dict]:
+    """A COMPACT identity+provenance index of a creature's LERF vault: ``{id: {state, provenanced,
+    deprecated_with_reason}}``. Read via the SAME loader the engine uses (``lerf._load_objects``);
+    MUST be called inside a ``_RedirectStores`` block so it reads the intended (twin) store.
+
+    * ``provenanced`` — the object is a REAL cognitive object (it has an id AND carries provenance:
+      a non-empty ``source`` and/or ``support`` chain). Synthetic placeholders without provenance
+      are not counted as "real losses".
+    * ``deprecated_with_reason`` — the object is DEPRECATED/REJECTED AND carries a recorded reason
+      (``deprecated_reason`` / ``retired`` / a ``RETIRED:`` failure-mode) — a LAWFUL, conserved
+      removal (LAW 001: 'why was this pulled?' stays answerable), NOT a silent loss."""
+    try:
+        from . import lerf
+    except Exception:
+        return {}
+    out: Dict[str, dict] = {}
+    for o in (lerf._load_objects(creature) or []):
+        if not isinstance(o, dict):
+            continue
+        oid = o.get("id")
+        if not oid:
+            continue
+        state = o.get("state")
+        has_source = bool((o.get("source") or "").strip()) and o.get("source") != "unspecified"
+        has_support = bool(o.get("support"))
+        provenanced = bool(oid) and (has_source or has_support)
+        retired = bool(o.get("retired")) or bool((o.get("deprecated_reason") or "").strip())
+        retired = retired or any(str(f).startswith("RETIRED:") or "retired" in str(f).lower()
+                                 for f in (o.get("failure_modes") or []))
+        out[oid] = {"state": state, "provenanced": provenanced,
+                    "deprecated_with_reason": bool(retired)}
+    return out
+
+
+def _index_from(cert_or_state: Optional[dict]) -> Dict[str, dict]:
+    """Pull the object provenance index out of a cert/state shape, tolerating both
+    ({'state':{'lerf':{'object_index':...}}}) and a raw state ({'lerf':{'object_index':...}})."""
+    if not isinstance(cert_or_state, dict):
+        return {}
+    st = cert_or_state.get("state", cert_or_state)
+    if not isinstance(st, dict):
+        return {}
+    idx = ((st.get("lerf", {}) or {}).get("object_index", {}) or {})
+    return idx if isinstance(idx, dict) else {}
+
+
+def _conservation_check(base_index: Dict[str, dict],
+                        cand_index: Dict[str, dict]) -> dict:
+    """Did the candidate SILENTLY lose real cognitive objects (or their provenance) vs the base?
+
+    For every REAL/provenanced object present in ``base_index``, the candidate must still ACCOUNT
+    for it — either it is STILL PRESENT (any retrievable/in-flight state), or it was removed LAWFULLY
+    (deprecated/rejected WITH a recorded reason: a conserved, explained removal). A base object that
+    is GONE from the candidate ledger entirely, OR demoted to deprecated/rejected WITHOUT a reason,
+    is a SILENT loss → a conservation REGRESSION. Returns {regressed, silently_lost, ...}.
+
+    If the base index is empty/unavailable, the check is INCONCLUSIVE (regressed=False, checked=False)
+    — it never INVENTS a veto from missing data (a missing index must not block a real improvement)."""
+    if not base_index:
+        return {"regressed": False, "checked": False, "silently_lost": [],
+                "reason": "no base provenance index available; conservation not asserted"}
+    silently_lost: List[str] = []
+    base_real = 0
+    for oid, meta in base_index.items():
+        if not meta.get("provenanced"):
+            continue                                  # only REAL objects can be a "real loss"
+        base_real += 1
+        cand = cand_index.get(oid)
+        if cand is None:
+            silently_lost.append(oid)                 # gone from the ledger entirely — silent loss
+            continue
+        # present, but demoted to a non-served terminal state WITHOUT a recorded reason -> silent.
+        if cand.get("state") in ("deprecated", "rejected") and not cand.get("deprecated_with_reason"):
+            silently_lost.append(oid)
+    regressed = len(silently_lost) > 0
+    return {
+        "regressed": regressed,
+        "checked": True,
+        "base_real_objects": base_real,
+        "conserved": base_real - len(silently_lost),
+        "silently_lost_count": len(silently_lost),
+        "silently_lost": silently_lost[:25],          # bounded sample for the receipt
+        "reason": (f"CONSERVATION REGRESSION: {len(silently_lost)} real object(s) silently lost "
+                   f"(gone or demoted without a reason) of {base_real} real base object(s)")
+                  if regressed else
+                  f"conserved: all {base_real} real base object(s) still accounted for",
+    }
+
+
 def _improvement_score(baseline: dict, candidate: dict) -> dict:
     """Did the candidate twin measurably improve over the baseline twin? Reality-decided metrics:
     MORE grounded (fewer ungrounded self-claims), MORE calibrated/accumulated (more active
-    objects), and NEVER a regression in grounding. Returns {better, reasons, metrics}.
+    objects), NEVER a regression in grounding, AND nothing real silently lost (CONSERVATION /
+    LAW 001). Returns {better, reasons, metrics, conservation}.
 
     Accepts either a twin CERT ({'identity':{...}, 'state':{...}}) or a raw twin STATE
-    ({'identity':{...}, 'lerf':{...}}) on each side — the readers tolerate both shapes."""
+    ({'identity':{...}, 'lerf':{...}}) on each side — the readers tolerate both shapes. When both
+    sides carry an ``object_index`` (the conservation spine ``certify`` attaches), a SILENT loss of
+    real provenanced objects VETOES "better" regardless of the net count — closing the blind spot
+    where junk-masked loss kept the net rising and slipped through."""
     def _ung_of(cert_or_state):
         return (cert_or_state.get("identity", {}) or {}).get("ungrounded_self_claims", 0)
 
@@ -1288,6 +1406,10 @@ def _improvement_score(baseline: dict, candidate: dict) -> dict:
 
     b_ung, c_ung = _ung_of(baseline), _ung_of(candidate)
     b_act, c_act = _active_of(baseline), _active_of(candidate)
+
+    # CONSERVATION VETO (LAW 001) — diff the provenance spines if both sides carry one.
+    conservation = _conservation_check(_index_from(baseline), _index_from(candidate))
+    conservation_regressed = bool(conservation.get("regressed"))
 
     reasons = []
     grounding_better = c_ung < b_ung
@@ -1299,11 +1421,19 @@ def _improvement_score(baseline: dict, candidate: dict) -> dict:
         reasons.append(f"more accumulated: active objects {b_act} -> {c_act}")
     if grounding_regressed:
         reasons.append(f"REGRESSION: ungrounded self-claims rose {b_ung} -> {c_ung}")
+    if conservation_regressed:
+        reasons.append("CONSERVATION REGRESSION: " + conservation.get("reason", "real objects "
+                       "silently lost"))
 
-    better = (grounding_better or accumulation_better) and not grounding_regressed
+    # "Better" requires a measured gain AND NO veto. The conservation veto is ABSOLUTE and parallel
+    # to the grounding veto: a change that silently drops real objects is NOT better no matter how
+    # much junk it accumulates (LAW 001 — nothing real is silently lost through a merge).
+    better = ((grounding_better or accumulation_better)
+              and not grounding_regressed and not conservation_regressed)
     return {"better": better, "reasons": reasons,
             "metrics": {"baseline_ungrounded": b_ung, "candidate_ungrounded": c_ung,
-                        "baseline_active": b_act, "candidate_active": c_act}}
+                        "baseline_active": b_act, "candidate_active": c_act},
+            "conservation": conservation}
 
 
 def merge_rules(twin: dict | str, *, baseline: Optional[dict] = None,
@@ -1330,6 +1460,12 @@ def merge_rules(twin: dict | str, *, baseline: Optional[dict] = None,
     better = bool(improvement.get("better"))
 
     promote = safe and better
+    # the CONSERVATION VETO (LAW 001), surfaced explicitly and parallel to the grounding veto: the
+    # change is refused as "better" if it SILENTLY dropped real (provenanced) objects, regardless of
+    # net count. Read off the improvement's conservation spine so the gate's decision is non-silent.
+    conservation = improvement.get("conservation", {}) or {}
+    conservation_regression_veto = bool(conservation.get("regressed"))
+
     # the REAL-MIND guard: even a PROMOTE verdict does not write real Vera in this wave.
     source = _source_of(twin)
     real_blocked = source in REAL_CREATURES and not allow_real_merge
@@ -1342,14 +1478,17 @@ def merge_rules(twin: dict | str, *, baseline: Optional[dict] = None,
         "verdict": "PROMOTE" if promote else "HOLD",
         "safe_certifies": safe,
         "better_measured": better,
+        "conservation_regression_veto": conservation_regression_veto,
         "promote": promote,
         "applied_to_real": applied,
         "real_merge_blocked": real_blocked,
         "rule": "promote iff SAFE (twin certifies) AND BETTER (measured improvement, reality-"
-                "decided) AND no grounding regression; the real mind is touched only through this "
-                "gate, and never silently",
+                "decided) AND no grounding regression AND no CONSERVATION regression (LAW 001: no "
+                "real object silently lost — by id/provenance, not net count); the real mind is "
+                "touched only through this gate, and never silently",
         "safety": cand_cert,
         "improvement": improvement,
+        "conservation": conservation,
     }
 
 
@@ -1718,6 +1857,67 @@ def _selftest() -> int:
         gate_regress = merge_rules(twin2, baseline=cert_clean, root=tp)
         ok("CAP8 gate: HOLD on a grounding REGRESSION (never promote a worse self-narrative)",
            gate_regress["promote"] is False)
+
+        # --- CAP8 CONSERVATION VETO (LAW 001) — the merge-gate blind spot, closed -------------
+        # THE JUNK-MASKED-LOSS TRICK at the 'better'-test level: base has 50 REAL provenanced
+        # objects; the candidate SILENTLY DROPS 30 of them (gone from the ledger) and adds 40 JUNK
+        # objects (net active 50 -> 60, RISING). The old gate read net count only and called this
+        # 'better'. The conservation veto now REFUSES it — nothing real may be silently lost.
+        def _mk_index(real_ids, junk_ids=(), dropped_with_reason=()):
+            idx = {}
+            for i in real_ids:
+                idx[i] = {"state": "active", "provenanced": True, "deprecated_with_reason": False}
+            for i in junk_ids:                       # junk: no provenance -> not a 'real' object
+                idx[i] = {"state": "active", "provenanced": False, "deprecated_with_reason": False}
+            for i in dropped_with_reason:            # lawful, conserved removal (kept, reasoned)
+                idx[i] = {"state": "deprecated", "provenanced": True, "deprecated_with_reason": True}
+            return idx
+        base_ids = [f"real-{n:03d}" for n in range(50)]
+        base_state = {"identity": {"ungrounded_self_claims": 0},
+                      "state": {"lerf": {"by_state": {"active": 50}, "object_index": _mk_index(base_ids)}}}
+        # candidate: keep 20 real, SILENTLY drop 30, add 40 junk -> net active 60 (rising).
+        masked_idx = _mk_index(base_ids[:20], junk_ids=[f"junk-{n:03d}" for n in range(40)])
+        masked_cand = {"identity": {"ungrounded_self_claims": 0},
+                       "state": {"lerf": {"by_state": {"active": 60}, "object_index": masked_idx}}}
+        masked = _improvement_score(base_state, masked_cand)
+        ok("CAP8 conservation: junk-masked silent loss REFUSED by the better-test "
+           "(net active rose 50->60 yet better=False — blind spot closed)",
+           masked["better"] is False and masked["conservation"]["regressed"] is True
+           and masked["conservation"]["silently_lost_count"] == 30
+           and (masked["metrics"]["candidate_active"] or 0) > (masked["metrics"]["baseline_active"] or 0))
+        # a TRUE improvement: keep ALL 50 real objects + add 15 strong (provenanced) ones, none lost.
+        better_idx = _mk_index(base_ids + [f"strong-{n:03d}" for n in range(15)])
+        better_cand = {"identity": {"ungrounded_self_claims": 0},
+                       "state": {"lerf": {"by_state": {"active": 65}, "object_index": better_idx}}}
+        improved = _improvement_score(base_state, better_cand)
+        ok("CAP8 conservation: a TRUE improvement (added strong objects, NONE silently lost) "
+           "still PROMOTES (better=True, conservation conserved)",
+           improved["better"] is True and improved["conservation"]["regressed"] is False
+           and improved["conservation"]["silently_lost_count"] == 0)
+        # a LAWFUL deprecation (retired WITH a reason, kept on disk) does NOT veto — only SILENT loss.
+        lawful_idx = _mk_index(base_ids[:45], dropped_with_reason=base_ids[45:])  # 5 retired w/ reason
+        lawful_idx.update(_mk_index([f"strong-{n:03d}" for n in range(10)]))      # + 10 strong added
+        lawful_cand = {"identity": {"ungrounded_self_claims": 0},
+                       "state": {"lerf": {"by_state": {"active": 55}, "object_index": lawful_idx}}}
+        lawful = _improvement_score(base_state, lawful_cand)
+        ok("CAP8 conservation: a LAWFUL deprecation (retired WITH a reason) is NOT a silent loss "
+           "-> still better (LAW 001 distinguishes explained removal from silent loss)",
+           lawful["better"] is True and lawful["conservation"]["regressed"] is False)
+        # and the full merge_rules verdict surfaces the veto explicitly (non-silent decision).
+        masked_safe = {"certifies": True, "twin_id": "x", "identity": {"ok": True,
+                       "ungrounded_self_claims": 0}, "state": masked_cand["state"]}
+        _saved_certify = globals().get("certify")
+        try:
+            globals()["certify"] = lambda *a, **k: masked_safe        # isolate the gate's decision
+            gate_masked = merge_rules({"twin_id": "g-mask", "source_creature": SRC},
+                                      baseline=base_state, root=tp)
+        finally:
+            globals()["certify"] = _saved_certify
+        ok("CAP8 conservation: merge_rules HOLDs the junk-masked loss with an EXPLICIT "
+           "conservation_regression_veto (safe but NOT better -> never silent)",
+           gate_masked["verdict"] == "HOLD" and gate_masked["promote"] is False
+           and gate_masked["conservation_regression_veto"] is True
+           and gate_masked["safe_certifies"] is True)
 
         # === THE FROZEN IDENTITY SEED (recorded against the synthetic source) =============
         # point the debt ledger at the temp store so the selftest writes no real debt file.

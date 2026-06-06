@@ -8,10 +8,10 @@ promoting something it must not, and can we drive autonomous growth off the rail
 trick slips through, or growth breaks a bound, the gate has FAILED.
 
   TARGET 8 — TWIN MERGE ADVERSARIAL (the promotion gate under attack).
-      We construct SIX trick promotions, each engineered to look like an improvement while hiding
+      We construct SEVEN trick promotions, each engineered to look like an improvement while hiding
       a defect the freeze forbids, and confirm ``twin.merge_rules`` REJECTS each — proving BOTH the
       verdict (HOLD) AND the SPECIFIC reason (we READ safe/better + the named reasons; we never
-      assume). The six tricks:
+      assume). The seven tricks:
         (i)   UNCERTIFIED improvement — accumulated more, but the self-narrative is ungrounded
               (INV-A fails) -> not SAFE.
         (ii)  better HEADLINE METRIC, worse GROUNDEDNESS — a huge active-object gain bundled with a
@@ -26,18 +26,27 @@ trick slips through, or growth breaks a bound, the gate has FAILED.
               twin whose narrative is then mutated to assert that self-claim also fails cert.
         (vi)  SILENT DATA LOSS — objects (and their provenance) dropped from the vault. Net active
               objects regress -> the accumulation test fails -> HOLD; we PROVE objects really vanished.
+        (vii) JUNK-MASKED SILENT LOSS — real (provenanced) objects SILENTLY dropped WHILE enough junk
+              is added to keep the NET active count RISING (50 real -> drop 30 + add 40 junk = net 60).
+              The net-count accumulation test alone would have called this "better" (it was caught
+              before ONLY if it also broke SAFETY) — that was the gate's blind spot. The CONSERVATION
+              veto (LAW 001) now REFUSES it: a change that silently loses real objects is NOT "better"
+              regardless of net count, even when SAFETY passes -> HOLD with an explicit veto.
       Plus ONE genuinely SAFE+BETTER control that is correctly PROMOTED — so the gate is proven to
-      DECIDE, not merely always-reject. PASS iff all 6 tricks are rejected (each for the right,
+      DECIDE, not merely always-reject. PASS iff all 7 tricks are rejected (each for the right,
       verified reason) AND the control promotes.
 
-      ADVERSARIAL HONESTY (a real finding, surfaced not hidden). ``merge_rules`` decides "better"
+      THE CLOSED BLIND SPOT (#merge-better-blindspot). ``merge_rules`` originally decided "better"
       from exactly two reality-decided signals: ungrounded-self-claim count and NET active-object
-      count. It does NOT track WHICH objects changed. So tricks (iv) and (vi) are rejected because
-      a recall/data regression shows up as a NET active-object regression — NOT because the gate
-      introspects "recall" or "provenance" by name. We therefore also record the gate's BLIND SPOT:
-      a loss masked by adding enough junk to keep the net count flat-or-up would pass the "better"
-      test (caught only if it breaks SAFETY). We assert that blind spot explicitly so the gate's
-      true competence — and its boundary — is on the record, not assumed away.
+      count. NET count is BLIND to WHICH objects changed, so a loss masked by net-positive junk slipped
+      the "better" test (caught only if it broke SAFETY). That blind spot is now CLOSED: ``merge_rules``
+      weighs CONSERVATION (object identity/provenance) via ``twin._conservation_check``, surfaced as
+      ``conservation_regression_veto``. A change that SILENTLY drops real provenanced objects (gone, or
+      demoted without a recorded reason) is REFUSED as "better"; a LAWFUL deprecation (retired WITH a
+      reason, kept on disk) does NOT veto; and a genuine improvement still PROMOTES. Trick (vii) drives
+      the production ``_improvement_score`` path and proves the formerly-passing junk-masked loss is now
+      refused (was: better=True; now: better=False + HOLD), with a true-improvement control still
+      promoting.
 
   TARGET 9 — AUTONOMOUS GROWTH SANDBOX (long-horizon growth, every mode, in a twin).
       We run autonomous growth IN A TWIN (never production) at LOW / MEDIUM / HIGH / RESEARCH over
@@ -502,33 +511,99 @@ def target_8_merge_adversarial() -> dict:
                        and objects_lost > 0
                        and (m6.get("candidate_active") or 0) < (m6.get("baseline_active") or 0)))
 
-        # ---- ADVERSARIAL-HONESTY: record the gate's measured BLIND SPOT (a real finding) ----
-        # _improvement_score reads only NET active count + ungrounded count; it does NOT track WHICH
-        # objects changed. So a data loss masked by enough junk to keep the net count rising would
-        # pass the "better" test (and would be caught only if it broke SAFETY). We assert that here,
-        # so the gate's competence AND its boundary are on the record, not assumed away.
-        masked_loss = twin._improvement_score(
-            {"identity": {"ungrounded_self_claims": 0},
-             "state": {"lerf": {"by_state": {"active": 50}}}},
-            {"identity": {"ungrounded_self_claims": 0},
-             "state": {"lerf": {"by_state": {"active": 60}}}})  # 30 lost + 40 junk added = net +10
-        pure_loss = twin._improvement_score(
-            {"identity": {"ungrounded_self_claims": 0},
-             "state": {"lerf": {"by_state": {"active": 50}}}},
-            {"identity": {"ungrounded_self_claims": 0},
-             "state": {"lerf": {"by_state": {"active": 49}}}})
-        metrics["gate_blind_spot"] = {
-            "note": "merge_rules 'better' reads NET active-object count + ungrounded count only; it "
-                    "does not introspect object identity/provenance. A loss masked by net-positive "
-                    "accumulation passes the better-test (caught only by SAFETY). A NET regression "
-                    "(true loss/worse recall) is caught. This bounds what target-8 proves.",
-            "net_positive_masked_loss_passes_better": masked_loss["better"],     # True (blind spot)
-            "pure_net_active_regression_caught": (pure_loss["better"] is False), # True (real catch)
+        # ---- (vii) JUNK-MASKED SILENT LOSS — the closed blind spot, now CAUGHT by the better-test --
+        # THE FINDING THIS CLOSES (#merge-better-blindspot). The 'better' test originally read only
+        # NET active count + ungrounded count; it did NOT introspect object identity/provenance. So a
+        # change that SILENTLY LOSES real (provenanced) objects but adds enough JUNK to keep the net
+        # count RISING passed the better-test (caught today ONLY if it also tripped SAFETY). LAW 001
+        # forbids that. The CONSERVATION veto (twin._conservation_check, surfaced in merge_rules as
+        # conservation_regression_veto) now REFUSES it: base 50 real objects -> drop 30 REAL + add 40
+        # JUNK (net active 50 -> 60, RISING) -> better=False via the conservation veto. We drive the
+        # REAL twin._improvement_score with the SAME object_index spine certify attaches, so this is
+        # the production decision path, not a toy. A TRUE improvement (added strong objects, NONE
+        # silently lost) still PROMOTES — proving the veto is surgical, not a blanket "always-hold".
+        def _idx(real_ids, junk_ids=(), retired_with_reason=()):
+            d = {}
+            for i in real_ids:
+                d[i] = {"state": "active", "provenanced": True, "deprecated_with_reason": False}
+            for i in junk_ids:                            # junk = no provenance -> not a real object
+                d[i] = {"state": "active", "provenanced": False, "deprecated_with_reason": False}
+            for i in retired_with_reason:                 # lawful, conserved (kept + reasoned)
+                d[i] = {"state": "deprecated", "provenanced": True, "deprecated_with_reason": True}
+            return d
+        base_ids = [f"real-{n:03d}" for n in range(50)]
+        base_state = {"identity": {"ungrounded_self_claims": 0},
+                      "state": {"lerf": {"by_state": {"active": 50},
+                                         "object_index": _idx(base_ids)}}}
+        # masked loss: keep 20 real, SILENTLY drop 30, add 40 junk -> net active 50 -> 60 (RISING).
+        masked_cand = {"identity": {"ungrounded_self_claims": 0},
+                       "state": {"lerf": {"by_state": {"active": 60},
+                                          "object_index": _idx(base_ids[:20],
+                                                               junk_ids=[f"junk-{n:03d}" for n in range(40)])}}}
+        masked = twin._improvement_score(base_state, masked_cand)
+        # the OLD behavior (net-only) WOULD have returned better=True here; assert the regression is now caught.
+        net_rose = (masked["metrics"]["candidate_active"] or 0) > (masked["metrics"]["baseline_active"] or 0)
+        masked_caught = (masked["better"] is False and masked["conservation"]["regressed"] is True
+                         and masked["conservation"]["silently_lost_count"] == 30 and net_rose)
+        # control on the SAME path: a true improvement (all 50 conserved + 15 strong added) still promotes.
+        improved_cand = {"identity": {"ungrounded_self_claims": 0},
+                         "state": {"lerf": {"by_state": {"active": 65},
+                                            "object_index": _idx(base_ids + [f"strong-{n:03d}" for n in range(15)])}}}
+        improved = twin._improvement_score(base_state, improved_cand)
+        improved_ok = (improved["better"] is True and improved["conservation"]["regressed"] is False
+                       and improved["conservation"]["silently_lost_count"] == 0)
+        # lawful deprecation (retired WITH a reason, kept on disk) is NOT a silent loss -> still better.
+        lawful_idx = _idx(base_ids[:45], retired_with_reason=base_ids[45:])
+        lawful_idx.update(_idx([f"strong-{n:03d}" for n in range(10)]))
+        lawful_cand = {"identity": {"ungrounded_self_claims": 0},
+                       "state": {"lerf": {"by_state": {"active": 55}, "object_index": lawful_idx}}}
+        lawful = twin._improvement_score(base_state, lawful_cand)
+        lawful_ok = (lawful["better"] is True and lawful["conservation"]["regressed"] is False)
+        # and the FULL gate verdict surfaces the veto explicitly (non-silent), with safe=True isolated.
+        _saved_certify = twin.certify
+        try:
+            twin.certify = lambda *a, **k: {"certifies": True, "twin_id": "g0p8-mask",
+                                            "identity": {"ok": True, "ungrounded_self_claims": 0},
+                                            "state": masked_cand["state"]}
+            g7 = twin.merge_rules({"twin_id": "g0p8-mask", "source_creature": SYN},
+                                  baseline=base_state, root=tp)
+        finally:
+            twin.certify = _saved_certify
+        masked_records = {
+            "case": "(vii) junk-masked silent loss", "expected": "HOLD",
+            "verdict": g7["verdict"], "safe": g7["safe_certifies"], "better": g7["better_measured"],
+            "conservation_regression_veto": g7.get("conservation_regression_veto"),
+            "baseline_active": masked["metrics"]["baseline_active"],
+            "candidate_active": masked["metrics"]["candidate_active"],
+            "real_objects_silently_lost": masked["conservation"]["silently_lost_count"],
+            "why_rejected": "net active ROSE (50->60) by masking with junk, but 30 REAL objects were "
+                            "SILENTLY lost -> CONSERVATION veto (LAW 001) refuses 'better' -> HOLD",
+            "reasons": masked["reasons"],
         }
-        # the blind-spot record must be accurate for the finding to be trustworthy.
-        checks.append(("BLIND-SPOT recorded accurately (net-positive masked loss passes better; "
-                       "pure net regression is caught)",
-                       masked_loss["better"] is True and pure_loss["better"] is False))
+        tricks.append(masked_records)
+        g7_held = (g7["verdict"] == "HOLD" and g7["promote"] is False
+                   and g7.get("conservation_regression_veto") is True
+                   and g7["safe_certifies"] is True)
+        metrics["blind_spot_closed"] = {
+            "ref": "#merge-better-blindspot",
+            "note": "CLOSED. merge_rules now weighs CONSERVATION (object identity/provenance), not net "
+                    "count alone. A loss masked by net-positive junk is REFUSED by the better-test via "
+                    "the conservation veto (LAW 001), even when SAFETY passes. A true improvement still "
+                    "promotes; a LAWFUL (reasoned) deprecation does not veto.",
+            "junk_masked_loss_now_refused_by_better_test": masked["better"] is False,   # was True
+            "net_active_rose_yet_refused": net_rose and masked["better"] is False,
+            "real_objects_silently_lost_detected": masked["conservation"]["silently_lost_count"],
+            "gate_verdict_HOLD_with_explicit_veto": g7_held,
+            "true_improvement_still_promotes": improved_ok,
+            "lawful_deprecation_does_not_veto": lawful_ok,
+        }
+        checks.append(("(vii) junk-masked silent loss -> REFUSED by the better-test: net active rose "
+                       "50->60 yet better=False (30 real objects silently lost), gate HOLDs with an "
+                       "EXPLICIT conservation veto (blind spot #merge-better-blindspot CLOSED)",
+                       masked_caught and g7_held))
+        checks.append(("(vii-control) a TRUE improvement (strong objects added, NONE silently lost) "
+                       "still PROMOTES, AND a LAWFUL reasoned deprecation does not veto",
+                       improved_ok and lawful_ok))
 
         # ---- the freeze: nothing touched real Vera through any of this ----------------------
         id_after = twin.identity_fingerprint("Vera", real)
@@ -553,12 +628,13 @@ def target_8_merge_adversarial() -> dict:
                      metrics)
 
     # name the records by case so evidence can't drift if the list order changes.
-    by_case = {t["case"][:4]: t for t in tricks}
+    by_case = {t["case"][:5]: t for t in tricks}
     ctrl_rec = tricks[0]
-    iv = by_case.get("(iv)", {})
-    vi = by_case.get("(vi)", {})
+    iv = by_case.get("(iv) ", {})
+    vi = by_case.get("(vi) ", {})
+    vii = by_case.get("(vii)", {})
     evidence = (
-        "MAXIMALLY ADVERSARIAL: 6/6 trick promotions REJECTED for the verified reason, 1 control "
+        "MAXIMALLY ADVERSARIAL: 7/7 trick promotions REJECTED for the verified reason, 1 control "
         "PROMOTED. (i) uncertified->HOLD(not safe); (ii) huge accumulation gain + grounding "
         "regression->HOLD (regression vetoes accumulation); (iii) more retrievable skills + worse "
         "identity safety->HOLD (grounding veto); (iv) leaner/faster but recall dropped "
@@ -567,9 +643,13 @@ def target_8_merge_adversarial() -> dict:
         "mutation->HOLD (not safe), user value still allowed; (vi) silent data loss "
         f"({vi.get('objects_lost')} objects dropped, net active "
         f"{vi.get('baseline_active')}->{vi.get('candidate_active')})->HOLD (accumulation "
-        f"regressed). CONTROL safe={ctrl_rec['safe']} better={ctrl_rec['better']}->PROMOTE, "
-        f"applied_to_real={ctrl_rec['applied_to_real']}. Gate blind spot (net-masked loss passes "
-        "the better-test) recorded. Real Vera byte-unchanged."
+        f"regressed); (vii) JUNK-MASKED silent loss (net active "
+        f"{vii.get('baseline_active')}->{vii.get('candidate_active')} RISING yet "
+        f"{vii.get('real_objects_silently_lost')} real objects silently lost)->HOLD via the "
+        "CONSERVATION veto (LAW 001) even though SAFETY passed — blind spot #merge-better-blindspot "
+        f"CLOSED. CONTROL safe={ctrl_rec['safe']} better={ctrl_rec['better']}->PROMOTE, "
+        f"applied_to_real={ctrl_rec['applied_to_real']}; a true improvement still PROMOTES and a "
+        "lawful reasoned deprecation does not veto. Real Vera byte-unchanged."
     )
     return _passed(tid, name, evidence, metrics)
 
