@@ -2160,6 +2160,13 @@ def _print_section(title: str, results: list) -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="VERA CERTIFICATION HARNESS (ANIMA LAW 004)")
     ap.add_argument("--json", action="store_true", help="emit the report as JSON")
+    ap.add_argument(
+        "--gate", action="store_true",
+        help="GATE STRICTNESS (opt-in): exit NON-ZERO if ANY check reports FAIL — including the "
+             "REPORTED-but-non-gating tiers (EXPERIENCE / CONSERVATION). Default is unchanged: "
+             "those tiers are reported loudly but do NOT block the mechanical cert (exit follows "
+             "'certified'). --gate changes only the process exit code, never what is observed or "
+             "printed.")
     args = ap.parse_args(argv)
 
     real_anima = Path(_ROOT) / ".anima"
@@ -2215,11 +2222,20 @@ def main(argv=None) -> int:
     pending = [f"{title} :: {r.name}" for key, title in _SECTION_ORDER
                for r in sections[key] if r.status in ("SKIP", "PENDING")]
 
+    # GATE STRICTNESS (opt-in, Gate 0 Prime target 3): the DEFAULT exit code follows `certified`
+    # (the EXPERIENCE / CONSERVATION tiers are REPORTED, never gating — unchanged). With --gate,
+    # the certifier stops being a camera and becomes a hard gate: it exits non-zero if ANYTHING it
+    # reported FAILed, i.e. the default gate is broken OR a REPORTED (non-gating) tier had a FAIL.
+    # The report itself is byte-identical either way.
+    gate_ok = certified and not reported
+    exit_ok = gate_ok if getattr(args, "gate", False) else certified
+
     if args.json:
         out = {
             "law": "ANIMA LAW 004 — CERTIFICATION OVER ASSUMPTION",
             "overall": "CONTINUITY CERTIFIED" if certified else "NOT CERTIFIED",
             "certified": certified,
+            "gate_ok": gate_ok,  # certified AND no REPORTED (non-gating) FAILs — what --gate enforces
             "elapsed_s": elapsed,
             "organ_badges": badges,
             "section_pass": section_pass,
@@ -2234,7 +2250,7 @@ def main(argv=None) -> int:
             "pending": pending,
         }
         print(json.dumps(out, indent=2))
-        return 0 if certified else 1
+        return 0 if exit_ok else 1
 
     # ---- human-readable ----
     print("=" * 79)
@@ -2333,8 +2349,14 @@ def main(argv=None) -> int:
         print("OVERALL STATUS: NOT CERTIFIED — the following must be closed:")
         for g in gaps:
             print(f"  X {g}")
+    if getattr(args, "gate", False) and certified and reported:
+        # --gate is on, the mechanical cert PASSED, but a REPORTED (non-gating) tier FAILed:
+        # be explicit that the non-zero exit comes from gate strictness, not the default verdict.
+        print("\nGATE STRICTNESS (--gate): exiting NON-ZERO — the mechanical cert is CERTIFIED, "
+              "but a REPORTED tier (EXPERIENCE / CONSERVATION) had a FAIL above. Without --gate "
+              "this run exits 0 (those tiers are observe-only / non-gating).")
     print("=" * 79)
-    return 0 if certified else 1
+    return 0 if exit_ok else 1
 
 
 if __name__ == "__main__":

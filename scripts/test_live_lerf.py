@@ -189,11 +189,11 @@ def run() -> int:
     saved_rel_store = getattr(reliability, "DEFAULT_STORE", None)
     # lerf has its own STORE binding (it is not in _STORE_MODULES by attr-name loop above).
     saved_lerf_store = lerf.STORE
-    # models writes .anima/model-usage.json via a hardcoded module CONSTANT (not a STORE global),
-    # so redirect it explicitly — otherwise the live turn's models.touch() would write the REAL
-    # .anima and break hermeticity. This is the one non-STORE writer on the _turn path.
+    # models writes .anima/model-usage.json; it now honours a redirectable STORE binding (mirrors
+    # lerf/cloud), so redirect models.STORE — otherwise the live turn's models.touch() would write
+    # the REAL .anima and break hermeticity. (Was a hardcoded _USAGE constant before #103/#69 fix.)
     import anima.models as models
-    saved_models_usage = getattr(models, "_USAGE", None)
+    saved_models_usage = getattr(models, "STORE", None)
     saved_library = server._LERF_SKILL_LIBRARY
     saved_mouth = server._MOUTH
 
@@ -208,7 +208,7 @@ def run() -> int:
         if saved_rel_store is not None:
             reliability.DEFAULT_STORE = tp
         if saved_models_usage is not None:
-            models._USAGE = tp / "model-usage.json"
+            models.STORE = tp
         # Install the scripted brain as the live mouth (no Ollama, fully deterministic).
         server._MOUTH = mouth.Mouth(brain=brain, voice=None)
 
@@ -359,7 +359,7 @@ def run() -> int:
         if saved_rel_store is not None:
             reliability.DEFAULT_STORE = saved_rel_store
         if saved_models_usage is not None:
-            models._USAGE = saved_models_usage
+            models.STORE = saved_models_usage
         server._LERF_SKILL_LIBRARY = saved_library
         server._MOUTH = saved_mouth
         server._HISTORY.clear()

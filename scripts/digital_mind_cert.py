@@ -1253,6 +1253,13 @@ def main(argv=None) -> int:
                     help="only the six-questions success test")
     ap.add_argument("--selftest", action="store_true",
                     help="prove the cert logic + that all six questions resolve to a status")
+    ap.add_argument(
+        "--gate", action="store_true",
+        help="GATE STRICTNESS (opt-in): exit NON-ZERO unless the verdict is CROSSED — i.e. any "
+             "Reality spec clause FAIL, a SKIP (unproven capability machinery), the #1-rule guard "
+             "not holding, or a real-.anima change all fail the gate. Default is unchanged: the "
+             "capstone is a REPORT and exits 0 when the integrity floor held (ACCUMULATING / "
+             "FROZEN are honest truths, not failures). --gate changes only the exit code.")
     args = ap.parse_args(argv)
 
     if args.selftest:
@@ -1313,6 +1320,14 @@ def main(argv=None) -> int:
     # the integrity floor held (reality-to-spec PASS, #1-rule guard holds, real .anima
     # byte-unchanged). ACCUMULATING / FROZEN are honest truths, not failures. A real integrity
     # breach exits non-zero.
+    #
+    # GATE STRICTNESS (opt-in, Gate 0 Prime target 3): with --gate the capstone stops being a
+    # pure report and becomes a hard gate — it exits non-zero unless the verdict is CROSSED. A
+    # SKIP (unproven capability machinery), a Reality clause FAIL, a guard that did not hold, or a
+    # real-.anima change therefore all fail the gate. The printed report is byte-identical either
+    # way; only the exit code is stricter.
+    if getattr(args, "gate", False):
+        return 0 if report.get("verdict", {}).get("crossed") else 1
     return 0 if report.get("integrity_ok") else 1
 
 

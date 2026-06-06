@@ -29,7 +29,8 @@ PRINT — they never write. `rollback` is dry-run only here. Nothing here runs i
 
     python3 scripts/identity_sandbox.py --selftest          # hermetic, synthetic-only; exits 0
     python3 scripts/identity_sandbox.py --demo              # run the full chain on SYNTHETIC state
-    python3 scripts/identity_sandbox.py certify [Vera]      # OBSERVE: certify live identity invariants
+    python3 scripts/identity_sandbox.py certify [Vera]      # OBSERVE: certify live identity invariants (exit 0, even on FAIL)
+    python3 scripts/identity_sandbox.py certify [Vera] --gate # GATE: same report, but exit NON-ZERO on FAIL (opt-in)
     python3 scripts/identity_sandbox.py ledger  [Vera]      # show the shadow identity ledger
     python3 scripts/identity_sandbox.py diff    [Vera]      # field-by-field change (last two snapshots)
     python3 scripts/identity_sandbox.py replay  [Vera] --version N
@@ -52,7 +53,20 @@ def _print(obj) -> None:
 
 
 def _cmd_certify(args) -> int:
-    """OBSERVE-ONLY: certify live identity invariants for a creature. Reads, never writes."""
+    """OBSERVE-ONLY by default: certify live identity invariants for a creature. Reads, never
+    writes. The certifier is a CAMERA, not a hand on identity.
+
+    EXIT CODE (GATE STRICTNESS — Gate 0 Prime, target 3):
+      * DEFAULT (no --gate): observe-only — exits 0 EVEN WHEN it reports a FAIL. This preserves
+        the freeze posture (Program B): the camera reports what it sees about the frozen narrative
+        without ever turning a reported break into a hard failure, and every existing caller is
+        unchanged. The 5 ungrounded #1-rule breaks in the frozen Vera narrative are SHOWN, not
+        gated.
+      * WITH --gate (opt-in): exits NON-ZERO (1) iff any reported invariant FAILed; exits 0 only
+        when every invariant is [ok]. The report printed is byte-identical in both modes — only
+        the process exit code differs. --gate changes the INSTRUMENT's exit behaviour, never what
+        it observes and never Vera's identity.
+    """
     rep = ids.certify(args.name)
     if args.json:
         _print(rep)
@@ -66,7 +80,10 @@ def _cmd_certify(args) -> int:
             print("  ungrounded self-claims found:")
             for u in rep["ungrounded"]:
                 print(f"    - {u}")
-    return 0 if rep["ok"] else 1
+    # GATE: only --gate turns a reported FAIL into a non-zero exit. Default stays observe-only (0).
+    if getattr(args, "gate", False):
+        return 0 if rep["ok"] else 1
+    return 0
 
 
 def _cmd_ledger(args) -> int:
@@ -225,7 +242,12 @@ def main(argv=None) -> int:
         sp.add_argument("name", nargs="?", default="Vera", help="creature name (default: Vera)")
         sp.add_argument("--json", action="store_true", help="emit JSON")
 
-    _add_name(sub.add_parser("certify", help="OBSERVE: certify live identity invariants"))
+    sp_cert = sub.add_parser("certify", help="OBSERVE: certify live identity invariants")
+    _add_name(sp_cert)
+    sp_cert.add_argument(
+        "--gate", action="store_true",
+        help="GATE STRICTNESS (opt-in): exit NON-ZERO if any invariant FAILs. Default is "
+             "observe-only and exits 0 even on FAIL (camera; preserves the freeze posture).")
     _add_name(sub.add_parser("ledger", help="show the shadow identity ledger + integrity"))
     _add_name(sub.add_parser("mri", help="show recorded identity-relevant events"))
     sp_snap = sub.add_parser("snapshot", help="OBSERVE: append a snapshot of live identity")

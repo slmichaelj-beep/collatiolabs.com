@@ -19,8 +19,19 @@ from . import cloud, sysinfo
 from .util import load_json, save_json
 
 OLLAMA = "http://localhost:11434"
-_USAGE = Path(".anima") / "model-usage.json"     # ref -> last-used epoch
+
+# Redirectable store root (mirrors anima/lerf.STORE and anima/cloud.STORE) so a hermetic test
+# or a twin can isolate model-usage.json into a temp dir instead of churning the real .anima.
+# Default is the real store; tests point it at a temp dir. The path is resolved against STORE at
+# call time (via _usage_path), never frozen at import — otherwise redirection couldn't take.
+STORE = Path(".anima")
 STALE_DAYS = 14                                  # unused this long = a cleanup candidate
+
+
+def _usage_path() -> Path:
+    """The model-usage ledger path (ref -> last-used epoch), resolved against the redirectable
+    STORE at call time so a redirected test/twin writes into its temp dir, not real .anima."""
+    return STORE / "model-usage.json"
 
 # Curated for the companion: refs proven to pull, varied sizes. 'params' lets the
 # resource check verdict gate selection/download. Not exhaustive — any ANIMA_MODEL
@@ -80,7 +91,7 @@ def listing() -> dict:
 
 def _usage() -> dict:
     try:
-        u = load_json(_USAGE)
+        u = load_json(_usage_path())
         return u if isinstance(u, dict) else {}
     except Exception:
         return {}
@@ -91,9 +102,9 @@ def touch(ref: str):
     if not ref:
         return
     u = _usage(); u[ref] = time.time()
-    Path(".anima").mkdir(exist_ok=True)
+    STORE.mkdir(exist_ok=True)
     try:
-        save_json(_USAGE, u)
+        save_json(_usage_path(), u)
     except Exception:
         pass
 
@@ -139,7 +150,7 @@ def remove(ref: str) -> dict:
         req = urllib.request.Request(OLLAMA + "/api/delete", body,
                                      {"Content-Type": "application/json"}, method="DELETE")
         urllib.request.urlopen(req, timeout=30).read()
-        u = _usage(); u.pop(ref, None); save_json(_USAGE, u)
+        u = _usage(); u.pop(ref, None); save_json(_usage_path(), u)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

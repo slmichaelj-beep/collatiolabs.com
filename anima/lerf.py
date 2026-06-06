@@ -1799,18 +1799,45 @@ def make_value(target, *, domain="user", weight=0.5, evidence=None, name="",
 #     (so retrieval is the identical deterministic keyword match, active-only). Not a fork: the
 #     skill surface stays as-is; this serves the new types through the same machinery. -----------
 
+class UnknownObjectType(ValueError):
+    """Raised by store_object when handed a dict whose `type` is neither one of the six new
+    OBJECT_TYPES nor a routable skill/concept. A DISTINCT, documented exception (not a bare
+    ValueError) so a caller's `except Exception: pass` is an explicit choice to drop a genuinely
+    unknown object — never a silent swallow of a write store_object could have persisted. The
+    write-loss hazard #103 named (a skill dict silently lost inside try/except) is closed at the
+    source: a skill/concept is ROUTED, not raised, so it cannot be lost here."""
+
+
 def store_object(obj: dict, name: str = "default") -> dict:
-    """Persist any of the six new cognitive objects (from a make_* factory or a hand-built dict),
-    replacing on id. Runs the FREEZE GUARD first, so a self-referential PREFERENCE/VALUE is REFUSED
-    here too (the single choke point — even a dict minted by hand cannot bypass it). Returns the
-    stored object. Idempotent on id; mirrors store_skill."""
-    if not isinstance(obj, dict) or obj.get("type") not in OBJECT_TYPES:
-        raise ValueError(f"store_object: type must be one of {sorted(OBJECT_TYPES)}, "
-                         f"got {(obj or {}).get('type')!r} (use store_skill for skills)")
+    """Persist any cognitive object, replacing on id. DO-WHAT-I-MEAN routing closes the silent
+    write-loss hazard (#103): a SKILL-typed dict is routed to store_skill and a CONCEPT-typed dict
+    to store_concept, so a caller that hands the wrong-but-known object to store_object PERSISTS it
+    rather than (as before) hitting a type-gate raise that a surrounding `except Exception: pass`
+    would silently swallow into a lost write. The six new OBJECT_TYPES persist here directly.
+
+    Runs the FREEZE GUARD first for the guarded types, so a self-referential PREFERENCE/VALUE is
+    REFUSED here too (the single choke point — even a dict minted by hand cannot bypass it). A dict
+    whose type is none of skill/concept/the-six raises UnknownObjectType (a distinct, documented
+    exception — never a silent no-op). Returns the stored object. Idempotent on id; mirrors
+    store_skill."""
+    if not isinstance(obj, dict):
+        raise UnknownObjectType(f"store_object: expected a dict, got {type(obj).__name__}")
+    otype = obj.get("type")
+    # DO-WHAT-I-MEAN: route a known-but-wrong-surface object to its correct store rather than
+    # raising (which a try/except could swallow into a lost write). No loss is possible for a
+    # skill/concept handed here by mistake — it lands in the same ledger via its own writer.
+    if otype == "skill":
+        return store_skill(obj, name=name)
+    if otype == "concept":
+        return store_concept(obj, name=name)
+    if otype not in OBJECT_TYPES:
+        raise UnknownObjectType(
+            f"store_object: type must be one of {sorted(OBJECT_TYPES)} "
+            f"(or 'skill'/'concept', which are routed), got {otype!r}")
     _assert_not_self_referential(obj)           # FREEZE GUARD — the enforced boundary
     if "id" not in obj:
         prefix = {HEURISTIC: "heur", DECISION_PATTERN: "decpat", MENTAL_MODEL: "model",
-                  FAILURE_MODE: "failmode", PREFERENCE: "pref", VALUE: "value"}[obj["type"]]
+                  FAILURE_MODE: "failmode", PREFERENCE: "pref", VALUE: "value"}[otype]
         obj = {**obj, "id": _new_id(prefix)}
     return _upsert(name, obj)
 
@@ -3312,6 +3339,55 @@ def _selftest() -> int:
         ok("newtype[provenance]: a verified object's why-active/when-revised is populated",
            pvh["when_revised"] is not None
            and any("verify" in s for s in pvh["what_tests"]["support"]))
+
+        # --- #103 REGRESSION: store_object must NEVER silently lose a write -----------------
+        # The hazard: a SKILL dict handed to store_object used to hit a type-gate raise that a
+        # caller's `try: ... except Exception: pass` would swallow into a LOST write. The fix is
+        # do-what-I-mean ROUTING (skill -> store_skill, concept -> store_concept) so the write
+        # always lands; a genuinely UNKNOWN type raises a DISTINCT, documented exception (loud,
+        # never a silent no-op). We prove all three legs here, including the exact swallow pattern.
+        _sk103 = make_skill("route_via_store_object", "engineering", id="skill_103",
+                            inputs=["i"], steps=["s"], outputs=["o"], state=ACTIVE)
+        _routed = store_object(_sk103, name=nm)         # WRONG surface on purpose — must NOT be lost
+        ok("#103[no-loss]: store_object ROUTES a skill dict to store_skill (write persists)",
+           _routed.get("id") == "skill_103" and _get(nm, "skill_103") is not None
+           and _get(nm, "skill_103").get("type") == "skill")
+        # the canonical swallow pattern from the audit: even inside try/except: pass, no loss.
+        _before103 = len(_load_objects(nm))
+        try:
+            store_object(make_skill("swallowed_skill", "engineering", id="skill_103b",
+                                    inputs=["i"], steps=["s"], outputs=["o"], state=ACTIVE), name=nm)
+        except Exception:                                # the dangerous idiom — now harmless
+            pass
+        ok("#103[no-loss]: a skill stored via the try/except: pass idiom is NOT silently lost",
+           _get(nm, "skill_103b") is not None and len(_load_objects(nm)) == _before103 + 1)
+        _cn103 = make_concept("routed_concept", "a concept handed to store_object", state=ACTIVE,
+                              id="concept_103")
+        store_object(_cn103, name=nm)                    # concept routed to store_concept
+        ok("#103[no-loss]: store_object ROUTES a concept dict to store_concept (write persists)",
+           _get(nm, "concept_103") is not None and _get(nm, "concept_103").get("type") == "concept")
+        # a genuinely unknown type must RAISE LOUDLY (distinct exception), never silently no-op.
+        _unknown_loud = False
+        try:
+            store_object({"type": "not_a_real_type", "name": "x"}, name=nm)
+        except UnknownObjectType:
+            _unknown_loud = True
+        ok("#103[loud]: an UNKNOWN object type raises UnknownObjectType (never a silent no-op)",
+           _unknown_loud)
+        ok("#103[loud]: UnknownObjectType is a ValueError subclass (back-compatible catch)",
+           issubclass(UnknownObjectType, ValueError))
+        # FREEZE still wins for a routed-or-direct guarded type (the choke point is intact).
+        _freeze_held = False
+        try:
+            store_object({"id": "pref_103_self", "type": PREFERENCE, "name": "vera prefers x",
+                          "subject": "Vera's own preferences", "weight": 0.5, "options": [],
+                          "evidence": ["x"], "taught_by": "", "state": CANDIDATE,
+                          "confidence": 0.5, "source": "test", "support": [],
+                          "failure_modes": []}, name=nm)
+        except FreezeViolation:
+            _freeze_held = True
+        ok("#103[freeze]: routing did NOT weaken the freeze — a Vera-self preference still REFUSED",
+           _freeze_held and _get(nm, "pref_103_self") is None)
 
         # --- THE FREEZE GUARD: a PREFERENCE/VALUE about VERA HERSELF is REFUSED -------
         _self_refused = 0

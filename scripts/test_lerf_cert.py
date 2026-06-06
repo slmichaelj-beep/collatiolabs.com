@@ -740,7 +740,13 @@ def section_lerf() -> list:
 # ===================================================================================
 # CLI / SELFTEST
 # ===================================================================================
-def _run(json_out: bool = False) -> int:
+def _run(json_out: bool = False, gate: bool = False) -> int:
+    # GATE STRICTNESS note (Gate 0 Prime target 3): this tier is ALREADY strict by construction —
+    # it exits non-zero on any [FAIL] row in BOTH the default and --gate modes (it has no
+    # REPORTED-but-non-gating bucket, so there is no "reports FAIL yet exits 0" pathology to fix).
+    # --gate is accepted as an explicit, uniform opt-in alias so a Gate-0-Prime orchestrator can
+    # pass the same flag to every certifier; here it is a documented no-op (same exit semantics).
+    _ = gate
     rows = section_lerf()
     if json_out:
         print(json.dumps([r.to_dict() for r in rows], indent=2))
@@ -769,8 +775,11 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true", help="machine-readable rows")
     ap.add_argument("--selftest", action="store_true",
                     help="run the tier; exit 0 iff every check PASSes (same as default)")
+    ap.add_argument("--gate", action="store_true",
+                    help="GATE STRICTNESS (opt-in): exit NON-ZERO on any FAIL. This tier is "
+                         "already strict by default, so --gate is a uniform no-op alias here.")
     args = ap.parse_args(argv)
-    return _run(json_out=args.json)
+    return _run(json_out=args.json, gate=args.gate)
 
 
 if __name__ == "__main__":
