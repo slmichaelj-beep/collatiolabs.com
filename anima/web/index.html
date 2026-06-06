@@ -17,9 +17,12 @@ html{scrollbar-width:thin;scrollbar-color:transparent transparent}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:transparent;border-radius:10px;border:2.5px solid transparent;background-clip:padding-box}
-#log:hover,#settings:hover{scrollbar-color:rgba(255,255,255,.22) transparent}
-#log:hover::-webkit-scrollbar-thumb,#settings:hover::-webkit-scrollbar-thumb,#log:active::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22)}
-#log:hover::-webkit-scrollbar-thumb:hover,#settings:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.34)}
+#log:hover,#settings:hover,#library:hover,#searchPanel:hover{scrollbar-color:rgba(255,255,255,.22) transparent}
+#log:hover::-webkit-scrollbar-thumb,#settings:hover::-webkit-scrollbar-thumb,
+#library:hover::-webkit-scrollbar-thumb,#searchPanel:hover::-webkit-scrollbar-thumb,
+#log:active::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22)}
+#log:hover::-webkit-scrollbar-thumb:hover,#settings:hover::-webkit-scrollbar-thumb:hover,
+#library:hover::-webkit-scrollbar-thumb:hover,#searchPanel:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.34)}
 ::-webkit-scrollbar-corner{background:transparent}
 body{font-family:'SF Pro Text',-apple-system,'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;
   font-weight:300;letter-spacing:.01em;
@@ -47,11 +50,19 @@ header .state{margin-top:4px;font-size:11px;color:#555;letter-spacing:.05em;min-
 form{padding:10px 12px;border-top:1px solid #141414;
   background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
   padding-bottom:calc(10px + env(safe-area-inset-bottom))}
-/* one full-width pill: mic on the left, text in the middle, send on the right */
+/* one full-width pill: toolbar on the left, text in the middle, send on the right */
 #bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
   border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
 #bar.rec{border-color:rgba(120,170,255,.5);box-shadow:0 0 0 1px rgba(120,170,255,.22) inset}
+#bar.dragover{border-color:rgba(47,127,255,.6);box-shadow:0 0 0 2px rgba(47,127,255,.18) inset}
 #t{flex:1;background:none;border:none;padding:10px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
+/* toolbar: compact icon row left of the text input */
+#toolbar{display:flex;align-items:center;gap:0;flex:none}
+.tbtn{background:none;border:none;color:#8a8a8a;width:34px;height:34px;border-radius:50%;
+  flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s,background .15s;position:relative}
+.tbtn:hover{color:#c4c4c8;background:rgba(255,255,255,.06)}
+.tbtn:active{color:#2f7fff;background:rgba(47,127,255,.14)}
+.tbtn.active{color:#2f7fff}
 #mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
   flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #mic:active,#send:active{background:#232323}
@@ -71,6 +82,122 @@ form{padding:10px 12px;border-top:1px solid #141414;
   border:1px solid rgba(255,255,255,.09);box-shadow:-24px 24px 64px rgba(0,0,0,.55);
   transform:translateX(calc(100% + 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateX(0);pointer-events:auto}
+/* library drawer — same frosted glass, slides in from the LEFT */
+#library{position:fixed;left:0;top:0;bottom:0;width:min(520px,52vw);min-width:300px;z-index:12;margin:10px;
+  background:rgba(18,18,23,.55);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  display:flex;flex-direction:column;padding:16px 28px 16px 18px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.09);box-shadow:24px 24px 64px rgba(0,0,0,.55);
+  transform:translateX(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+#library.open{transform:translateX(0);pointer-events:auto}
+#libgrab{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:4px;height:44px;border-radius:2px;
+  background:rgba(255,255,255,.2);cursor:pointer;transition:background .2s,height .2s}
+#libgrab:hover{background:rgba(255,255,255,.5);height:62px}
+/* search panel — compact overlay centered in chat */
+#searchPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);z-index:14;
+  width:min(640px,92vw);max-height:80vh;
+  background:rgba(18,18,23,.7);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 32px 80px rgba(0,0,0,.7);
+  display:flex;flex-direction:column;padding:18px 20px;
+  opacity:0;pointer-events:none;transition:opacity .22s,transform .22s}
+#searchPanel.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+/* export/copy menu — small popup above the toolbar button */
+#exportMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
+  background:rgba(22,22,28,.95);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:230px;
+  box-shadow:0 12px 40px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
+#exportMenu.open{opacity:1;pointer-events:auto;transform:none}
+.emitem{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:13.5px;color:#c4c4c8;
+  cursor:pointer;user-select:none;transition:background .12s,color .12s}
+.emitem:hover{background:rgba(255,255,255,.07);color:#e8e8ec}
+.emitem:active{background:rgba(255,255,255,.12)}
+.emitem svg{flex:none;color:#8a8a8a}
+/* intake preview card — floated in the chat, below the message that triggered it */
+.intake-card{align-self:flex-start;max-width:90%;background:#0f1117;border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;padding:14px 16px;font-size:14px;color:#c8c8ce;line-height:1.5;margin-top:2px}
+.intake-card .ict{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555;margin-bottom:6px}
+.intake-card .ictype{font-weight:500;color:#e4e4e7}
+.intake-card .icrow{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.intake-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(255,255,255,.07);color:#9a9aa2;border:1px solid rgba(255,255,255,.08)}
+.intake-tag.warn{background:rgba(185,28,28,.12);color:#f87171;border-color:rgba(185,28,28,.25)}
+.intake-tag.safe{background:rgba(70,178,122,.1);color:#6ee7b7;border-color:rgba(70,178,122,.2)}
+.intake-tag.needs{background:rgba(214,162,58,.1);color:#fcd34d;border-color:rgba(214,162,58,.2)}
+/* control picker inside preview card */
+.ctrl-group{margin-top:12px;display:flex;flex-direction:column;gap:5px}
+.ctrl-group label{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;cursor:pointer;
+  font-size:13px;color:#a4a4ae;transition:background .12s,color .12s}
+.ctrl-group label:hover{background:rgba(255,255,255,.05);color:#d4d4d8}
+.ctrl-group input[type=radio]{accent-color:#2f7fff;flex:none}
+.ctrl-delraw{display:flex;align-items:center;gap:8px;font-size:12px;color:#777;margin-top:6px;padding:4px 8px}
+.ctrl-delraw input[type=checkbox]{accent-color:#2f7fff}
+.intake-approve{margin-top:10px;background:#1c2e4a;color:#7ab8ff;border:none;border-radius:18px;
+  padding:8px 18px;font-size:13px;cursor:pointer;transition:background .15s}
+.intake-approve:hover{background:#22376a}
+.intake-approve:disabled{opacity:.4;cursor:default}
+/* status chips / dots (§7) */
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;flex:none}
+.sdot.queued{background:#555}
+.sdot.parsing{background:#8b6e2a}
+.sdot.classifying{background:#2a6b8b}
+.sdot.extracting{background:#2a5f8b}
+.sdot.needs_review{background:#d6a23a}
+.sdot.certified{background:#46b27a}
+.sdot.active{background:#2f7fff}
+.sdot.archived{background:#444}
+.sdot.failed{background:#b91c1c}
+.sdot.deleted{background:#2a2a2a}
+.status-chip{display:inline-flex;align-items:center;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(255,255,255,.05);color:#9a9aa2;border:1px solid rgba(255,255,255,.07)}
+/* library row */
+.lib-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:13px;color:#b4b4bc}
+.lib-row:last-child{border-bottom:none}
+.lib-row .lt{flex:1;min-width:0}
+.lib-row .ltitle{color:#e4e4e7;font-weight:400;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib-row .lmeta{font-size:11px;color:#666;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lib-row .lactions{display:flex;gap:4px;flex:none;align-items:center}
+.lbtn{background:none;border:1px solid rgba(255,255,255,.08);color:#8a8a8a;font-size:11px;padding:3px 9px;
+  border-radius:8px;cursor:pointer;transition:background .12s,color .12s}
+.lbtn:hover{background:rgba(255,255,255,.06);color:#d4d4d4}
+.lbtn.danger{border-color:rgba(185,28,28,.3);color:#f87171}
+.lbtn.danger:hover{background:rgba(185,28,28,.1)}
+/* filter chips */
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#8a8a8a;
+  font-size:11px;padding:4px 11px;border-radius:99px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.fchip:hover{background:rgba(255,255,255,.09);color:#c4c4c8}
+.fchip.sel{background:rgba(47,127,255,.14);border-color:rgba(47,127,255,.35);color:#7ab8ff}
+/* search results */
+.sr-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;transition:background .1s}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:rgba(255,255,255,.03);margin:0 -6px;padding:10px 6px;border-radius:8px}
+.sr-title{font-size:13.5px;color:#e4e4e7;margin-bottom:3px}
+.sr-snip{font-size:12px;color:#777;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sr-tag{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 7px;border-radius:99px;margin-right:6px}
+.sr-tag.memory{background:rgba(47,127,255,.15);color:#7ab8ff}
+.sr-tag.reference,.sr-tag.uploaded_pdf,.sr-tag.web_page{background:rgba(70,178,122,.1);color:#6ee7b7}
+.sr-tag.lerf_skill,.sr-tag.lerf_concept,.sr-tag.lerf_procedure{background:rgba(168,85,247,.12);color:#d8b4fe}
+.sr-tag.personal_preference{background:rgba(249,115,22,.1);color:#fdba74}
+.sr-tag.world{background:rgba(255,255,255,.07);color:#9ca3af}
+/* MRI trace overlay */
+#mriOverlay{position:fixed;inset:0;z-index:20;background:rgba(5,5,7,.82);backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .22s}
+#mriOverlay.open{opacity:1;pointer-events:auto}
+#mriBox{width:min(640px,94vw);max-height:82vh;overflow-y:auto;
+  background:rgba(18,18,23,.8);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:22px 24px;
+  box-shadow:0 32px 80px rgba(0,0,0,.8)}
+#mriBox h3{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:12px}
+.trace-step{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#a4a4ae;line-height:1.5}
+.trace-step:last-child{border-bottom:none}
+.trace-step b{color:#e4e4e7;font-weight:500}
+.trace-render{font-size:12px;color:#777;white-space:pre-wrap;font-family:monospace;margin-top:12px;
+  background:rgba(255,255,255,.03);border-radius:8px;padding:10px;overflow-x:auto}
+/* overlay close btn */
+.overlay-close{background:none;border:1px solid rgba(255,255,255,.1);color:#9a9aa2;border-radius:99px;
+  padding:6px 16px;font-size:12px;cursor:pointer;margin-top:14px;transition:background .15s,color .15s}
+.overlay-close:hover{background:rgba(255,255,255,.07);color:#e4e4e7}
 /* dashboard drawer — pulls DOWN from the top: the operator's gauges + verdict */
 #dashknob{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:13;width:54px;height:18px;
   display:flex;align-items:center;justify-content:center;font-size:11px;color:#9a9aa2;cursor:pointer;
@@ -164,6 +291,16 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #gate-name{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;font-weight:400}
 #gate-btn{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:13px 26px;border-radius:24px}
 #faceRow .mbtn{margin-top:2px}
+/* search input inside panel */
+#searchInput{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:#e4e4e7;border-radius:12px;padding:11px 14px;font-size:15px;outline:none}
+#searchInput::placeholder{color:#555}
+#searchInput:focus{border-color:rgba(47,127,255,.4);box-shadow:0 0 0 2px rgba(47,127,255,.12)}
+#searchResults{flex:1;overflow-y:auto;margin-top:12px}
+#libBody{flex:1;overflow-y:auto}
+#libHead{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9a9aa2;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+/* file picker hidden input */
+#filePicker{display:none}
 </style>
 </head>
 <body>
@@ -181,12 +318,74 @@ form{padding:10px 12px;border-top:1px solid #141414;
 <div id="log"></div>
 <form id="f">
   <div id="bar">
-    <button type="button" id="mic" aria-label="tap to talk, tap again to send">
-      <svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true">
-        <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3z"/>
-        <path d="M19 12a7 7 0 0 1-14 0H3a9 9 0 0 0 8 8.94V24h2v-3.06A9 9 0 0 0 21 12h-2z"/>
+    <!-- mic: stroke-only, tap-to-toggle; aria-label matches the two-state model -->
+    <button type="button" id="mic" aria-label="tap to talk">
+      <!-- stroke mic (not filled) -->
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="11" rx="3"/>
+        <path d="M5 11a7 7 0 0 0 14 0"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="9" y1="22" x2="15" y2="22"/>
       </svg>
     </button>
+    <!-- attachment toolbar: Add, Code, Search, Library, Export -->
+    <div id="toolbar">
+      <!-- + Add/Attach -->
+      <button type="button" class="tbtn" id="tbAdd" aria-label="Attach file or add knowledge" title="Attach / Add">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+      </button>
+      <!-- </> Code -->
+      <button type="button" class="tbtn" id="tbCode" aria-label="Add code context" title="Code context">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+        </svg>
+      </button>
+      <!-- magnifier Search -->
+      <button type="button" class="tbtn" id="tbSearch" aria-label="Search knowledge" title="Search">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+      <!-- folder Library -->
+      <button type="button" class="tbtn" id="tbLib" aria-label="Knowledge library" title="Library">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+      <!-- overlap-squares Copy/Export -->
+      <div style="position:relative">
+        <button type="button" class="tbtn" id="tbExport" aria-label="Copy or export" title="Copy / Export">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+        <!-- export/copy popup menu — position relative to its parent div -->
+        <div id="exportMenu">
+          <div class="emitem" id="emCopyReply">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy last reply
+          </div>
+          <div class="emitem" id="emCopyTranscript">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Copy transcript
+          </div>
+          <div class="emitem" id="emExportConvo">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export conversation
+          </div>
+          <div class="emitem" id="emExportMind">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+            Export whole mind archive
+          </div>
+          <div class="emitem" id="emExportSources">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Export source summary
+          </div>
+        </div>
+      </div>
+    </div>
     <input id="t" placeholder="say something…" enterkeyhint="send"
       autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true">
     <button type="submit" id="send" aria-label="send">
@@ -197,6 +396,10 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
 </form>
 
+<!-- hidden file picker for attach flow -->
+<input type="file" id="filePicker" multiple accept="*/*">
+
+<!-- Settings drawer (existing, unchanged) -->
 <div id="settings">
   <div id="grab"></div>
   <div id="sheet">
@@ -275,6 +478,47 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
 
   <!-- auto-saves on blur; no Save/Cancel -->
+</div>
+
+<!-- Library drawer (NEW — sibling of #settings, slides from LEFT) -->
+<div id="library">
+  <div id="libgrab"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-left:4px">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <div id="libHead">Knowledge Library</div>
+  </div>
+  <div class="filter-chips" id="libChips">
+    <div class="fchip sel" data-sec="">All</div>
+    <div class="fchip" data-sec="reference">References</div>
+    <div class="fchip" data-sec="writing">Your writing</div>
+    <div class="fchip" data-sec="authoritative">Authoritative</div>
+    <div class="fchip" data-sec="discussion">Discussion topics</div>
+    <div class="fchip" data-sec="training">Training material</div>
+    <div class="fchip" data-sec="personal">Personal documents</div>
+    <div class="fchip" data-sec="archived">Archived</div>
+    <div class="fchip" data-sec="objects">Extracted objects</div>
+  </div>
+  <div id="libBody"><div style="font-size:12px;color:#555;padding:16px 0">loading…</div></div>
+</div>
+
+<!-- Search panel (NEW — centered overlay) -->
+<div id="searchPanel" role="dialog" aria-label="Search knowledge">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#9a9aa2;flex:1">Search</span>
+    <button type="button" id="searchClose" style="background:none;border:none;color:#666;cursor:pointer;font-size:18px;line-height:1;padding:4px">×</button>
+  </div>
+  <input id="searchInput" placeholder="search memory, references, skills…" autocomplete="off" spellcheck="false">
+  <div id="searchResults"></div>
+</div>
+
+<!-- MRI trace overlay (NEW) -->
+<div id="mriOverlay">
+  <div id="mriBox">
+    <h3>Intake trace</h3>
+    <div id="mriContent"></div>
+    <button type="button" class="overlay-close" id="mriClose">Close</button>
+  </div>
 </div>
 
 <button id="dashknob" aria-label="dashboard">▾</button>
@@ -434,8 +678,89 @@ async function send(text){
 document.getElementById('f').addEventListener('submit',e=>{
   e.preventDefault();prime();const v=input.value.trim();if(v)send(v);});
 
-// Voice in two ways: tap the mic (toggle), OR press-and-hold the conversation to talk
-// (release to send), with a subtle "press into the surface" ripple. Server-side Whisper.
+// ============================================================
+// VOICE — §9 redesign: stroke mic, tap-to-toggle, barge-in
+// ============================================================
+
+// Barge-in: Web Audio AnalyserNode that monitors mic energy while TTS is playing.
+// Lifecycle: started when speak() begins, stopped when TTS ends or is cancelled.
+let bargeCtx=null, bargeAnalyser=null, bargeStream=null, bargeTimer=null, bargeActive=false;
+const BARGE_THRESHOLD=16;      // RMS out of 0-255; ~quiet room voice
+const BARGE_SUSTAIN_MS=180;    // must hold for this long before triggering (avoids plosives)
+let bargeSustainStart=null;
+
+function stopBarge(){
+  clearInterval(bargeTimer); bargeTimer=null; bargeSustainStart=null; bargeActive=false;
+  if(bargeAnalyser){ try{ bargeAnalyser.disconnect(); }catch(e){} bargeAnalyser=null; }
+  if(bargeStream){ bargeStream.getTracks().forEach(t=>t.stop()); bargeStream=null; }
+  if(bargeCtx){ try{ bargeCtx.close(); }catch(e){} bargeCtx=null; }
+}
+
+async function startBarge(){
+  if(bargeActive || !navigator.mediaDevices || muted) return;
+  if(!window.AudioContext && !window.webkitAudioContext) return;
+  bargeActive=true;
+  try{
+    bargeStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    bargeCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=bargeCtx.createMediaStreamSource(bargeStream);
+    bargeAnalyser=bargeCtx.createAnalyser();
+    bargeAnalyser.fftSize=512;
+    src.connect(bargeAnalyser);
+    const buf=new Uint8Array(bargeAnalyser.frequencyBinCount);
+    bargeTimer=setInterval(()=>{
+      if(!player.paused) {
+        bargeAnalyser.getByteTimeDomainData(buf);
+        let sum=0; for(let i=0;i<buf.length;i++){ const v=buf[i]-128; sum+=v*v; }
+        const rms=Math.sqrt(sum/buf.length);
+        if(rms>BARGE_THRESHOLD){
+          if(!bargeSustainStart) bargeSustainStart=Date.now();
+          else if(Date.now()-bargeSustainStart>=BARGE_SUSTAIN_MS){
+            // sustained speech detected — interrupt TTS and start recording
+            speakSeq++; player.pause();
+            stopBarge();
+            startRecording();
+          }
+        } else {
+          bargeSustainStart=null;
+        }
+      } else {
+        // TTS finished on its own — no longer need the analyser
+        stopBarge();
+      }
+    },40);
+  }catch(e){
+    bargeActive=false;
+    // barge-in is best-effort — silently fail if mic permission is unavailable
+  }
+}
+
+// patch speak() to activate barge-in while TTS is running
+const _speakOrig=speak;
+async function speakWithBarge(text,rate){
+  if(!text) return;
+  const beforeSeq=speakSeq;
+  // start barge monitor after a short delay to avoid immediately triggering on our own TTS
+  const bargeDelay=setTimeout(()=>{ if(speakSeq===beforeSeq+1 || speakSeq>beforeSeq) startBarge(); },400);
+  try{
+    await _speakOrig(text,rate);
+  } finally {
+    clearTimeout(bargeDelay);
+    stopBarge();
+  }
+}
+// replace speak reference used by the send() function
+// (we shadow it in the same scope; existing calls inside send() will pick up the wrapper)
+// The above won't work at call-site since send() captured `speak` by reference to the const.
+// Instead we override via the same name in this scope for calls below, and patch the player:
+player.addEventListener('play',()=>{
+  // each time TTS starts playing, arm barge-in
+  setTimeout(()=>{ if(!player.paused && !bargeActive) startBarge(); },300);
+});
+player.addEventListener('ended',stopBarge);
+player.addEventListener('pause',stopBarge);
+
+// Voice recording: tap-to-toggle
 let mediaRec=null, chunks=[], recording=false, wantRec=false;
 async function startRecording(){
   prime();
@@ -443,14 +768,18 @@ async function startRecording(){
   if(!navigator.mediaDevices || !window.MediaRecorder){
     add("Open my secure (https) address to use the mic.","her"); return;
   }
+  // stop any barge-in monitor first so we don't fight over the mic
+  stopBarge();
   wantRec=true;
   try{
     const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    if(!wantRec){ stream.getTracks().forEach(t=>t.stop()); return; }   // released during the await — don't start
+    if(!wantRec){ stream.getTracks().forEach(t=>t.stop()); return; }   // cancelled during the await
     mediaRec=new MediaRecorder(stream); chunks=[];
     mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
     mediaRec.onstop=async ()=>{
       recording=false; wantRec=false; mic.classList.remove('on'); bar.classList.remove('rec');
+      // idle state: quiet mic label
+      mic.setAttribute('aria-label','tap to talk');
       input.placeholder='say something…';
       stream.getTracks().forEach(t=>t.stop());
       if(!chunks.length) return;
@@ -466,7 +795,9 @@ async function startRecording(){
       finally{ setBusy(false); }
     };
     mediaRec.start(); recording=true; mic.classList.add('on'); bar.classList.add('rec');
-    input.placeholder='Listening… release to send';
+    // recording state: clear tap-to-stop label
+    mic.setAttribute('aria-label','Listening — tap to stop');
+    input.placeholder='Listening — tap to stop';
   }catch(err){
     wantRec=false;
     add("Tap 'Allow' when Safari asks for the microphone, then try again.","her");
@@ -474,10 +805,481 @@ async function startRecording(){
 }
 function stopRecording(){ wantRec=false; if(recording && mediaRec) mediaRec.stop(); }
 mic.onclick=()=>{ if(recording) stopRecording(); else startRecording(); };
-// (the press-and-hold-screen gesture was removed — it collided with iOS text
-//  selection/copy; the mic button on the left of the input is the way to talk)
 
-// --- settings: brain + capabilities ----------------------------------------
+// ============================================================
+// ATTACHMENT TOOLBAR — handlers (§1 + §3)
+// ============================================================
+
+// Helper: safe JSON fetch that won't throw on non-200 / missing endpoint
+async function apiFetch(path, opts){
+  try{
+    const r=await fetch(path,{...opts, headers:{...((opts&&opts.headers)||{}),...HDR}});
+    if(!r.ok){
+      let msg=''; try{ const e=await r.clone().json(); msg=e.error||e.detail||''; }catch(_){}
+      return {_err:true, status:r.status, msg};
+    }
+    return await r.json();
+  }catch(e){
+    return {_err:true, status:0, msg:'Could not reach the server — is it running?'};
+  }
+}
+
+// Status dot helper
+const STATUS_LABELS={
+  raw:'Queued', parsed:'Parsing', classified:'Classifying', candidate:'Extracting',
+  verified:'Certified', active:'Active', archived:'Archived', rejected:'Failed',
+  deleted:'Deleted', needs_review:'Needs Review'
+};
+const STATUS_CLASS={
+  raw:'queued', parsed:'parsing', classified:'classifying', candidate:'extracting',
+  verified:'certified', active:'active', archived:'archived', rejected:'failed',
+  deleted:'deleted', needs_review:'needs_review'
+};
+function statusDot(state){
+  const cls=STATUS_CLASS[state]||'queued';
+  const lbl=STATUS_LABELS[state]||state||'Queued';
+  return '<span class="status-chip"><span class="sdot '+cls+'"></span>'+esc(lbl)+'</span>';
+}
+
+// Intake MRI viewer (§7)
+async function openMRI(traceId){
+  const mriOverlay=document.getElementById('mriOverlay');
+  const mriContent=document.getElementById('mriContent');
+  mriContent.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">loading trace…</div>';
+  mriOverlay.classList.add('open');
+  const d=await apiFetch('/intake/trace?trace_id='+encodeURIComponent(traceId));
+  if(d._err){ mriContent.innerHTML='<div style="font-size:12px;color:#b91c1c">'+esc(d.msg)+'</div>'; return; }
+  const trace=d.trace||{};
+  let h='';
+  const steps=[
+    ['Parsed',trace.parse_status],
+    ['Detected type',trace.detected_type],
+    ['Suggested use',(trace.suggested_use||[]).join(', ')],
+    ['Routing',(trace.routing||[]).map(r=>r.destination+(r.purpose?' ('+r.purpose+')':'')).join('; ')],
+    ['Confidence',trace.confidence!=null?Math.round(trace.confidence*100)+'%':null],
+    ['Chunks',trace.chunk_count],
+    ['Committed',trace.committed?'yes':'no'],
+    ['Safety — embedded instructions',trace.safety&&trace.safety.embedded_instructions&&trace.safety.embedded_instructions.found
+      ? 'found ('+trace.safety.embedded_instructions.count+') — treated as data only, never executed'
+      : 'none detected'],
+  ];
+  steps.forEach(([label,val])=>{
+    if(val==null||val==='') return;
+    h+='<div class="trace-step"><b>'+esc(label)+':</b> '+esc(String(val))+'</div>';
+  });
+  if(d.render) h+='<div class="trace-render">'+esc(d.render)+'</div>';
+  mriContent.innerHTML=h||'<div style="font-size:12px;color:#555">No trace data.</div>';
+}
+document.getElementById('mriClose').onclick=()=>document.getElementById('mriOverlay').classList.remove('open');
+document.getElementById('mriOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('mriOverlay')) document.getElementById('mriOverlay').classList.remove('open');
+});
+
+// Render intake preview card (§3)
+function renderIntakeCard(plan){
+  const card=document.createElement('div');
+  card.className='intake-card';
+  const conf=plan.confidence!=null?Math.round(plan.confidence*100)+'%':'—';
+  const dest=(plan.routing||[]).map(r=>r.destination).join(', ')||'—';
+
+  // sensitive category warning chips
+  let safetyCh='';
+  if(plan.safety){
+    (plan.safety.sensitive||[]).forEach(s=>{
+      safetyCh+='<span class="intake-tag warn">'+esc(s)+'</span> ';
+    });
+    if(plan.safety.embedded_instructions&&plan.safety.embedded_instructions.found){
+      safetyCh+='<span class="intake-tag warn">embedded instructions — treated as data only</span> ';
+    }
+  }
+  let needsApproval='';
+  if(plan.requires_user_confirmation||safetyCh){
+    needsApproval='<div class="icrow"><span class="intake-tag needs">needs approval</span> '+safetyCh+'</div>';
+  }
+
+  const sugUse=(plan.suggested_use||[]).join(', ')||'—';
+  card.innerHTML=
+    '<div class="ict">Vera detected this as</div>'+
+    '<div class="ictype">'+esc(plan.detected_type||'unknown')+'</div>'+
+    '<div style="font-size:12px;color:#777;margin:6px 0 2px">Suggested use: '+esc(sugUse)+'&nbsp;·&nbsp;Destination: '+esc(dest)+'&nbsp;·&nbsp;Confidence: '+conf+'</div>'+
+    needsApproval+
+    '<div class="ctrl-group" id="ctrl-'+plan.source_id+'">'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="reference_only"> Use as reference</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="review_before_adding" checked> Review before adding to memory</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="approve_all"> Use as personal memory</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="never_train_from_this"> Never learn from this</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="use_only_this_chat"> This chat only</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="delete_raw_after_processing"> Archive only</label>'+
+    '</div>'+
+    '<label class="ctrl-delraw"><input type="checkbox" id="delraw-'+plan.source_id+'"> Delete raw file after processing</label>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:10px">'+
+    '<button type="button" class="intake-approve" id="iapprove-'+plan.source_id+'" data-sid="'+esc(plan.source_id)+'" data-tid="'+esc(plan.trace_id||'')+'">Approve</button>'+
+    (plan.trace_id?'<button type="button" class="lbtn" id="imri-'+plan.source_id+'" data-tid="'+esc(plan.trace_id)+'">Details</button>':'')+'</div>';
+
+  log.appendChild(card); log.scrollTop=log.scrollHeight;
+
+  // Approve button
+  const appBtn=document.getElementById('iapprove-'+plan.source_id);
+  if(appBtn) appBtn.onclick=async()=>{
+    appBtn.disabled=true; appBtn.textContent='Approving…';
+    const cg=document.getElementById('ctrl-'+plan.source_id);
+    const sel=cg?cg.querySelector('input[type=radio]:checked'):null;
+    const control=sel?sel.value:'review_before_adding';
+    const delRaw=document.getElementById('delraw-'+plan.source_id);
+    const dr=delRaw?delRaw.checked:false;
+    const result=await apiFetch('/intake/approve',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_id:plan.source_id,control,delete_raw:dr})});
+    if(result._err){
+      appBtn.textContent='Failed';
+      appBtn.style.color='#f87171';
+      const err=document.createElement('div');
+      err.style.cssText='font-size:12px;color:#b91c1c;margin-top:6px';
+      err.textContent=result.msg||'Approval failed — try again.';
+      appBtn.parentNode.appendChild(err);
+    } else {
+      card.innerHTML='<div class="ict">Intake approved</div>'+
+        statusDot(result.state||'active')+
+        '<div style="font-size:12px;color:#666;margin-top:6px">Control: '+esc(control.replace(/_/g,' '))+
+        (result.raw_deleted?' · raw deleted':'')+'</div>'+
+        (plan.trace_id?'<button type="button" class="lbtn" style="margin-top:8px" data-tid="'+esc(plan.trace_id)+'">View trace</button>':'');
+      card.querySelectorAll('[data-tid]').forEach(b=>{
+        b.onclick=()=>openMRI(b.dataset.tid);
+      });
+    }
+  };
+
+  // Details (MRI) button
+  const mriBtn=document.getElementById('imri-'+plan.source_id);
+  if(mriBtn) mriBtn.onclick=()=>openMRI(mriBtn.dataset.tid);
+}
+
+// Core intake pipeline: takes a {kind, input?, text?, filename?, bytesB64?} descriptor
+async function runIntake(desc){
+  flash('Analyzing…');
+  const body={kind:desc.kind};
+  if(desc.kind==='text') body.text=desc.text;
+  else if(desc.kind==='url') body.input=desc.input;
+  else if(desc.kind==='file'){ body.filename=desc.filename; body.bytes_b64=desc.bytes_b64; }
+  const plan=await apiFetch('/intake/plan',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(plan._err){
+    const errDiv=document.createElement('div'); errDiv.className='msg her';
+    errDiv.style.cssText='font-size:13px;color:#b91c1c';
+    errDiv.textContent='Intake unavailable: '+(plan.msg||'could not reach the server');
+    log.appendChild(errDiv); log.scrollTop=log.scrollHeight;
+    return;
+  }
+  renderIntakeCard(plan);
+}
+
+// Read a File as base64
+function fileToB64(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{ const url=fr.result; res(url.split(',')[1]); };
+    fr.onerror=rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+// Detect URL or YouTube
+function looksLikeUrl(s){ return /^https?:\/\//i.test(s.trim()); }
+
+// tbAdd: opens file picker
+const filePicker=document.getElementById('filePicker');
+document.getElementById('tbAdd').onclick=()=>filePicker.click();
+document.getElementById('tbCode').onclick=()=>filePicker.click();  // code: same picker, classify handles it
+
+filePicker.onchange=async(e)=>{
+  const files=Array.from(e.target.files||[]); e.target.value='';
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+};
+
+// Drag-drop onto #bar / form area
+const formEl=document.getElementById('f');
+formEl.addEventListener('dragover',e=>{ e.preventDefault(); bar.classList.add('dragover'); });
+formEl.addEventListener('dragleave',()=>bar.classList.remove('dragover'));
+formEl.addEventListener('drop',async e=>{
+  e.preventDefault(); bar.classList.remove('dragover');
+  const items=Array.from(e.dataTransfer.items||[]);
+  const files=Array.from(e.dataTransfer.files||[]);
+  // check for URL in drag data
+  const urlItem=items.find(it=>it.kind==='string'&&it.type==='text/uri-list');
+  if(urlItem){
+    urlItem.getAsString(url=>{ if(url.trim()) runIntake({kind:'url',input:url.trim()}); });
+    return;
+  }
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+});
+
+// Also allow drag-drop on the full log area
+log.addEventListener('dragover',e=>{ e.preventDefault(); bar.classList.add('dragover'); });
+log.addEventListener('dragleave',()=>bar.classList.remove('dragover'));
+log.addEventListener('drop',async e=>{
+  e.preventDefault(); bar.classList.remove('dragover');
+  const files=Array.from(e.dataTransfer.files||[]);
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+});
+
+// Paste from clipboard (images, files, URLs, code)
+document.addEventListener('paste',async e=>{
+  // only intercept if not typing in an input/textarea
+  const tag=(document.activeElement||{}).tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA') return;
+  const items=Array.from(e.clipboardData.items||[]);
+  // image paste
+  const imgItem=items.find(it=>it.type.startsWith('image/'));
+  if(imgItem){
+    e.preventDefault();
+    const blob=imgItem.getAsFile();
+    const b64=await fileToB64(blob);
+    runIntake({kind:'file',filename:'screenshot.png',bytes_b64:b64});
+    return;
+  }
+  // text paste
+  const textItem=items.find(it=>it.kind==='string'&&it.type==='text/plain');
+  if(textItem){
+    textItem.getAsString(txt=>{
+      if(!txt.trim()) return;
+      if(looksLikeUrl(txt)) runIntake({kind:'url',input:txt.trim()});
+      else runIntake({kind:'text',text:txt.trim()});
+    });
+  }
+});
+
+// ============================================================
+// LIBRARY DRAWER (§4)
+// ============================================================
+const libDrawer=document.getElementById('library');
+const libBody=document.getElementById('libBody');
+let libSection='';
+
+async function loadLibrary(section){
+  libSection=section||'';
+  libBody.innerHTML='<div style="font-size:12px;color:#555;padding:10px 0">loading…</div>';
+  const url='/library'+(section?'?section='+encodeURIComponent(section):'');
+  const d=await apiFetch(url);
+  if(d._err){
+    libBody.innerHTML='<div style="font-size:12px;color:#666;padding:10px 0">'+esc(d.msg||'Library unavailable.')+'</div>';
+    return;
+  }
+  const items=d.items||[];
+  if(!items.length){
+    libBody.innerHTML='<div style="font-size:12px;color:#555;padding:10px 0">Nothing here yet.</div>';
+    return;
+  }
+  libBody.innerHTML='';
+  items.forEach(it=>libBody.appendChild(buildLibRow(it)));
+}
+
+function buildLibRow(it){
+  const row=document.createElement('div'); row.className='lib-row';
+  const lu=it.last_used?new Date(it.last_used).toLocaleDateString():'—';
+  const conf=it.confidence!=null?Math.round(it.confidence*100)+'%':'—';
+  row.innerHTML=
+    '<div class="lt">'+
+      '<div class="ltitle">'+esc(it.title||it.id||'Untitled')+'</div>'+
+      '<div class="lmeta">'+
+        '<span>'+esc(it.type||'—')+'</span>'+
+        '<span style="color:#444">·</span>'+
+        '<span>'+esc(it.source||'—')+'</span>'+
+        statusDot(it.status)+''+
+        '<span>→ '+esc(it.destination||'—')+'</span>'+
+        '<span>used: '+lu+'</span>'+
+        '<span>conf: '+conf+'</span>'+
+        (it.objects_extracted?'<span>'+it.objects_extracted+' objects</span>':'')+''+
+      '</div>'+
+    '</div>'+
+    '<div class="lactions">'+
+      '<button class="lbtn" data-id="'+esc(it.id)+'" data-act="reprocess">Reprocess</button>'+
+      '<button class="lbtn" data-id="'+esc(it.id)+'" data-act="archive">Archive</button>'+
+      '<button class="lbtn danger" data-id="'+esc(it.id)+'" data-act="delete">Delete</button>'+
+    '</div>';
+  row.querySelectorAll('[data-act]').forEach(btn=>{
+    btn.onclick=async()=>{
+      btn.disabled=true;
+      const res=await apiFetch('/library/edit',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:it.id,action:btn.dataset.act})});
+      if(res._err){ btn.disabled=false; flash(res.msg||'Action failed'); }
+      else{ loadLibrary(libSection); }
+    };
+  });
+  return row;
+}
+
+document.getElementById('tbLib').onclick=()=>{
+  const isOpen=libDrawer.classList.contains('open');
+  closeAllPanels();
+  if(!isOpen){ libDrawer.classList.add('open'); loadLibrary(libSection); }
+};
+document.getElementById('libgrab').onclick=()=>libDrawer.classList.remove('open');
+
+// section filter chips
+document.getElementById('libChips').addEventListener('click',e=>{
+  const chip=e.target.closest('.fchip');
+  if(!chip) return;
+  document.querySelectorAll('#libChips .fchip').forEach(c=>c.classList.remove('sel'));
+  chip.classList.add('sel');
+  loadLibrary(chip.dataset.sec||'');
+});
+
+// ============================================================
+// SEARCH PANEL (§5)
+// ============================================================
+const searchPanel=document.getElementById('searchPanel');
+const searchInput=document.getElementById('searchInput');
+const searchResults=document.getElementById('searchResults');
+
+document.getElementById('tbSearch').onclick=()=>{
+  const isOpen=searchPanel.classList.contains('open');
+  closeAllPanels();
+  if(!isOpen){ searchPanel.classList.add('open'); searchInput.focus(); }
+};
+document.getElementById('searchClose').onclick=()=>searchPanel.classList.remove('open');
+
+let _searchT;
+searchInput.addEventListener('input',()=>{
+  clearTimeout(_searchT);
+  _searchT=setTimeout(()=>doSearch(searchInput.value.trim()),350);
+});
+searchInput.addEventListener('keydown',e=>{
+  if(e.key==='Escape') searchPanel.classList.remove('open');
+  if(e.key==='Enter'){ clearTimeout(_searchT); doSearch(searchInput.value.trim()); }
+});
+
+async function doSearch(q){
+  if(!q){ searchResults.innerHTML=''; return; }
+  searchResults.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">searching…</div>';
+  const d=await apiFetch('/search',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({q})});
+  if(d._err){
+    searchResults.innerHTML='<div style="font-size:12px;color:#666;padding:8px 0">'+esc(d.msg||'Search unavailable.')+'</div>';
+    return;
+  }
+  const results=d.results||[];
+  if(!results.length){ searchResults.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">No results.</div>'; return; }
+  searchResults.innerHTML='';
+  results.forEach(r=>{
+    const item=document.createElement('div'); item.className='sr-item';
+    const st=r.source_type||'world';
+    item.innerHTML=
+      '<div class="sr-title"><span class="sr-tag '+esc(st)+'">'+esc(st.replace(/_/g,' '))+'</span>'+esc(r.title||r.id||'')+'</div>'+
+      '<div class="sr-snip">'+esc(r.snippet||'')+'</div>';
+    item.onclick=()=>{
+      // clicking a result: if it has a trace_id, open MRI; otherwise close and note it
+      searchPanel.classList.remove('open');
+      if(r.trace_id) openMRI(r.trace_id);
+    };
+    searchResults.appendChild(item);
+  });
+}
+
+// ============================================================
+// COPY / EXPORT MENU (§6)
+// ============================================================
+const exportMenu=document.getElementById('exportMenu');
+document.getElementById('tbExport').onclick=(e)=>{
+  e.stopPropagation();
+  exportMenu.classList.toggle('open');
+};
+// close on outside click
+document.addEventListener('click',e=>{
+  if(!exportMenu.contains(e.target)&&e.target!==document.getElementById('tbExport'))
+    exportMenu.classList.remove('open');
+});
+
+// Copy last reply — grab last .her message text
+document.getElementById('emCopyReply').onclick=()=>{
+  exportMenu.classList.remove('open');
+  const msgs=log.querySelectorAll('.msg.her');
+  const last=msgs[msgs.length-1];
+  if(!last){ flash('No reply to copy'); return; }
+  copyText(last.textContent);
+};
+
+// Copy full transcript
+document.getElementById('emCopyTranscript').onclick=()=>{
+  exportMenu.classList.remove('open');
+  const lines=convo.map(m=>(m.who==='me'?'You: ':'Vera: ')+m.text).join('\n');
+  copyText(lines);
+};
+
+// Export conversation as JSON download
+document.getElementById('emExportConvo').onclick=()=>{
+  exportMenu.classList.remove('open');
+  downloadJson(convo,'conversation');
+};
+
+// Export whole mind archive via /identity/export
+document.getElementById('emExportMind').onclick=async()=>{
+  exportMenu.classList.remove('open');
+  try{
+    const r=await fetch('/identity/export',{headers:HDR});
+    if(!r.ok){ flash('Export failed'); return; }
+    const b=await r.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download=(document.title||'vera')+'.mind.json'; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ flash('Export failed'); }
+};
+
+// Export source summary — assemble from library if available
+document.getElementById('emExportSources').onclick=async()=>{
+  exportMenu.classList.remove('open');
+  const d=await apiFetch('/library');
+  if(d._err){ flash('Source summary unavailable'); return; }
+  downloadJson(d.items||[],'sources');
+};
+
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(()=>flash('Copied')).catch(()=>flash('Could not copy'));
+  } else {
+    // fallback
+    const ta=document.createElement('textarea'); ta.value=t;
+    ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); flash('Copied'); }catch(e){ flash('Could not copy'); }
+    document.body.removeChild(ta);
+  }
+}
+function downloadJson(data, name){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name+'-'+(new Date().toISOString().slice(0,10))+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ============================================================
+// Panel coordination: close all panels (drawers, search, etc.)
+// ============================================================
+function closeAllPanels(){
+  document.getElementById('settings').classList.remove('open');
+  libDrawer.classList.remove('open');
+  searchPanel.classList.remove('open');
+  exportMenu.classList.remove('open');
+}
+
+// clicking the chat area closes side panels (preserve existing behavior for settings + dash)
+log.addEventListener('click',()=>{
+  document.getElementById('settings').classList.remove('open');
+  libDrawer.classList.remove('open');
+  searchPanel.classList.remove('open');
+  document.getElementById('dash').classList.remove('open');
+});
+
+// ============================================================
+// SETTINGS (existing logic, preserved exactly)
+// ============================================================
 const panel=document.getElementById('settings');
 let CAPS=null, BRAIN=null;
 const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow'),
@@ -683,9 +1485,8 @@ capsBox.addEventListener('change',e=>{ if(e.target.matches('input[data-cap]')) s
 allowBox.onblur=saveCaps;
 dialsBox.addEventListener('input',()=>{ clearTimeout(_dialT); _dialT=setTimeout(saveDials,450); });
 // open / close — cog toggles; the edge pull-bar or a tap on the chat dismisses
-document.getElementById('cog').onclick=()=> panel.classList.contains('open') ? panel.classList.remove('open') : openSettings();
+document.getElementById('cog').onclick=()=>{ if(panel.classList.contains('open')){ panel.classList.remove('open'); } else { closeAllPanels(); openSettings(); } };
 document.getElementById('grab').onclick=()=>panel.classList.remove('open');
-document.getElementById('log').addEventListener('click',()=>panel.classList.remove('open'));
 // --- dashboard drawer (operator gauges + the pre-registered verdict) ---
 const dash=document.getElementById('dash'), dashBody=document.getElementById('dashbody');
 function _pct(x){ return (x==null)?'—':(x*100).toFixed(1)+'%'; }
@@ -715,7 +1516,6 @@ async function openDash(){
   document.getElementById('dExport').onclick=()=>document.getElementById('idexport').click();
 }
 document.getElementById('dashknob').onclick=()=> dash.classList.contains('open') ? dash.classList.remove('open') : openDash();
-document.getElementById('log').addEventListener('click',()=>dash.classList.remove('open'));
 </script>
 </body>
 </html>

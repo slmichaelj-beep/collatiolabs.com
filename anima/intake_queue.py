@@ -917,6 +917,181 @@ def _delete_raw(name: str, source_id: str, prov: dict) -> bool:
 
 
 # ===========================================================================
+# MEMORY-TYPE EDITOR (K) — reroute / archive / reprocess / delete a stored item.
+# Every mutation is recorded as an audit entry ({from, to, when, reason}) appended to the
+# item's provenance transformation_history (append-only). Deletion of raw bytes KEEPS
+# the citation record (the invariant: a citation can always trace to 'source X', even
+# if the bytes were purged). All four actions: reroute, archive, reprocess, delete.
+# ===========================================================================
+_VALID_EDIT_ACTIONS = ("reroute", "archive", "reprocess", "delete")
+
+
+def reroute_item(name: str, item_id: str, *,
+                 new_destination: Optional[str] = None,
+                 new_rights: Optional[str] = None,
+                 reason: str = "") -> tuple:
+    """Change the destination and/or rights of a stored Reference Library item.
+    Returns (updated_item_dict, audit_dict) or raises KeyError if the item is not found.
+    The old destination/rights are recorded in the audit trail (append-only)."""
+    from .util import save_json
+    disk = _load_reference(name)
+    items = disk.get("items", [])
+    for it in items:
+        if it.get("id") == item_id:
+            prov = it.get("provenance") or {}
+            old_dest = prov.get("destination") or ""
+            old_rights = prov.get("rights_category") or ""
+            now = _now()
+            audit = {"action": "reroute", "from": {"destination": old_dest, "rights": old_rights},
+                     "to": {"destination": new_destination, "rights": new_rights},
+                     "when": now, "reason": str(reason or "reroute")}
+            if new_destination is not None:
+                prov["destination"] = new_destination
+            if new_rights is not None:
+                prov["rights_category"] = new_rights
+            prov.setdefault("transformation_history", []).append(
+                {"stage": "rerouted", "at": now,
+                 "detail": f"destination={new_destination} rights={new_rights} reason={reason}"})
+            it["provenance"] = prov
+            save_json(_reference_path(name), {"version": SCHEMA_VERSION, "items": items})
+            # mirror the routing in the queue record if one exists
+            _sync_queue_routing(name, item_id, new_destination)
+            return dict(it), audit
+    raise KeyError(f"item {item_id!r} not found in reference library for {name!r}")
+
+
+def set_state(name: str, item_id: str, *, new_state: str, reason: str = "",
+              force: bool = False) -> tuple:
+    """Set the queue record for item_id to new_state. Returns (queue_record, audit)
+    or raises KeyError. Used by archive and reprocess editor actions.
+
+    ``force=True`` bypasses the state-machine gate and writes the new state directly.
+    The editor uses this because 'archive' and 'reprocess' are explicit user overrides
+    that must succeed even when the current state (e.g. 'active') is terminal.
+    The override is always recorded in the history so the transition is auditable."""
+    rec = get_record(name, item_id)
+    if rec is None:
+        raise KeyError(f"queue record {item_id!r} not found for {name!r}")
+    old_state = rec.get("state", "")
+    now = _now()
+    audit = {"action": "set_state", "from": old_state, "to": new_state,
+             "when": now, "reason": str(reason or new_state)}
+    if force or not _can_transition(old_state, new_state):
+        # Force-write: record as a manual override in history but always land the state.
+        rec["state"] = new_state
+        rec["updated_at"] = now
+        rec.setdefault("history", []).append(
+            {"from": old_state, "to": new_state, "at": now,
+             "reason": (reason or f"editor force-set -> {new_state}"),
+             "forced": True})
+    else:
+        _transition(rec, new_state, reason or f"manual set_state -> {new_state}")
+    _upsert_record(name, rec)
+    return dict(rec), audit
+
+
+def edit_rights(name: str, item_id: str, *, new_rights: str, reason: str = "") -> tuple:
+    """Change the rights_category of an item in both the Reference Library and the queue
+    record. Returns (updated_item, audit) or raises KeyError."""
+    item, audit = reroute_item(name, item_id, new_rights=new_rights, reason=reason)
+    # also update the queue record's rights_category
+    rec = get_record(name, item_id)
+    if rec is not None:
+        rec["rights_category"] = new_rights
+        _upsert_record(name, rec)
+    return item, audit
+
+
+def delete_item(name: str, item_id: str, *, delete_raw: bool = True,
+                reason: str = "") -> tuple:
+    """Delete a stored item. When delete_raw=True (the default), the raw chunk bytes are
+    purged (the citation record is KEPT). When delete_raw=False, only the queue record is
+    moved to 'rejected'; the reference item is archived. Returns (item_snapshot, audit)
+    or raises KeyError."""
+    disk = _load_reference(name)
+    items = disk.get("items", [])
+    found = next((it for it in items if it.get("id") == item_id), None)
+    if found is None:
+        raise KeyError(f"item {item_id!r} not found for {name!r}")
+    now = _now()
+    snap = dict(found)
+    audit = {"action": "delete", "from": {"raw": not found.get("raw_deleted")},
+             "to": {"raw_deleted": delete_raw, "citation_kept": True},
+             "when": now, "reason": str(reason or "deleted by user")}
+    if delete_raw:
+        _delete_raw(name, item_id, found.get("provenance") or {})
+    # archive in the reference record (keep the citation but mark deleted)
+    from .util import save_json
+    disk2 = _load_reference(name)
+    items2 = disk2.get("items", [])
+    for it in items2:
+        if it.get("id") == item_id:
+            it["deleted"] = True
+            it["deleted_at"] = now
+            it["delete_reason"] = str(reason or "user deleted")
+    save_json(_reference_path(name), {"version": SCHEMA_VERSION, "items": items2})
+    # move queue record to rejected
+    rec = get_record(name, item_id)
+    if rec is not None:
+        _transition(rec, ST_REJECTED, reason or "deleted by user")
+        _upsert_record(name, rec)
+    return snap, audit
+
+
+def edit_item(name: str, item_id: str, *, action: str,
+              new_destination: Optional[str] = None,
+              new_rights: Optional[str] = None,
+              reason: str = "") -> tuple:
+    """Unified memory-type editor entry point (the K function). Dispatches to the
+    appropriate sub-function and returns (updated_item, audit).
+
+    action ∈ 'reroute'|'archive'|'reprocess'|'delete'.
+      reroute    — change destination and/or rights
+      archive    — advance the queue record to 'archived' state
+      reprocess  — revert to 'classified' so the item can be re-committed
+      delete     — purge raw bytes + mark deleted in citation record + reject queue record
+    """
+    if action not in _VALID_EDIT_ACTIONS:
+        raise ValueError(f"unknown action {action!r}; valid: {_VALID_EDIT_ACTIONS}")
+    if action == "reroute":
+        return reroute_item(name, item_id, new_destination=new_destination,
+                            new_rights=new_rights, reason=reason or "reroute")
+    if action == "archive":
+        # force=True: archive is a valid user override even from a terminal state (active)
+        rec, audit = set_state(name, item_id, new_state=ST_ARCHIVED,
+                               reason=reason or "archived by user", force=True)
+        return rec, audit
+    if action == "reprocess":
+        # force=True: reprocess is a valid user override to re-queue for re-commitment
+        rec, audit = set_state(name, item_id, new_state=ST_CLASSIFIED,
+                               reason=reason or "reprocess requested", force=True)
+        return rec, audit
+    if action == "delete":
+        return delete_item(name, item_id, delete_raw=True, reason=reason or "deleted by user")
+    raise ValueError(f"unhandled action {action!r}")  # unreachable
+
+
+def _sync_queue_routing(name: str, item_id: str, new_destination: Optional[str]) -> None:
+    """Update the routing plan in the queue record when a reroute changes the destination.
+    Best-effort: any failure is swallowed (the reference library is the authoritative store)."""
+    if not new_destination:
+        return
+    try:
+        rec = get_record(name, item_id)
+        if rec is None:
+            return
+        routing = rec.get("routing") or []
+        for d in routing:
+            if isinstance(d, dict) and d.get("destination"):
+                d["destination"] = new_destination
+                d["purpose"] = f"rerouted by user to {new_destination}"
+        rec["routing"] = routing
+        _upsert_record(name, rec)
+    except Exception:
+        pass
+
+
+# ===========================================================================
 # RENDER — a human-readable view of a queue record + its commit receipt (the observable story of
 # how a source became, or did not become, durable knowledge).
 # ===========================================================================

@@ -1231,6 +1231,304 @@ def _store_device(name, data):
                        "have_voip": bool(rec.get("voip_token"))})
 
 
+# ===========================================================================
+# INTAKE HTTP HELPERS — pure functions called by the Handler dispatch. All real
+# logic lives in intake / intake_queue / intake_search; these are thin adapters
+# that handle staging I/O, wire the engine calls, and normalise the HTTP response.
+# Each is importable/testable WITHOUT starting the HTTP server or the LLM brain.
+# ===========================================================================
+
+def _staging_dir(name: str) -> Path:
+    """The staging directory for raw files awaiting approval."""
+    return STORE / f"{name}.intake_staging"
+
+
+def _write_staging(name: str, source_id: str, kind: str, data: dict) -> Path:
+    """Write raw bytes/text to the staging path and return the path. The staging path
+    is .anima/{name}.intake_staging/{source_id}.* — one file per ingest attempt."""
+    import base64
+    sd = _staging_dir(name)
+    sd.mkdir(parents=True, exist_ok=True)
+    if kind == "file":
+        fname = str(data.get("filename") or "upload.bin")
+        ext = Path(fname).suffix or ".bin"
+        p = sd / f"{source_id}{ext}"
+        raw_b64 = data.get("bytes_b64") or ""
+        if raw_b64:
+            p.write_bytes(base64.b64decode(raw_b64))
+        else:
+            p.write_bytes(b"")
+    elif kind == "url":
+        p = sd / f"{source_id}.url"
+        p.write_text(str(data.get("input") or ""), encoding="utf-8")
+    else:
+        # text or code
+        p = sd / f"{source_id}.txt"
+        p.write_text(str(data.get("text") or data.get("input") or ""), encoding="utf-8")
+    return p
+
+
+def _read_staging(name: str, source_id: str) -> tuple:
+    """Find a staging file by source_id prefix. Returns (path, exists)."""
+    sd = _staging_dir(name)
+    if not sd.is_dir():
+        return None, False
+    for f in sd.iterdir():
+        if f.suffix == ".meta":
+            continue                       # the sidecar is not the raw content — skip it
+        if f.stem == source_id or f.name.startswith(source_id + "."):
+            return f, True
+    return None, False
+
+
+def _intake_plan(name: str, data: dict) -> dict:
+    """POST /intake/plan handler. Stages raw, runs Wave-1 (no durable write), returns plan.
+
+    The staging source_id is the stable round-trip key for /intake/approve.
+    The trace_id in the response is the REAL id ingest() committed to the MRI trace file
+    so /intake/trace?trace_id=... works. A tiny .meta sidecar persists the mapping.
+    """
+    from . import intake as _int
+    kind = str(data.get("kind") or "text")
+    source_id = _int._new_id("src")
+    try:
+        stage_path = _write_staging(name, source_id, kind, data)
+    except Exception as e:
+        return {"ok": False, "error": f"staging failed: {e!r}", "source_id": source_id}
+    # run Wave-1 ingest on the staged path (or the URL directly for url kind)
+    try:
+        if kind == "url":
+            ingest_input = str(data.get("input") or "")
+        else:
+            ingest_input = str(stage_path)
+        result = _int.ingest(ingest_input, name=name)
+        # capture the real trace_id (the id ingest() used when committing to the MRI trace)
+        # BEFORE overriding source_id so /intake/trace lookups work.
+        real_trace_id = str(result.trace_id or result.source.source_id)
+        # override source_id so the staging round-trip key matches the staging filename
+        result.source.source_id = source_id
+        result.trace_id = real_trace_id  # preserve the real trace id (not the staging id)
+        # persist a tiny sidecar so approve() can re-locate the real trace_id if needed
+        try:
+            meta_path = stage_path.parent / f"{source_id}.meta"
+            import json as _json2
+            meta_path.write_text(_json2.dumps({"staging_id": source_id,
+                                               "real_trace_id": real_trace_id}),
+                                 encoding="utf-8")
+        except Exception:
+            pass
+    except Exception as e:
+        return {"ok": False, "error": f"ingest failed: {e!r}", "source_id": source_id,
+                "committed": False}
+    d = result.to_dict()
+    src = d.get("source") or {}
+    return {
+        "ok": True,
+        "source_id": source_id,
+        "trace_id": real_trace_id,
+        "detected_type": d.get("detected_type"),
+        "suggested_use": d.get("suggested_use"),
+        "routing": d.get("routing"),
+        "confidence": d.get("confidence"),
+        "reason": d.get("reason"),
+        "requires_user_confirmation": d.get("requires_user_confirmation"),
+        "parse_status": d.get("parse_status"),
+        "chunk_count": d.get("chunk_count"),
+        "chunks_sample": d.get("chunks_sample"),
+        "safety": d.get("safety"),
+        "candidates": d.get("candidates"),
+        "provenance": d.get("provenance"),
+        "committed": False,
+    }
+
+
+def _intake_approve(name: str, data: dict) -> dict:
+    """POST /intake/approve handler. Re-parses from staging, commits on the user's control."""
+    from . import intake as _int
+    from . import intake_queue as _iq
+    from . import intake_parsers as _ip
+    source_id = str(data.get("source_id") or "")
+    control = str(data.get("control") or _iq.DEFAULT_CONTROL)
+    delete_raw = bool(data.get("delete_raw") or control == _iq.CTL_DELETE_RAW)
+    session = str(data.get("session") or "default")
+    if not source_id:
+        return {"ok": False, "error": "source_id required"}
+    stage_path, found = _read_staging(name, source_id)
+    if not found or stage_path is None:
+        return {"ok": False, "error": f"staging file for source_id {source_id!r} not found"}
+    # re-parse from staging
+    try:
+        if stage_path.suffix == ".url":
+            ingest_input = stage_path.read_text(encoding="utf-8").strip()
+        else:
+            ingest_input = str(stage_path)
+        result = _int.ingest(ingest_input, name=name)
+        result.source.source_id = source_id
+        result.trace_id = source_id
+        parsed = _ip.parse(ingest_input)
+    except Exception as e:
+        return {"ok": False, "error": f"re-parse failed: {e!r}"}
+    # commit
+    try:
+        receipt = _iq.commit_on_approval(result, parsed, control=control, name=name,
+                                         session=session, delete_raw=delete_raw)
+    except Exception as e:
+        return {"ok": False, "error": f"commit failed: {e!r}"}
+    # clean up staging once the source has been PROCESSED to any disposition — committed to a
+    # durable store, added as reference, archived, or loaded as temporary — not only durable
+    # commits. The single case we KEEP the staged raw is an explicit "review later" (CTL_REVIEW)
+    # that committed nothing, so the user can still approve it later. delete_raw always purges.
+    # Remove the staging directory too once it empties (so nothing lingers in the store).
+    try:
+        processed = bool(receipt.get("ok", True)) and control != _iq.CTL_REVIEW
+        if receipt.get("committed") or delete_raw or processed:
+            sd = stage_path.parent
+            for f in list(sd.glob(f"{source_id}*")):   # the content file AND its .meta sidecar
+                try:
+                    f.unlink()
+                except Exception:
+                    pass
+            if sd.is_dir() and not any(sd.iterdir()):   # drop the staging dir once it empties
+                sd.rmdir()
+    except Exception:
+        pass
+    receipt["ok"] = receipt.get("ok", True)
+    return receipt
+
+
+def _serve_library(name: str, query_string: str) -> dict:
+    """GET /library handler. Returns normalised library items with optional section filter."""
+    from . import intake_queue as _iq
+    from urllib.parse import parse_qs
+    qs = parse_qs(query_string)
+    nm = qs.get("name", [name])[0]
+    section = (qs.get("section", [""])[0] or "").lower()
+    items = []
+    # Reference Library items
+    for ref in _iq.references(nm):
+        if not isinstance(ref, dict):
+            continue
+        prov = ref.get("provenance") or {}
+        rights = prov.get("rights_category") or "unknown"
+        rtype = "reference"
+        title = ref.get("title") or ""
+        if "archive" in title.lower():
+            rtype = "archive"
+        elif rights == "public-web":
+            rtype = "web_page"
+        item = {
+            "id": ref.get("id") or "",
+            "title": title,
+            "type": rtype,
+            "source": prov.get("source") or prov.get("url_or_file") or "",
+            "status": "active" if not ref.get("deleted") else "deleted",
+            "destination": "Reference Library",
+            "last_used": ref.get("stored_at") or "",
+            "confidence": float(prov.get("confidence") or 0.0),
+            "objects_extracted": 0,
+            "rights": rights,
+        }
+        if not _section_matches(item, section):
+            continue
+        items.append(item)
+    # Queue records (pending / in-progress / classified)
+    for rec in _iq.queue(nm):
+        if not isinstance(rec, dict):
+            continue
+        state = rec.get("state") or ""
+        # skip if already represented in reference library
+        rid = rec.get("source_id") or ""
+        if any(it["id"] == rid for it in items):
+            continue
+        item = {
+            "id": rid,
+            "title": rec.get("title") or "",
+            "type": rec.get("detected_type") or "reference",
+            "source": (rec.get("provenance") or {}).get("url_or_file") or "",
+            "status": state,
+            "destination": (rec.get("routing") or [{"destination": ""}])[0].get("destination") or "",
+            "last_used": rec.get("updated_at") or rec.get("created_at") or "",
+            "confidence": float((rec.get("provenance") or {}).get("confidence") or 0.0),
+            "objects_extracted": len(rec.get("candidate_ids") or []),
+            "rights": rec.get("rights_category") or "unknown",
+        }
+        if not _section_matches(item, section):
+            continue
+        items.append(item)
+    return {"ok": True, "items": items}
+
+
+def _section_matches(item: dict, section: str) -> bool:
+    """True if the item matches the requested library section filter (or no filter)."""
+    if not section:
+        return True
+    itype = (item.get("type") or "").lower()
+    dest = (item.get("destination") or "").lower()
+    status = (item.get("status") or "").lower()
+    if section == "references":
+        return itype in ("reference", "book", "article", "web_page", "uploaded_pdf")
+    if section == "your writing":
+        return itype in ("personal_memory", "writing_sample", "project_document", "codebase")
+    if section == "authoritative sources":
+        return itype in ("book", "article", "authoritative")
+    if section == "discussion topics":
+        return itype in ("conversation_transcript", "temporary_context")
+    if section == "training material":
+        return "training" in dest
+    if section == "personal documents":
+        return itype in ("personal_memory", "legal_financial_medical")
+    if section == "archived files":
+        return status == "archived" or itype == "archive"
+    if section == "extracted cognitive objects":
+        return "lerf" in dest.lower()
+    return True
+
+
+def _serve_search(name: str, data: dict) -> dict:
+    """POST /search handler. Cross-store labeled search via intake_search."""
+    from . import intake_search as _is
+    q = str(data.get("q") or "")
+    nm = str(data.get("name") or name)
+    scopes = data.get("scopes") or None
+    if not q.strip():
+        return {"ok": False, "error": "q (query) is required", "results": []}
+    try:
+        results = _is.search(q, name=nm, scopes=scopes)
+    except Exception as e:
+        return {"ok": False, "error": f"search failed: {e!r}", "results": []}
+    return {"ok": True, "results": results}
+
+
+def _serve_library_edit(name: str, data: dict) -> dict:
+    """POST /library/edit handler. Dispatches to intake_queue.edit_item."""
+    from . import intake_queue as _iq
+    nm = str(data.get("name") or name)
+    item_id = str(data.get("id") or "")
+    action = str(data.get("action") or "")
+    new_destination = data.get("new_destination")
+    new_rights = data.get("new_rights")
+    if not item_id:
+        return {"ok": False, "error": "id is required"}
+    if action not in _iq._VALID_EDIT_ACTIONS:
+        return {"ok": False, "error": f"action must be one of {_iq._VALID_EDIT_ACTIONS}"}
+    try:
+        item, audit = _iq.edit_item(nm, item_id, action=action,
+                                    new_destination=new_destination,
+                                    new_rights=new_rights,
+                                    reason=str(data.get("reason") or ""))
+    except KeyError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": f"edit failed: {e!r}"}
+    audit_out = {
+        "from": audit.get("from"),
+        "to": audit.get("to"),
+        "when": audit.get("when"),
+        "reason": audit.get("reason"),
+    }
+    return {"ok": True, "item": item, "audit": audit_out}
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -1359,6 +1657,31 @@ class Handler(BaseHTTPRequestHandler):
                     from . import metrics
                     self._send(200, "application/json",
                                json.dumps({**metrics.summary(self.name), "verdict": metrics.verdict(self.name)}).encode())
+            elif u.path == "/intake/queue":
+                # GET /intake/queue?name=...  -> {ok, records:[QueueRecord dicts]}
+                from . import intake_queue as _iq
+                _nm = parse_qs(u.query).get("name", [self.name])[0]
+                recs = _iq.queue(_nm)
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "records": recs}).encode())
+            elif u.path == "/intake/trace":
+                # GET /intake/trace?name=...&trace_id=...  -> {ok, trace, render}
+                from . import intake as _int
+                qs = parse_qs(u.query)
+                _nm = qs.get("name", [self.name])[0]
+                _tid = qs.get("trace_id", [""])[0]
+                tr = _int.trace(_nm, _tid) if _tid else _int.last_trace(_nm)
+                if tr is None:
+                    self._send(200, "application/json",
+                               json.dumps({"ok": False, "error": "trace not found"}).encode())
+                else:
+                    self._send(200, "application/json",
+                               json.dumps({"ok": True, "trace": tr,
+                                           "render": _int.render_trace(tr)}).encode())
+            elif u.path == "/library":
+                # GET /library?name=...&section=...  -> {ok, items:[...]}
+                _out = _serve_library(self.name, u.query)
+                self._send(200, "application/json", json.dumps(_out).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
@@ -1503,6 +1826,26 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self._read_body() or b"{}")
                 ok = reminders.acknowledge(str(data.get("reminder_id", "")))
                 self._send(200, "application/json", json.dumps({"ok": ok}).encode())
+            elif path == "/intake/plan":
+                # POST /intake/plan — stage raw + run Wave-1 (no durable write)
+                data = json.loads(self._read_body() or b"{}")
+                out = _intake_plan(self.name, data)
+                self._send(200, "application/json", json.dumps(out).encode())
+            elif path == "/intake/approve":
+                # POST /intake/approve — re-parse from staging + commit on approval
+                data = json.loads(self._read_body() or b"{}")
+                out = _intake_approve(self.name, data)
+                self._send(200, "application/json", json.dumps(out).encode())
+            elif path == "/search":
+                # POST /search — cross-store labeled search
+                data = json.loads(self._read_body() or b"{}")
+                out = _serve_search(self.name, data)
+                self._send(200, "application/json", json.dumps(out).encode())
+            elif path == "/library/edit":
+                # POST /library/edit — memory-type editor (K)
+                data = json.loads(self._read_body() or b"{}")
+                out = _serve_library_edit(self.name, data)
+                self._send(200, "application/json", json.dumps(out).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:
