@@ -563,6 +563,25 @@ function add(text,who,restoring){const d=document.createElement('div');d.classNa
 function restoreConvo(){ convo.forEach(m=>add(m.text,m.who,true)); }
 function addMeta(t){const d=document.createElement('div');d.textContent=t;          // reply speed
   d.style.cssText='font-size:11px;color:#555;margin:-2px 0 8px 4px';log.appendChild(d);log.scrollTop=log.scrollHeight;}
+// source-aware attribution: which uploaded REFERENCE sources are relevant to this turn.
+// Reference-green (matches the library/search reference tag) so it is never mistaken for memory.
+function addSources(sources){
+  const d=document.createElement('div');
+  d.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-2px 0 9px 4px';
+  const lbl=document.createElement('span'); lbl.textContent='based on';
+  lbl.style.cssText='font-size:11px;color:#555'; d.appendChild(lbl);
+  sources.slice(0,3).forEach(s=>{
+    const c=document.createElement('span');
+    c.innerHTML='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" '+
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;'+
+      'margin-right:4px"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>'+esc(s.title||'reference');
+    c.title=(s.snippet||'')+'  ·  source type: '+(s.type||'reference');
+    c.style.cssText='font-size:11px;color:#7fb88a;background:rgba(120,200,140,.10);'+
+      'border:1px solid rgba(120,200,140,.22);border-radius:10px;padding:2px 8px;cursor:default';
+    d.appendChild(c);
+  });
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
 
 // one reused audio element, "blessed" on a tap so iOS lets us play it later
 const player=new Audio();
@@ -668,6 +687,7 @@ async function send(text){
     if(await authMiss(r)){ setBusy(false); return; }
     const d=await r.json();
     add(d.reply,'her');
+    if(d.sources&&d.sources.length) addSources(d.sources);   // source-aware attribution (reference, distinct from memory)
     if(d.gen_s) addMeta(d.gen_s+'s'+(d.tok_s?' · '+d.tok_s+' tok/s':''));  // reply speed, on-screen
     if(d.draft) renderDraftCard(d.draft);     // show the confirm card; sends nothing yet
     if(!muted) speak(d.reply, d.rate).finally(()=>setBusy(false));   // animate name while speaking

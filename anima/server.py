@@ -1020,6 +1020,19 @@ def _turn(name, text, voice=False):
             "audio_url": f"/audio?name={name}&t={int(now)}" if u.audio_path else None,
             "gen_s": round(gen_s, 1),               # so the phone can show reply speed
         }
+        # SOURCE-AWARE ATTRIBUTION (Intake Wave 3, Q — safe layer): surface which uploaded
+        # REFERENCE sources are relevant to this question, labeled and distinct from personal
+        # memory. This NEVER touches u.text (the reply is byte-for-byte unchanged) — it only adds
+        # an attribution channel the UI can show as "based on: <your uploaded doc>". Fully guarded
+        # so it can never change or break a turn. (Reference-GROUNDED generation — the model
+        # answering FROM the source — is a separate step that must clear the #1-rule battery first.)
+        try:
+            from . import source_aware as _srcaware
+            _srcs = _srcaware.relevant_sources(name, text)
+            if _srcs:
+                out["sources"] = _srcs
+        except Exception:
+            pass
         tok = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
         if tok:
             out["tok_s"] = round(tok)
