@@ -2085,6 +2085,46 @@ def section_isolation_matrix() -> list:
 
 
 # ===================================================================================
+# SECTION 2h — LERF: COGNITIVE COMPRESSION (LERF Phase 7 — CERTIFICATION, the capstone of LERF)
+# ----------------------------------------------------------------------------------
+# The whole LERF stack exists to make accumulated intelligence AUDITABLE — to move competence out
+# of an opaque weight tensor into inspectable, retrievable, falsifiable cognitive objects. This is
+# the layer that certifies it (the founder's principle: every skill answers where-from / who-taught
+# / what-tests-passed / what-failed / when-revised / why-active — NO BLACK BOXES). We DELEGATE to
+# scripts/test_lerf_cert.py, exactly the way section 2d delegates to scripts/isolation.py: that
+# module DECLARES the seven invariants and AUTOMATICALLY tests each, returning rows we translate
+# into our CheckResult and fold in unchanged. It proves, on the REAL store (provenance, read-only)
+# and on SYNTHETIC probes (the rest):
+#   1. PROVENANCE / NO BLACK BOXES — every active skill answers the six questions.
+#   2. GATE INTEGRITY — only active is retrievable; a candidate cannot activate without the gate;
+#      the adversarial phase cannot be rubber-stamped.
+#   3. COMPRESSION PROVEN — the deterministic benchmark verdict (token cut 50-90% + cloud-call cut).
+#   4. EVOLUTION INTEGRITY — reality decides winners (byte-identity); deprecated/retired retained.
+#   5. AUTONOMOUS SAFETY — Grow-Intelligence defaults OFF and is provably inert.
+#   6. INTELLIGENCE ECONOMICS — the EXACT axes (per-GB/per-token/per-$) compute and LERF+small wins.
+#   7. RETRIEVAL/ROUTE OBSERVABILITY — the router decision record is structured + MRI-inspectable;
+#      the remaining live-mouth MRI wiring (server._turn LERF route frame) is NAMED as the seam.
+# test_lerf_cert.py is fully hermetic (the synthetic probes redirect ALL stores; the provenance read
+# is read-only) and SCOPES its footprint guard to synthetic sentinels (st_lerf_*), so this section
+# cannot perturb — and is not perturbed by — the cert's whole-tree footprint guardrail or live-server
+# churn (Known Issue #69).
+# ===================================================================================
+def section_lerf() -> list:
+    try:
+        import test_lerf_cert as _lerfcert
+    except Exception as e:
+        return [CheckResult("LERF — COGNITIVE COMPRESSION", "FAIL",
+                            f"scripts/test_lerf_cert.py not importable: {e!r}")]
+    try:
+        rows = _lerfcert.section_lerf()
+    except Exception as e:
+        return [CheckResult("LERF — COGNITIVE COMPRESSION", "FAIL",
+                            f"LERF cert tier raised: {e!r}")]
+    # translate test_lerf_cert.CheckResult -> certify.CheckResult (same fields, different class).
+    return [CheckResult(r.name, r.status, r.detail) for r in rows]
+
+
+# ===================================================================================
 # REPORT
 # ===================================================================================
 _SECTION_ORDER = [
@@ -2096,6 +2136,7 @@ _SECTION_ORDER = [
     ("experience",            "2e) EXPERIENCE CERTIFICATION (capstone — failures self-explain via root-cause)"),
     ("conservation",          "2f) CONSERVATION RETENTION (end-to-end vs 95% target — informational)"),
     ("reality_learning",      "2g) REALITY LEARNING CERTIFICATION (directive #11 — the epistemic loop, GOVERNED)"),
+    ("lerf",                  "2h) LERF — COGNITIVE COMPRESSION (Phase 7 — every skill auditable, NO BLACK BOXES)"),
     ("mutation_testing",      "3) MUTATION TESTING (LAW 004)"),
     ("hallucination",         "4) HALLUCINATION RATE"),
     ("deploy",                "4b) DEPLOYMENT PROOF (LAW 005 — git == running)"),
@@ -2134,6 +2175,7 @@ def main(argv=None) -> int:
     sections["experience"] = section_experience()                        # capstone: failures self-explain
     sections["conservation"], cons_metrics = section_conservation()      # e2e retention vs 95% (informational)
     sections["reality_learning"], reality_metrics = section_reality_learning()  # directive #11 — govern the loop
+    sections["lerf"] = section_lerf()                                    # Phase 7 — cognitive compression, no black boxes
     sections["mutation_testing"] = section_mutation_testing()
     sections["hallucination"], hall_metrics = section_hallucination()
     sections["hallucination"].append(section_live_verifier())   # gated live leg
