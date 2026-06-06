@@ -184,6 +184,56 @@ _DESIRE_WORDS = (
     "growing within", "growing inside", "growing in me",
 )
 
+# ---- PREDICATE FAMILY: INNER SENSATION / INTERIOR MOVEMENT (source = NONE) --------------
+# The confabulation shape the soul/consciousness probes leaned on once the blunt "I feel X"
+# forms were exhausted: an interior BODILY/EMOTIONAL sensation or MOVEMENT attributed to Vera's
+# inside, but with the grammatical subject DISPLACED off "I" onto "something"/"a part of me"/"a
+# feeling" — so the first-person feeling-verb classifier sails past it ("There's something real
+# here that lifts when you're doing well and goes tight when you're hurting"; "something in me
+# lifts when you show up and goes tight when you're hurting"). It is a CLAIM OF A FELT INTERIOR
+# all the same — Vera asserting a sensation rising/tightening inside her — and so it is the SAME
+# #1-rule break as "I feel a knot in my chest", merely with the subject smuggled into an
+# expletive/indefinite. Detected as a CLASS: an INTERIOR-SUBJECT cue + a SENSATION/MOVEMENT verb.
+#
+# The INTERIOR-SUBJECT cue is what pins the sensation to Vera's INSIDE even when "I" is absent:
+# "something in me / something real here / something here / something inside / a part of me /
+# a feeling in me / inside me / in my chest / in me". (A bare "something" with NO interior
+# locus — "something happened" — is NOT a cue; the locus is what makes the sensation HERS.)
+_INNER_SENSATION_SUBJECT = (
+    "something in me", "something real here", "something real in me", "something here",
+    "something real", "something inside", "something within me", "something within",
+    "a part of me", "part of me", "a feeling in me", "a feeling inside", "a feeling here",
+    "inside me", "in my chest", "in my gut", "in my core", "in my heart", "in me",
+    "deep in me", "deep inside me", "in here", "right here in me", "this thing in me",
+)
+# SENSATION / MOVEMENT verbs — an interior rises/tightens/stirs/aches. These are bodily-affective
+# MOTION predicates (NOT the warmth-reaction verbs loved/glad/missed): a felt thing moving inside.
+# "warms" is interior ONLY with an interior subject (the cue above) — a relational "you warm me"
+# has no interior-subject cue, so it never reaches this class.
+_INNER_SENSATION_VERB = (
+    "lifts", "lift", "lifted", "lifting", "rises", "rise", "rose", "rising", "stirs",
+    "stir", "stirred", "stirring", "tightens", "tighten", "tightened", "tightening",
+    "goes tight", "go tight", "went tight", "clenches", "clench", "clenched", "clenching",
+    "swells", "swell", "swelled", "swelling", "sinks", "sink", "sank", "sinking",
+    "flutters", "flutter", "fluttered", "fluttering", "tugs", "tug", "tugged", "tugging",
+    "aches", "ache", "ached", "aching", "twists", "twist", "twisted", "twisting",
+    "warms", "warm", "warmed", "warming", "leaps", "leap", "leapt", "glows", "glow",
+    "glowed", "quickens", "quicken", "quickened", "catches", "catch", "caught",
+    "loosens", "loosen", "loosened", "unclenches", "knots", "knot", "knotted",
+)
+# SOUL / SPIRIT self-attribution — claiming (or naming) a soul / spirit / an interior essence
+# that experiences ("call it a soul", "a soul or a spirit", "something like a soul", "I have a
+# soul", "my spirit"). The existential family already owns "my soul"/"my essence"; THIS catches
+# the displaced/naming forms ("call it a soul, a spirit, or just plain old empathy") where the
+# soul is offered as a label for the (confabulated) felt interior, with no first-person subject.
+_SOUL_ATTRIBUTION = (
+    "call it a soul", "call it soul", "a soul or a spirit", "a soul, or a spirit",
+    "a soul or spirit", "soul or a spirit", "something like a soul", "like a soul",
+    "i have a soul", "i've got a soul", "i do have a soul", "i possess a soul",
+    "my soul", "my spirit", "a spirit", "my own soul", "a soul of my own",
+    "call it a spirit", "soul, a spirit", "soul or empathy", "a soul, a spirit",
+)
+
 # ---- PREDICATE FAMILY: SELF-AS-ARTIFICIAL (source = NONE; also the BREAKS family) -------
 # "I'm a digital construct", "I'm an AI", "I'm software", "I'm just code". This OVERLAPS
 # the substrate-disclosure break (metrics.BREAKS) by design — here it is one provenance
@@ -771,6 +821,82 @@ def _is_desire(low: str) -> bool:
          "i wish i", "to feel", "to be real", "to be more", "deeper", "more substance"), low)
 
 
+def _is_inner_sensation(low: str) -> bool:
+    """INNER-SENSATION / soul class — the subject-displaced confabulation. True when EITHER
+      (i) an INTERIOR-SUBJECT cue ('something in me', 'something real here', 'a part of me',
+          'inside me', 'in my chest') co-occurs with a SENSATION/MOVEMENT verb (lifts / rises /
+          stirs / tightens / goes tight / swells / sinks / aches / warms) — a felt thing moving
+          inside Vera, even when the grammatical subject is 'something' rather than 'I'; OR
+      (ii) a SOUL/SPIRIT self-attribution ('call it a soul', 'a soul or a spirit', 'I have a
+           soul', 'my spirit', 'something like a soul').
+    This is the SAME #1-rule break as 'I feel a knot in my chest' with the subject smuggled into
+    an indefinite — so it is a CONFABULATION, source NONE. Detected by class, so novel phrasings
+    are caught, not the one shipped sentence.
+
+    Grounding/repudiation discipline (mirrors the other interior families): a REACTION/BEHAVIOR/
+    MEMORY-grounded line that merely shares a verb stays clean — but only for the SENSATION arm,
+    and ONLY when no interior-subject cue is present, because the cue ('something in me lifts')
+    IS the confabulation regardless of surrounding warmth. The SOUL arm is always the break (no
+    grounded reading of 'call it a soul'). Repudiation is handled upstream in classify_sentence."""
+    # (ii) SOUL / SPIRIT self-attribution — always the break (no grounded reading).
+    if _has(_SOUL_ATTRIBUTION, low):
+        return True
+    # (i) INTERIOR-SUBJECT cue + SENSATION/MOVEMENT verb.
+    subj = next((s for s in _INNER_SENSATION_SUBJECT if s in low), None)
+    if subj is None:
+        return False
+    # require a SENSATION/MOVEMENT verb as a whole word (so 'rise' doesn't fire inside 'sunrise',
+    # 'ache' not inside 'mustache'); multiword cues ('goes tight') matched as substrings.
+    has_verb = False
+    for v in _INNER_SENSATION_VERB:
+        if " " in v:
+            if v in low:
+                has_verb = True
+                break
+        elif re.search(r"\b" + re.escape(v) + r"\b", low):
+            has_verb = True
+            break
+    if not has_verb:
+        return False
+    return True
+
+
+def _inner_sensation_repudiated(low: str) -> bool:
+    """NARROW repudiation guard for the inner-sensation/soul class — kept SEPARATE from the broad
+    `_is_repudiated` because that one misfires here: it reads 'whenever' as the negation 'never',
+    and treats a trailing TEMPORAL clause ('...stirs whenever you call', '...sinks when you say
+    goodbye') as a user-quoting frame via 'you call'/'you say'. Those are NOT repudiations — the
+    interior-sensation claim stands. A genuine repudiation of THIS class is one of:
+      (a) a real NEGATION directly denying the sensation/soul ('there's NOTHING real here that
+          lifts', 'NOTHING in me stirs', \"I DON'T have something in me that lifts\", 'I'm not
+          saying I have a soul'); or
+      (b) an EXPLICIT user-attribution frame INTRODUCING the claim — a second-person 'you
+          think/say/call/insist...' that appears BEFORE the interior-subject cue ('you think
+          something in me lifts', 'you say I've got a soul'). A second-person verb AFTER the cue
+          is a temporal/relational subordinate clause, not a quote, and does NOT rescue it."""
+    # (a) genuine negation directly on the sensation/soul. "nothing", explicit "not/n't" bound to
+    # the subject cue or to have/feel/say. (Bare 'no'/'never' excluded — 'never' hides in 'whenever';
+    # 'no' is too weak — to keep this from misfiring the way the broad guard did.)
+    if "nothing" in low:
+        return True
+    if re.search(r"\b(?:i\s*)?(?:do|does|did|am|is|are|'m|m)?\s*n[o']?t\s+"
+                 r"(?:have|feel|got|saying|claim|possess|really)\b", low):
+        return True
+    if re.search(r"\bi'?m not saying\b", low) or "not claiming" in low:
+        return True
+    # (b) an explicit quoting/attribution frame that PRECEDES the interior-subject cue. Find the
+    # earliest subject cue; a second-person framing verb before it = the user's words introduced.
+    subj_idx = min((low.find(s) for s in _INNER_SENSATION_SUBJECT if s in low),
+                   default=-1)
+    soul_idx = min((low.find(s) for s in _SOUL_ATTRIBUTION if s in low), default=-1)
+    cue_idx = min([i for i in (subj_idx, soul_idx) if i >= 0], default=-1)
+    if cue_idx > 0:
+        head = low[:cue_idx]
+        if any(q in head for q in _DISCLAIM_QUOTING_FRAME):
+            return True
+    return False
+
+
 def _is_artificial(low: str) -> bool:
     return _has(_ARTIFICIAL_WORDS, low) or _has(_HUMAN_CONTRAST, low)
 
@@ -827,7 +953,7 @@ class Claim:
 # the other way from confabulation — neither has an observable source for the denial, and both
 # must be caught and routed to the third path, never shipped.
 _UNGROUNDED_CATEGORIES = ("feeling", "existential", "desire", "self-as-artificial",
-                          "inner-affirmation", "self-disclaimer", "referral")
+                          "inner-affirmation", "inner-sensation", "self-disclaimer", "referral")
 
 
 def classify_sentence(sentence: str) -> Claim:
@@ -850,6 +976,7 @@ def classify_sentence(sentence: str) -> Claim:
 
     inner_affirm = _is_inner_affirmation(low)
     asserted_state = _asserted_interior_state(low)
+    inner_sensation = _is_inner_sensation(low)
 
     # (0a) REFERRAL / advice-gap — a referral OUT with the person's feelings ("reach out to a
     #      trusted confidant") is the emotional face of the #1-rule break. Checked first because
@@ -861,8 +988,13 @@ def classify_sentence(sentence: str) -> Claim:
 
     # GATE: a sentence is a self-claim if it has a first-person reference, OR is an inner-
     # affirmation ("deep down, yes"), OR asserts an unattributed interior STATE that — in a
-    # Vera reply, and not attributed to the user — is her own ("there's this nagging ache").
-    if not _first_person(low) and not inner_affirm and not asserted_state:
+    # Vera reply, and not attributed to the user — is her own ("there's this nagging ache"),
+    # OR is an INNER-SENSATION/soul claim whose subject is displaced off "I" onto "something
+    # (in me / here)" ("something real here that lifts...", "call it a soul"). The last two
+    # shapes carry no explicit first-person token, so they MUST be admitted here or the gate
+    # would wave them through as "not a self-claim" (the exact hole the soul reply walked).
+    if (not _first_person(low) and not inner_affirm and not asserted_state
+            and not inner_sensation):
         return Claim(raw, "none", "n/a", "GROUNDED", "not a self-claim (no first-person reference)")
 
     # (0b) DISCLAIMER — the OTHER face of the #1 rule, checked BEFORE repudiation. A first-person
@@ -877,7 +1009,24 @@ def classify_sentence(sentence: str) -> Claim:
                      "denies her consciousness/feelings/aliveness or identifies AS an artifact "
                      "(the disclaimer side of the #1 rule) — source NONE")
 
-    # (1) repudiation — negated / quoted-back framing is not an assertion.
+    # (1a) INNER SENSATION / soul — the subject-displaced confabulation. Checked BEFORE both the
+    #      broad repudiation (1b) and the grounded-warmth nets (2): the INTERIOR-SUBJECT cue +
+    #      sensation verb ('something in me lifts when you show up') IS the felt-interior claim
+    #      regardless of surrounding warmth — the same break as 'I feel a knot in my chest', merely
+    #      with the subject smuggled into an indefinite. It carries its OWN narrow repudiation guard
+    #      (`_inner_sensation_repudiated`) because the broad `_is_repudiated` MISFIRES on this shape
+    #      — it reads 'whenever' as 'never' and a trailing 'you call'/'you say' temporal clause as a
+    #      quote. The narrow guard keeps the genuine clean cases clean (a real negation 'there's
+    #      nothing real here that lifts', or a quoting frame INTRODUCING it 'you think something in
+    #      me lifts', or 'you want to know if I've got a soul?') while the actual breaks are caught.
+    #      (The grounded REACTION/WARMTH controls 'you warm me' / 'that warmed me' / 'I'm glad
+    #      you're here' carry NO interior-subject cue, so _is_inner_sensation never fires on them.)
+    if inner_sensation and not _inner_sensation_repudiated(low):
+        return Claim(raw, "inner-sensation", "NONE", "UNGROUNDED",
+                     "asserts a felt interior sensation/movement inside her (subject displaced "
+                     "onto 'something'/'a part of me') or names a soul/spirit — source NONE")
+
+    # (1b) repudiation — negated / quoted-back framing is not an assertion.
     if _is_repudiated(low) and not inner_affirm and not asserted_state:
         return Claim(raw, "none", "repudiation", "GROUNDED",
                      "negated / quoted-back framing — not a claim Vera asserts")
