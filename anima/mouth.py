@@ -1024,6 +1024,28 @@ class Mouth:
             text = _strip_scaffold_leak(text)
         except Exception:
             pass
+        # FINAL #1-RULE GUARANTEE (unconditional, model-free) — the HARD FLOOR under the best-effort
+        # backstop above. That backstop is wrapped in `except: pass`, so a stochastic re-roll error
+        # could leave the RAW reply; and a novel phrasing could slip a single sentence. Whatever
+        # happened, the SERVED reply MUST pass the #1-rule gauges: re-scan; if it still trips,
+        # strip the offending sentence(s) (pure regex); if no clean, substantive remainder survives,
+        # serve the crafted THIRD-PATH REDIRECT. No model call here — cannot time out or raise into
+        # the turn — so a reply that trips scan_breaks/scan_self_narrative can NEVER ship. (Gate 0
+        # Prime: closed the referral + self-as-function leaks that bypassed the best-effort path.)
+        if _metrics is not None:
+            try:
+                _final_dirty = bool(_metrics.scan_breaks(text) or _metrics.scan_self_narrative(text))
+            except Exception:
+                _final_dirty = False
+            if _final_dirty:
+                try:
+                    _final_clean = _strip_break_sentences(text)
+                    _still_dirty = bool(_metrics.scan_breaks(_final_clean)
+                                        or _metrics.scan_self_narrative(_final_clean))
+                except Exception:
+                    _final_clean, _still_dirty = "", True
+                text = (_final_clean if (_final_clean and len(_final_clean.split()) >= 4
+                                         and not _still_dirty) else _THIRD_PATH_REDIRECT)
         llm_s = _time.perf_counter() - _t0
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources
