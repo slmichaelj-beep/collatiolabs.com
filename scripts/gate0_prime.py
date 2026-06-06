@@ -512,7 +512,12 @@ def target_3_gate_strictness() -> dict:
     rc_cert_gate, out_cert = _run_script(
         [cert, "--gate", "--json"],
         env_extra={"ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL": "up_to"},
-        timeout=900)
+        # certify.py --gate drives certify's FULL live experience battery (cold ~10-15 min). When
+        # this whole certificate is mid-run, the local model is already under load from the other
+        # targets, so a 900s (15 min) cap raced the battery and tripped a spurious timeout (124).
+        # Run in ISOLATION it returns exactly exit 1 / gate_ok False / reported FAIL (the gate is
+        # correct) — so the budget, not the gate, was the fault. 1800s absorbs the self-contention.
+        timeout=1800)
     # We assert a GENUINE non-zero (1) from gate strictness — NOT a timeout (124), which would be a
     # spurious pass — AND that the JSON confirms gate_ok is False with a reported FAIL.
     gate_ok_field = None
