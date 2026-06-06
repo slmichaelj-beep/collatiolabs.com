@@ -285,17 +285,72 @@ _LERF_TASK_SYS = (
 )
 
 
+# ── LERF eligibility lexicons: a turn reaches the skill substrate ONLY if it is a directive ──
+# TASK. The rail separates personal-fact / capability / generative, but a feeling-disclosure or a
+# self-reflective ask lands in the SAME "generative" bucket as a real task. The #1 rule is that
+# Vera answers a feeling as a COMPANION, never with a task skill — so the gate also requires the
+# turn to be TASK-SHAPED and excludes first-person distress + self-reflection. Bias is toward
+# EXCLUSION: a missed task only costs compression (the LLM still answers); a captured feeling is
+# a companion failure. This is a POSITIVE allowlist of the bounded operations skills perform —
+# not a blocklist of "bad" phrasings.
+_LERF_TASK_VERBS = (
+    r"summari[sz]e|recap|digest|draft|compose|reword|rewrite|reply to|respond to|plan|schedule|"
+    r"organi[sz]e|arrange|extract|pull|list|enumerate|find|compare|contrast|triage|sort|"
+    r"prioriti[sz]e|rank|prep|prepare|outline|translate|format|proofread|turn .* into|"
+    r"break .* down|explain|brief me|walk me through|what are the|what'?s the|give me the"
+)
+_LERF_AFFECT = (
+    r"overwhelm|anxious|anxiety|stress|\bsad\b|lonely|exhaust|tired|\blost\b|depress|worried|"
+    r"\bworry\b|scared|afraid|angry|upset|burned out|burnt out|hopeless|numb|\bempty\b|miserable|"
+    r"struggling|can'?t cope|falling apart|on edge|frustrated|defeated|overwhelmed"
+)
+
+
+def _lerf_companion_turn(t):
+    """A feeling/state disclosure or a self-reflective/advice ask — owned by the companion, never
+    LERF. (first-person + distress affect) OR a 'what should I / why do I / do you think I'
+    reflection about the user's own life, behaviour, or decisions."""
+    import re
+    return bool(
+        # first-person COPULA close to a distress word: "I'm overwhelmed", "I've been anxious",
+        # "I feel lost" — the user describing THEIR OWN state (not an adjective on the material,
+        # e.g. "summarize this stressful report" has no first-person copula -> not companion).
+        re.search(r"\bi(?:'?m| am| feel| feeling| have been|'?ve been| was| get| keep|"
+                  r" can'?t stop| cannot stop)\b[^.?!]{0,30}(" + _LERF_AFFECT + r")", t) or
+        re.search(r"\b(what should i|why (do|am|did|does|is) i|should i|what do you think i|"
+                  r"do you think i|help me (decide|figure|think|process)|how (do|am) i feel)\b", t)
+    )
+
+
+def _lerf_task_shaped(text):
+    """True ONLY for a directive task request. A companion turn is excluded even if it mentions a
+    task word ('I'm overwhelmed planning the move'); an otherwise non-companion turn is admitted on
+    a task verb or an explicit this/these/attached reference to PROVIDED material to operate on."""
+    import re
+    t = (text or "").strip().lower()
+    if not t or _lerf_companion_turn(t):
+        return False
+    if re.search(r"\b(" + _LERF_TASK_VERBS + r")\b", t):
+        return True
+    if re.search(r"\b(this|these|the following|attached|the above)\b", t):
+        return True
+    return False
+
+
 def _lerf_eligible(name, text, cap_note, cloud_on):
     """Is THIS turn a TASK the LERF substrate should try FIRST? Returns the matched
     :class:`Route` (rung 3, lerf_skill) when eligible, else None.
 
-    The gate is deliberately NARROW — three independent exclusions must ALL pass before
+    The gate is deliberately NARROW — four independent exclusions must ALL pass before
     a single skill is even considered, so a self/personal/conversational turn can never be
     captured by an incidental keyword match:
 
       1. A deterministic capability (route.py / cap_note) already owns the turn -> never LERF.
       2. The honesty rail classes this as PERSONAL or CAPABILITY (a personal-fact ask or a
          device-data ask) -> the EXISTING memory/honesty pipeline owns it -> never LERF.
+      2b. The turn is not TASK-SHAPED — a first-person feeling/state disclosure or a self-
+         reflective/advice ask (which the rail still calls "generative") -> the COMPANION path
+         owns it -> never LERF. A feeling must never be answered with a task skill (#1 rule).
       3. The router's own decision must be exactly `lerf_skill` (rung 3): a real ACTIVE skill
          scored above the match floor. Any other route (deterministic_rule, lirf_memory,
          cloud, no_local_faculty) means "not a LERF-skill turn" -> fall through unchanged.
@@ -311,6 +366,8 @@ def _lerf_eligible(name, text, cap_note, cloud_on):
         kind = "generative"
     if kind in ("personal", "capability"):          # (2) memory/honesty/device path owns it
         return None
+    if not _lerf_task_shaped(text):                 # (2b) a feeling/reflection/companion turn is
+        return None                                 #      never a task -> the companion path owns it
     try:
         from . import lerf_router
         # Route over the SHARED skill library (_LERF_SKILL_LIBRARY), not the creature's personal
