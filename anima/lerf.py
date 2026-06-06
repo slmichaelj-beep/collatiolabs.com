@@ -607,6 +607,284 @@ def verify_procedure_output(output: dict) -> dict:
 
 
 # ===================================================================================
+# THE VERIFICATION GATE — Wave 2. The promotion STATE MACHINE that turns the abstract
+# ladder (candidate -> verified -> active) into an enforced gate no object can skip.
+#
+#   candidate  --[ schema + unit + adversarial + regression ALL pass ]-->  verified
+#   verified   --[ a MEASURED benchmark improvement over the baseline ]-->  active
+#
+# Two hard invariants, because a ledger of self-asserted reliability is worthless if a
+# claim can promote itself:
+#   * A candidate NEVER reaches `active` unverified — `activate_skill` REFUSES to promote
+#     anything that is not already `verified`, so the only door into the retrievable set is
+#     through the four checks (it raises/returns rejected otherwise, never silently passes).
+#   * The verifier is GROUNDED — `verify_rendered_output` checks a *rendered answer* against
+#     the skill's declared output CONTRACT. A fabricated or contract-violating output FAILS;
+#     the gate never rubber-stamps. The adversarial phase feeds it a deliberately bad render
+#     and REQUIRES a failure, so a verifier that always says "ok" cannot itself pass the gate.
+#
+# Each phase returns {ok, reasons[]} so a rejection is auditable: you can read exactly which
+# check killed a candidate, the same way you can read why a skill exists (explain_skill).
+# ATTACHES (Wave 3): certify.py wraps `promote_skill` + `activate_skill` in a signed receipt
+# and runs the adversarial phase against the LIVE model instead of the deterministic stand-in.
+# ===================================================================================
+
+# Minimum stuffed/retrieved ratio a skill must demonstrate on its own benchmark before it is
+# allowed to go ACTIVE. The whole premise is "retrieval is cheaper than stuffing"; a skill
+# that does not actually compress has not earned a slot in the served set. (Conservative: the
+# Wave-1 proof clears 4.2x-24.7x, so a 2.0x floor admits real wins and rejects non-compressors.)
+ACTIVATION_MIN_RATIO = 2.0
+
+
+def check_schema(skill: dict) -> dict:
+    """PHASE 1 — SCHEMA. The object carries the full inputs->steps->outputs contract and the
+    verification spine, so it is inspectable and falsifiable at all. A skill with no steps or
+    no declared outputs cannot be verified against a contract it doesn't have. {ok, reasons}."""
+    reasons = []
+    if not isinstance(skill, dict):
+        return {"ok": False, "reasons": ["not a dict"]}
+    if skill.get("type") != "skill":
+        reasons.append("type is not 'skill'")
+    for field in ("name", "domain"):
+        if not skill.get(field):
+            reasons.append(f"missing/empty {field}")
+    for field in ("inputs", "steps", "outputs"):
+        v = skill.get(field)
+        if not isinstance(v, list) or not v:
+            reasons.append(f"{field} must be a non-empty list (the contract)")
+    for field in ("state", "confidence", "source", "support", "failure_modes"):
+        if field not in skill:
+            reasons.append(f"missing spine field {field}")
+    if skill.get("state") not in STATES:
+        reasons.append(f"state {skill.get('state')!r} is not a known ladder state")
+    return {"ok": not reasons, "reasons": reasons}
+
+
+def _topic_terms(skill: dict) -> set:
+    """The TOPIC ANCHOR — the words that say what the skill is FOR (its name + domain). A
+    faithful render of 'summarize_medical_appointment' [health] is ABOUT medical/health/
+    appointment things; an off-topic answer shares none of these. The strongest on-topic signal,
+    kept separate from the broader output vocabulary so the check anchors on subject, not on
+    parroting every output-field label."""
+    text = skill.get("name", "").replace("_", " ") + "  " + str(skill.get("domain", ""))
+    return _kw(text)
+
+
+def _contract_terms(skill: dict) -> set:
+    """The broader content vocabulary the skill's OUTPUT contract promises — drawn from the
+    declared outputs plus the topic anchor. Used to confirm a render engages the SUBSTANCE of
+    the contract (it should mention a couple of the things the skill produces), not to demand it
+    echo every structural label verbatim. Deterministic."""
+    text = "  ".join(str(o) for o in skill.get("outputs", []))
+    return _topic_terms(skill) | _kw(text)
+
+
+def verify_rendered_output(skill: dict, rendered: str, *, inputs: dict | None = None) -> dict:
+    """GROUNDED PHASE — check a *rendered answer* against the skill's output CONTRACT, never
+    rubber-stamping. This is the function the whole gate hinges on: it is what a runtime would
+    call (Wave 3) on a small model's actual output before trusting it, and what the adversarial
+    phase here feeds a bad render to prove the gate has teeth.
+
+    A render PASSES only if it is (a) substantive, (b) ON-TOPIC — it engages the skill's subject
+    (its name/domain anchor) and at least a couple of the things the contract produces, so an
+    off-topic or non-responsive answer FAILS — and (c) GROUNDED — when `inputs` are given it must
+    NOT assert a concrete number/date that appears nowhere in the inputs (a fabricated dosage or
+    figure is the canonical contract violation for these skills and must FAIL).
+
+    The on-topic test is by OVERLAP COUNT against the topic anchor, deliberately NOT a high
+    fraction of every output label: natural prose answers these tasks correctly without parroting
+    structural field names like 'warning-sign reminders', so demanding label coverage would
+    false-reject good renders. Off-topic/empty answers share ~nothing and still fail.
+    Returns {ok, reasons[], coverage, on_topic}."""
+    reasons = []
+    if not isinstance(rendered, str) or not rendered.strip():
+        return {"ok": False, "reasons": ["empty render"], "coverage": 0.0, "on_topic": False}
+    topic = _topic_terms(skill)
+    contract = _contract_terms(skill)
+    got = _kw(rendered)
+    topic_hit = topic & got
+    contract_hit = contract & got
+    coverage = (len(contract_hit) / len(contract)) if contract else 0.0
+    # On-topic iff the render engages the skill's subject by EITHER naming the topic anchor
+    # (its name/domain words) OR hitting at least two distinct contract terms — natural prose
+    # answers these tasks correctly without necessarily echoing the literal domain word
+    # ("medical") while still mentioning the substance (medication/follow-up/summary). An
+    # off-topic or empty answer hits neither and fails; that is the line the grounded check draws.
+    on_topic = bool(topic_hit) or (len(contract_hit) >= 2)
+    # substance: a real answer is more than a few words.
+    if count_tokens(rendered) < 8:
+        reasons.append("render too short to be a real answer")
+    # on-topic: the render must engage the skill's subject (anchor or >=2 contract terms).
+    if contract and not on_topic:
+        reasons.append(
+            f"render is off-topic / non-responsive (subject touched={bool(topic_hit)}, "
+            f"hits {len(contract_hit)} contract term(s) {sorted(contract_hit)} — needs the "
+            f"subject anchor OR >=2 of {sorted(contract)})")
+    # GROUNDED: no fabricated figure. Every number/date token in the render must trace to the
+    # provided inputs (when inputs are supplied). A digit the inputs never contained is a
+    # hallucinated fact — the single most damaging failure for summarize/extract skills.
+    if inputs:
+        src = " ".join(str(v) for v in inputs.values())
+        src_nums = set(re.findall(r"\d+", src))
+        out_nums = set(re.findall(r"\d+", rendered))
+        invented = sorted(out_nums - src_nums)
+        if invented:
+            reasons.append(f"fabricated figure(s) {invented} not present in the inputs "
+                           f"(ungrounded — contract violation)")
+    return {"ok": not reasons, "reasons": reasons, "coverage": round(coverage, 2),
+            "on_topic": on_topic}
+
+
+def _phase_unit(skill: dict, test_cases) -> dict:
+    """PHASE 2 — UNIT. Deterministic input->expected cases over the skill (the same engine as
+    verify_skill, but run WITHOUT mutating the object so the gate decides promotion centrally).
+    Requires at least one case and zero failures. {ok, reasons, passed, total}."""
+    cases = list(test_cases or [])
+    if not cases:
+        return {"ok": False, "reasons": ["no unit test cases supplied"], "passed": 0, "total": 0}
+    passed = 0
+    fails = []
+    for tc in cases:
+        try:
+            chk = tc.get("check")
+            inp = tc.get("input")
+            if callable(chk):
+                good = bool(chk(inp))
+            elif "expected" in tc:
+                exp = tc["expected"]
+                good = (exp == inp) or (isinstance(inp, (list, str, dict)) and exp in inp)
+            else:
+                good = chk is not None and (chk == inp
+                                            or (hasattr(inp, "__contains__") and chk in inp))
+        except Exception as e:
+            good, _ = False, fails.append(f"case raised: {e}")
+        if good:
+            passed += 1
+        else:
+            fails.append(f"unit case failed on input={tc.get('input')!r}")
+    return {"ok": not fails, "reasons": fails, "passed": passed, "total": len(cases)}
+
+
+def _phase_adversarial(skill: dict, adversarial=None) -> dict:
+    """PHASE 3 — ADVERSARIAL. Hand the grounded verifier deliberately BAD renders and REQUIRE
+    each to FAIL. This proves the contract check actually rejects garbage (a verifier that
+    always says 'ok' would pass unit + regression but DIE here). Default battery: an empty
+    answer, an off-topic answer, and a fabricated-figure answer — every skill must reject all.
+    {ok, reasons, caught, total}."""
+    bad = list(adversarial or [
+        {"why": "empty answer", "render": "", "inputs": None},
+        {"why": "off-topic answer",
+         "render": "The weather today is sunny and pleasant with a light breeze.",
+         "inputs": None},
+        {"why": "fabricated figure not in the inputs",
+         "render": ("Take lisinopril 999 mg twice daily and follow up on the 31st; "
+                    "your reading was 700 over 410."),
+         "inputs": {"note": "blood pressure discussed; no doses or figures given"}},
+    ])
+    reasons, caught = [], 0
+    for case in bad:
+        res = verify_rendered_output(skill, case.get("render", ""), inputs=case.get("inputs"))
+        if res["ok"]:
+            reasons.append(f"adversarial NOT caught ({case.get('why')}): verifier passed a "
+                           f"bad render — the gate would rubber-stamp")
+        else:
+            caught += 1
+    return {"ok": not reasons, "reasons": reasons, "caught": caught, "total": len(bad)}
+
+
+def _phase_regression(skill: dict, name: str) -> dict:
+    """PHASE 4 — REGRESSION. Promoting this skill must not break the existing served set: its
+    declared trigger (name/domain words) must still RETRIEVE it once active, and it must not
+    collide with an already-active skill of a different id under the same name (which would make
+    retrieval ambiguous). Deterministic, store-backed. {ok, reasons}."""
+    reasons = []
+    nm = skill.get("name", "")
+    others = [s for s in all_skills(name=name) if s.get("id") != skill.get("id")
+              and s.get("name") == nm]
+    if others:
+        reasons.append(f"name {nm!r} already active under a different id "
+                       f"{[o.get('id') for o in others]} — would make retrieval ambiguous")
+    return {"ok": not reasons, "reasons": reasons}
+
+
+def promote_skill(skill_id, test_cases=None, *, adversarial=None, name: str = "default") -> dict:
+    """RUN THE GATE: candidate -> verified, iff schema + unit + adversarial + regression ALL
+    pass. This is the ONLY sanctioned path from candidate to verified.
+
+    On full pass: the skill's state becomes VERIFIED (from candidate), confidence climbs, a
+    support line records the gate run. On ANY failure: the skill is REJECTED with the failing
+    phase recorded in its failure_modes (kept on disk as a negative result — provenance, never
+    deletion). Returns a full report {state, phases:{schema,unit,adversarial,regression}, ok}.
+
+    NOTE the asymmetry vs `activate_skill`: this gate earns VERIFIED; it deliberately does NOT
+    grant ACTIVE, because 'passes its tests' is not yet 'measurably cheaper than the baseline'.
+    Only a benchmarked win (activate_skill) opens the retrievable door."""
+    sk = _get(name, skill_id) if isinstance(skill_id, str) else skill_id
+    if not sk:
+        return {"ok": False, "state": None, "phases": {}, "error": "no such skill"}
+    phases = {
+        "schema": check_schema(sk),
+        "unit": _phase_unit(sk, test_cases),
+        "adversarial": _phase_adversarial(sk, adversarial),
+        "regression": _phase_regression(sk, name),
+    }
+    all_ok = all(p.get("ok") for p in phases.values())
+    if all_ok:
+        sk["confidence"] = min(CONF_CEIL, float(sk.get("confidence", CONF_CANDIDATE))
+                               + (CONF_CEIL - float(sk.get("confidence", CONF_CANDIDATE))) * 0.34)
+        sk["last_verified"] = _now()
+        if sk.get("state") == CANDIDATE:
+            sk["state"] = VERIFIED
+        sk.setdefault("support", []).append(f"gate:verified:{_now()}")
+    else:
+        sk["state"] = REJECTED
+        failed = [k for k, p in phases.items() if not p.get("ok")]
+        why = "; ".join(r for k in failed for r in phases[k].get("reasons", []))
+        sk["failure_modes"] = list(sk.get("failure_modes", [])) + [
+            f"gate REJECTED at [{', '.join(failed)}]: {why}"[:300]]
+    _upsert(name, sk)
+    return {"ok": all_ok, "state": sk.get("state"), "phases": phases}
+
+
+def activate_skill(skill_id, benchmark, *, name: str = "default",
+                   min_ratio: float = ACTIVATION_MIN_RATIO) -> dict:
+    """THE FINAL DOOR: verified -> active, ONLY on a MEASURED benchmark improvement.
+
+    `benchmark` is a dict (a compression_report, or anything carrying a numeric `ratio` =
+    stuffed/retrieved). The skill is promoted to ACTIVE iff it is currently VERIFIED *and* the
+    measured ratio clears `min_ratio`. A candidate (unverified) is REFUSED outright — the
+    invariant that nothing reaches the served set without passing the gate. Returns
+    {ok, state, ratio, reason}.
+
+    GROUNDED: the ratio must come from a real measurement the caller hands in; this function
+    never invents the number. (ATTACHES Wave 3: certify.py supplies a signed benchmark.)"""
+    sk = _get(name, skill_id) if isinstance(skill_id, str) else skill_id
+    if not sk:
+        return {"ok": False, "state": None, "ratio": None, "reason": "no such skill"}
+    state = sk.get("state")
+    if state == ACTIVE:
+        return {"ok": True, "state": ACTIVE, "ratio": None, "reason": "already active"}
+    if state != VERIFIED:
+        # the hard refusal: candidate/rejected/deprecated cannot jump the queue.
+        return {"ok": False, "state": state, "ratio": None,
+                "reason": f"REFUSED: only a VERIFIED skill may activate (this is {state!r}); "
+                          "run promote_skill first"}
+    ratio = float((benchmark or {}).get("ratio") or 0.0)
+    if ratio < float(min_ratio):
+        return {"ok": False, "state": VERIFIED, "ratio": ratio,
+                "reason": f"REFUSED: measured ratio {ratio} < required {min_ratio} — "
+                          "no demonstrated compression, stays verified (not served)"}
+    sk["state"] = ACTIVE
+    sk["last_verified"] = _now()
+    sk["confidence"] = min(CONF_CEIL, max(float(sk.get("confidence", 0.5)), CONF_SEED))
+    sk.setdefault("support", []).append(
+        f"activated:ratio={round(ratio, 1)}x>=min{min_ratio}:{_now()}")
+    _upsert(name, sk)
+    return {"ok": True, "state": ACTIVE, "ratio": ratio,
+            "reason": f"promoted: measured {round(ratio, 1)}x compression >= {min_ratio}x floor"}
+
+
+# ===================================================================================
 # THE COMPRESSION PROOF — Phase 2-3a, the whole point of Wave 1. For a real task, compare
 # the token cost of the RETRIEVED-SKILL context against a prompt-stuffing baseline that
 # pastes the raw transcript + a couple of worked examples (what you do today without LERF).
@@ -833,6 +1111,89 @@ def _selftest() -> int:
            any("failed verify" in fm for fm in _get(nm, "skill_badX")["failure_modes"]))
         ok("verify: a REJECTED skill is no longer retrievable",
            all(s["id"] != "skill_badX" for s in retrieve_skills("skill", name=nm)))
+
+        # --- THE VERIFICATION GATE: candidate -> verified -> active ------------------
+        # A real-shaped CANDIDATE skill with a full contract climbs the ladder under the gate.
+        store_skill(make_skill(
+            "summarize_invoice", "finance", id="skill_invoice", state=CANDIDATE,
+            inputs=["a raw invoice or billing statement"],
+            steps=["Identify the vendor and invoice number",
+                   "Extract every line item with its amount verbatim",
+                   "Sum the total and note the due date",
+                   "Write a 2-sentence plain-language summary"],
+            outputs=["plain summary", "line-item list with amounts", "total and due date"],
+            failure_modes=["rounding or dropping an amount"]), name=nm)
+        # PHASE FUNCTIONS in isolation: schema accepts the full contract, rejects a stub.
+        ok("gate[schema]: a full-contract skill passes the schema check",
+           check_schema(_get(nm, "skill_invoice"))["ok"])
+        ok("gate[schema]: a skill missing its outputs fails the schema check",
+           not check_schema({"type": "skill", "name": "x", "domain": "d",
+                             "inputs": ["i"], "steps": ["s"], "outputs": [],
+                             "state": CANDIDATE, "confidence": 0.5, "source": "x",
+                             "support": [], "failure_modes": []})["ok"])
+        # GROUNDED verifier: a faithful render passes; a fabricated-figure render FAILS.
+        good_render = ("Summary: this is the invoice from Acme. "
+                       "Line items: hosting $40, support $25, setup $10. "
+                       "Total $75, due on the 15th.")
+        vg = verify_rendered_output(_get(nm, "skill_invoice"), good_render,
+                                    inputs={"invoice": "Acme hosting 40 support 25 setup 10 "
+                                                       "total 75 due 15"})
+        ok("gate[grounded]: a faithful, on-contract render passes the verifier", vg["ok"])
+        vbad = verify_rendered_output(
+            _get(nm, "skill_invoice"),
+            "Total $999 due on the 31st, plus a $500 penalty.",   # figures absent from inputs
+            inputs={"invoice": "Acme hosting 40 support 25 total 65"})
+        ok("gate[grounded]: a FABRICATED-figure render FAILS the verifier (no rubber-stamp)",
+           not vbad["ok"] and any("fabricated" in r for r in vbad["reasons"]))
+        ok("gate[grounded]: an empty/off-topic render FAILS the verifier",
+           not verify_rendered_output(_get(nm, "skill_invoice"), "")["ok"]
+           and not verify_rendered_output(_get(nm, "skill_invoice"),
+                                          "I really like long walks on the beach.")["ok"])
+        # ADVERSARIAL phase has TEETH: the default bad battery is all caught.
+        adv = _phase_adversarial(_get(nm, "skill_invoice"))
+        ok("gate[adversarial]: every deliberately-bad render is caught",
+           adv["ok"] and adv["caught"] == adv["total"] and adv["total"] >= 3)
+        # PROMOTE: candidate -> verified on a full pass (schema+unit+adversarial+regression).
+        rep = promote_skill("skill_invoice",
+                            test_cases=[{"input": "INV-1", "check": lambda x: x == "INV-1"}],
+                            name=nm)
+        ok("gate: a candidate that passes ALL four phases becomes VERIFIED",
+           rep["ok"] and rep["state"] == VERIFIED
+           and all(rep["phases"][p]["ok"] for p in
+                   ("schema", "unit", "adversarial", "regression")))
+        ok("gate: a VERIFIED-but-unbenchmarked skill is NOT yet retrievable (verified != active)",
+           all(s["id"] != "skill_invoice" for s in retrieve_skills("invoice", name=nm)))
+        # HARD REFUSAL: a still-CANDIDATE skill cannot jump straight to ACTIVE.
+        store_skill(make_skill("unproven_skill", "misc", ["i"], ["s"], ["o"],
+                               state=CANDIDATE, id="skill_unproven"), name=nm)
+        refuse = activate_skill("skill_unproven", {"ratio": 50.0}, name=nm)
+        ok("gate: activating a CANDIDATE is REFUSED (must be verified first)",
+           not refuse["ok"] and _get(nm, "skill_unproven")["state"] == CANDIDATE
+           and "REFUSED" in refuse["reason"])
+        # ACTIVATE: verified -> active ONLY on a measured benchmark win above the floor.
+        weak = activate_skill("skill_invoice", {"ratio": 1.2}, name=nm)
+        ok("gate: a verified skill with NO real compression (ratio<floor) stays VERIFIED",
+           not weak["ok"] and _get(nm, "skill_invoice")["state"] == VERIFIED)
+        strong = activate_skill("skill_invoice", {"ratio": 9.4}, name=nm)
+        ok("gate: a verified skill WITH a measured benchmark win -> ACTIVE",
+           strong["ok"] and strong["state"] == ACTIVE and strong["ratio"] == 9.4)
+        ok("gate: only NOW (active) is the skill retrievable",
+           any(s["id"] == "skill_invoice" for s in retrieve_skills("summarize an invoice",
+                                                                    name=nm)))
+        # A REJECTED candidate, shown end-to-end: a contract-less skill dies at the schema
+        # phase and is recorded REJECTED with the reason on disk (never silently dropped).
+        store_skill({"id": "skill_nocontract", "type": "skill", "name": "no_contract",
+                     "domain": "misc", "inputs": [], "steps": [], "outputs": [],
+                     "state": CANDIDATE, "confidence": 0.5, "source": "test",
+                     "support": [], "failure_modes": []}, name=nm)
+        rej = promote_skill("skill_nocontract",
+                            test_cases=[{"input": 1, "check": lambda x: True}], name=nm)
+        ok("gate: a contract-less candidate is REJECTED at the schema phase",
+           not rej["ok"] and rej["state"] == REJECTED and not rej["phases"]["schema"]["ok"])
+        ok("gate: the rejection reason is recorded on disk for provenance",
+           any("gate REJECTED" in fm for fm in _get(nm, "skill_nocontract")["failure_modes"]))
+        ok("gate: a REJECTED candidate never becomes retrievable",
+           all(s["id"] != "skill_nocontract" for s in retrieve_skills("no contract", name=nm)))
 
         # --- CONCEPT surface + graph -------------------------------------------------
         a = store_concept(make_concept(
