@@ -1134,6 +1134,805 @@ def build_synthetic_model(name: str) -> dict:
     return out
 
 
+# ############################################################################
+# ############################################################################
+# WORLD UNDERSTANDING — FROM A CAUSAL MODEL OF ONE DOMAIN TO A COHERENT WORLD MODEL OF LAMAR'S
+# WHOLE WORLD: first-class TYPED ENTITIES (people, projects, goals, resources, risks, constraints)
+# + TYPED RELATIONS between them + CAUSAL LINKS connecting any of them — every entity and edge
+# GROUNDED in captured facts (never invented), INTERNAL-only, no diagnosis. "Facts become meaning."
+#
+# This is the leap ABOVE build_model_from_graph. That function builds a per-DOMAIN causal model
+# whose nodes are bare strings ("manager", "strain", "poor_sleep"). A world UNDERSTANDING asks the
+# next question a thirty-year companion must answer: WHAT KIND OF THING is each node, and HOW do
+# the things in Lamar's world relate? "manager_change" is a PERSON-change; "strain"/"poor_sleep"
+# are STATES; "the goal" is a GOAL; "Acme" is a RESOURCE/employer; "money" is a RISK he worries
+# about. Typing the nodes + the edges between them turns a flat causal graph into a MAP OF A LIFE.
+#
+# ────────────────────────────────────────────────────────────────────────────────────────────
+# THE SAME FOUR LAWS HOLD (inherited verbatim from the causal-model layer above):
+#   1. GROUNDED — every entity/edge cites the captured fact(s) it came from (a stated world-state
+#      edge, a LIRF row, a reality hypothesis). An entity with no grounding is DROPPED, never
+#      emitted. A node is NEVER promoted to a richer type than its evidence supports (a bare topic
+#      stays a TOPIC; we never fabricate a PERSON). Proven in the world selftest: an empty creature
+#      yields an empty world model.
+#   2. INTERNAL ONLY — NO DIAGNOSIS. A world model is Vera's private map of LAMAR's world; it is
+#      flagged ``internal_only`` and every human-readable line passes the no-diagnosis clean-gate.
+#      Imported by NOTHING on the live path (a shadow read over the already-recorded stores).
+#   3. FREEZE BOUNDARY — the model is OF LAMAR / THE WORLD / TASKS / KNOWLEDGE. It NEVER models
+#      Vera's own values/preferences/goals/agency/identity. Every entity's subject is something in
+#      LAMAR's world. (No persona/portrait/identity is read or written here.)
+#   4. TIME-HONEST + ADDITIVE — the world model is a snapshot of what the captured facts support
+#      NOW; it accrues to its OWN store (``.anima/{name}.worldmodel_world.json``), keyed by id,
+#      append-only. It REUSES build_model_from_graph for the causal layer — it does not replace it.
+#
+# THE ENTITY-CLASSIFIER's GROUNDING (never-invent): a node's TYPE is read ONLY from the captured
+# signal that introduced it — the world-state predicate/kind, the LIRF trait, or the reality
+# candidate key. The classifier never guesses from spelling alone beyond a closed, conservative
+# lexicon, and falls back to the weakest defensible type (STATE for a feeling-word, else TOPIC) so
+# an unknown node is under-typed, never over-typed. Observed > Assumed, at the type level.
+# ############################################################################
+# ############################################################################
+
+# ---------------------------------------------------------------------------
+# ENTITY TYPES — the closed vocabulary every world entity's ``type`` lives in. These are the
+# kinds of THING that populate a life: the person at the centre (SELF), the people around them,
+# the work they do, what they're reaching for, what they have to work with, what threatens it,
+# and what bounds it. STATE/TOPIC are the weakest types — the grounded fallback for a node whose
+# evidence types it no further (a feeling, an unclassified subject). Never widened by spelling.
+# ---------------------------------------------------------------------------
+ENT_SELF = "self"            # Lamar himself — the hub of his own world (the world_state SELF node)
+ENT_PERSON = "person"        # another person in Lamar's world (a role/name, or a person-change)
+ENT_PROJECT = "project"      # work / an initiative / a venture he is engaged in
+ENT_GOAL = "goal"            # something he is reaching for (a stated intention/objective)
+ENT_RESOURCE = "resource"    # something he works WITH / relies on (employer, money-as-means, tool)
+ENT_RISK = "risk"            # something that threatens — a worry, a stressor, a danger to a goal
+ENT_CONSTRAINT = "constraint"  # something that BOUNDS him (a deadline, a limit, a hard requirement)
+ENT_STATE = "state"          # an internal/situational STATE (strain, poor_sleep, low_energy)
+ENT_TOPIC = "topic"          # an unclassified life-topic node (the weakest grounded fallback)
+ENTITY_TYPES = (ENT_SELF, ENT_PERSON, ENT_PROJECT, ENT_GOAL, ENT_RESOURCE,
+                ENT_RISK, ENT_CONSTRAINT, ENT_STATE, ENT_TOPIC)
+
+# RELATION TYPES for the WORLD graph (as opposed to the CAUSAL edge types CAUSE/CONTRIBUTES/…
+# above, which connect any two entities causally). These are the NON-causal first-class bonds a
+# world map needs: who relates to whom, who works on what, who is reaching for what. A world
+# relation is typed + directed + grounded, exactly like a causal link.
+REL_RELATES_TO = "relates_to"    # person <-> Lamar / person <-> person — a relationship bond
+REL_WORKS_ON = "works_on"        # Lamar -> project (engaged in a piece of work)
+REL_PURSUES = "pursues"          # Lamar -> goal (reaching for an objective)
+REL_RELIES_ON = "relies_on"      # Lamar -> resource (depends on / works with)
+REL_THREATENS = "threatens"      # risk -> (goal|project|state) — a danger to something
+REL_BOUNDS = "bounds"            # constraint -> (project|goal) — a limit on something
+WORLD_RELATION_TYPES = (REL_RELATES_TO, REL_WORKS_ON, REL_PURSUES, REL_RELIES_ON,
+                        REL_THREATENS, REL_BOUNDS)
+
+# The CAUSAL edge types (CAUSE/CONTRIBUTES/WORSENS/PRECEDES) are ALSO first-class world edges —
+# a causal link IS a typed relation between two typed entities. The union is the full edge
+# vocabulary a world model can carry.
+ALL_EDGE_TYPES = tuple(dict.fromkeys(RELATION_TYPES + WORLD_RELATION_TYPES))
+
+# Evidence-source tags for ENTITIES (edges already use SRC_WORLD_EDGE / SRC_REALITY_HYP /
+# SRC_COOCCURRENCE). A LIRF row is a fourth grounded source — only entities (not causal edges)
+# can be grounded by a plain value, since a value names a thing without asserting a cause.
+SRC_LIRF_FACT = "lirf_fact"      # a captured LIRF row (employer, a named relationship, …)
+
+# A reality candidate KEY -> the entity type it grounds. These keys are a CLOSED taxonomy the
+# reality engine emits (manager_change, recent_move, …); each is a concrete kind of driver, so it
+# types cleanly. A key not here contributes a STATE entity (an unclassified driver), never a
+# fabricated person/project. The "_change" people-changes type as PERSON (the person is the entity
+# the change is about); life-events type by their noun.
+_REALITY_KEY_TO_TYPE = {
+    "manager_change": ENT_PERSON,    # a change in WHO manages him — the manager is a person
+    "recent_move": ENT_TOPIC,        # a relocation event (a life-topic, not a person/resource)
+    "family_visit": ENT_PERSON,      # family — people in his world
+    "crunch": ENT_CONSTRAINT,        # a deadline crunch BOUNDS the work
+    "multiple": ENT_STATE,           # "several things at once" — a diffuse state, not one thing
+}
+
+# Closed, conservative lexicons for typing a WORLD-STATE node by its surface key. Each maps a
+# token the node CONTAINS to a type — but only as a LAST resort after the predicate/kind and the
+# reality/LIRF signals (which are stronger grounding). Deliberately small: a word not here leaves
+# the node at its fallback type. This is never a free guess — it fires only on an explicit token.
+_ROLE_WORDS = frozenset(
+    "manager boss supervisor lead director coworker colleague partner roommate landlord doctor "
+    "therapist teacher coach wife husband girlfriend boyfriend fiance fiancee daughter son mom "
+    "mother dad father brother sister friend kid child family".split())
+_PROJECT_WORDS = frozenset(
+    "work job business startup company venture project launch product gig career deadline-project "
+    "deal client launch-project initiative".split())
+_RESOURCE_WORDS = frozenset(
+    "money savings income salary budget cash funds runway loan house apartment car tool team".split())
+_RISK_WORDS = frozenset(
+    "money debt rent bills layoff layoffs eviction deadline burnout-risk health".split())
+_CONSTRAINT_WORDS = frozenset(
+    "deadline crunch limit quota requirement curfew budget timeline".split())
+# STATE/feeling words — a node that IS a feeling/state is an ENT_STATE (the grounded fallback for
+# the downstream of a causal chain). Reuses the same family of words the causal layer recognises.
+_STATE_WORDS = frozenset(
+    "strain stress stressed stressful overwhelmed anxious anxiety exhausted exhaustion drained "
+    "tired tiredness sleep poor_sleep poorly insomnia rest recovery energy low_energy fatigue "
+    "mood overwhelm pressure".split())
+
+
+def _classify_entity(key: str, *, predicate: str = "", kind: str = "",
+                     reality_key: bool = False, lirf_trait: str = "") -> str:
+    """The GROUNDED entity classifier — read a node's TYPE from the captured signal that
+    introduced it, NEVER from spelling alone beyond a closed lexicon. Precedence (strongest
+    grounding first), so a node is typed by the most specific evidence available:
+
+      0. the user node SELF -> ENT_SELF (Lamar is the hub of his own world).
+      1. a reality CANDIDATE key (manager_change, recent_move, …) -> its mapped type. These keys
+         are a closed taxonomy; the mapping is exact, not a guess.
+      2. the world-state KIND that stored the edge: 'relationship' -> PERSON, 'goal' -> GOAL,
+         'problem' -> RISK, 'value' -> RESOURCE-or-RISK by lexicon. A kind is what the capture rule
+         ASSERTED the node is, so it is strong grounding.
+      3. the world-state PREDICATE: 'has'/'manager_is'/… (a relationship arrow) -> PERSON;
+         'working_toward' -> GOAL; 'worried_about' -> RISK; 'stressed_by' object -> RISK.
+      4. a LIRF TRAIT: 'employer'/'works_at' -> RESOURCE; a kin/role trait -> PERSON.
+      5. a closed surface LEXICON (role/project/resource/risk/constraint/state words), last.
+      6. FALLBACK: a feeling-word -> STATE, else TOPIC. Under-type, never over-type.
+
+    Returns one of ENTITY_TYPES. Pure; never raises. This is ``world_state.capture``'s never-infer
+    discipline applied at the TYPE level: the type is only ever as specific as the evidence."""
+    k = (key or "").strip().lower()
+    toks = set(k.replace("-", "_").split())
+    toks |= set(k.split("_"))
+    pred = (predicate or "").strip().lower()
+    knd = (kind or "").strip().lower()
+    trait = (lirf_trait or "").strip().lower()
+
+    # 0. the self node.
+    if k in ("you", "i", "me") or k == _norm_node("you"):
+        return ENT_SELF
+
+    # 1. a reality candidate key — exact closed taxonomy.
+    if reality_key:
+        if k in _REALITY_KEY_TO_TYPE:
+            return _REALITY_KEY_TO_TYPE[k]
+        # an unknown reality driver is a diffuse STATE, never a fabricated typed thing.
+        return ENT_STATE
+
+    # 2. the world-state KIND that stored it (what the capture rule asserted).
+    if knd == "relationship":
+        return ENT_PERSON
+    if knd == "goal":
+        return ENT_GOAL
+    if knd == "problem":
+        # a problem node is a RISK unless its surface clearly names a means (resource) it isn't.
+        return ENT_RISK
+    if knd in ("preference", "value"):
+        # something cared-about / held important: a RESOURCE if it names a means, else TOPIC.
+        if toks & _RESOURCE_WORDS:
+            return ENT_RESOURCE
+        # a cared-about PERSON (a role word) is a person.
+        if toks & _ROLE_WORDS:
+            return ENT_PERSON
+        return ENT_TOPIC
+
+    # 3. the world-state PREDICATE direction.
+    if pred in ("has", "manager_is", "married_to", "knows", "friend_is") or pred.endswith("_is"):
+        if toks & _ROLE_WORDS:
+            return ENT_PERSON
+    if pred == "working_toward":
+        return ENT_GOAL
+    if pred == "worried_about":
+        return ENT_RISK
+
+    # 4. a LIRF trait.
+    if trait in ("employer", "works_at", "company", "workplace"):
+        return ENT_RESOURCE
+    if trait in ("manager", "boss", "spouse", "partner", "wife", "husband", "daughter",
+                 "son", "mother", "father", "friend", "sister", "brother"):
+        return ENT_PERSON
+
+    # 5. a closed surface lexicon (last, weakest grounding — an explicit token only).
+    if toks & _ROLE_WORDS:
+        return ENT_PERSON
+    if toks & _CONSTRAINT_WORDS and "deadline" in toks:
+        return ENT_CONSTRAINT
+    if toks & _PROJECT_WORDS:
+        return ENT_PROJECT
+    if toks & _RISK_WORDS and not (toks & _STATE_WORDS):
+        return ENT_RISK
+    if toks & _RESOURCE_WORDS:
+        return ENT_RESOURCE
+    if toks & _CONSTRAINT_WORDS:
+        return ENT_CONSTRAINT
+
+    # 6. fallback — a feeling/state word is a STATE; anything else is a bare TOPIC.
+    if toks & _STATE_WORDS:
+        return ENT_STATE
+    return ENT_TOPIC
+
+
+def _entity_id(key: str) -> str:
+    """A stable per-world entity id from the node key — deterministic so the SAME node yields the
+    SAME entity id within a build (entities de-dupe by key, not by random id)."""
+    return "ent_" + re.sub(r"[^a-z0-9]+", "_", (key or "").lower()).strip("_")
+
+
+# ===========================================================================
+# THE WORLD BUILDER — assemble the coherent WORLD MODEL: typed entities + typed relations +
+# causal links, all grounded. It REUSES the causal model (build_model_from_graph) for the causal
+# layer, then (a) walks the WHOLE world-state graph + LIRF facts to discover every grounded
+# entity and the non-causal relations between them, and (b) lifts every causal edge into a typed
+# causal link between two typed entities. Every entity/edge carries the captured fact(s) it rests
+# on. Grounded by construction: a node with no captured grounding never becomes an entity.
+# ===========================================================================
+
+def _world_causal_topics(name: str) -> list:
+    """The set of domain topics to build causal sub-models for — every reality competition
+    category + a small set of canonical life-domains, so the causal layer covers the situations
+    the captured facts actually describe. Read-only; [] when reality is absent. Never raises."""
+    topics = ["work_stress"]
+    if _HAVE_REALITY and _reality is not None:
+        try:
+            data = _reality.loop(name)
+            for comp in data.get("competitions", []) or []:
+                cat = comp.get("category")
+                if cat and cat not in topics:
+                    topics.append(cat)
+        except Exception:
+            pass
+    return topics
+
+
+def _gather_world_entities_and_relations(name: str) -> tuple:
+    """Walk the WHOLE world-state graph (broad check-in seed = the user hub) + the LIRF facts, and
+    return (entities_by_key, world_relations) — the TYPED entities and the NON-causal typed
+    relations between them, each grounded in the captured fact it came from. Read-only on both
+    stores; ([], []) when nothing is captured. Never invents an entity or a relation.
+
+    entities_by_key: {node_key -> entity dict {id,type,key,label,confidence,provenance,sources}}
+    world_relations: [ {id,type,src,dst,confidence,support,sources,evidence} ]  (typed bonds)."""
+    entities: dict = {}
+    relations: list = []
+
+    def _ensure_entity(key, etype, prov, src, conf):
+        key = _norm_node(key)
+        if not key:
+            return None
+        e = entities.get(key)
+        if e is None:
+            e = {"id": _entity_id(key), "type": etype, "key": key, "label": _label(key),
+                 "confidence": _clamp(conf), "provenance": [], "sources": []}
+            entities[key] = e
+        else:
+            # PROMOTE the type only toward something more specific than the current; never demote a
+            # PERSON/GOAL/PROJECT to a STATE/TOPIC (the strongest grounding wins).
+            cur_rank = _TYPE_SPECIFICITY.get(e["type"], 0)
+            new_rank = _TYPE_SPECIFICITY.get(etype, 0)
+            if new_rank > cur_rank:
+                e["type"] = etype
+            e["confidence"] = _climb(max(e["confidence"], _clamp(conf)))
+        if prov and prov not in e["provenance"]:
+            e["provenance"].append(prov)
+        if src and src not in e["sources"]:
+            e["sources"].append(src)
+        return e
+
+    # --- (1) world-state EDGES: every endpoint is a grounded entity; a causal/relational edge of
+    # the NON-causal world kind becomes a typed world relation. -----------------------------------
+    if _HAVE_WORLD and _world is not None:
+        try:
+            cluster = _world.situation(name, "how am I doing", hops=4)
+            edges = (cluster or {}).get("edges", []) or []
+        except Exception:
+            edges = []
+        for e in edges:
+            if not isinstance(e, dict):
+                continue
+            subj = _norm_node(e.get("subject"))
+            obj = _norm_node(e.get("object"))
+            if not subj or not obj:
+                continue
+            pred = _canon_pred(e.get("predicate", ""))
+            knd = str(e.get("kind", "")).lower()
+            conf = _clamp(e.get("confidence", 0.6))
+            from_lirf = bool(e.get("_from_lirf"))
+            src_tag = SRC_LIRF_FACT if from_lirf else SRC_WORLD_EDGE
+            prov_s = (f"lirf: you {pred} {obj}" if from_lirf
+                      else f"stated: {subj} --{pred}--> {obj}")
+            # type each endpoint from the strongest available signal.
+            subj_type = _classify_entity(subj, predicate=pred, kind=knd,
+                                         lirf_trait=(pred if from_lirf else ""))
+            # the OBJECT of a relationship/goal/problem predicate carries the typed thing.
+            obj_type = _classify_entity(
+                obj, predicate=pred, kind=knd,
+                lirf_trait=(pred if from_lirf else ""))
+            _ensure_entity(subj, subj_type, prov_s, src_tag, conf)
+            _ensure_entity(obj, obj_type, prov_s, src_tag, conf)
+
+            # NON-causal world relations — only when the predicate/kind names one (never coerced).
+            wrel = _world_relation_for(pred, knd, subj, obj, entities)
+            if wrel is not None:
+                rtype, rsrc, rdst = wrel
+                relations.append({
+                    "id": _new_id("wr"), "type": rtype, "src": rsrc, "dst": rdst,
+                    "confidence": conf, "support": int(e.get("support", 1) or 1),
+                    "sources": [src_tag], "evidence": [prov_s],
+                })
+
+    # --- (2) reality CANDIDATES: each competing driver is a grounded entity (typed by its key). --
+    if _HAVE_REALITY and _reality is not None:
+        try:
+            data = _reality.loop(name)
+        except Exception:
+            data = {}
+        for comp in data.get("competitions", []) or []:
+            if not isinstance(comp, dict):
+                continue
+            for key, v in (comp.get("candidates") or {}).items():
+                weight = _clamp(v.get("weight", 0.0))
+                claim = str(v.get("claim", "")).strip()
+                etype = _classify_entity(str(key), reality_key=True)
+                _ensure_entity(str(key), etype,
+                               f"hypothesis [{key}] (weight {weight:.2f}): {claim}"[:160],
+                               SRC_REALITY_HYP, weight)
+
+    return entities, relations
+
+
+# How specific each entity type is — used to PROMOTE (never demote) a node's type when a stronger
+# signal arrives. SELF is the most specific (it is exactly one thing); TOPIC/STATE are the weakest.
+_TYPE_SPECIFICITY = {
+    ENT_SELF: 6, ENT_PERSON: 5, ENT_PROJECT: 5, ENT_GOAL: 5,
+    ENT_RESOURCE: 4, ENT_RISK: 4, ENT_CONSTRAINT: 4, ENT_STATE: 2, ENT_TOPIC: 1,
+}
+
+
+def _world_relation_for(pred: str, kind: str, subj: str, obj: str, entities: dict):
+    """Map a world-state (predicate, kind, subj, obj) onto a TYPED NON-causal world relation, or
+    None when the edge names no such bond (so a relation is NEVER coerced from a causal/attribute
+    edge — those become causal links instead). Returns (relation_type, src_key, dst_key). Pure."""
+    # a relationship bond: "you has manager" / "you knows X" -> person relates_to Lamar.
+    if kind == "relationship" or pred in ("has", "knows", "manager_is", "married_to") or pred.endswith("_is"):
+        # orient person -> you (the person relates to Lamar).
+        if subj == "you":
+            return (REL_RELATES_TO, obj, "you")
+        return (REL_RELATES_TO, subj, obj)
+    # a stated goal: "you working_toward X" -> Lamar pursues goal.
+    if pred == "working_toward" or kind == "goal":
+        if subj == "you":
+            return (REL_PURSUES, "you", obj)
+    # working ON a project: "you stressed_by work"/"work because manager" doesn't assert works_on,
+    # but a project-typed object the user is engaged with does when the predicate is engagement.
+    # We keep this conservative: only an explicit work/own predicate yields works_on.
+    if pred in ("works_at", "works_on", "running", "building", "founded", "launched", "started"):
+        if subj == "you":
+            return (REL_WORKS_ON, "you", obj)
+    return None
+
+
+def build_world_model(name: str, *, persist: bool = True) -> dict:
+    """Construct the coherent WORLD MODEL of ``name``'s world — the headline of this layer.
+
+    Fuses three grounded views into ONE typed graph:
+      * the CAUSAL layer — build_model_from_graph over every captured domain (work_stress + every
+        reality competition category), giving the TYPED CAUSAL LINKS (manager_change --causes-->
+        strain --worsens--> poor_sleep --…--> productivity), each carrying its evidence.
+      * the ENTITY/RELATION layer — _gather_world_entities_and_relations walks the whole world
+        graph + LIRF facts + reality candidates, giving every grounded TYPED ENTITY (people,
+        projects, goals, resources, risks, constraints) and the NON-causal typed relations.
+      * the two are JOINED: every node that appears in a causal link is upgraded to (or created
+        as) a typed entity, so the causal chain is a chain of TYPED entities, not bare strings.
+
+    Returns the world model dict:
+        {
+          "id", "version", "name",
+          "entities":  [ {id,type,key,label,confidence,provenance,sources}, ... ]  (typed, grounded),
+          "relations": [ {id,type,src,dst,confidence,support,sources,evidence}, ... ]  (typed bonds),
+          "causal_links": [ {id,src,dst,relation,confidence,support,sources,evidence}, ... ],
+          "by_type":   {entity_type -> [entity_key, ...]}  (the index for retrieval),
+          "domains":   the causal domains built,
+          "created"/"updated", "internal_only": True,
+          "grounding": per-source entity+edge counts (auditable),
+        }
+
+    GROUNDED BY CONSTRUCTION: an entity with no captured grounding source is never emitted; a
+    causal link still obeys build_model_from_graph's grounding (world-edge or reality hypothesis).
+    An empty creature yields an empty world model (proven in the world selftest). Read-only on the
+    world/reality/meaning/LIRF stores; persists to its OWN store by default. Never raises."""
+    # (a) the causal layer — one sub-model per captured domain, unioned into typed causal links.
+    entities, relations = _gather_world_entities_and_relations(name)
+    causal_links: list = []
+    domains: list = []
+    seen_link = set()
+    for topic in _world_causal_topics(name):
+        try:
+            cm = build_model_from_graph(name, topic, persist=False)
+        except Exception:
+            continue
+        if not cm.get("edges"):
+            continue
+        domains.append(cm.get("topic", topic))
+        for ce in cm.get("edges", []):
+            lk = (ce["src"], ce["dst"], ce["relation"])
+            if lk in seen_link:
+                continue
+            seen_link.add(lk)
+            causal_links.append({
+                "id": _new_id("cl"), "src": ce["src"], "dst": ce["dst"],
+                "relation": ce["relation"], "confidence": ce["confidence"],
+                "support": ce.get("support", 1),
+                "sources": list(ce.get("sources", [])),
+                "evidence": list(ce.get("evidence", [])),
+                "domain": cm.get("topic", topic),
+            })
+            # (b) JOIN — every causal node must be a typed entity (create/upgrade as needed).
+            for node, other_pred in ((ce["src"], ""), (ce["dst"], "")):
+                nkey = _norm_node(node)
+                if not nkey:
+                    continue
+                if nkey not in entities:
+                    # classify a causal-only node: a reality candidate key types by its taxonomy;
+                    # otherwise by surface lexicon (STATE/TOPIC fallback). Grounded by the causal
+                    # edge's own evidence + source.
+                    is_rkey = SRC_REALITY_HYP in ce.get("sources", []) and node == ce["src"]
+                    etype = _classify_entity(str(node), reality_key=is_rkey)
+                    src_tag = (SRC_REALITY_HYP if SRC_REALITY_HYP in ce.get("sources", [])
+                               else SRC_WORLD_EDGE)
+                    prov = (ce.get("evidence", [None]) or [None])[0] or f"causal node: {nkey}"
+                    e = {"id": _entity_id(nkey), "type": etype, "key": nkey,
+                         "label": _label(nkey), "confidence": _clamp(ce["confidence"]),
+                         "provenance": [prov], "sources": [src_tag]}
+                    entities[nkey] = e
+
+    # finalise — index by type; tally grounding; drop any entity that ended ungrounded (defensive).
+    by_type: dict = {t: [] for t in ENTITY_TYPES}
+    grounding = {SRC_WORLD_EDGE: 0, SRC_REALITY_HYP: 0, SRC_LIRF_FACT: 0, SRC_COOCCURRENCE: 0}
+    final_entities = []
+    for key, e in entities.items():
+        grounded = [s for s in e.get("sources", [])
+                    if s in (SRC_WORLD_EDGE, SRC_REALITY_HYP, SRC_LIRF_FACT)]
+        if not grounded:
+            continue  # an entity with no captured grounding is never emitted (GROUNDED)
+        e["confidence"] = round(_clamp(e["confidence"]), 4)
+        final_entities.append(e)
+        by_type.setdefault(e["type"], []).append(e["key"])
+        for s in e.get("sources", []):
+            if s in grounding:
+                grounding[s] += 1
+    for cl in causal_links:
+        for s in cl.get("sources", []):
+            if s in grounding:
+                grounding[s] += 1
+    for wr in relations:
+        for s in wr.get("sources", []):
+            if s in grounding:
+                grounding[s] += 1
+    final_entities.sort(key=lambda x: (x["type"], x["key"]))
+    by_type = {t: sorted(v) for t, v in by_type.items() if v}
+
+    now = _now()
+    wm = {
+        "id": _new_id("wmworld"),
+        "version": VERSION,
+        "name": name,
+        "entities": final_entities,
+        "relations": relations,
+        "causal_links": causal_links,
+        "by_type": by_type,
+        "domains": sorted(dict.fromkeys(domains)),
+        "created": now,
+        "updated": now,
+        "internal_only": True,   # LAW 2 — Vera's private map of LAMAR's world; never asserted
+        "grounding": grounding,
+    }
+    if persist and (final_entities or causal_links):
+        _store_world_model(name, wm)
+    return wm
+
+
+# ===========================================================================
+# THE WORLD-MODEL STORE — a SEPARATE file from the per-domain causal-model store, holding the
+# coherent world models keyed by id, persisted ADDITIVELY (re-read + union by id), exactly the
+# world_state/reality continuity discipline.
+# ===========================================================================
+
+def world_store_path(name: str) -> Path:
+    """The coherent-world-model store for ``name`` — distinct from {name}.worldmodel.json (the
+    per-domain causal models). Holds the typed world models keyed by id."""
+    return STORE / f"{name}.worldmodel_world.json"
+
+
+def _load_world_store(name: str) -> dict:
+    d = load_json(world_store_path(name))
+    if not isinstance(d, dict):
+        return {"version": VERSION, "models": {}}
+    d.setdefault("models", {})
+    return d
+
+
+def _store_world_model(name: str, wm: dict) -> None:
+    """Persist ONE world model additively: re-read the on-disk store and union by id (ours wins for
+    its own id), so a concurrent writer's models are never dropped. Best-effort; a write failure is
+    swallowed (the in-memory model is still returned)."""
+    try:
+        STORE.mkdir(parents=True, exist_ok=True)
+        disk = _load_world_store(name)
+        models_d = disk.get("models", {})
+        if not isinstance(models_d, dict):
+            models_d = {}
+        models_d[wm["id"]] = wm
+        save_json(world_store_path(name), {"version": VERSION, "models": models_d})
+    except Exception:
+        pass
+
+
+def get_world_model(name: str, model_id: str) -> Optional[dict]:
+    """Load ONE world model by id, or None. Read-only; never raises."""
+    return _load_world_store(name).get("models", {}).get(model_id)
+
+
+def world_models(name: str) -> list:
+    """All stored world models for ``name`` (newest ``created`` last). Read-only; never raises."""
+    ms = list(_load_world_store(name).get("models", {}).values())
+    ms.sort(key=lambda m: m.get("created", ""))
+    return ms
+
+
+# ===========================================================================
+# RETRIEVAL — "facts become meaning" must be RETRIEVABLE. Pull a typed entity, the entities of a
+# type, the relations touching an entity, and the causal links — all read-only over a built model.
+# ===========================================================================
+
+def get_entity(wm: dict, key_or_id: str) -> Optional[dict]:
+    """One typed entity from a world model, by node key OR entity id. None if absent. Pure."""
+    if not isinstance(wm, dict):
+        return None
+    k = _norm_node(key_or_id)
+    for e in wm.get("entities", []) or []:
+        if e.get("key") == k or e.get("id") == key_or_id or e.get("key") == key_or_id:
+            return e
+    return None
+
+
+def entities_of_type(wm: dict, etype: str) -> list:
+    """Every entity of a given type (PERSON/PROJECT/GOAL/RESOURCE/RISK/CONSTRAINT/…). Pure."""
+    if not isinstance(wm, dict):
+        return []
+    return [e for e in wm.get("entities", []) or [] if e.get("type") == etype]
+
+
+def relations_of(wm: dict, key_or_id: str, *, include_causal: bool = True) -> list:
+    """Every edge (typed world relation + optionally causal link) touching an entity — its place
+    in the world. Read-only over the built model. Pure."""
+    if not isinstance(wm, dict):
+        return []
+    ent = get_entity(wm, key_or_id)
+    k = ent["key"] if ent else _norm_node(key_or_id)
+    out = [r for r in wm.get("relations", []) or [] if r.get("src") == k or r.get("dst") == k]
+    if include_causal:
+        out += [c for c in wm.get("causal_links", []) or [] if c.get("src") == k or c.get("dst") == k]
+    return out
+
+
+def causal_links(wm: dict) -> list:
+    """Every typed causal link in the world model (the causal-chain edges). Pure."""
+    if not isinstance(wm, dict):
+        return []
+    return list(wm.get("causal_links", []) or [])
+
+
+def world_causal_chains(wm: dict, max_chains: int = 6) -> list:
+    """The directed causal PATHS through the world model's causal links, longest first — the same
+    chain reconstruction ``causal_chains`` does, but over the world model's typed causal edges (so
+    the manager_change -> strain -> poor_sleep -> productivity through-line is recoverable from the
+    coherent world model, not just a single-domain causal model). Pure; never raises."""
+    return causal_chains({"edges": causal_links(wm),
+                          "nodes": sorted({c["src"] for c in causal_links(wm)}
+                                          | {c["dst"] for c in causal_links(wm)})},
+                         max_chains=max_chains)
+
+
+# ===========================================================================
+# explain_world_model — render the WORLD as understanding: the people/projects/goals/resources/
+# risks/constraints by type, the typed relations, and the causal through-lines with per-edge
+# provenance. INTERNAL model-state; every generated line passes the no-diagnosis clean-gate.
+# ===========================================================================
+
+_ENTITY_TYPE_LABEL = {
+    ENT_SELF: "the person themselves",
+    ENT_PERSON: "people in their world",
+    ENT_PROJECT: "the work / projects",
+    ENT_GOAL: "what they're reaching for",
+    ENT_RESOURCE: "what they rely on",
+    ENT_RISK: "what's weighing on them",
+    ENT_CONSTRAINT: "what bounds them",
+    ENT_STATE: "states they're in",
+    ENT_TOPIC: "other things on their mind",
+}
+
+_WORLD_REL_PHRASE = {
+    REL_RELATES_TO: "is connected to",
+    REL_WORKS_ON: "is working on",
+    REL_PURSUES: "is reaching for",
+    REL_RELIES_ON: "relies on",
+    REL_THREATENS: "is a risk to",
+    REL_BOUNDS: "bounds",
+}
+
+_WORLD_EXPLAIN_HEADER = (
+    "WHAT YOU UNDERSTAND ABOUT THEIR WHOLE WORLD — an INTERNAL, TYPED map of their life.\n"
+    "  This is YOUR private picture of who and what is in their world and how it connects —\n"
+    "  never to be stated at them as fact, never a diagnosis, never \"your manager is causing\n"
+    "  your insomnia.\" It only helps you understand them; it is never a claim to assert."
+)
+
+
+def explain_world_body(wm: dict) -> str:
+    """The GENERATED lines of a world model's explanation — entities by type, typed relations, and
+    the causal through-lines with their evidence — WITHOUT the fixed framing legend. Every line
+    passes the no-diagnosis clean-gate; this is the body a no-diagnosis assertion inspects
+    (mirroring explain_body / reality.render_body). "" for an empty world model. Pure."""
+    if not isinstance(wm, dict) or not (wm.get("entities") or wm.get("causal_links")):
+        return ""
+
+    def clean(s: str) -> str:
+        return _safe_statement(s, "(an internal model note)")
+
+    out = []
+    out.append(clean(
+        f"[MODEL] their world: {len(wm.get('entities', []))} entities, "
+        f"{len(wm.get('relations', []))} relations, {len(wm.get('causal_links', []))} causal links"))
+
+    # entities by type (only the types actually present).
+    out.append("")
+    out.append("  [NODE] who & what is in their world (by kind):")
+    by_type = wm.get("by_type", {})
+    for etype in ENTITY_TYPES:
+        keys = by_type.get(etype)
+        if not keys:
+            continue
+        label = _ENTITY_TYPE_LABEL.get(etype, etype)
+        out.append(clean(f"    • {label}: " + ", ".join(_label(k) for k in keys)))
+
+    # typed non-causal relations.
+    rels = wm.get("relations", []) or []
+    if rels:
+        out.append("")
+        out.append("  [LINK] how they relate:")
+        seen = set()
+        for r in rels:
+            sig = (r.get("src"), r.get("type"), r.get("dst"))
+            if sig in seen:
+                continue
+            seen.add(sig)
+            verb = _WORLD_REL_PHRASE.get(r.get("type"), "relates to")
+            out.append(clean(f"    • {_label(r.get('src'))} {verb} {_label(r.get('dst'))}"
+                             f"   [{r.get('type')}, {float(r.get('confidence', 0)):.2f}]"))
+            for ev in (r.get("evidence", []) or [])[:1]:
+                out.append(f"        ↳ {ev}")
+
+    # the causal through-lines + each link with its evidence.
+    links = causal_links(wm)
+    if links:
+        chains = world_causal_chains(wm)
+        out.append("")
+        out.append("  [CHAIN] how things drive each other (longest first):")
+        for ch in chains:
+            out.append(clean(f"    • {_chain_sentence(ch)}   (mean confidence {_mean_conf(ch):.2f})"))
+        out.append("")
+        out.append("  [CAUSE] each causal link, with the evidence it rests on:")
+        for e in sorted(links, key=lambda x: (-float(x["confidence"]), x["src"])):
+            verb = _REL_PHRASE.get(e["relation"], "connects to")
+            out.append(clean(
+                f"    • {_label(e['src'])} --[{e['relation']}, {float(e['confidence']):.2f}]--> "
+                f"{_label(e['dst'])}   ({_label(e['src'])} {verb} {_label(e['dst'])})"))
+            for ev in e.get("evidence", [])[:2]:
+                out.append(f"        ↳ {ev}")
+    return "\n".join(out)
+
+
+def explain_world_model(name: Optional[str] = None, model_id: Optional[str] = None,
+                        wm: Optional[dict] = None) -> str:
+    """Render a coherent world model READABLY — entities by type, typed relations, and the causal
+    through-lines with per-edge provenance. INTERNAL model-state: the GENERATED lines
+    (``explain_world_body``) pass the no-diagnosis clean-gate, framed as understanding-FOR-VERA,
+    NEVER a claim to assert at the user. Pass a loaded ``wm`` directly, or ``name``+``model_id``.
+    Returns "" for an unknown/empty model. Read-only; never raises."""
+    if wm is None and name is not None and model_id is not None:
+        wm = get_world_model(name, model_id)
+    body = explain_world_body(wm)
+    if not body:
+        return ""
+    return f"{_WORLD_EXPLAIN_HEADER}\n\n{body}"
+
+
+def render_world(name: str) -> str:
+    """Human-readable audit of every stored coherent world model for ``name`` — the typed map +
+    its grounding. The world counterpart to ``render``. Uses the GENERATED body (not the
+    forbidding legend) so the whole audit is itself clean-gated. Read-only; never raises."""
+    ms = world_models(name)
+    out = [f"The coherent world model {name} holds about your world (INTERNAL model-state — never "
+           f"spoken, never asserted at the user): {len(ms)}"]
+    if not ms:
+        out.append("  (no world model built yet — it emerges from your captured facts; an")
+        out.append("   ungrounded entity or link is never fabricated)")
+        return "\n".join(out)
+    for m in ms:
+        out.append("")
+        out.append(f"  WORLD [{m.get('id')}]  entities={len(m.get('entities', []))}  "
+                   f"relations={len(m.get('relations', []))}  "
+                   f"causal_links={len(m.get('causal_links', []))}  grounded_by={m.get('grounding')}")
+        for ln in explain_world_body(m).splitlines():
+            out.append("    " + ln)
+    return "\n".join(out)
+
+
+# Extend the scaffold-token set so the mouth's leak-scrub learns this layer's one new framing
+# phrase (the [MODEL]/[CAUSE]/[CHAIN]/[NODE] tags are already covered above).
+WORLD_MODEL_SCAFFOLD_TOKENS = tuple(dict.fromkeys(
+    WORLD_MODEL_SCAFFOLD_TOKENS + ("WHAT YOU UNDERSTAND ABOUT THEIR WHOLE WORLD",)))
+
+
+# ===========================================================================
+# SYNTHETIC PROOF (WORLD) — the canonical manager -> stress -> poor_sleep -> productivity world,
+# built from a stated world graph + reality's competing hypotheses + LIRF facts, as TYPED
+# entities + typed relations + typed causal links. Hermetic by the caller's STORE redirect.
+# ===========================================================================
+
+def build_synthetic_world(name: str) -> dict:
+    """Build the canonical WORLD model end to end against whatever STORE is bound, entirely from
+    GROUNDED captured facts — the manager -> stress -> poor_sleep -> productivity chain as a chain
+    of TYPED entities, plus the people/projects/goals/resources/risks/constraints around it:
+
+      * SEED THE WORLD GRAPH with the stated situation the user actually said — the new manager,
+        the stress affecting sleep, sleep leading to low productivity, the project ("the launch"),
+        a stated goal, a money worry (a RISK), the deadline (a CONSTRAINT), the employer (a
+        RESOURCE, via a LIRF fact).
+      * SEED + RESOLVE THE REALITY LOOP — the Day-1 change -> competing stress hypotheses
+        (manager_change leading) + the sleep_decline prediction, resolved Day-14.
+      * BUILD the coherent world model: typed entities + typed relations + typed causal links.
+
+    Returns ``{world, world_seeded, reality_resolved, lirf_seeded}`` so a caller can assert the
+    typed chain reconstructs with provenance. Never raises."""
+    out = {"world": {}, "world_seeded": False, "reality_resolved": False, "lirf_seeded": False}
+
+    # --- (1) seed the WORLD graph with the stated situation (grounded typed edges) --------------
+    if _HAVE_WORLD and _world is not None:
+        try:
+            _world.capture_relations(name, "my work's been really stressful because of my new manager")
+            _world.capture_relations(name, "honestly the stress is affecting my sleep")
+            _world.relate(name, "sleep", "leads_to", "low productivity", kind="inference")
+            _world.relate(name, "you", "stressed_by", "work", kind="problem")
+            # the people/projects/goals/resources/risks/constraints around the chain (all stated):
+            _world.relate(name, "you", "has", "manager", kind="relationship")     # a PERSON
+            _world.relate(name, "you", "working_toward", "ship the launch", kind="goal")  # a GOAL
+            _world.relate(name, "you", "worried_about", "money", kind="problem")  # a RISK
+            _world.relate(name, "you", "works_on", "the launch", kind="fact")     # a PROJECT
+            _world.relate(name, "the launch", "bounded_by", "the deadline", kind="fact")
+            _world.relate(name, "you", "stressed_by", "the deadline", kind="problem")  # a CONSTRAINT
+            out["world_seeded"] = True
+        except Exception:
+            pass
+
+    # --- (1b) a LIRF fact: the employer (a RESOURCE Lamar relies on). The module-level capture()
+    # does extract + MERGE + save (Facts.capture only RETURNS candidates), so the employer row is
+    # actually persisted and surfaces as a RESOURCE entity grounded by SRC_LIRF_FACT. -------------
+    try:
+        from . import memory_lirf as _lirf
+        rows = _lirf.capture(name, "I work at Collatio")   # employer -> a grounded RESOURCE entity
+        out["lirf_seeded"] = bool(rows)
+    except Exception:
+        pass
+
+    # --- (2) seed + resolve the REALITY loop -----------------------------------------------------
+    if _HAVE_REALITY and _reality is not None:
+        try:
+            _reality.form(name, "my manager just changed and work's been heavy lately",
+                          at=_SYNTH_DAY1)
+            _reality.resolve(name, "honestly I've barely slept the last two weeks",
+                             at=_reality._add_days(_SYNTH_DAY1, 14))
+            out["reality_resolved"] = True
+        except Exception:
+            pass
+
+    # --- (3) BUILD the coherent world model ------------------------------------------------------
+    out["world"] = build_world_model(name)
+    return out
+
+
 # ===========================================================================
 # SELF-TEST — run directly: `python3 -m anima.world_model`. No model, no network; FULLY HERMETIC —
 # redirects EVERY engine STORE the build path could write (world_model.STORE on BOTH __main__ +
@@ -1442,6 +2241,181 @@ def _selftest() -> int:
             print("       (raised:", repr(e), ")")
         ok("robust: garbage/None inputs are handled without raising", not crashed)
 
+        # ============================================================================
+        # WORLD UNDERSTANDING PROOF — the coherent TYPED world model: typed entities + typed
+        # relations + typed causal links, all grounded, with the manager -> stress -> sleep ->
+        # productivity chain reconstructed as a chain of TYPED entities with per-edge provenance.
+        # ============================================================================
+        wname = "wm_world_" + secrets.token_hex(3)
+        wbuilt = build_synthetic_world(wname)
+        world = wbuilt["world"]
+
+        ok("WORLD seed: world graph + reality loop + LIRF fact were seeded for the proof",
+           wbuilt["world_seeded"] and wbuilt["reality_resolved"])
+        ok("WORLD BUILD: a non-empty TYPED world model was constructed",
+           isinstance(world, dict) and len(world.get("entities", [])) > 1
+           and len(world.get("causal_links", [])) > 0)
+        ok("WORLD BUILD: the model is flagged internal_only (LAW 2 — never asserted at the user)",
+           world.get("internal_only") is True)
+
+        ents = {e["key"]: e for e in world.get("entities", [])}
+        by_type = world.get("by_type", {})
+
+        def _typed(key):
+            e = ents.get(_norm_node(key))
+            return e["type"] if e else None
+
+        # --- TYPED ENTITIES: every required entity TYPE is present + grounded ---------------------
+        ok("WORLD ENTITIES: Lamar himself is the SELF hub entity",
+           any(e["type"] == ENT_SELF for e in world.get("entities", [])))
+        ok("WORLD ENTITIES: a PERSON entity exists (a person in his world)",
+           bool(by_type.get(ENT_PERSON)))
+        ok("WORLD ENTITIES: a GOAL entity exists (what he's reaching for)",
+           bool(by_type.get(ENT_GOAL)))
+        ok("WORLD ENTITIES: a RISK entity exists (what's weighing on him — e.g. money)",
+           bool(by_type.get(ENT_RISK)))
+        ok("WORLD ENTITIES: a STATE entity exists (strain / poor sleep)",
+           bool(by_type.get(ENT_STATE)))
+        # a RESOURCE entity grounded by a LIRF fact (the employer) — the fourth grounding source.
+        ok("WORLD ENTITIES: a RESOURCE entity exists, grounded by a LIRF fact (the employer)",
+           wbuilt["lirf_seeded"] and bool(by_type.get(ENT_RESOURCE))
+           and any(SRC_LIRF_FACT in e.get("sources", [])
+                   for e in entities_of_type(world, ENT_RESOURCE)))
+        ok("WORLD GROUNDED: the LIRF-fact grounding source fired (employer captured as a value)",
+           world.get("grounding", {}).get(SRC_LIRF_FACT, 0) >= 1)
+        # the manager_change driver is typed as a PERSON-change (grounded by the reality key).
+        ok("WORLD ENTITIES: manager_change is typed PERSON (grounded by its reality key)",
+           _typed("manager_change") == ENT_PERSON)
+        # the money worry is a RISK (grounded by the 'worried_about'/problem kind).
+        ok("WORLD ENTITIES: money is typed RISK (grounded by the worry it was captured under)",
+           _typed("money") == ENT_RISK)
+
+        # --- EVERY entity is GROUNDED (cites captured fact(s) + a grounding source) ---------------
+        ok("WORLD GROUNDED: EVERY entity carries at least one provenance fact",
+           all(len(e.get("provenance", [])) >= 1 for e in world.get("entities", [])))
+        ok("WORLD GROUNDED: EVERY entity carries a captured grounding source (world/reality/LIRF)",
+           all(any(s in (SRC_WORLD_EDGE, SRC_REALITY_HYP, SRC_LIRF_FACT)
+                   for s in e.get("sources", [])) for e in world.get("entities", [])))
+        ok("WORLD GROUNDED: the model records a per-source grounding tally (auditable)",
+           isinstance(world.get("grounding"), dict)
+           and world["grounding"].get(SRC_REALITY_HYP, 0) >= 1)
+
+        # --- TYPED RELATIONS: the non-causal bonds (person<->Lamar, Lamar->goal) ------------------
+        rel_sigs = {(r["src"], r["type"], r["dst"]) for r in world.get("relations", [])}
+        rel_types = {r["type"] for r in world.get("relations", [])}
+        ok("WORLD RELATIONS: a RELATES_TO bond connects a person to Lamar",
+           REL_RELATES_TO in rel_types
+           and any(t == REL_RELATES_TO and d == "you" for (_s, t, d) in rel_sigs))
+        ok("WORLD RELATIONS: a PURSUES bond connects Lamar to a goal",
+           any(t == REL_PURSUES and s == "you" for (s, t, _d) in rel_sigs))
+        ok("WORLD RELATIONS: every typed relation cites its evidence",
+           all(len(r.get("evidence", [])) >= 1 for r in world.get("relations", [])))
+
+        # --- THE CAUSAL CHAIN, end to end, over TYPED entities, with provenance -------------------
+        wlinks = causal_links(world)
+
+        def _wedge(src, dst):
+            return next((c for c in wlinks if c["src"] == src and c["dst"] == dst), None)
+
+        # the four hops of the canonical chain (each grounded; each between typed entities).
+        e_mgr = _wedge("manager_change", "strain")
+        e_sleep = _wedge("strain", "poor_sleep")
+        ok("WORLD CHAIN: manager_change --causes/contributes--> strain link exists",
+           e_mgr is not None)
+        ok("WORLD CHAIN: strain --worsens--> poor_sleep link exists",
+           e_sleep is not None)
+        # the through-line spans multiple typed hops (reasoning ACROSS the chain).
+        wchains = world_causal_chains(world)
+        wlongest = wchains[0] if wchains else []
+        ok("WORLD CHAIN: a multi-hop causal through-line exists over the world model (>= 3 links)",
+           bool(wlongest) and len(wlongest) >= 3)
+        ok("WORLD CHAIN: the through-line runs from an upstream driver to a downstream consequence",
+           bool(wlongest)
+           and ("manager" in wlongest[0]["src"] or "work" in wlongest[0]["src"]
+                or "strain" in wlongest[0]["src"])
+           and ("sleep" in wlongest[-1]["dst"] or "productivity" in wlongest[-1]["dst"]
+                or "energy" in wlongest[-1]["dst"]))
+        # EVERY hop in the chain is between two TYPED entities (not bare strings).
+        ok("WORLD CHAIN: every node in the through-line is a TYPED entity in the model",
+           bool(wlongest)
+           and all(_norm_node(h["src"]) in ents and _norm_node(h["dst"]) in ents for h in wlongest))
+        # EVERY causal link carries its provenance (the captured fact it rests on).
+        ok("WORLD CHAIN: every causal link carries at least one concrete provenance fact",
+           all(len(c.get("evidence", [])) >= 1 for c in wlinks))
+        ok("WORLD CHAIN: every causal link carries a captured grounding source",
+           all(any(s in (SRC_WORLD_EDGE, SRC_REALITY_HYP) for s in c.get("sources", []))
+               for c in wlinks))
+        # the manager_change link is grounded in a reality hypothesis specifically.
+        ok("WORLD CHAIN: the manager_change link is grounded in a reality competing hypothesis",
+           bool(e_mgr) and SRC_REALITY_HYP in e_mgr.get("sources", []))
+
+        # --- RETRIEVAL: facts-become-meaning is retrievable --------------------------------------
+        ok("WORLD RETRIEVE: get_entity returns a typed entity by key",
+           (get_entity(world, "manager_change") or {}).get("type") == ENT_PERSON)
+        ok("WORLD RETRIEVE: entities_of_type lists entities of a kind",
+           len(entities_of_type(world, ENT_STATE)) >= 1)
+        ok("WORLD RETRIEVE: relations_of returns the edges touching an entity",
+           len(relations_of(world, "strain")) >= 1)
+
+        # --- THE NEGATIVE PROOF — an EMPTY creature yields an EMPTY world model (never invent) ----
+        empty_name = "wm_world_empty_" + secrets.token_hex(3)
+        empty_world = build_world_model(empty_name, persist=False)
+        ok("WORLD UNGROUNDED: a creature with no captured facts yields ZERO entities + ZERO links",
+           len(empty_world.get("entities", [])) == 0
+           and len(empty_world.get("causal_links", [])) == 0)
+        # the classifier never over-types: a bare unknown node stays TOPIC/STATE, never a PERSON.
+        ok("WORLD UNGROUNDED: an unknown bare node is under-typed (TOPIC/STATE), never a PERSON",
+           _classify_entity("zorblax") == ENT_TOPIC
+           and _classify_entity("xyzzy") == ENT_TOPIC)
+
+        # --- explain_world_model: readable, INTERNAL, clean-gated --------------------------------
+        wblock = explain_world_model(wm=world)
+        wbody = explain_world_body(world)
+        ok("WORLD explain: produces a non-empty typed-world rendering", bool(wblock.strip()))
+        ok("WORLD explain: names it INTERNAL + shows the entity/relation/cause sections",
+           "INTERNAL, TYPED map" in wblock and "[NODE]" in wblock
+           and "[CAUSE]" in wblock and "[CHAIN]" in wblock)
+        ok("WORLD NO-DIAGNOSIS GATE: not one GENERATED body line trips a banned term",
+           all(_is_clean(ln) for ln in wbody.splitlines()))
+        ok("WORLD NO-DIAGNOSIS: the header that NAMES 'diagnosis' to forbid it is fixed framing",
+           not _is_clean(_WORLD_EXPLAIN_HEADER) and "diagnosis" in wblock.lower())
+        ok("WORLD INTERNAL-ONLY: the explanation forbids asserting the world model at the user",
+           "never to be stated at" in wblock and "never a claim to assert" in wblock)
+
+        # --- persistence: the world model round-trips, additively --------------------------------
+        wloaded = get_world_model(wname, world.get("id", ""))
+        ok("WORLD persist: the built world model round-trips through its own store",
+           wloaded is not None and wloaded.get("id") == world.get("id")
+           and len(wloaded.get("entities", [])) == len(world.get("entities", [])))
+        ok("WORLD additive: the world model wrote ONLY its own .worldmodel_world.json store",
+           world_store_path(wname).exists())
+
+        # --- render_world(name): the audit surface lists the world model + grounding --------------
+        wrep = render_world(wname)
+        ok("WORLD render: audits the stored world model with entities + grounding",
+           "coherent world model" in wrep and "entities=" in wrep and "grounded_by" in wrep)
+        ok("WORLD NO-DIAGNOSIS GATE: render_world emits no banned term either",
+           all(_is_clean(ln) for ln in wrep.splitlines()))
+
+        # --- ROBUSTNESS: garbage inputs to the world surface never raise -------------------------
+        try:
+            build_world_model("", persist=False)
+            build_world_model(None, persist=False)
+            get_entity(None, "x")
+            get_entity({}, None)
+            entities_of_type(None, ENT_PERSON)
+            relations_of({"entities": None}, "x")
+            world_causal_chains({})
+            explain_world_model(wm={"entities": []})
+            explain_world_model(name="nobody", model_id="x")
+            _classify_entity(None)
+            _classify_entity("")
+            wcrashed = False
+        except Exception as e:  # noqa: BLE001
+            wcrashed = True
+            print("       (world raised:", repr(e), ")")
+        ok("WORLD robust: garbage/None inputs are handled without raising", not wcrashed)
+
     finally:
         for fp in glob.glob(str(_tp / "wm_*")) + glob.glob(str(_tp / "*")):
             try:
@@ -1463,6 +2437,9 @@ def _selftest() -> int:
        fp_before == fp_after)
     ok("HERMETIC: no synthetic world-model store leaked into real .anima",
        (not real.is_dir()) or not any(real.glob("wm_*")))
+    # the coherent-world store (.worldmodel_world.json) must not have leaked either.
+    ok("HERMETIC: no synthetic coherent-world store leaked into real .anima",
+       (not real.is_dir()) or not any(real.glob("wm_world_*")))
 
     print()
     if fails:

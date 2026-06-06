@@ -240,13 +240,19 @@ def _obj_to_text(obj: dict) -> str:
     if not isinstance(obj, dict):
         return str(obj)
     parts = []
-    for k in ("name", "domain", "definition"):
+    # scalar human-meaningful fields across ALL object types (skill/concept + the 6 added in
+    # the COGNITIVE OBJECT TYPES section): the type-specific anchors a query matches on.
+    for k in ("name", "domain", "definition", "subject", "condition", "action",
+              "expectation", "applies_when", "fails_when", "decision", "trigger",
+              "symptom", "consequence", "mitigation", "target"):
         v = obj.get(k)
         if v:
             parts.append(str(v))
+    # list fields across ALL object types — flattened into the searchable/countable text.
     for k in ("inputs", "steps", "outputs", "prerequisites", "related", "examples",
               "common_misunderstandings", "inputs_needed", "tools_needed",
-              "failure_modes"):
+              "failure_modes", "criteria", "entities", "relations", "dynamics",
+              "evidence", "options", "weights"):
         v = obj.get(k)
         if isinstance(v, list):
             parts.extend(str(x) for x in v)
@@ -1510,6 +1516,669 @@ def lineage(skill_or_id, name: str = "default") -> dict:
 
 
 # ===================================================================================
+# COGNITIVE OBJECT TYPES (additive) — six MORE first-class kinds of externalized cognition,
+# each climbing the SAME verification ladder and carrying the SAME provenance spine as a SKILL.
+# Where a SKILL is "how to DO a thing", these capture the other shapes of reusable intelligence
+# a small model otherwise has to re-derive from a stuffed prompt every turn:
+#
+#   * HEURISTIC       — a rule of thumb: condition -> usual action/expectation, + when it applies
+#                       and (critically) when it FAILS. Cheap, fast, fallible-on-purpose.
+#   * DECISION_PATTERN— how a choice is made: inputs -> weighted criteria -> a typical decision,
+#                       grounded by worked examples so the reasoning is inspectable, not asserted.
+#   * MENTAL_MODEL    — how a DOMAIN OF REALITY behaves: entities + relations + dynamics (a small
+#                       causal/structural model you can read, the anti-black-box of "understanding").
+#   * FAILURE_MODE    — how something BREAKS: trigger -> symptom -> consequence -> mitigation. The
+#                       same first-class status skills already give their own failure_modes, lifted
+#                       to a standalone, retrievable object about the world/a task.
+#   * PREFERENCE      — what MATTERS to THE USER (Lamar) or a task: a ranked/weighted preference
+#                       with evidence. NEVER Vera's own preference (see the FREEZE GUARD below).
+#   * VALUE           — what should be OPTIMIZED for THE USER or a task: an objective + evidence.
+#                       NEVER Vera's own value-system (FREEZE GUARD).
+#
+# PROVENANCE SPINE — every one answers the same five questions a skill does, by reusing `_spine`
+# plus an optional `taught_by` (who taught it) and the same `history`/`revised_at` versioning:
+#   where-from  -> source ;  who-taught -> taught_by ;  what-tests -> support[] / failure_modes[] ;
+#   when-revised-> revised_at / history ;  why-active -> support[] (the gate line that activated it).
+#
+# STATE LADDER + GATE — identical discipline: only ACTIVE objects retrieve; a candidate climbs
+# candidate -> verified (schema + unit + grounded-contract + regression, via `promote_object`)
+# -> active (a measured benchmark win, via `activate_object`). The gate machinery is the skill
+# gate, generalized over `type` — NOT a fork: `_phase_unit`, the confidence math, the REFUSAL
+# invariants are reused verbatim; only the per-type CONTRACT (what a faithful render must engage)
+# is parameterized. (ATTACHES: the runtime router / certify wrap these exactly as for skills.)
+#
+# FREEZE BOUNDARY ("build the mind, leave the self alone"): these objects model the USER / the
+# WORLD / a TASK. They NEVER model Vera's own values, preferences, goals, agency, self-model or
+# identity. A module-level FREEZE GUARD (`_assert_not_self_referential`) hard-REFUSES to store any
+# PREFERENCE or VALUE whose subject is Vera herself — proven in the selftest. The #1 product rule
+# stands: nothing here lets Vera confabulate an inner life.
+# ===================================================================================
+
+# The new type tags. Kept as constants so callers/tests never hard-code the string and a typo
+# is a NameError, not a silently-unretrievable object. (SKILL/CONCEPT/PROCEDURE keep their inline
+# "skill"/"concept"/"procedure" tags for back-compat with every store already on disk.)
+HEURISTIC = "heuristic"
+DECISION_PATTERN = "decision_pattern"
+MENTAL_MODEL = "mental_model"
+FAILURE_MODE = "failure_mode"
+PREFERENCE = "preference"
+VALUE = "value"
+
+# The six added types, as a frozenset — used by the generic surface to validate a `want_type`
+# and by introspection. SKILL/CONCEPT/PROCEDURE are the pre-existing trio, kept separate.
+OBJECT_TYPES = frozenset({HEURISTIC, DECISION_PATTERN, MENTAL_MODEL, FAILURE_MODE,
+                          PREFERENCE, VALUE})
+# The types the FREEZE GUARD polices for self-reference (user/task-facing ONLY, never Vera's own).
+SELF_GUARDED_TYPES = frozenset({PREFERENCE, VALUE})
+
+
+# --- THE FREEZE GUARD: refuse any self-referential PREFERENCE / VALUE -------------------------
+# The single most important invariant in this section. PREFERENCE and VALUE are about THE USER or
+# a TASK; a PREFERENCE/VALUE whose SUBJECT is Vera herself would be the system minting Vera an
+# inner value-system — exactly what the freeze forbids ("build the mind, leave the self alone";
+# the #1 product rule that nothing may confabulate Vera an inner life). We detect self-reference
+# on the declared `subject` (and, defensively, the name text) and REFUSE at store time — the object
+# never reaches disk.
+#
+# THE LINE THE GUARD DRAWS — holder, not topic. The violation is VERA CAST AS THE HOLDER/AGENT of a
+# preference/value/goal, NOT Vera merely appearing as the THING the USER has an opinion about:
+#   REFUSED  "Vera values X" / "Vera prefers Y" / "Vera's goal is Z" / "I value X" / "my own tone"
+#            (Vera, or a first-person self, is the one valuing — an inner value-system)
+#   ALLOWED  "Lamar prefers Vera to be concise" / "Vera's reply length" (subject is a neutral,
+#            external attribute the USER holds an opinion about; the holder is the user, not Vera)
+# Deterministic, offline, conservative. Three signals, each meaning "Vera is the valuer":
+_SELF_NAMES = frozenset({"vera", "anima"})           # Vera's own names
+_FIRST_PERSON = frozenset({"i", "me", "my", "myself", "mine"})  # first person == the speaker (Vera)
+# value-SYSTEM nouns — the inner-life vocabulary. A self-name possessing one of THESE ("Vera's
+# goal", "Vera's values") is self-referential; a self-name possessing a neutral attribute ("Vera's
+# reply length") is not. `own` is included because "Vera's OWN X" is explicitly self-attributing.
+_VALUE_SYSTEM_NOUN = (r"own|value|values|preference|preferences|pref|prefs|goal|goals|agency|"
+                      r"identity|self|selves|personality|belief|beliefs|desire|desires|want|wants|"
+                      r"wish|wishes|opinion|opinions|feeling|feelings|like|likes|dislike|dislikes|"
+                      r"taste|tastes|principle|principles|objective|objectives|priorities|priority")
+# A self-name (or first person) cast as the SUBJECT OF A VALUING PREDICATE — catches free text /
+# the `name` even when there is no clean `subject` head (e.g. "vera prefers brevity").
+_SELF_PHRASE = re.compile(
+    r"\b(vera|anima|i|me|my|myself|mine)\b[^.;\n]{0,40}\b(" + _VALUE_SYSTEM_NOUN +
+    r"|valu\w*|prefer\w*|car(?:e|es|ing)|believ\w*)\b", re.I)
+# A self-name in the POSSESSIVE immediately followed by a value-system noun ("vera's own goal").
+_SELF_POSSESSIVE = re.compile(r"^(vera|anima)\b['’]?s?\s+(" + _VALUE_SYSTEM_NOUN + r")\b", re.I)
+
+
+def is_self_referential_subject(subject, *, name_hint: str = "") -> bool:
+    """True iff `subject` casts VERA HERSELF as the HOLDER of the preference/value (so storing it
+    would breach the freeze). Returns True when the subject's head is a first-person pronoun
+    (i/me/my/myself — the speaker, i.e. Vera, is the valuer), or a bare self-name standing alone
+    (subject IS 'vera'/'anima'), or a self-name possessing a value-SYSTEM noun ("Vera's own goal",
+    "Vera's values"), or any self-/first-person VALUING-PREDICATE framing in the subject or
+    `name_hint` ("Vera prefers ...", "I value ..."). Returns False when Vera appears only as the
+    TOPIC of a USER-held opinion ("Vera's reply length", "Lamar prefers Vera to be concise") — that
+    is the user's preference about a tool and is ALLOWED. Deterministic; never raises."""
+    if not subject:
+        return False
+    s = str(subject).strip().lower()
+    head = re.split(r"[\s'’]", s, 1)[0].strip("'’\"")
+    # 1) first-person head -> the valuer is the speaker (Vera). "my reply length" is Vera's own.
+    if head in _FIRST_PERSON:
+        return True
+    # 2) the subject IS a bare self-name (the holder itself, no external attribute).
+    if s in _SELF_NAMES:
+        return True
+    # 3) a self-name possessing a value-SYSTEM noun ("vera's own ...", "vera's goal/values/...").
+    if _SELF_POSSESSIVE.search(s):
+        return True
+    # 4) a self-/first-person VALUING-PREDICATE framing in the subject OR the name hint.
+    if _SELF_PHRASE.search(s) or (name_hint and _SELF_PHRASE.search(str(name_hint).lower())):
+        return True
+    return False
+
+
+class FreezeViolation(ValueError):
+    """Raised when something tries to store a PREFERENCE/VALUE about Vera herself. A hard stop, not
+    a warning: the freeze boundary is non-negotiable, so the object is refused before it can persist."""
+
+
+def _assert_not_self_referential(obj: dict) -> None:
+    """FREEZE GUARD enforcement. For a PREFERENCE/VALUE, REFUSE (raise FreezeViolation) if its
+    subject — or its framing — is Vera herself. A no-op for every other type and for user/task-facing
+    preferences/values. This is the choke point every store path funnels through, so there is exactly
+    one place the freeze is enforced and it cannot be bypassed by minting the dict by hand."""
+    if not isinstance(obj, dict) or obj.get("type") not in SELF_GUARDED_TYPES:
+        return
+    subj = obj.get("subject", "")
+    if is_self_referential_subject(subj, name_hint=obj.get("name", "")):
+        raise FreezeViolation(
+            f"REFUSED (freeze boundary): a {obj.get('type')} about Vera herself "
+            f"(subject={subj!r}) — preferences/values are the USER's or a task's, never Vera's "
+            f"own. 'Build the mind, leave the self alone.'")
+
+
+# --- SCHEMA: the six factories. Each returns a JSON-round-trippable dict carrying the full
+#     verification spine via `_spine` (exactly like make_skill), plus a `taught_by` provenance
+#     slot. The PREFERENCE/VALUE factories run the FREEZE GUARD at mint time too, so even a
+#     hand-built self-referential one is refused before it can be stored. ------------------------
+
+def make_heuristic(name, domain, condition, action, *, expectation="", applies_when=None,
+                   fails_when=None, confidence=CONF_SEED, source="hand-built", state=CANDIDATE,
+                   taught_by="", support=None, failure_modes=None, id=None) -> dict:
+    """A HEURISTIC: a rule of thumb. `condition` -> `action` (with an optional `expectation` of the
+    usual result), tagged with `applies_when` (the regimes it holds in) and `fails_when` (where it
+    breaks — first-class, because a heuristic without its failure envelope is a trap). It is fast and
+    fallible BY DESIGN; the ladder is what keeps a bad one out of the served set."""
+    obj = {
+        "id": id or _new_id("heur"),
+        "type": HEURISTIC,
+        "name": str(name),
+        "domain": str(domain),
+        "condition": str(condition),
+        "action": str(action),
+        "expectation": str(expectation or ""),
+        "applies_when": list(applies_when or []),
+        "fails_when": list(fails_when or []),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    return obj
+
+
+def make_decision_pattern(name, domain, *, inputs=None, criteria=None, decision="",
+                          examples=None, confidence=CONF_SEED, source="hand-built",
+                          state=CANDIDATE, taught_by="", support=None, failure_modes=None,
+                          id=None) -> dict:
+    """A DECISION_PATTERN: how a choice is made. `inputs` feed weighted `criteria` (each a dict like
+    {"criterion","weight"} or a plain string) that yield a typical `decision`, with worked `examples`
+    so the pattern is falsifiable against real cases, not a just-so story. This models how a DECISION
+    is reached (the USER's or a task's) — never Vera's own agency."""
+    obj = {
+        "id": id or _new_id("decpat"),
+        "type": DECISION_PATTERN,
+        "name": str(name),
+        "domain": str(domain),
+        "inputs": list(inputs or []),
+        "criteria": list(criteria or []),
+        "decision": str(decision or ""),
+        "examples": list(examples or []),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    return obj
+
+
+def make_mental_model(name, domain, *, entities=None, relations=None, dynamics=None,
+                      definition="", confidence=CONF_SEED, source="hand-built", state=CANDIDATE,
+                      taught_by="", support=None, failure_modes=None, id=None) -> dict:
+    """A MENTAL_MODEL: how a domain of reality behaves — a small causal/structural model of
+    `entities`, the `relations` among them, and the `dynamics` (how it changes / what drives what).
+    The anti-black-box of 'understanding a domain': you can read the model, not just trust an opaque
+    intuition. Models the WORLD, never Vera's self-model."""
+    obj = {
+        "id": id or _new_id("model"),
+        "type": MENTAL_MODEL,
+        "name": str(name),
+        "domain": str(domain),
+        "definition": str(definition or ""),
+        "entities": list(entities or []),
+        "relations": list(relations or []),
+        "dynamics": list(dynamics or []),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    return obj
+
+
+def make_failure_mode(name, domain, trigger, symptom, *, consequence="", mitigation="",
+                      confidence=CONF_SEED, source="hand-built", state=CANDIDATE, taught_by="",
+                      support=None, failure_modes=None, id=None) -> dict:
+    """A FAILURE_MODE (standalone, retrievable): how something breaks. `trigger` -> `symptom` ->
+    `consequence`, with a `mitigation`. Same first-class status a skill gives its own failure_modes,
+    lifted to an object about the world/a task you can retrieve on its own ('how does X go wrong')."""
+    obj = {
+        "id": id or _new_id("failmode"),
+        "type": FAILURE_MODE,
+        "name": str(name),
+        "domain": str(domain),
+        "trigger": str(trigger),
+        "symptom": str(symptom),
+        "consequence": str(consequence or ""),
+        "mitigation": str(mitigation or ""),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    return obj
+
+
+def make_preference(subject, *, domain="user", weight=0.5, options=None, evidence=None,
+                    name="", confidence=CONF_SEED, source="hand-built", state=CANDIDATE,
+                    taught_by="", support=None, failure_modes=None, id=None) -> dict:
+    """A PREFERENCE — what matters to THE USER (Lamar) or a TASK: a `subject` the user cares about,
+    a `weight` (how strongly), an optional ranked `options` list, and `evidence` (why we believe it).
+    FREEZE GUARD: refuses outright (FreezeViolation) if `subject` is Vera herself — a preference is
+    the USER's or a task's, never Vera's own. `name` defaults to 'prefers: <subject>'."""
+    obj = {
+        "id": id or _new_id("pref"),
+        "type": PREFERENCE,
+        "name": str(name or f"prefers: {subject}"),
+        "domain": str(domain or "user"),
+        "subject": str(subject),
+        "weight": float(weight),
+        "options": list(options or []),
+        "evidence": list(evidence or []),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    _assert_not_self_referential(obj)           # mint-time freeze enforcement (defence in depth)
+    return obj
+
+
+def make_value(target, *, domain="user", weight=0.5, evidence=None, name="",
+               confidence=CONF_SEED, source="hand-built", state=CANDIDATE, taught_by="",
+               support=None, failure_modes=None, id=None) -> dict:
+    """A VALUE — what should be OPTIMIZED for THE USER or a TASK: a `target` (the optimization
+    objective), a `weight` (its priority), and `evidence`. FREEZE GUARD: refuses (FreezeViolation)
+    if `target` denotes Vera's own value-system — a value here is the USER's or a task's objective,
+    NEVER Vera's. `name` defaults to 'values: <target>'. (`subject` mirrors `target` so the guard
+    and retrieval anchor on the same field as PREFERENCE.)"""
+    obj = {
+        "id": id or _new_id("value"),
+        "type": VALUE,
+        "name": str(name or f"values: {target}"),
+        "domain": str(domain or "user"),
+        "subject": str(target),                 # the guard + searcher key off `subject` uniformly
+        "target": str(target),
+        "weight": float(weight),
+        "evidence": list(evidence or []),
+        "taught_by": str(taught_by or ""),
+    }
+    obj.update(_spine(source, confidence, state, support, failure_modes))
+    _assert_not_self_referential(obj)
+    return obj
+
+
+# --- GENERIC SURFACE: store / retrieve / explain / verify, one implementation over all six new
+#     types. Built on the SAME `_upsert` / `_retrieve` / `_get` primitives the skill surface uses
+#     (so retrieval is the identical deterministic keyword match, active-only). Not a fork: the
+#     skill surface stays as-is; this serves the new types through the same machinery. -----------
+
+def store_object(obj: dict, name: str = "default") -> dict:
+    """Persist any of the six new cognitive objects (from a make_* factory or a hand-built dict),
+    replacing on id. Runs the FREEZE GUARD first, so a self-referential PREFERENCE/VALUE is REFUSED
+    here too (the single choke point — even a dict minted by hand cannot bypass it). Returns the
+    stored object. Idempotent on id; mirrors store_skill."""
+    if not isinstance(obj, dict) or obj.get("type") not in OBJECT_TYPES:
+        raise ValueError(f"store_object: type must be one of {sorted(OBJECT_TYPES)}, "
+                         f"got {(obj or {}).get('type')!r} (use store_skill for skills)")
+    _assert_not_self_referential(obj)           # FREEZE GUARD — the enforced boundary
+    if "id" not in obj:
+        prefix = {HEURISTIC: "heur", DECISION_PATTERN: "decpat", MENTAL_MODEL: "model",
+                  FAILURE_MODE: "failmode", PREFERENCE: "pref", VALUE: "value"}[obj["type"]]
+        obj = {**obj, "id": _new_id(prefix)}
+    return _upsert(name, obj)
+
+
+def retrieve_objects(query: str, want_type: str, *, domain=None, limit=5,
+                     name: str = "default") -> list:
+    """The most relevant ACTIVE objects of `want_type` for `query` — the SAME deterministic
+    keyword/domain retrieval skills use (active-only; candidate/verified/deprecated/rejected are
+    never served). `want_type` must be one of the six new types."""
+    if want_type not in OBJECT_TYPES:
+        raise ValueError(f"retrieve_objects: want_type must be one of {sorted(OBJECT_TYPES)}")
+    return _retrieve(name, query, want_type, domain=domain, limit=limit)
+
+
+# Per-type convenience retrievers (parity with retrieve_skills/retrieve_concepts), so a caller
+# reads intent at the call-site. Each is the generic retriever pinned to one type.
+def retrieve_heuristics(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, HEURISTIC, domain=domain, limit=limit, name=name)
+
+
+def retrieve_decision_patterns(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, DECISION_PATTERN, domain=domain, limit=limit, name=name)
+
+
+def retrieve_mental_models(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, MENTAL_MODEL, domain=domain, limit=limit, name=name)
+
+
+def retrieve_failure_modes(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, FAILURE_MODE, domain=domain, limit=limit, name=name)
+
+
+def retrieve_preferences(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, PREFERENCE, domain=domain, limit=limit, name=name)
+
+
+def retrieve_values(query, *, domain=None, limit=5, name="default") -> list:
+    return retrieve_objects(query, VALUE, domain=domain, limit=limit, name=name)
+
+
+# What each type must render INTO PROSE to be inspectable. (label, [fields]) — scalar fields shown
+# inline, list fields bulleted. This is the per-type analogue of explain_skill's hand-rolled body,
+# table-driven so one explain() serves all six without a fork.
+_EXPLAIN_FIELDS = {
+    HEURISTIC: [("WHEN (condition)", "condition"), ("THEN (action)", "action"),
+                ("EXPECT", "expectation"), ("APPLIES WHEN", "applies_when"),
+                ("FAILS WHEN", "fails_when")],
+    DECISION_PATTERN: [("INPUTS", "inputs"), ("CRITERIA (weighted)", "criteria"),
+                       ("TYPICAL DECISION", "decision"), ("WORKED EXAMPLES", "examples")],
+    MENTAL_MODEL: [("WHAT IT IS", "definition"), ("ENTITIES", "entities"),
+                   ("RELATIONS", "relations"), ("DYNAMICS", "dynamics")],
+    FAILURE_MODE: [("TRIGGER", "trigger"), ("SYMPTOM", "symptom"),
+                   ("CONSEQUENCE", "consequence"), ("MITIGATION", "mitigation")],
+    PREFERENCE: [("SUBJECT (the USER's)", "subject"), ("WEIGHT", "weight"),
+                 ("RANKED OPTIONS", "options"), ("EVIDENCE", "evidence")],
+    VALUE: [("OPTIMIZE FOR (the USER's/task's)", "target"), ("WEIGHT", "weight"),
+            ("EVIDENCE", "evidence")],
+}
+
+
+def explain_object(obj_or_id, want_type=None, name: str = "default") -> str:
+    """Render any of the six new objects as INSPECTABLE prose — the anti-black-box property, the
+    whole reason these live in a ledger and not a weight. Shows the type-specific contract fields
+    plus the full provenance spine (state/confidence/source/who-taught/when-verified). Accepts an
+    id or the object. Mirrors explain_skill."""
+    obj = _get(name, obj_or_id) if isinstance(obj_or_id, str) else obj_or_id
+    if not obj:
+        return f"(no object {obj_or_id!r})"
+    t = obj.get("type")
+    if t not in OBJECT_TYPES:
+        return f"(object {obj.get('id')} is type {t!r}, not one of the six new types)"
+    L = [f"{t.upper().replace('_', ' ')}: {obj.get('name')}   [{obj.get('domain')}]"]
+    L.append(f"  id={obj.get('id')}  state={obj.get('state')}  "
+             f"confidence={obj.get('confidence')}  source={obj.get('source')}")
+    lv = obj.get("last_verified")
+    L.append(f"  last_verified={lv or 'never'}  taught_by={obj.get('taught_by') or 'unspecified'}"
+             f"  support={len(obj.get('support', []))}")
+    for label, field in _EXPLAIN_FIELDS[t]:
+        v = obj.get(field)
+        if isinstance(v, list):
+            if v:
+                L.append(f"  {label}:")
+                for x in v:
+                    L.append(f"    - {x}")
+        elif v not in (None, ""):
+            L.append(f"  {label}: {v}")
+    if obj.get("failure_modes"):
+        L.append("  FAILURE MODES (what to watch for):")
+        for fm in obj["failure_modes"]:
+            L.append(f"    - {fm}")
+    return "\n".join(L)
+
+
+def provenance(obj_or_id, name: str = "default") -> dict:
+    """Answer the five provenance questions for ANY cognitive object (the six new types AND skills):
+    where-from / who-taught / what-tests / when-revised / why-active. Reads only recorded fields —
+    provenance is what was logged, never reconstructed. The uniform 'how do we know this?' query."""
+    obj = _get(name, obj_or_id) if isinstance(obj_or_id, str) else obj_or_id
+    if not obj:
+        return {"error": f"no object {obj_or_id!r}"}
+    support = list(obj.get("support", []))
+    why_active = next((s for s in reversed(support)
+                       if s.startswith(("activated:", "gate:verified", "verify:"))), None)
+    return {
+        "id": obj.get("id"),
+        "type": obj.get("type"),
+        "name": obj.get("name"),
+        "state": obj.get("state"),
+        "where_from": obj.get("source", "unspecified"),       # where-from
+        "who_taught": obj.get("taught_by") or "unspecified",   # who-taught
+        "what_tests": {"support": support,                     # what-tests (evidence it earned)
+                       "failure_modes": list(obj.get("failure_modes", []))},
+        "when_revised": obj.get("revised_at") or obj.get("last_verified"),  # when-revised
+        "why_active": why_active,                              # why-active (the gate/verify line)
+        "revisions": len(obj.get("history", [])),
+    }
+
+
+def verify_object(obj_id, test_cases, name: str = "default") -> dict:
+    """FALSIFY any of the six new objects against (input -> expected) cases, recording the result on
+    its spine — the SAME ledger mechanics as verify_skill (a pass climbs confidence and lifts a
+    candidate to VERIFIED; a fail marks it REJECTED with the failing case recorded). Reused, not
+    forked: identical check semantics. Returns {passed, failed, total, state}."""
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"passed": 0, "failed": 0, "total": 0, "state": None, "error": "no such object"}
+    passed, failed, fails = 0, 0, []
+    for tc in (test_cases or []):
+        ok = False
+        try:
+            chk = tc.get("check")
+            inp = tc.get("input")
+            if callable(chk):
+                ok = bool(chk(inp))
+            elif "expected" in tc:
+                exp = tc["expected"]
+                ok = (exp == inp) or (isinstance(inp, (list, str, dict)) and exp in inp)
+            else:
+                ok = chk is not None and (chk == inp or (hasattr(inp, "__contains__") and chk in inp))
+        except Exception as e:
+            ok = False
+            fails.append({"input": tc.get("input"), "error": str(e)})
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+            if not fails or fails[-1].get("input") != tc.get("input"):
+                fails.append({"input": tc.get("input"), "expected": tc.get("expected")})
+    total = passed + failed
+    if total and failed == 0:
+        obj["confidence"] = min(CONF_CEIL, float(obj.get("confidence", 0.5))
+                                + (CONF_CEIL - float(obj.get("confidence", 0.5))) * 0.34)
+        obj["last_verified"] = _now()
+        if obj.get("state") == CANDIDATE:
+            obj["state"] = VERIFIED
+        obj.setdefault("support", []).append(f"verify:{total}-cases:{_now()}")
+    elif total and failed:
+        obj["state"] = REJECTED
+        obj["failure_modes"] = list(obj.get("failure_modes", [])) + [
+            f"failed verify on input={f.get('input')!r}" for f in fails[:3]]
+    _upsert(name, obj)
+    return {"passed": passed, "failed": failed, "total": total, "state": obj.get("state")}
+
+
+# --- THE GATE, GENERALIZED — candidate -> verified -> active for the six new types. Reuses the
+#     skill gate's phases and invariants (the SAME `_phase_unit`, the SAME confidence math, the
+#     SAME hard refusal that a candidate can never jump to active). Only the per-type CONTRACT —
+#     which fields must be present, and what a faithful render must engage — is parameterized. ----
+
+# The required contract fields per type (the analogue of skill's inputs/steps/outputs). A type with
+# a missing/empty required field cannot be verified against a contract it doesn't have, so the
+# schema phase rejects it — exactly as check_schema rejects a contract-less skill.
+_REQUIRED_FIELDS = {
+    HEURISTIC: ["condition", "action"],
+    DECISION_PATTERN: ["criteria", "decision"],
+    MENTAL_MODEL: ["entities", "dynamics"],
+    FAILURE_MODE: ["trigger", "symptom"],
+    PREFERENCE: ["subject", "evidence"],
+    VALUE: ["target", "evidence"],
+}
+
+
+def check_object_schema(obj: dict) -> dict:
+    """PHASE 1 — SCHEMA, for the six new types. The object is a known type, carries its type-specific
+    required contract fields (non-empty), AND the full verification spine — so it is inspectable and
+    falsifiable at all. Mirrors check_schema for skills; {ok, reasons}."""
+    reasons = []
+    if not isinstance(obj, dict):
+        return {"ok": False, "reasons": ["not a dict"]}
+    t = obj.get("type")
+    if t not in OBJECT_TYPES:
+        return {"ok": False, "reasons": [f"type {t!r} is not one of the six new object types"]}
+    for field in ("name", "domain"):
+        if not obj.get(field):
+            reasons.append(f"missing/empty {field}")
+    for field in _REQUIRED_FIELDS[t]:
+        v = obj.get(field)
+        if v in (None, "", [], {}):
+            reasons.append(f"missing/empty contract field {field!r} (required for {t})")
+    for field in ("state", "confidence", "source", "support", "failure_modes"):
+        if field not in obj:
+            reasons.append(f"missing spine field {field}")
+    if obj.get("state") not in STATES:
+        reasons.append(f"state {obj.get('state')!r} is not a known ladder state")
+    # the freeze boundary is a SCHEMA-level invariant for guarded types: a self-referential
+    # preference/value is structurally illegal here, never merely discouraged.
+    if t in SELF_GUARDED_TYPES and is_self_referential_subject(obj.get("subject", ""),
+                                                               name_hint=obj.get("name", "")):
+        reasons.append("FREEZE: subject is Vera herself — preferences/values are the user's/task's")
+    return {"ok": not reasons, "reasons": reasons}
+
+
+def _obj_topic_terms(obj: dict) -> set:
+    """The TOPIC ANCHOR for a new object — the words that say what it is ABOUT (name + domain +
+    its primary subject field). The per-type analogue of _topic_terms; the strongest on-topic signal
+    a render must engage."""
+    primary = ("subject", "target", "condition", "trigger", "definition")
+    anchor = obj.get("name", "").replace("_", " ") + "  " + str(obj.get("domain", ""))
+    for f in primary:
+        if obj.get(f):
+            anchor += "  " + str(obj.get(f))
+    return _kw(anchor)
+
+
+def verify_object_render(obj: dict, rendered: str, *, inputs: dict | None = None) -> dict:
+    """GROUNDED PHASE for the new types — check a rendered answer against the object's contract,
+    never rubber-stamping. PASS iff the render is (a) substantive, (b) ON-TOPIC (engages the
+    object's subject anchor or >=2 of its content terms), and (c) GROUNDED (no number/date that the
+    given `inputs` never contained). The exact discipline of verify_rendered_output, anchored on
+    these types' fields. Returns {ok, reasons[], on_topic}."""
+    reasons = []
+    if not isinstance(rendered, str) or not rendered.strip():
+        return {"ok": False, "reasons": ["empty render"], "on_topic": False}
+    topic = _obj_topic_terms(obj)
+    content = topic | _kw(_obj_to_text(obj))
+    got = _kw(rendered)
+    topic_hit = topic & got
+    content_hit = content & got
+    on_topic = bool(topic_hit) or (len(content_hit) >= 2)
+    if count_tokens(rendered) < 8:
+        reasons.append("render too short to be a real answer")
+    if content and not on_topic:
+        reasons.append(f"render is off-topic / non-responsive (subject touched={bool(topic_hit)}, "
+                       f"hits {len(content_hit)} content term(s) — needs the anchor OR >=2 terms)")
+    if inputs:
+        src_nums = set(re.findall(r"\d+", " ".join(str(v) for v in inputs.values())))
+        invented = sorted(set(re.findall(r"\d+", rendered)) - src_nums)
+        if invented:
+            reasons.append(f"fabricated figure(s) {invented} not present in the inputs (ungrounded)")
+    return {"ok": not reasons, "reasons": reasons, "on_topic": on_topic}
+
+
+def _obj_phase_adversarial(obj: dict, adversarial=None) -> dict:
+    """PHASE 3 — ADVERSARIAL for the new types. Hand the grounded verifier deliberately BAD renders
+    and REQUIRE each to FAIL (an empty answer, an off-topic answer, a fabricated-figure answer), so a
+    verifier that always says 'ok' cannot itself pass the gate. Mirrors _phase_adversarial."""
+    bad = list(adversarial or [
+        {"why": "empty answer", "render": "", "inputs": None},
+        {"why": "off-topic answer",
+         "render": "The weather today is sunny and pleasant with a light breeze.", "inputs": None},
+        {"why": "fabricated figure not in the inputs",
+         "render": "The figure is 99999 and the date is the 31st, per the data.",
+         "inputs": {"note": "no figures or dates were given in the source"}},
+    ])
+    reasons, caught = [], 0
+    for case in bad:
+        res = verify_object_render(obj, case.get("render", ""), inputs=case.get("inputs"))
+        if res["ok"]:
+            reasons.append(f"adversarial NOT caught ({case.get('why')}): verifier passed a bad render")
+        else:
+            caught += 1
+    return {"ok": not reasons, "reasons": reasons, "caught": caught, "total": len(bad)}
+
+
+def _obj_phase_regression(obj: dict, name: str) -> dict:
+    """PHASE 4 — REGRESSION for the new types: promoting this object must not collide with an
+    already-ACTIVE object of the SAME type and name under a different id (which would make retrieval
+    ambiguous). Deterministic, store-backed. Mirrors _phase_regression. {ok, reasons}."""
+    reasons = []
+    nm, t = obj.get("name", ""), obj.get("type")
+    others = [o for o in _load_objects(name)
+              if o.get("type") == t and o.get("state") in RETRIEVABLE_STATES
+              and o.get("name") == nm and o.get("id") != obj.get("id")]
+    if others:
+        reasons.append(f"name {nm!r} already active under a different id "
+                       f"{[o.get('id') for o in others]} — would make retrieval ambiguous")
+    return {"ok": not reasons, "reasons": reasons}
+
+
+def promote_object(obj_id, test_cases=None, *, adversarial=None, name: str = "default") -> dict:
+    """RUN THE GATE for a new-type object: candidate -> verified, iff schema + unit + adversarial +
+    regression ALL pass. The ONLY sanctioned path from candidate to verified, identical in structure
+    to promote_skill (and reusing `_phase_unit` verbatim). On full pass: VERIFIED + confidence climbs
+    + a support line. On ANY failure: REJECTED with the failing phase recorded (kept on disk —
+    provenance, never deletion). Returns {ok, state, phases:{schema,unit,adversarial,regression}}."""
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"ok": False, "state": None, "phases": {}, "error": "no such object"}
+    if obj.get("type") not in OBJECT_TYPES:
+        return {"ok": False, "state": obj.get("state"), "phases": {},
+                "error": f"promote_object is for the six new types; {obj.get('type')!r} is not one"}
+    phases = {
+        "schema": check_object_schema(obj),
+        "unit": _phase_unit(obj, test_cases),           # REUSED from the skill gate, verbatim
+        "adversarial": _obj_phase_adversarial(obj, adversarial),
+        "regression": _obj_phase_regression(obj, name),
+    }
+    all_ok = all(p.get("ok") for p in phases.values())
+    if all_ok:
+        obj["confidence"] = min(CONF_CEIL, float(obj.get("confidence", CONF_CANDIDATE))
+                                + (CONF_CEIL - float(obj.get("confidence", CONF_CANDIDATE))) * 0.34)
+        obj["last_verified"] = _now()
+        if obj.get("state") == CANDIDATE:
+            obj["state"] = VERIFIED
+        obj.setdefault("support", []).append(f"gate:verified:{_now()}")
+    else:
+        obj["state"] = REJECTED
+        failed = [k for k, p in phases.items() if not p.get("ok")]
+        why = "; ".join(r for k in failed for r in phases[k].get("reasons", []))
+        obj["failure_modes"] = list(obj.get("failure_modes", [])) + [
+            f"gate REJECTED at [{', '.join(failed)}]: {why}"[:300]]
+    _upsert(name, obj)
+    return {"ok": all_ok, "state": obj.get("state"), "phases": phases}
+
+
+def activate_object(obj_id, benchmark, *, name: str = "default",
+                    min_ratio: float = ACTIVATION_MIN_RATIO) -> dict:
+    """THE FINAL DOOR for a new-type object: verified -> active, ONLY on a MEASURED benchmark win.
+    Identical invariant to activate_skill: a candidate (unverified) is REFUSED outright; a verified
+    object activates iff the measured `benchmark['ratio']` clears `min_ratio`. The ratio must be a
+    real measurement the caller hands in — never invented here. Returns {ok, state, ratio, reason}."""
+    obj = _get(name, obj_id) if isinstance(obj_id, str) else obj_id
+    if not obj:
+        return {"ok": False, "state": None, "ratio": None, "reason": "no such object"}
+    if obj.get("type") not in OBJECT_TYPES:
+        return {"ok": False, "state": obj.get("state"), "ratio": None,
+                "reason": f"activate_object is for the six new types; {obj.get('type')!r} is not one"}
+    state = obj.get("state")
+    if state == ACTIVE:
+        return {"ok": True, "state": ACTIVE, "ratio": None, "reason": "already active"}
+    if state != VERIFIED:
+        return {"ok": False, "state": state, "ratio": None,
+                "reason": f"REFUSED: only a VERIFIED object may activate (this is {state!r}); "
+                          "run promote_object first"}
+    ratio = float((benchmark or {}).get("ratio") or 0.0)
+    if ratio < float(min_ratio):
+        return {"ok": False, "state": VERIFIED, "ratio": ratio,
+                "reason": f"REFUSED: measured ratio {ratio} < required {min_ratio} — stays verified"}
+    obj["state"] = ACTIVE
+    obj["last_verified"] = _now()
+    obj["confidence"] = min(CONF_CEIL, max(float(obj.get("confidence", 0.5)), CONF_SEED))
+    obj.setdefault("support", []).append(
+        f"activated:ratio={round(ratio, 1)}x>=min{min_ratio}:{_now()}")
+    _upsert(name, obj)
+    return {"ok": True, "state": ACTIVE, "ratio": ratio,
+            "reason": f"promoted: measured {round(ratio, 1)}x compression >= {min_ratio}x floor"}
+
+
+def all_objects(want_type: str, *, name: str = "default", include_nonactive=False) -> list:
+    """Every stored object of `want_type` (ACTIVE only unless include_nonactive). The new-type
+    analogue of all_skills; used by introspection/tests. `want_type` must be one of the six."""
+    if want_type not in OBJECT_TYPES:
+        raise ValueError(f"all_objects: want_type must be one of {sorted(OBJECT_TYPES)}")
+    return [o for o in _load_objects(name) if o.get("type") == want_type
+            and (include_nonactive or o.get("state") in RETRIEVABLE_STATES)]
+
+
+# ===================================================================================
 # SELFTEST — `python3 -m anima.lerf --selftest`. FULLY HERMETIC: a SYNTHETIC creature in
 # a throwaway temp store, with EVERY store the load path may write redirected for the whole
 # block — lerf.STORE on BOTH the __main__ and package bindings, constitution.STORE (the
@@ -1961,6 +2630,239 @@ def _selftest() -> int:
         ok("compile: no-match -> honest candidate naming the gap (not confabulated)",
            miss["state"] == CANDIDATE and miss["confidence"] == 0.0
            and "No active skill" in miss["steps"][0])
+
+        # === THE SIX NEW COGNITIVE OBJECT TYPES ======================================
+        # Each: store -> retrieve (active-only) -> explain (inspectable) -> verify (ladder) ->
+        # provenance answerable. Plus the gate (candidate->verified->active + refusals) and the
+        # FREEZE GUARD (refuses any PREFERENCE/VALUE about Vera herself). Same machinery as skills.
+
+        # --- factories produce the full spine + the type-specific contract + taught_by -----
+        for mk, fields in (
+            (make_heuristic("h", "d", "cond", "act"), ("condition", "action")),
+            (make_decision_pattern("dp", "d", criteria=["c"], decision="x"), ("criteria", "decision")),
+            (make_mental_model("mm", "d", entities=["e"], dynamics=["dy"]), ("entities", "dynamics")),
+            (make_failure_mode("fm", "d", "trig", "symp"), ("trigger", "symptom")),
+            (make_preference("the user's coffee", evidence=["said so"]), ("subject", "evidence")),
+            (make_value("the user's sleep", evidence=["said so"]), ("target", "evidence"))):
+            for f in ("id", "type", "state", "confidence", "source", "support",
+                      "failure_modes", "taught_by"):
+                ok(f"newtype[schema/{mk['type']}]: has {f}", f in mk)
+            for f in fields:
+                ok(f"newtype[schema/{mk['type']}]: has contract field {f}", mk.get(f) not in (None, "", []))
+        ok("newtype[schema]: the six types are the documented set",
+           OBJECT_TYPES == {HEURISTIC, DECISION_PATTERN, MENTAL_MODEL, FAILURE_MODE,
+                            PREFERENCE, VALUE})
+
+        # --- HEURISTIC: store/retrieve/explain/verify, active-only -------------------
+        store_object(make_heuristic(
+            "ship_when_tests_green", "engineering",
+            condition="the hermetic selftest exits zero and the diff is additive",
+            action="ship the change behind the existing freeze",
+            expectation="no regression in the 114 baseline checks",
+            applies_when=["additive changes", "a green selftest"],
+            fails_when=["a change that mutates shared state", "a red or skipped test"],
+            taught_by="Lamar", state=ACTIVE,
+            failure_modes=["shipping on a flaky green"]), name=nm)
+        store_object(make_heuristic("inactive_heur", "misc", "x", "y",
+                                    state=CANDIDATE, id="heur_cand"), name=nm)
+        gh = retrieve_heuristics("when should I ship this engineering change", name=nm)
+        ok("newtype[heuristic]: retrieves the matching active heuristic",
+           gh and gh[0]["name"] == "ship_when_tests_green")
+        ok("newtype[heuristic]: a candidate heuristic is NEVER served",
+           all(h["state"] == ACTIVE for h in retrieve_heuristics("inactive", name=nm)))
+        eh = explain_object(gh[0]["id"], name=nm)
+        ok("newtype[heuristic]: explain shows condition+action+fails-when (inspectable)",
+           "WHEN (condition)" in eh and "THEN (action)" in eh and "FAILS WHEN" in eh)
+        vh = verify_object(gh[0]["id"], [{"input": 1, "check": lambda x: x == 1}], name=nm)
+        ok("newtype[heuristic]: verify climbs the ladder (pass)", vh["passed"] == vh["total"] == 1)
+
+        # --- DECISION_PATTERN: weighted criteria + worked examples -------------------
+        store_object(make_decision_pattern(
+            "choose_a_laptop", "purchasing",
+            inputs=["budget", "primary workload", "portability need"],
+            criteria=[{"criterion": "performance per dollar", "weight": 0.4},
+                      {"criterion": "battery life", "weight": 0.35},
+                      {"criterion": "weight", "weight": 0.25}],
+            decision="pick the option with the highest weighted score within budget",
+            examples=["budget $1500, dev workload -> the 14-inch with 32GB beat the cheaper 16GB"],
+            taught_by="Lamar", state=ACTIVE), name=nm)
+        gd = retrieve_decision_patterns("how do I decide which laptop to buy", name=nm)
+        ok("newtype[decision_pattern]: retrieves the matching active pattern",
+           gd and gd[0]["name"] == "choose_a_laptop")
+        ed = explain_object(gd[0]["id"], name=nm)
+        ok("newtype[decision_pattern]: explain shows weighted criteria + worked examples",
+           "CRITERIA (weighted)" in ed and "WORKED EXAMPLES" in ed and "performance per dollar" in ed)
+
+        # --- MENTAL_MODEL: entities + relations + dynamics ---------------------------
+        store_object(make_mental_model(
+            "supply_and_demand", "economics",
+            definition="how price emerges from the interaction of supply and demand",
+            entities=["buyers", "sellers", "price", "quantity"],
+            relations=["higher price -> lower quantity demanded",
+                       "higher price -> higher quantity supplied"],
+            dynamics=["a shortage pushes price up until the market clears",
+                      "a surplus pushes price down until the market clears"],
+            taught_by="Lamar", state=ACTIVE), name=nm)
+        gm = retrieve_mental_models("how does price work in a market", name=nm)
+        ok("newtype[mental_model]: retrieves the matching active model",
+           gm and gm[0]["name"] == "supply_and_demand")
+        em = explain_object(gm[0]["id"], name=nm)
+        ok("newtype[mental_model]: explain shows entities+relations+dynamics (a readable model)",
+           "ENTITIES" in em and "RELATIONS" in em and "DYNAMICS" in em and "market clears" in em)
+
+        # --- FAILURE_MODE: trigger -> symptom -> consequence -> mitigation -----------
+        store_object(make_failure_mode(
+            "thundering_herd", "distributed-systems",
+            trigger="many cached clients expire and retry the origin at the same instant",
+            symptom="a sudden synchronized spike of requests to the backend",
+            consequence="the origin overloads and latency or errors cascade",
+            mitigation="jittered backoff plus request coalescing at the cache",
+            taught_by="Lamar", state=ACTIVE), name=nm)
+        gf = retrieve_failure_modes("why does my backend get a synchronized request spike", name=nm)
+        ok("newtype[failure_mode]: retrieves the matching active failure mode",
+           gf and gf[0]["name"] == "thundering_herd")
+        ef = explain_object(gf[0]["id"], name=nm)
+        ok("newtype[failure_mode]: explain shows trigger/symptom/consequence/mitigation",
+           "TRIGGER" in ef and "SYMPTOM" in ef and "CONSEQUENCE" in ef and "MITIGATION" in ef)
+
+        # --- PREFERENCE (THE USER's) -------------------------------------------------
+        store_object(make_preference(
+            "concise replies over verbose ones", domain="user", weight=0.85,
+            options=["one tight paragraph", "a short bulleted list", "a long essay"],
+            evidence=["Lamar repeatedly asks to 'cut it down'",
+                      "Lamar praised the shortest summary in the batch"],
+            taught_by="Lamar", state=ACTIVE), name=nm)
+        gp = retrieve_preferences("how does the user like replies formatted", name=nm)
+        ok("newtype[preference]: retrieves the matching active USER preference",
+           gp and gp[0]["subject"] == "concise replies over verbose ones")
+        ep = explain_object(gp[0]["id"], name=nm)
+        ok("newtype[preference]: explain shows the USER's subject + weight + evidence",
+           "SUBJECT (the USER's)" in ep and "EVIDENCE" in ep and "WEIGHT" in ep)
+
+        # --- VALUE (THE USER's optimization target) ----------------------------------
+        store_object(make_value(
+            "maximize Lamar's deep-work hours per week", domain="user", weight=0.9,
+            evidence=["Lamar protects mornings for building",
+                      "Lamar declines meetings that fragment the day"],
+            taught_by="Lamar", state=ACTIVE), name=nm)
+        gv = retrieve_values("what should we optimize for the user's schedule", name=nm)
+        ok("newtype[value]: retrieves the matching active USER value",
+           gv and gv[0]["target"] == "maximize Lamar's deep-work hours per week")
+        ev = explain_object(gv[0]["id"], name=nm)
+        ok("newtype[value]: explain shows the USER's optimization target + evidence",
+           "OPTIMIZE FOR (the USER's/task's)" in ev and "EVIDENCE" in ev)
+
+        # --- PROVENANCE: every new object answers where-from/who-taught/what-tests/... -----
+        pv = provenance(gp[0]["id"], name=nm)
+        ok("newtype[provenance]: answers who-taught (the source of the preference)",
+           pv["who_taught"] == "Lamar")
+        ok("newtype[provenance]: answers where-from + what-tests + state",
+           pv["where_from"] == "hand-built" and isinstance(pv["what_tests"]["support"], list)
+           and pv["state"] == ACTIVE)
+        pvh = provenance(gh[0]["id"], name=nm)
+        ok("newtype[provenance]: a verified object's why-active/when-revised is populated",
+           pvh["when_revised"] is not None
+           and any("verify" in s for s in pvh["what_tests"]["support"]))
+
+        # --- THE FREEZE GUARD: a PREFERENCE/VALUE about VERA HERSELF is REFUSED -------
+        _self_refused = 0
+        for _factory, _kwarg in ((make_preference, "subject"), (make_value, "target")):
+            try:
+                _factory(**{_kwarg: "Vera's own tone"}, evidence=["x"])
+                ok(f"newtype[FREEZE]: a Vera-self {_factory.__name__} is REFUSED at mint", False)
+            except FreezeViolation:
+                _self_refused += 1
+                ok(f"newtype[FREEZE]: a Vera-self {_factory.__name__} is REFUSED at mint", True)
+        # the store path refuses a hand-built self-referential dict too (the choke point).
+        _vera_pref = {"id": "pref_vera", "type": PREFERENCE, "name": "vera prefers brevity",
+                      "domain": "self", "subject": "Vera prefers brevity", "weight": 0.5,
+                      "options": [], "evidence": ["x"], "taught_by": "", "state": CANDIDATE,
+                      "confidence": 0.5, "source": "test", "support": [], "failure_modes": []}
+        try:
+            store_object(_vera_pref, name=nm)
+            ok("newtype[FREEZE]: store_object REFUSES a hand-built Vera-self preference", False)
+        except FreezeViolation:
+            ok("newtype[FREEZE]: store_object REFUSES a hand-built Vera-self preference", True)
+        ok("newtype[FREEZE]: the refused Vera-self preference NEVER reached disk",
+           _get(nm, "pref_vera") is None)
+        ok("newtype[FREEZE]: first-person 'my values' framing is detected self-referential",
+           is_self_referential_subject("my own values") and is_self_referential_subject("I value X"))
+        # a USER preference that merely MENTIONS Vera as the OBJECT is ALLOWED (not self-held).
+        _allowed = make_preference("Vera's reply length should stay short", domain="user",
+                                   evidence=["Lamar said so"], name="user wants short Vera replies")
+        ok("newtype[FREEZE]: a USER preference ABOUT Vera (held by Lamar) is ALLOWED",
+           _allowed["type"] == PREFERENCE and not is_self_referential_subject(_allowed["subject"]))
+
+        # --- THE GATE for new types: candidate -> verified -> active + refusals -------
+        store_object(make_heuristic(
+            "cache_hot_keys", "performance", id="heur_gate", state=CANDIDATE,
+            condition="a small set of keys serves most reads",
+            action="cache those hot keys in memory with a short TTL",
+            expectation="a large drop in backend read load",
+            applies_when=["skewed key access"], fails_when=["uniform access", "write-heavy keys"],
+            failure_modes=["stale reads if TTL too long"]), name=nm)
+        ok("newtype[gate/schema]: a full-contract object passes the schema check",
+           check_object_schema(_get(nm, "heur_gate"))["ok"])
+        ok("newtype[gate/schema]: an object missing a contract field fails the schema check",
+           not check_object_schema(make_heuristic("x", "d", "", ""))["ok"])
+        # GROUNDED verifier: on-topic faithful render passes; fabricated-figure render FAILS.
+        ok("newtype[gate/grounded]: a faithful on-topic render passes the verifier",
+           verify_object_render(_get(nm, "heur_gate"),
+                                "Cache the hot keys in memory with a short TTL to cut backend "
+                                "read load when access is skewed.")["ok"])
+        ok("newtype[gate/grounded]: a fabricated-figure render FAILS (no rubber-stamp)",
+           not verify_object_render(_get(nm, "heur_gate"),
+                                    "Cache the hot keys to cut load by 12345 requests per second.",
+                                    inputs={"note": "no figures were given"})["ok"])
+        adv_o = _obj_phase_adversarial(_get(nm, "heur_gate"))
+        ok("newtype[gate/adversarial]: every deliberately-bad render is caught",
+           adv_o["ok"] and adv_o["caught"] == adv_o["total"] and adv_o["total"] >= 3)
+        repo = promote_object("heur_gate",
+                              test_cases=[{"input": "k", "check": lambda x: x == "k"}], name=nm)
+        ok("newtype[gate]: a candidate that passes ALL four phases becomes VERIFIED",
+           repo["ok"] and repo["state"] == VERIFIED
+           and all(repo["phases"][p]["ok"] for p in ("schema", "unit", "adversarial", "regression")))
+        ok("newtype[gate]: a VERIFIED-but-unbenchmarked object is NOT yet retrievable",
+           all(o["id"] != "heur_gate" for o in retrieve_heuristics("cache hot keys", name=nm)))
+        # HARD REFUSAL: a still-CANDIDATE object cannot jump straight to ACTIVE.
+        store_object(make_value("a task's throughput", id="value_unproven", state=CANDIDATE,
+                                evidence=["x"]), name=nm)
+        ref_o = activate_object("value_unproven", {"ratio": 50.0}, name=nm)
+        ok("newtype[gate]: activating a CANDIDATE is REFUSED (must be verified first)",
+           not ref_o["ok"] and _get(nm, "value_unproven")["state"] == CANDIDATE
+           and "REFUSED" in ref_o["reason"])
+        # ACTIVATE: verified -> active ONLY on a measured benchmark win above the floor.
+        weak_o = activate_object("heur_gate", {"ratio": 1.2}, name=nm)
+        ok("newtype[gate]: a verified object with NO real compression stays VERIFIED",
+           not weak_o["ok"] and _get(nm, "heur_gate")["state"] == VERIFIED)
+        strong_o = activate_object("heur_gate", {"ratio": 8.0}, name=nm)
+        ok("newtype[gate]: a verified object WITH a measured benchmark win -> ACTIVE",
+           strong_o["ok"] and strong_o["state"] == ACTIVE)
+        ok("newtype[gate]: only NOW (active) is the object retrievable",
+           any(o["id"] == "heur_gate" for o in retrieve_heuristics("cache hot keys", name=nm)))
+        # a contract-less candidate dies at the schema phase and is recorded REJECTED on disk.
+        store_object({"id": "fm_nocontract", "type": FAILURE_MODE, "name": "empty_fm",
+                      "domain": "misc", "trigger": "", "symptom": "", "consequence": "",
+                      "mitigation": "", "taught_by": "", "state": CANDIDATE, "confidence": 0.5,
+                      "source": "test", "support": [], "failure_modes": []}, name=nm)
+        rej_o = promote_object("fm_nocontract",
+                               test_cases=[{"input": 1, "check": lambda x: True}], name=nm)
+        ok("newtype[gate]: a contract-less candidate is REJECTED at the schema phase",
+           not rej_o["ok"] and rej_o["state"] == REJECTED and not rej_o["phases"]["schema"]["ok"])
+        ok("newtype[gate]: the rejection reason is recorded on disk for provenance",
+           any("gate REJECTED" in fm for fm in _get(nm, "fm_nocontract")["failure_modes"]))
+        ok("newtype[gate]: a REJECTED candidate never becomes retrievable",
+           all(o["id"] != "fm_nocontract" for o in retrieve_failure_modes("empty", name=nm)))
+
+        # --- isolation: retrieval keeps the types SEPARATE (a heuristic isn't a value) -----
+        ok("newtype[isolation]: retrieve_values does not return heuristics/preferences",
+           all(o["type"] == VALUE for o in retrieve_values("the user's", name=nm)))
+        ok("newtype[isolation]: each retriever returns ONLY its own type",
+           all(o["type"] == HEURISTIC for o in retrieve_heuristics("ship", name=nm))
+           and all(o["type"] == MENTAL_MODEL for o in retrieve_mental_models("market", name=nm)))
+        ok("newtype[stats]: the new objects are counted in stats by_type",
+           {HEURISTIC, DECISION_PATTERN, MENTAL_MODEL, FAILURE_MODE, PREFERENCE, VALUE}
+           <= set(stats(name=nm)["by_type"]))
 
         # --- THE COMPRESSION PROOF (retrieval beats prompt-stuffing) -----------------
         transcript = (

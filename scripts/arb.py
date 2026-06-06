@@ -101,12 +101,37 @@ import hashlib
 import importlib
 import json
 import os
+import secrets
 import sys
 from pathlib import Path
+
+
+def _rand_suffix() -> str:
+    """A short random tag so a hermetic selftest can name a guaranteed-absent synthetic ledger."""
+    return secrets.token_hex(3)
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
+
+# The ARCHITECTURAL DEBT LEDGER (scripts/debt_ledger.py) — the append-only memory of what is
+# KNOWN-BROKEN. The board READS it (read-only) so the maturity scorecard is not blind to the
+# debts the team already knows about: a guard that over-fires, a capture rule that over-reaches,
+# a dimension not yet built, a safety guard deferred to a later wave. A dimension tagged with
+# active debt is dragged DOWN, which can re-point the bottleneck — this is the wire that makes
+# the roadmap SELF-CORRECTING (debt feeds the priority). Imported isolation-safe (behind
+# try/except), exactly as anima/reality.py imports world_state/meaning: the board still runs with
+# nothing else built, degrading to "no debt input" rather than failing.
+try:  # pragma: no cover - import wiring
+    from scripts import debt_ledger as _debt
+    _HAVE_DEBT = True
+except Exception:  # pragma: no cover - isolation fallback
+    try:
+        import debt_ledger as _debt  # when scripts/ is on sys.path directly
+        _HAVE_DEBT = True
+    except Exception:
+        _debt = None  # type: ignore
+        _HAVE_DEBT = False
 
 # The live creature this board reads (the same default the server + certify use).
 LIVE_CREATURE = "Vera"
@@ -768,10 +793,169 @@ def subscores_for(dim: str, cells_by_key: dict, cons_detail: dict = None) -> dic
     }
 
 
-def build_scorecard(creature: str = LIVE_CREATURE) -> dict:
+# ===================================================================================
+# THE DEBT INPUT — read the Architectural Debt Ledger and let KNOWN debt DRAG a dimension's
+# score down. This is what consolidates the two governance surfaces: the maturity scorecard
+# (what is BUILT) now also sees what is KNOWN-BROKEN, so a dimension carrying an over-firing
+# guard or an over-reaching capture rule is penalised — and can therefore become the bottleneck
+# the next 100 hours attack. The roadmap self-corrects: debt feeds the priority.
+# ===================================================================================
+# How many points a FULLY-dragged dimension (drag == 1.0) loses. Tuned so a single critical/severe
+# open debt (drag ~1.0) knocks a wired-but-unmeasured ESTIMATED-70 layer down to ~40 — enough to
+# change the ranking and re-point the bottleneck — without ever driving a strong MEASURED layer
+# (Memory ~100) below a debt-free weak layer for trivial debt. Debt LOWERS, never raises.
+_DEBT_MAX_PENALTY = 30
+
+
+def read_debt(debt_ledger_name=None) -> dict:
+    """Read the Architectural Debt Ledger READ-ONLY and return the per-dimension drag the board
+    consumes, plus a compact summary. Isolation-safe: if the ledger module isn't importable, or
+    the read fails, returns an empty-but-honest structure (the board then behaves exactly as
+    before — debt simply adds nothing). Never raises.
+
+    ``debt_ledger_name`` lets a hermetic test point the read at a SYNTHETIC ledger (the selftest
+    passes its temp ledger name); None uses the real canonical 'architecture' ledger READ-ONLY."""
+    if not _HAVE_DEBT or _debt is None:
+        return {"available": False, "drag_by_dimension": {}, "active": [], "all": [],
+                "note": "debt_ledger not importable — board ran without a debt input"}
+    try:
+        name = debt_ledger_name or _debt.LEDGER
+        drag = _debt.drag_by_dimension(name)
+        alld = _debt.debts(name)
+        active = [d for d in alld if d.get("active")]
+        return {
+            "available": True,
+            "ledger": str(_debt.ledger_path(name)),
+            "drag_by_dimension": drag,
+            "active": active,
+            "all": alld,
+            "n_active": len(active),
+            "n_total": len(alld),
+            "note": ("debt drags the dimensions it is tagged to; an untagged (_infra) debt is "
+                     "counted but not attributed to a spine layer"),
+        }
+    except Exception as e:  # pragma: no cover - read-only, never raises out
+        return {"available": False, "drag_by_dimension": {}, "active": [], "all": [],
+                "note": f"debt read failed ({e!r}) — board ran without a debt input"}
+
+
+def _apply_debt(cell: dict, drag_by_dim: dict) -> dict:
+    """Lower ONE cell's score by the active debt tagged to its dimension. The cell keeps its
+    honest ``raw_score`` (the pre-debt maturity) AND gains ``debt_drag`` + ``debt_penalty`` so the
+    report can show BOTH 'how mature is the built thing' and 'how much known debt drags it'. A
+    dimension with no tagged debt is returned unchanged (debt never invents a penalty). The basis
+    label is preserved — debt does not turn a MEASURED reading into an estimate; it annotates it.
+    Pure; deterministic."""
+    dim = cell["key"]
+    slot = drag_by_dim.get(dim)
+    raw = cell["score"]
+    out = dict(cell)
+    out["raw_score"] = raw
+    if not slot or not slot.get("drag"):
+        out["debt_drag"] = 0.0
+        out["debt_penalty"] = 0
+        out["debt_refs"] = []
+        return out
+    drag = float(slot["drag"])                       # already capped at 1.0 by the ledger
+    penalty = int(round(drag * _DEBT_MAX_PENALTY))
+    out["debt_drag"] = round(drag, 4)
+    out["debt_penalty"] = penalty
+    out["debt_refs"] = list(slot.get("refs", []))
+    out["debt_worst_severity"] = slot.get("worst_severity")
+    out["score"] = int(max(0, raw - penalty))        # debt LOWERS, never raises
+    if penalty > 0:
+        tag = (f"  [DEBT -{penalty}: {slot.get('count', 0)} known debt(s) on this layer "
+               f"(worst {slot.get('worst_severity')}); refs {', '.join(str(r) for r in slot.get('refs', []))}]")
+        out["note"] = (cell.get("note", "") + tag).strip()
+    return out
+
+
+# ===================================================================================
+# THE CONSOLIDATED GOVERNANCE READ — ONE view that answers, off the debt-adjusted board:
+#   WEAKEST?   the lowest mature-essential layer (the bottleneck) — where the Mind is thinnest.
+#   STRONGEST? the highest mature-essential layer — the proven foundation to build the rest on.
+#   ATTENTION? what deserves the next 100 hours — the IMMEDIATE buildable bottleneck, raised to
+#              the surface (NOT the time-gated visible weakness, NOT a not-built meta-axis).
+#   STARVING?  the layer most STARVED — the steepest gap between a strong upstream dependency and
+#              a weak downstream layer sitting on it (high potential, blocked from realising it),
+#              and the dimension most dragged by KNOWN DEBT (starved by neglect, not by build gap).
+# This is the single-glance answer the directive asks the board to give, now that debt is folded
+# in. Pure function of the cells + resolution + debt -> deterministic. Never raises.
+# ===================================================================================
+def consolidated_view(cells: list, resolution: dict, debt: dict) -> dict:
+    """The one-view answer: weakest / strongest / attention-next / starving — incorporating the
+    debt input. Operates on the debt-ADJUSTED cells (so a debt-dragged layer can be the weakest /
+    the most starved). Deterministic; never raises."""
+    ess = [c for c in cells if c.get("essential")]
+    by_key = {c["key"]: c for c in cells}
+    drag_by_dim = (debt or {}).get("drag_by_dimension", {})
+
+    weakest = min(ess, key=lambda c: (c["score"], c["key"])) if ess else None
+    strongest = max(ess, key=lambda c: (c["score"], -ord(c["key"][0]))) if ess else None
+
+    # ATTENTION = the immediate buildable bottleneck (the governor's headline), surfaced here so
+    # the consolidated view and the 100-hours headline never disagree.
+    imm = (resolution or {}).get("immediate") or {}
+    attention = by_key.get(imm.get("key")) if imm.get("key") else weakest
+
+    # STARVING — two complementary readings, both about a layer NOT realising its potential:
+    #   (a) the steepest BUILD-gap on the spine: a strong upstream layer feeding a weak downstream
+    #       one (the downstream is starved by the build gap between them). We score each essential
+    #       layer by max(upstream_score) - own_score and take the biggest positive gap.
+    #   (b) the most DEBT-starved layer: the dimension with the highest active-debt drag (starved
+    #       by accumulated neglect rather than by a missing upstream).
+    starving_gap = None
+    best_gap = 0
+    for c in ess:
+        ups = DEPENDS_ON.get(c["key"], set())
+        up_scores = [by_key[u]["score"] for u in ups if u in by_key]
+        if not up_scores:
+            continue
+        gap = max(up_scores) - c["score"]
+        if gap > best_gap:
+            best_gap = gap
+            starving_gap = c
+    debt_starved_key = max(drag_by_dim.items(),
+                           key=lambda kv: kv[1].get("drag", 0)) [0] if drag_by_dim else None
+    debt_starved = by_key.get(debt_starved_key)
+
+    def _slot(c, extra=None):
+        if not c:
+            return None
+        d = {"key": c["key"], "label": c["label"], "score": c["score"],
+             "raw_score": c.get("raw_score", c["score"]), "basis": c["basis"],
+             "debt_drag": c.get("debt_drag", 0.0), "debt_refs": c.get("debt_refs", [])}
+        if extra:
+            d.update(extra)
+        return d
+
+    return {
+        "weakest": _slot(weakest, {"why": "lowest mature-essential layer (incl. known-debt drag) — "
+                                          "where the Mind is thinnest"}),
+        "strongest": _slot(strongest, {"why": "highest mature-essential layer — the proven "
+                                              "foundation the rest builds on"}),
+        "attention": _slot(attention, {"why": "the IMMEDIATE buildable bottleneck — where the next "
+                                              "100 engineering hours have the most leverage",
+                                       "buildable": imm.get("key") not in TIME_GATED}),
+        "starving_by_build_gap": _slot(starving_gap, {"gap": best_gap,
+                                       "why": f"steepest build-gap: a strong upstream dependency "
+                                              f"feeds this weak layer (gap {best_gap})"}) if starving_gap else None,
+        "starving_by_debt": _slot(debt_starved, {"drag": drag_by_dim.get(debt_starved_key, {}).get("drag"),
+                                   "why": "most starved by accumulated KNOWN DEBT (neglect, not a "
+                                          "missing upstream layer)"}) if debt_starved else None,
+        "note": ("weakest/strongest/attention read the debt-adjusted board; 'starving' has two "
+                 "readings — a build-gap (strong upstream, weak downstream) and a debt-drag "
+                 "(accumulated neglect). Debt feeds the priority: a dragged layer can be any of them."),
+    }
+
+
+def build_scorecard(creature: str = LIVE_CREATURE, debt_ledger_name=None) -> dict:
     """Compute every dimension cell from its real signal where one exists, label each honestly,
-    and flag the lowest mature-essential cell as the current bottleneck. Never raises — a missing
-    engine yields an honest ESTIMATED cell. Returns the full scorecard report dict."""
+    apply the KNOWN-DEBT drag from the Architectural Debt Ledger (so the roadmap self-corrects —
+    debt feeds the priority), and flag the lowest mature-essential cell as the current bottleneck.
+    Never raises — a missing engine yields an honest ESTIMATED cell; a missing debt ledger simply
+    adds no penalty. ``debt_ledger_name`` lets a hermetic test point the debt read at a synthetic
+    ledger. Returns the full scorecard report dict."""
     cells = {}
 
     # --- MEASURED dimensions (real signals) ---------------------------------------------------
@@ -851,10 +1035,22 @@ def build_scorecard(creature: str = LIVE_CREATURE) -> dict:
 
     ordered = [cells[k] for k in DIMENSION_ORDER if k in cells]
 
+    # --- APPLY THE DEBT INPUT (consolidate the two governance surfaces) ------------------------
+    # The maturity scorecard now ALSO reads the Architectural Debt Ledger and lets KNOWN debt drag
+    # a dimension DOWN. Every cell keeps its honest raw_score (the pre-debt build maturity) and
+    # gains debt_drag/debt_penalty, so the report shows BOTH "how mature is the built thing" and
+    # "how much known debt drags it". Because the bottleneck + the dependency-weighted resolution
+    # below run on these debt-ADJUSTED scores, a dimension carrying a real known debt can BECOME
+    # the bottleneck the next 100 hours attack — the roadmap self-corrects (debt feeds priority).
+    debt = read_debt(debt_ledger_name)
+    drag_by_dim = debt.get("drag_by_dimension", {})
+    ordered = [_apply_debt(c, drag_by_dim) for c in ordered]
+
     # The (flat) VISIBLE WEAKNESS is the lowest-scoring MATURE-ESSENTIAL dimension (Observed >
     # Assumed: the weakest REQUIRED layer, regardless of MEASURED vs ESTIMATED — but the report
     # makes the basis visible so an estimate is never mistaken for a fact). This is the EXISTING
-    # flat flag, preserved verbatim as `bottleneck` for back-compat.
+    # flat flag, preserved verbatim as `bottleneck` for back-compat. Now computed on the
+    # debt-adjusted score, so known debt can move the weakest flag.
     essential_cells = [c for c in ordered if c["essential"]]
     bottleneck = min(essential_cells, key=lambda c: (c["score"], c["key"])) if essential_cells else None
 
@@ -877,15 +1073,29 @@ def build_scorecard(creature: str = LIVE_CREATURE) -> dict:
             flagged.append(k)
     subscores = {k: subscores_for(k, by_key, cons_d) for k in flagged}
 
+    # The CONSOLIDATED governance read — weakest / strongest / attention / starving in ONE view,
+    # incorporating the debt input. This is the single-glance answer the directive asks for.
+    consolidated = consolidated_view(ordered, resolution, debt)
+
     return {
         "mode": "mind_balance",
         "creature": creature,
         "git_head": _git_head(),
         "cells": ordered,
-        "bottleneck": bottleneck,            # the flagged weakest mature-essential layer (FLAT)
+        "bottleneck": bottleneck,            # the flagged weakest mature-essential layer (FLAT, debt-adjusted)
         "weakest_key": bottleneck["key"] if bottleneck else None,
         "resolution": resolution,            # the 3-level dependency-weighted resolution
         "subscores": subscores,              # 7-axis drill-down for the flagged dimensions
+        "debt": {                            # the KNOWN-DEBT input the board folded in
+            "available": debt.get("available", False),
+            "drag_by_dimension": drag_by_dim,
+            "n_active": debt.get("n_active", 0),
+            "n_total": debt.get("n_total", 0),
+            "active": debt.get("active", []),
+            "ledger": debt.get("ledger"),
+            "note": debt.get("note"),
+        },
+        "consolidated": consolidated,        # weakest / strongest / attention / starving (one view)
         "n_measured": len(measured),
         "n_estimated": len(estimated),
         "directive": "OBSERVED > ASSUMED.  MEASURED > BELIEVED.  CERTIFIED > CLAIMED.",
@@ -898,6 +1108,79 @@ def build_scorecard(creature: str = LIVE_CREATURE) -> dict:
 def _bar(score: int, width: int = 22) -> str:
     fill = int(round((score / 100.0) * width))
     return "[" + "#" * fill + "-" * (width - fill) + "]"
+
+
+def _render_debt_and_consolidated(report: dict) -> list:
+    """Render the KNOWN-DEBT input the board folded in + the consolidated one-view governance read
+    (weakest / strongest / attention / starving). This is the surface that consolidates the two
+    governance instruments — the maturity scorecard and the architectural debt ledger — into the
+    single-glance answer the directive asks for. Never raises."""
+    out = []
+    debt = report.get("debt") or {}
+    con = report.get("consolidated") or {}
+
+    # --- the consolidated ONE-VIEW read (the headline answer) -------------------------------
+    out.append("  " + "=" * 82)
+    out.append("  CONSOLIDATED GOVERNANCE READ — weakest · strongest · attention · starving "
+               "(debt folded in)")
+    out.append("  " + "=" * 82)
+
+    def _line(tag, slot):
+        if not slot:
+            out.append(f"    {tag:<11} (none)")
+            return
+        raw = slot.get("raw_score")
+        dd = slot.get("debt_drag", 0.0)
+        score_str = (f"{slot['score']}/100"
+                     + (f" (raw {raw}, debt -{raw - slot['score']})" if dd and raw is not None
+                        and raw != slot["score"] else ""))
+        out.append(f"    {tag:<11} {slot['label']:<18} {score_str:<26} [{slot.get('basis', '?')}]")
+        out.append(f"                why: {slot.get('why', '')}")
+
+    _line("WEAKEST:", con.get("weakest"))
+    _line("STRONGEST:", con.get("strongest"))
+    _line("ATTENTION:", con.get("attention"))
+    sg = con.get("starving_by_build_gap")
+    sd = con.get("starving_by_debt")
+    if sg:
+        out.append(f"    {'STARVING:':<11} {sg['label']:<18} build-gap {sg.get('gap')}        "
+                   f"     [{sg.get('basis', '?')}]")
+        out.append(f"                why: {sg.get('why', '')}")
+    if sd:
+        out.append(f"    {'(by debt):':<11} {sd['label']:<18} debt-drag {sd.get('drag')}        "
+                   f"     [{sd.get('basis', '?')}]")
+        out.append(f"                why: {sd.get('why', '')}")
+    if not sg and not sd:
+        out.append(f"    {'STARVING:':<11} (no starved layer — no build-gap or debt-drag found)")
+    out.append("")
+
+    # --- the debt input itself: what the board read from the ledger --------------------------
+    if not debt.get("available"):
+        out.append("  KNOWN-DEBT INPUT: debt ledger not read this run "
+                   f"({debt.get('note', 'unavailable')}). The board ran on built signals only.")
+        return out
+    out.append(f"  KNOWN-DEBT INPUT (from the Architectural Debt Ledger — debt feeds the priority):")
+    out.append(f"    {debt.get('n_active', 0)} active debt(s) of {debt.get('n_total', 0)} recorded; "
+               f"ledger {debt.get('ledger')}")
+    drag = debt.get("drag_by_dimension", {})
+    if drag:
+        out.append("    drag per dimension (what lowered each score):")
+        for dim, slot in sorted(drag.items(), key=lambda kv: -kv[1].get("drag", 0)):
+            out.append(f"      - {dim:<18} drag {slot.get('drag'):>4}  "
+                       f"({slot.get('count')} debt(s), worst {slot.get('worst_severity')}, "
+                       f"refs {', '.join(str(r) for r in slot.get('refs', []))})")
+    else:
+        out.append("    (no active debt is tagged to a dimension — nothing dragged the board)")
+    # the top active debts by ref, so the board view is self-contained.
+    active = debt.get("active", [])
+    if active:
+        out.append("    active debts (worst-first):")
+        for d in sorted(active,
+                        key=lambda x: -(_debt.debt_drag(x) if _HAVE_DEBT and _debt else 0))[:6]:
+            out.append(f"      [{d.get('ref')}] {str(d.get('title'))[:54]} "
+                       f"({d.get('severity')}/{d.get('status')}"
+                       + (f" -> {d.get('dimension')}" if d.get("dimension") else "") + ")")
+    return out
 
 
 def render_scorecard(report: dict) -> str:
@@ -915,11 +1198,25 @@ def render_scorecard(report: dict) -> str:
         sig = c["signal"]
         if len(sig) > 120:
             sig = sig[:117] + "..."
-        out.append(f"{ess} {c['label']:<18} {c['score']:>4}  {_bar(c['score'])} "
+        # When known debt dragged this layer, show the debt-adjusted score AND the raw (pre-debt)
+        # build maturity, so the honest "how mature is the built thing" is never hidden by debt.
+        dd = c.get("debt_drag", 0.0)
+        score_col = (f"{c['score']:>4}"
+                     if not dd else f"{c['score']:>4}↓")     # ↓ marks a debt-dragged score
+        out.append(f"{ess} {c['label']:<18} {score_col:>4}  {_bar(c['score'])} "
                    f"{c['basis']:<9} {sig}")
+        if dd:
+            out.append(f"  {'':<18} {'':>4}  {'':<24} {'':<9} "
+                       f"↓ known-debt drag {dd} (-{c.get('debt_penalty', 0)} from raw "
+                       f"{c.get('raw_score')}); refs {', '.join(str(r) for r in c.get('debt_refs', []))}")
     out.append("  " + "-" * 82)
     out.append(f"  (* = mature-essential; MEASURED={report['n_measured']} "
-               f"ESTIMATED={report['n_estimated']})")
+               f"ESTIMATED={report['n_estimated']}; ↓ = lowered by KNOWN DEBT — raw build "
+               f"maturity shown alongside)")
+    out.append("")
+
+    # --- THE DEBT INPUT + THE CONSOLIDATED ONE-VIEW READ -------------------------------------
+    out += _render_debt_and_consolidated(report)
     out.append("")
 
     # The honest split — what is MEASURED vs what is still an ESTIMATE. This IS the dashboard
@@ -1554,6 +1851,70 @@ def _selftest() -> int:
     rtxt_ex = render_review(rev_ex)
     ok("review renders the ROADMAP EXCEPTION RULE verdict (ALLOWED PARALLEL EXCEPTION) for #59",
        "ROADMAP EXCEPTION RULE" in rtxt_ex and "ALLOWED PARALLEL EXCEPTION" in rtxt_ex)
+
+    # --- THE DEBT INPUT + CONSOLIDATED VIEW: the board reads the Architectural Debt Ledger and
+    # lets KNOWN debt feed the priority. Built HERMETICALLY against a SYNTHETIC debt ledger in a
+    # temp store (the real .anima is never touched) — proving (1) a clean board has no debt drag,
+    # (2) a tagged debt LOWERS its dimension's score (raw preserved), (3) a big enough debt
+    # RE-POINTS the bottleneck (the roadmap self-corrects), and (4) the consolidated view answers
+    # weakest/strongest/attention/starving incorporating the debt. ----------------------------
+    if _HAVE_DEBT and _debt is not None:
+        # (1) the board with NO debt ledger present: every cell's debt_drag is 0 and score==raw.
+        sc_clean = build_scorecard(debt_ledger_name="arb_synth_empty_" + _rand_suffix())
+        ok("debt: a board with an empty debt ledger has zero drag (score == raw everywhere)",
+           all(c.get("debt_drag", 0) == 0 and c.get("raw_score") == c["score"]
+               for c in sc_clean["cells"]))
+        ok("debt: the report carries a debt block + a consolidated one-view read",
+           "debt" in sc_clean and "consolidated" in sc_clean
+           and {"weakest", "strongest", "attention"} <= set(sc_clean["consolidated"]))
+
+        # (2)+(3) seed a SYNTHETIC critical debt on a STRONG layer (memory ~100) in a temp store,
+        # and confirm it both lowers memory AND can re-point the weakest flag onto it. Hermetic:
+        # _debt's own _temp_store redirects its STORE; we sync arb's binding to it for the read.
+        saved_store = getattr(_debt, "STORE", None)
+        with _debt._temp_store() as _td:
+            nm = "arb_synth_debt"
+            # a critical/severe open debt on memory drags it by ~1.0 -> -30 from ~100 -> ~70.
+            _debt.record_debt("#SYNX", "synthetic critical debt on memory", severity="critical",
+                              cost="severe", status=_debt.STATUS_OPEN, dimension="memory",
+                              source="arb-selftest", name=nm)
+            sc_debt = build_scorecard(debt_ledger_name=nm)
+        if saved_store is not None:
+            _debt.STORE = saved_store
+        mem_debt = next(c for c in sc_debt["cells"] if c["key"] == "memory")
+        ok("debt: a known critical debt LOWERS its dimension's score (raw build maturity preserved)",
+           mem_debt["debt_drag"] > 0 and mem_debt["score"] < mem_debt["raw_score"]
+           and mem_debt["debt_penalty"] > 0 and "#SYNX" in mem_debt.get("debt_refs", []))
+        ok("debt: the board's debt block reports the active synthetic debt it folded in",
+           sc_debt["debt"]["available"] and sc_debt["debt"]["n_active"] >= 1
+           and "memory" in sc_debt["debt"]["drag_by_dimension"])
+        ok("debt: the consolidated STARVING-by-debt read names the debt-dragged dimension",
+           (sc_debt["consolidated"].get("starving_by_debt") or {}).get("key") == "memory")
+
+        # determinism with debt: two debt-adjusted builds off the same synthetic ledger match.
+        saved_store2 = getattr(_debt, "STORE", None)
+        with _debt._temp_store():
+            nm2 = "arb_synth_debt_det"
+            _debt.record_debt("#SYNY", "synthetic debt", severity="high", cost="high",
+                              status=_debt.STATUS_OPEN, dimension="grounding",
+                              source="arb-selftest", name=nm2)
+            a = build_scorecard(debt_ledger_name=nm2)
+            b = build_scorecard(debt_ledger_name=nm2)
+        if saved_store2 is not None:
+            _debt.STORE = saved_store2
+        ok("debt: the debt-adjusted scorecard is deterministic across two reads",
+           [(c["key"], c["score"], c.get("debt_drag")) for c in a["cells"]]
+           == [(c["key"], c["score"], c.get("debt_drag")) for c in b["cells"]])
+
+        # the render surfaces the consolidated view + the debt input.
+        stxt_debt = render_scorecard(sc_debt)
+        ok("render: the consolidated governance read (weakest/strongest/attention/starving) renders",
+           "CONSOLIDATED GOVERNANCE READ" in stxt_debt and "WEAKEST:" in stxt_debt
+           and "STRONGEST:" in stxt_debt and "ATTENTION:" in stxt_debt)
+        ok("render: the KNOWN-DEBT input block renders with the drag it folded in",
+           "KNOWN-DEBT INPUT" in stxt_debt and "#SYNX" in stxt_debt)
+    else:
+        ok("debt: debt_ledger importable for the consolidated governance surface", False)
 
     # --- GUARDRAIL: the WHOLE selftest (incl. the live reality read) touched no real .anima ---
     fp_after = _footprint(real)
