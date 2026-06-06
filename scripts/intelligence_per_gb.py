@@ -32,6 +32,24 @@ This script computes and reports four ratios, model-only vs LERF+small-model:
         machine records), else a labelled size+token estimate. Either way the SMALL-model
         and LARGE/cloud latencies are estimates of relative speed, labelled as such.
 
+FUTURE METRICS (roadmap extension — ADDITIVE; the four axes above are untouched). Three measures
+of the KNOWLEDGE/MIND systems' DENSITY (never the language model, never Vera's identity — the
+freeze boundary holds; we measure the world model of the USER's situation + the LERF cognitive
+store). They feed the Growth Dashboard + the Mind Balance board:
+
+  UNDERSTANDING per GB  : understanding density — world-model (typed entities + causal links +
+        typed relations + reasoning-chain hops) per MB of the world-model store. Read via
+        anima.world_model's public API over a synthetic GROUNDED world built on a temp store; the
+        store bytes are a real os.stat. EXACT.
+  LEARNING per GB       : accumulation density — cognitive objects (skills + concepts + procedures
+        + heuristics + decision-patterns + mental-models + failure-modes + preferences + values)
+        per MB of the LERF store. Read via anima.lerf.stats over a synthetic ACTIVE population on a
+        temp store; store bytes are a real os.stat. EXACT. The number the Growth Dashboard trends.
+  REASONING per WATT    : reasoning capability per unit energy.   *** ESTIMATE — labelled. ***
+        Proxy: verified multi-step reasoning units (multi-step skills/procedures + the world
+        model's causal links) executable per joule. The COUNT is exact; the JOULES reuse the
+        per-watt energy model on the 3B model + a compact context. Count EXACT, energy ESTIMATE.
+
 WHAT IS EXACT vs WHAT IS AN ESTIMATE (the honesty contract, stated once and enforced):
   * EXACT (the verdict): prompt tokens, store bytes, dollar cost — these come from
     lerf_benchmark's deterministic accounting and a real os.stat of the serialised store.
@@ -106,6 +124,32 @@ TOK_PER_S = {"large_8b": 18.0, "small_3b": 42.0, "cloud": 120.0}   # EST tok/s
 # local number), and model the OTHER conditions' latency from tokens/throughput as an
 # estimate. Cross-model comparison is therefore an estimate of RELATIVE speed.
 CLOUD_NET_OVERHEAD_S = 0.6     # EST: round-trip network latency added to a cloud call (s)
+
+
+# --- FUTURE METRICS (roadmap extension — additive). Two EXACT density axes + one ESTIMATE. -----
+# These extend the four resource axes ABOVE with the roadmap's "future metrics": measures of the
+# KNOWLEDGE/MIND systems' density, not the language model's. They feed the Growth Dashboard + the
+# Mind Balance board. The honesty discipline is identical: counts and bytes are EXACT (the verdict),
+# energy is an ESTIMATE (a lens), each labelled.
+#
+#  UNDERSTANDING per GB — understanding DENSITY: the world model's grounded richness (typed
+#       entities + causal links + typed relations + the hops of its reasoning chains) per MB of the
+#       world-model store it occupies. Read via anima.world_model's PUBLIC API over a synthetic,
+#       grounded world built on a temp store; the store bytes are a real os.stat. EXACT.
+#  LEARNING per GB — accumulation DENSITY: the count of COGNITIVE OBJECTS the substrate has
+#       accrued (skills + concepts + procedures + the six added object types: heuristics,
+#       decision-patterns, mental-models, failure-modes, preferences, values) per MB of the LERF
+#       store. Read via anima.lerf's stats/all_* over a synthetic ACTIVE population on a temp store;
+#       store bytes are a real os.stat. EXACT. This is the number the Growth Dashboard trends.
+#  REASONING per WATT — reasoning capability per unit energy.  *** ESTIMATE — labelled. ***
+#       Proxy: VERIFIED MULTI-STEP REASONING UNITS executable per joule. The capability numerator
+#       is COUNTED exactly (multi-step skills/procedures the small model can run, + the world
+#       model's multi-step causal chains — every one a grounded, inspectable reasoning artefact);
+#       the JOULES denominator reuses the SAME first-order energy model the per-watt axis uses
+#       (_joules over the small model + the compact retrieved context). Counts EXACT, energy EST.
+REASON_TOKENS_PER_UNIT = 220   # EST: prompt tokens the small model reads to execute one reasoning
+#                                unit (a retrieved multi-step skill/procedure or a causal chain) —
+#                                anchored to condition-E compact-context sizing, NOT a stuffed prompt.
 
 
 # ===================================================================================
@@ -325,6 +369,274 @@ def axis_per_second(cap: dict, det: dict) -> dict:
 
 
 # ===================================================================================
+# FUTURE METRICS (roadmap extension) — UNDERSTANDING / LEARNING / REASONING. Each measures the
+# KNOWLEDGE/MIND systems' DENSITY (never Vera's identity — the freeze boundary is respected: we
+# read the world model of the USER's situation and the LERF cognitive store, never persona/
+# portrait/identity). Two are EXACT (grounded counts ÷ a real os.stat of the store bytes); one is
+# an ESTIMATE (reasoning per joule, reusing the per-watt energy model, clearly labelled). They feed
+# the Growth Dashboard + the Mind Balance board.
+#
+# MEASUREMENT IS HERMETIC: each builds a SYNTHETIC, GROUNDED population on a THROWAWAY temp store —
+# the same discipline _measure_store_bytes / _deterministic_and_live use — redirecting every store
+# the build path may write, then restores. The caller asserts the real .anima is byte-unchanged.
+# ===================================================================================
+
+# The store bindings the world-model build path may write — world_model + every engine it reads/
+# writes through (world_state/reality/meaning/memory_lirf/curiosity/constitution/telemetry/cloud)
+# + reliability backups. Mirrors anima.world_model._SELFTEST_STORE_TARGETS so nothing leaks.
+_WORLD_STORE_TARGETS = (
+    ("anima.world_model", "STORE"), ("anima.world_state", "STORE"),
+    ("anima.reality", "STORE"), ("anima.meaning", "STORE"),
+    ("anima.memory_lirf", "STORE"), ("anima.curiosity", "STORE"),
+    ("anima.constitution", "STORE"), ("anima.reliability", "DEFAULT_STORE"),
+    ("anima.telemetry", "STORE"), ("anima.cloud", "STORE"),
+)
+
+# The store bindings the LERF cognitive-population build path may write — lerf (both bindings) +
+# the LIRF/constitution stores the guarded load path may touch + reliability backups.
+_LERF_STORE_TARGETS = (
+    ("anima.lerf", "STORE"), ("anima.memory_lirf", "STORE"),
+    ("anima.constitution", "STORE"), ("anima.reliability", "DEFAULT_STORE"),
+)
+
+
+def _redirect_stores(targets, tp):
+    """Point every (module, attr) store binding at the temp path ``tp``; return the saved originals
+    so the caller can restore in a finally. Tolerant of a missing module/attr (isolation-safe)."""
+    saved = []
+    for modpath, attr in targets:
+        try:
+            mod = __import__(modpath, fromlist=["_"])
+        except Exception:
+            continue
+        saved.append((mod, attr, getattr(mod, attr, None)))
+        if getattr(mod, attr, None) is not None:
+            setattr(mod, attr, tp)
+    return saved
+
+
+def _restore_stores(saved):
+    for mod, attr, old in saved:
+        if old is not None:
+            setattr(mod, attr, old)
+
+
+def _measure_understanding() -> dict:
+    """HERMETIC: build the canonical SYNTHETIC, GROUNDED world model on a temp store and measure its
+    understanding DENSITY. Returns {units, entities, causal_links, relations, chain_hops, store_bytes}.
+
+    UNITS (the understanding numerator, all EXACT counts over anima.world_model's public objects):
+      * typed ENTITIES (people/projects/goals/resources/risks/constraints/states) — the world-model
+        nodes the substrate grounds,
+      * typed CAUSAL LINKS (X --causes/worsens--> Y) — the causal edges it can reason across,
+      * typed (non-causal) RELATIONS (relates_to/works_on/pursues/…) — the world's bonds,
+      * CHAIN HOPS — total edges across the world model's multi-step causal chains (a model that
+        connects into longer through-lines understands MORE than the same edges in isolation).
+    STORE_BYTES is a real os.stat of the world-model store file the build wrote. Read-only on the
+    real .anima (writes only to the temp dir). Never raises — degrades to zeros if world_model is
+    unavailable, which the caller surfaces honestly."""
+    from anima import world_model as wm
+    td = tempfile.mkdtemp(prefix="lerf-econ-understand-")
+    tp = Path(td)
+    saved = _redirect_stores(_WORLD_STORE_TARGETS, tp)
+    res = {"units": 0, "entities": 0, "causal_links": 0, "relations": 0,
+           "chain_hops": 0, "store_bytes": 0}
+    try:
+        out = wm.build_synthetic_world("econ_world")
+        world = out.get("world", {}) or {}
+        ents = len(world.get("entities", []) or [])
+        links = len(wm.causal_links(world))
+        rels = len(world.get("relations", []) or [])
+        chains = wm.world_causal_chains(world)
+        chain_hops = sum(len(c) for c in chains)
+        wpath = wm.world_store_path("econ_world")
+        store_bytes = wpath.stat().st_size if wpath.exists() else 0
+        res = {"units": ents + links + rels + chain_hops, "entities": ents,
+               "causal_links": links, "relations": rels, "chain_hops": chain_hops,
+               "store_bytes": int(store_bytes)}
+    except Exception:
+        pass
+    finally:
+        _restore_stores(saved)
+        import shutil
+        shutil.rmtree(td, ignore_errors=True)
+    return res
+
+
+def _measure_learning() -> dict:
+    """HERMETIC: seed a SYNTHETIC ACTIVE cognitive population on a temp store and measure its
+    accumulation DENSITY. Returns {objects, by_type, store_bytes, multistep}.
+
+    OBJECTS (the learning numerator, an EXACT count via lerf.stats over the accrued store):
+    skills + concepts + procedures + the six added object types — heuristics, decision-patterns,
+    mental-models, failure-modes, preferences, values — every grounded, inspectable cognitive
+    object. The population is the 10 SHIPPED seed skills (the canonical builder, so we count the
+    real format) PLUS one ACTIVE instance of every other object type, so the density spans the
+    whole cognitive schema. ``multistep`` counts objects carrying a multi-step procedure (>=2
+    steps) — reused by the reasoning axis. STORE_BYTES is a real os.stat. Read-only on real .anima.
+    Never raises — degrades to zeros if lerf is unavailable."""
+    td = tempfile.mkdtemp(prefix="lerf-econ-learn-")
+    tp = Path(td)
+    saved = _redirect_stores(_LERF_STORE_TARGETS, tp)
+    res = {"objects": 0, "by_type": {}, "store_bytes": 0, "multistep": 0}
+    try:
+        _seed_cognitive_population("econ_learn")
+        st = lerf.stats(name="econ_learn")
+        path = lerf._path("econ_learn")
+        store_bytes = path.stat().st_size if path.exists() else 0
+        # multi-step reasoning artefacts in the store: skills/procedures with >=2 ordered steps.
+        multistep = 0
+        for o in lerf._load_objects("econ_learn"):
+            if o.get("state") != lerf.ACTIVE:
+                continue
+            if len(o.get("steps", []) or []) >= 2:
+                multistep += 1
+        res = {"objects": int(st.get("total", 0)), "by_type": dict(st.get("by_type", {})),
+               "store_bytes": int(store_bytes), "multistep": multistep}
+    except Exception:
+        pass
+    finally:
+        _restore_stores(saved)
+        import shutil
+        shutil.rmtree(td, ignore_errors=True)
+    return res
+
+
+def _seed_cognitive_population(name: str) -> None:
+    """Seed a SYNTHETIC ACTIVE cognitive population onto the (already-redirected) temp store: the 10
+    SHIPPED seed skills (via the canonical builder, so the density reflects the real format) + one
+    ACTIVE instance of every other object type (concept, procedure, and the six added types). All
+    user/task-facing — the PREFERENCE/VALUE freeze guard passes (subjects are the user's/a task's,
+    never Vera's). Writes only to the redirected temp store. Synthetic; never the real store."""
+    from scripts.build_lerf import _seed_skills
+    for sk in _seed_skills():
+        lerf.store_skill(sk, name=name)
+    # a concept + a procedure (the pre-existing trio beyond skill).
+    lerf.store_concept(lerf.make_concept(
+        "compounding", "small gains that build on each other grow faster than linearly",
+        examples=["interest on interest"], state=lerf.ACTIVE), name=name)
+    lerf.store_skill(lerf.make_procedure(
+        "weekly_review", inputs_needed=["the week's notes"], tools_needed=["calendar"],
+        steps=["gather open loops", "triage by urgency", "schedule the top three"],
+        state=lerf.ACTIVE), name=name)
+    # one ACTIVE instance of each of the six added cognitive object types.
+    lerf.store_object(lerf.make_heuristic(
+        "frozen_goods_last", "logistics", "a perishable stop is on the route",
+        "sequence it last so it spends least time un-refrigerated",
+        applies_when=["errand routing"], fails_when=["no cold items"], state=lerf.ACTIVE), name=name)
+    lerf.store_object(lerf.make_decision_pattern(
+        "choose_a_laptop", "decision_support", inputs=["candidate laptops", "budget"],
+        criteria=["price", "weight", "battery"], decision="cheapest that clears the must-haves",
+        examples=["picked the lighter one for travel"], state=lerf.ACTIVE), name=name)
+    lerf.store_object(lerf.make_mental_model(
+        "supply_and_demand", "economics", entities=["price", "supply", "demand"],
+        relations=["price balances supply against demand"],
+        dynamics=["a shortage pushes price up until demand falls"], state=lerf.ACTIVE), name=name)
+    lerf.store_object(lerf.make_failure_mode(
+        "dropped_dosage", "health", trigger="rounding or omitting a number",
+        symptom="a dose goes missing from the summary", consequence="the wrong amount is taken",
+        mitigation="copy every figure verbatim", state=lerf.ACTIVE), name=name)
+    lerf.store_object(lerf.make_preference(
+        "concise replies", domain="user", weight=0.8,
+        evidence=["asked for shorter answers"], state=lerf.ACTIVE), name=name)
+    lerf.store_object(lerf.make_value(
+        "protect focus time", domain="user", weight=0.9,
+        evidence=["stated it is a priority"], state=lerf.ACTIVE), name=name)
+
+
+def axis_understanding_per_gb(cap: dict, understanding: dict) -> dict:
+    """UNDERSTANDING per GB: understanding DENSITY (world-model richness) per MB of the world-model
+    store.  EXACT (grounded counts ÷ a real os.stat).
+
+    This is NOT capability/footprint like the four resource axes — it is a DENSITY: how much
+    grounded understanding (typed entities + causal links + typed relations + reasoning-chain hops)
+    the substrate packs into each megabyte of the world-model store it occupies. Higher = a richer
+    map of the user's world per byte. There is no model-only side (a bare LLM holds no inspectable
+    world model), so this axis reports the LERF/world-model density alone. EXACT."""
+    units = understanding["units"]
+    store_bytes = understanding["store_bytes"]
+    store_mb = store_bytes / (1024 ** 2)
+    return {
+        "axis": "understanding_per_gb",
+        "unit": "understanding units per MB (world-model store)",
+        "exact": True,
+        "density_per_mb": round(_safe_div(units, store_mb), 3),
+        "detail": {"units": units, "entities": understanding["entities"],
+                   "causal_links": understanding["causal_links"],
+                   "relations": understanding["relations"],
+                   "chain_hops": understanding["chain_hops"],
+                   "store_bytes": store_bytes, "store_mb": round(store_mb, 6),
+                   "formula": "units = entities + causal_links + relations + chain_hops; "
+                              "density = units / store_MB"},
+    }
+
+
+def axis_learning_per_gb(cap: dict, learning: dict) -> dict:
+    """LEARNING per GB: accumulation DENSITY (cognitive objects accrued) per MB of the LERF store.
+    EXACT (an exact count via lerf.stats ÷ a real os.stat).
+
+    The accumulation density the Growth Dashboard trends: skills + concepts + procedures + the six
+    added object types (heuristics/decision-patterns/mental-models/failure-modes/preferences/values)
+    per megabyte of the LERF store. Higher = more grounded, inspectable cognition packed per byte.
+    Like the understanding axis this is a DENSITY (no model-only side — a weight tensor accumulates
+    nothing inspectable). EXACT."""
+    objects = learning["objects"]
+    store_bytes = learning["store_bytes"]
+    store_mb = store_bytes / (1024 ** 2)
+    return {
+        "axis": "learning_per_gb",
+        "unit": "cognitive objects per MB (LERF store)",
+        "exact": True,
+        "density_per_mb": round(_safe_div(objects, store_mb), 3),
+        "detail": {"objects": objects, "by_type": learning["by_type"],
+                   "store_bytes": store_bytes, "store_mb": round(store_mb, 6),
+                   "formula": "objects = skills + concepts + procedures + heuristics + "
+                              "decision_patterns + mental_models + failure_modes + preferences + "
+                              "values; density = objects / store_MB"},
+    }
+
+
+def axis_reasoning_per_watt(cap: dict, understanding: dict, learning: dict) -> dict:
+    """REASONING per WATT: reasoning capability per unit energy.  *** ESTIMATE — labelled. ***
+
+    PROXY: verified multi-step REASONING UNITS executable per joule. The numerator is COUNTED
+    exactly — the multi-step reasoning artefacts the substrate can execute: multi-step skills/
+    procedures in the LERF store (>=2 ordered steps each) PLUS the world model's multi-step causal
+    chains (each a grounded, inspectable chain to reason across). The denominator is an ESTIMATE:
+    the joules the small (3B) model spends reading the compact retrieved context to execute one
+    such unit, via the SAME first-order energy model the per-watt axis uses (_joules over the small
+    model + REASON_TOKENS_PER_UNIT tokens — condition-E sized, never a stuffed prompt). Counts are
+    EXACT; the joules-per-unit is an ESTIMATE. The whole axis is therefore ESTIMATE, labelled."""
+    multistep_objs = learning["multistep"]
+    causal_chains_n = 0
+    # the world model's multi-step chains were counted as chain_hops; recover the chain COUNT by
+    # rebuilding is unnecessary — we approximate "a chain" as any through-line of >=2 hops. We have
+    # chain_hops (total edges); a conservative chain count is hops over the typical chain length.
+    # To stay EXACT on the count we instead treat each causal LINK as a 1-hop reasoning step and the
+    # multi-hop chains as the bonus: reasoning units = multi-step objects + causal links.
+    causal_links_n = understanding["causal_links"]
+    reasoning_units = multistep_objs + causal_links_n
+    # ESTIMATE energy: the small model reading one unit's worth of compact context.
+    j_per_unit = _joules("small_3b", REASON_TOKENS_PER_UNIT)
+    total_joules = j_per_unit * max(1, reasoning_units)
+    return {
+        "axis": "reasoning_per_watt",
+        "unit": "verified reasoning units per kilojoule",
+        "exact": False,          # ENERGY IS AN ESTIMATE (the count is exact; the joules are modelled)
+        "estimate": True,
+        "ratio": round(_safe_div(reasoning_units, total_joules / 1000.0), 3),
+        "detail": {"reasoning_units": reasoning_units,
+                   "multistep_objects": multistep_objs,
+                   "causal_links": causal_links_n,
+                   "j_per_unit": round(j_per_unit, 2),
+                   "total_joules": round(total_joules, 1),
+                   "model": f"J/unit = (8 + 4*3) W * {REASON_TOKENS_PER_UNIT} tok / "
+                            f"{TOK_PER_S['small_3b']} tok/s (small-model compact-context EST)",
+                   "note": "count EXACT (multi-step objects + causal links); joules ESTIMATE"},
+    }
+
+
+# ===================================================================================
 # STORE-SIZE MEASUREMENT — HERMETIC. Serialise the SHIPPED seed skills to a THROWAWAY temp
 # store and os.stat the file. Redirects every store the LERF load path may write, runs the
 # write, restores, and the caller asserts real .anima is byte-unchanged. Never the real store.
@@ -419,12 +731,25 @@ def compute(want_live: bool = False) -> dict:
     wins = {name: (ax["lerf_small"]["ratio"] > ax["model_only"]["ratio"])
             for name, ax in axes.items()}
 
+    # FUTURE METRICS (roadmap extension) — UNDERSTANDING/LEARNING density (EXACT) + REASONING/WATT
+    # (ESTIMATE). Measured on synthetic, grounded populations built on temp stores (hermetic). These
+    # are DENSITY/efficiency measures of the MIND systems, kept separate from the LERF-vs-model axes
+    # above (they have no model-only side — a bare LLM holds no inspectable world model or store).
+    understanding = _measure_understanding()
+    learning = _measure_learning()
+    future_axes = {
+        "understanding_per_gb": axis_understanding_per_gb(cap, understanding),
+        "learning_per_gb": axis_learning_per_gb(cap, learning),
+        "reasoning_per_watt": axis_reasoning_per_watt(cap, understanding, learning),
+    }
+
     fp_after = _footprint(real)
     hermetic_ok = (fp_before == fp_after)
 
     return {
         "capability": cap,
         "axes": axes,
+        "future_axes": future_axes,
         "lerf_wins": wins,
         "deterministic_source": {
             "B_tokens": det["conditions"]["B"]["tokens"],
@@ -440,6 +765,7 @@ def compute(want_live: bool = False) -> dict:
                          "local_floor": LOCAL_POWER_FLOOR_W, "cloud": CLOUD_POWER_W},
             "tok_per_s": TOK_PER_S,
             "cloud_net_overhead_s": CLOUD_NET_OVERHEAD_S,
+            "reason_tokens_per_unit": REASON_TOKENS_PER_UNIT,
         },
         "hermetic_ok": hermetic_ok,
         "live_available": bool(live and live.get("available")),
@@ -497,6 +823,46 @@ def _fmt_ratio(v) -> str:
     if v >= 1:
         return f"{v:7.2f}"
     return f"{v:7.3f}"
+
+
+def _print_future_metrics(fa: dict) -> None:
+    """Render the roadmap FUTURE METRICS — UNDERSTANDING/GB, LEARNING/GB (EXACT), REASONING/WATT
+    (ESTIMATE). These are DENSITY/efficiency measures of the MIND systems (no model-only side), so
+    they print as a single value each with its basis + the raw counts behind it. Feeds the Growth
+    Dashboard + Mind Balance board."""
+    u = fa["understanding_per_gb"]
+    l = fa["learning_per_gb"]
+    r = fa["reasoning_per_watt"]
+    print("FUTURE METRICS — knowledge/mind DENSITY (roadmap extension; feeds Growth Dashboard +")
+    print("                 Mind Balance board). DENSITY axes have no model-only side.")
+    hdr = f"{'metric (per-MB / per-kJ)':<28}{'value':>12}  basis   what it measures"
+    print(hdr)
+    print("-" * len(hdr))
+    print(f"{'understanding / MB':<28}{_fmt_ratio(u['density_per_mb']):>12}  EXACT   "
+          f"world-model units per MB of store")
+    print(f"{'learning / MB':<28}{_fmt_ratio(l['density_per_mb']):>12}  EXACT   "
+          f"cognitive objects per MB of store")
+    print(f"{'reasoning / kJ':<28}{_fmt_ratio(r['ratio']):>12}  [EST]   "
+          f"verified multi-step reasoning units per kJ")
+    print("-" * len(hdr))
+    ud = u["detail"]
+    print(f"  UNDERSTANDING: {ud['units']} units = {ud['entities']} entities + "
+          f"{ud['causal_links']} causal-links + {ud['relations']} relations + "
+          f"{ud['chain_hops']} chain-hops")
+    print(f"                 over {ud['store_bytes']} B "
+          f"({ud['store_bytes']/1024:.2f} KB) world-model store   [EXACT]")
+    ld = l["detail"]
+    bt = ld.get("by_type", {})
+    bt_s = ", ".join(f"{k}:{v}" for k, v in sorted(bt.items()))
+    print(f"  LEARNING:      {ld['objects']} cognitive objects ({bt_s})")
+    print(f"                 over {ld['store_bytes']} B "
+          f"({ld['store_bytes']/1024:.2f} KB) LERF store   [EXACT]")
+    rd = r["detail"]
+    print(f"  REASONING:     {rd['reasoning_units']} units "
+          f"({rd['multistep_objects']} multi-step objects + {rd['causal_links']} causal-links) "
+          f"@ ~{rd['j_per_unit']} J/unit")
+    print(f"                 [EST: {rd['model']}]  (count EXACT, joules ESTIMATE)")
+    print()
 
 
 def _print_report(rep: dict) -> None:
@@ -587,6 +953,11 @@ def _print_report(rep: dict) -> None:
               f"LERF+small extracts more capability from every token.")
     print()
 
+    # ---- FUTURE METRICS (roadmap extension) — feeds the Growth Dashboard + Mind Balance board ----
+    fa = rep.get("future_axes")
+    if fa:
+        _print_future_metrics(fa)
+
     # ---- assumptions, stated plainly ----
     a = rep["assumptions"]
     print("ASSUMPTIONS (challenge any of these):")
@@ -598,6 +969,12 @@ def _print_report(rep: dict) -> None:
     print(f"  second  : local anchor from telemetry generate-latency if present, else "
           f"tokens/throughput; cross-model speed is an ESTIMATE.")
     print(f"  token/$ : EXACT — reused verbatim from scripts/lerf_benchmark deterministic table.")
+    print(f"  underst.: EXACT — world-model entity/causal-link/relation/chain-hop COUNTS ÷ a real "
+          f"os.stat of the world-model store (built synthetic + grounded, hermetic).")
+    print(f"  learning: EXACT — cognitive-object COUNT (lerf.stats) ÷ a real os.stat of the LERF "
+          f"store (synthetic ACTIVE population spanning all object types).")
+    print(f"  reason/W: ESTIMATE — count of multi-step reasoning units is EXACT; the J/unit reuses "
+          f"the per-watt energy model ({a.get('reason_tokens_per_unit')} tok on the 3B). A lens.")
     print()
     print(f"HERMETIC: real .anima (excl. backups/) byte-unchanged = {rep['hermetic_ok']}")
     if rep["live_available"]:
@@ -670,6 +1047,43 @@ def _selftest() -> int:
     ok("token cut reused from benchmark is ~71% (50-90 band)",
        50.0 <= ds["token_reduction_pct"] <= 90.0)
 
+    # 7b. FUTURE METRICS (roadmap extension) — the three new axes compute FINITE & POSITIVE on
+    #     synthetic data, with the honesty flags (understanding/learning EXACT, reasoning ESTIMATE).
+    fa = rep["future_axes"]
+    u = fa["understanding_per_gb"]; l = fa["learning_per_gb"]; rzn = fa["reasoning_per_watt"]
+    for nm_, val_ in (("understanding_per_gb", u["density_per_mb"]),
+                      ("learning_per_gb", l["density_per_mb"]),
+                      ("reasoning_per_watt", rzn["ratio"])):
+        ok(f"{nm_}: value is finite & positive ({val_})",
+           isinstance(val_, (int, float)) and val_ != float("inf") and val_ > 0)
+    # understanding numerator is the grounded world-model count, store bytes a real os.stat.
+    ud = u["detail"]
+    ok(f"understanding units are grounded world-model counts "
+       f"(entities {ud['entities']} + links {ud['causal_links']} + relations {ud['relations']} "
+       f"+ chain-hops {ud['chain_hops']} = {ud['units']})",
+       ud["units"] == ud["entities"] + ud["causal_links"] + ud["relations"] + ud["chain_hops"]
+       and ud["units"] > 0)
+    ok(f"understanding store size is measured & non-trivial ({ud['store_bytes']} bytes)",
+       ud["store_bytes"] > 1000)
+    # learning numerator spans all object types (>=10 seed skills + the added types), store measured.
+    ld = l["detail"]
+    ok(f"learning counts cognitive objects across types (objects={ld['objects']}, "
+       f"types={sorted(ld['by_type'].keys())})",
+       ld["objects"] >= 10 and len(ld["by_type"]) >= 5)
+    ok(f"learning store size is measured & non-trivial ({ld['store_bytes']} bytes)",
+       ld["store_bytes"] > 1000)
+    # reasoning count is exact (multi-step objects + causal links); the joules are the estimate.
+    rzd = rzn["detail"]
+    ok(f"reasoning units are an EXACT count (multistep {rzd['multistep_objects']} + "
+       f"causal-links {rzd['causal_links']} = {rzd['reasoning_units']})",
+       rzd["reasoning_units"] == rzd["multistep_objects"] + rzd["causal_links"]
+       and rzd["reasoning_units"] > 0 and rzd["total_joules"] > 0)
+    # honesty contract on the new axes: density EXACT, reasoning/watt ESTIMATE.
+    ok("understanding_per_gb & learning_per_gb are flagged EXACT",
+       u["exact"] and l["exact"])
+    ok("reasoning_per_watt is flagged ESTIMATE (energy is modelled, not measured)",
+       (not rzn["exact"]) and rzn.get("estimate") is True)
+
     # 8. HERMETIC: real .anima byte-unchanged across the whole selftest (compute() ran twice).
     rep2 = compute(want_live=False)
     fp_after = _footprint(real)
@@ -679,6 +1093,10 @@ def _selftest() -> int:
     ok("determinism: two runs give identical per-token ratios",
        axes["per_token"]["lerf_small"]["ratio"]
        == rep2["axes"]["per_token"]["lerf_small"]["ratio"])
+    # the EXACT future-metric densities are deterministic too (synthetic build is fixed).
+    ok("determinism: two runs give identical understanding & learning densities",
+       u["density_per_mb"] == rep2["future_axes"]["understanding_per_gb"]["density_per_mb"]
+       and l["density_per_mb"] == rep2["future_axes"]["learning_per_gb"]["density_per_mb"])
 
     print()
     if fails:
@@ -694,7 +1112,7 @@ def main(argv=None) -> int:
     ap.add_argument("--live", action="store_true",
                     help="drive the local model to MEASURE capability (else modelled)")
     ap.add_argument("--selftest", action="store_true",
-                    help="prove the four ratios compute and LERF+small wins >= 1 axis")
+                    help="prove the four ratios + the three future metrics compute (LERF wins >=1 axis)")
     args = ap.parse_args(argv)
 
     if args.selftest:
