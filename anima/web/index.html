@@ -11,6 +11,15 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%}
+/* ── one palette, used everywhere — so colours stay consistent across every surface ───────── */
+:root{
+  --bg:#0a0a0a;                       /* app background */
+  --panel:rgba(32,34,40,.76);         /* frosted sliding drawers (settings/library/dashboard) */
+  --panel-modal:rgba(32,34,40,.86);   /* focused centred overlay (search) — a touch more opaque */
+  --popover:rgba(26,27,32,.97);       /* solid small popovers (export / add menus) */
+  --line:rgba(255,255,255,.09);       /* hairline border on glass surfaces */
+  --accent:#2f7fff;                   /* the one blue accent */
+}
 /* Full auto-hide scrollbars: invisible until you hover a scrollable surface (chat or drawer),
    then a thin translucent thumb fades in. The 9px gutter stays reserved so nothing shifts. */
 html{scrollbar-width:thin;scrollbar-color:transparent transparent}
@@ -51,11 +60,14 @@ form{padding:10px 12px;border-top:1px solid #141414;
   background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
   padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 /* one full-width pill: toolbar on the left, text in the middle, send on the right */
-#bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+#bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid var(--line);
   border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
+/* a quiet highlight when you're typing — the bar feels awake without shouting */
+#bar:focus-within{border-color:rgba(255,255,255,.18);box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
 #bar.rec{border-color:rgba(120,170,255,.5);box-shadow:0 0 0 1px rgba(120,170,255,.22) inset}
 #bar.dragover{border-color:rgba(47,127,255,.6);box-shadow:0 0 0 2px rgba(47,127,255,.18) inset}
-#t{flex:1;background:none;border:none;padding:10px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
+#t{flex:1;background:none;border:none;padding:11px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
+#t::placeholder{color:rgba(255,255,255,.34)}
 /* toolbar: compact icon row left of the text input */
 #toolbar{display:flex;align-items:center;gap:0;flex:none}
 .tbtn{background:none;border:none;color:#8a8a8a;width:34px;height:34px;border-radius:50%;
@@ -72,7 +84,10 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .tpill:active{background:rgba(47,127,255,.3)}
 .tpill svg{flex:none}
 /* keep the label from crowding a very narrow phone: the icon stays, the text hides under ~360px */
-@media (max-width:360px){.tpill-label{display:none}.tpill{padding:0 9px}}
+/* on a phone the toolbar must not crowd out the text field: collapse the Add-Knowledge pill to
+   its "+" icon and tighten the icon row so the input keeps a usable width */
+@media (max-width:480px){.tpill-label{display:none}.tpill{padding:0 9px;margin-right:1px}
+  .tbtn{width:32px}#bar{gap:2px}#t{min-width:84px}}
 #mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
   flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #mic:active,#send:active{background:#232323}
@@ -87,14 +102,14 @@ form{padding:10px 12px;border-top:1px solid #141414;
 /* settings drawer — frosted glass that slides up, leaving a sliver of chat above */
 /* settings drawer — floating frosted glass that slides in from the RIGHT, ~a third of the screen */
 #settings{position:fixed;right:0;top:0;bottom:0;width:min(430px,42vw);min-width:300px;z-index:12;margin:10px;
-  background:rgba(18,18,23,.55);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
   display:flex;flex-direction:column;padding:16px 18px 16px 28px;border-radius:20px;
   border:1px solid rgba(255,255,255,.09);box-shadow:-24px 24px 64px rgba(0,0,0,.55);
   transform:translateX(calc(100% + 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #settings.open{transform:translateX(0);pointer-events:auto}
 /* library drawer — same frosted glass, slides in from the LEFT */
 #library{position:fixed;left:0;top:0;bottom:0;width:min(520px,52vw);min-width:300px;z-index:12;margin:10px;
-  background:rgba(18,18,23,.55);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
   display:flex;flex-direction:column;padding:16px 28px 16px 18px;border-radius:20px;
   border:1px solid rgba(255,255,255,.09);box-shadow:24px 24px 64px rgba(0,0,0,.55);
   transform:translateX(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
@@ -105,14 +120,14 @@ form{padding:10px 12px;border-top:1px solid #141414;
 /* search panel — compact overlay centered in chat */
 #searchPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);z-index:14;
   width:min(640px,92vw);max-height:80vh;
-  background:rgba(18,18,23,.7);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
-  border:1px solid rgba(255,255,255,.1);border-radius:20px;box-shadow:0 32px 80px rgba(0,0,0,.7);
+  background:var(--panel-modal);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid var(--line);border-radius:20px;box-shadow:0 32px 80px rgba(0,0,0,.7);
   display:flex;flex-direction:column;padding:18px 20px;
   opacity:0;pointer-events:none;transition:opacity .22s,transform .22s}
 #searchPanel.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
 /* export/copy menu — small popup above the toolbar button */
 #exportMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
-  background:rgba(22,22,28,.95);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  background:var(--popover);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
   border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:230px;
   box-shadow:0 12px 40px rgba(0,0,0,.7);
   opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
@@ -124,7 +139,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .emitem svg{flex:none;color:#8a8a8a}
 /* "+ Add Knowledge" menu — same look as the export menu */
 #addMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
-  background:rgba(22,22,28,.95);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  background:var(--popover);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
   border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:212px;
   box-shadow:0 12px 40px rgba(0,0,0,.7);
   opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
@@ -244,8 +259,8 @@ form{padding:10px 12px;border-top:1px solid #141414;
   border:1px solid rgba(255,255,255,.08);border-top:none;border-radius:0 0 12px 12px;transition:color .2s,background .2s}
 #dashknob:hover{background:rgba(255,255,255,.1);color:#e8e8ec}
 #dash{position:fixed;top:0;left:0;right:0;margin:10px auto;max-width:720px;max-height:82vh;overflow-y:auto;z-index:12;
-  background:rgba(18,18,23,.6);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
-  border:1px solid rgba(255,255,255,.09);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.55);padding:20px 22px 16px;
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.55);padding:20px 22px 16px;
   transform:translateY(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
 #dash.open{transform:translateY(0);pointer-events:auto}
 #dash h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec}
@@ -350,10 +365,12 @@ form{padding:10px 12px;border-top:1px solid #141414;
 </div>
 <header>
   <button id="mute" aria-label="voice on/off"></button>
-  <button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2.4" fill="currentColor" stroke="none"/></svg></button>
   <h1 id="title">__NAME__</h1>
   <div class="state" id="state"></div>
 </header>
+<!-- the settings knob lives OUTSIDE the (backdrop-filtered) header so position:fixed top:50% is
+     viewport-relative — i.e. it rides the vertical MIDDLE of the right edge, mirroring #dashknob -->
+<button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2.4" fill="currentColor" stroke="none"/></svg></button>
 <div id="log"></div>
 <form id="f">
   <div id="bar">
@@ -446,7 +463,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
         </div>
       </div>
     </div>
-    <input id="t" placeholder="say something…" enterkeyhint="send"
+    <input id="t" placeholder="What's on your mind?" enterkeyhint="send"
       autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true">
     <button type="submit" id="send" aria-label="send">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -962,7 +979,7 @@ async function startRecording(){
       recording=false; wantRec=false; mic.classList.remove('on'); bar.classList.remove('rec');
       // idle state: quiet mic label
       mic.setAttribute('aria-label','tap to talk');
-      input.placeholder='say something…';
+      input.placeholder="What's on your mind?";
       stream.getTracks().forEach(t=>t.stop());
       if(!chunks.length) return;
       setBusy(true);                                   // transcribing — animate the name
