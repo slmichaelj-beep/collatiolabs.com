@@ -19,10 +19,16 @@ mature-essential score is flagged as the CURRENT BOTTLENECK.
 MODE 1 — MIND BALANCE  (default; the maturity scorecard)
     python3 scripts/arb.py
 
-    Scores 13 dimensions — Memory, Continuity, Observation, Certification, Experience,
+    Scores 14 dimensions — Memory, Continuity, Observation, Certification, Experience,
     Curiosity, Grounding, Prediction, Reality Learning, Identity, Self-Improvement,
-    Governance Cost, Novelty — each from a REAL signal where one exists. Real signals read:
+    Governance Cost, Novelty, Efficiency — each from a REAL signal where one exists. Real
+    signals read:
       * Conservation    -> scripts/conservation.py run_battery() end-to-end retention   (MEASURED)
+      * Efficiency      -> anima/fmlgs.py measure() over a fixed reference corpus: the intelligence-
+                           per-GB the compact index preserves (recall fidelity vs the shipping
+                           keyword + exact-cosine baselines) + the exact footprint bytes/object +
+                           the compute-saved fraction. The live vault's real object COUNT is read
+                           read-only for context.                                       (MEASURED)
       * Observation     -> count of present observatory scripts (mri/conservation/decision/
                            counterfactual/causal/confidence/dataflow/provenance/evolution/
                            relationship/isolation)                                       (MEASURED)
@@ -189,7 +195,7 @@ MATURE_ESSENTIAL = {
 DIMENSION_ORDER = [
     "memory", "continuity", "observation", "certification", "experience",
     "curiosity", "grounding", "prediction", "reality_learning", "identity",
-    "self_improvement", "governance_cost", "novelty",
+    "self_improvement", "governance_cost", "novelty", "efficiency",
 ]
 
 DIMENSION_LABEL = {
@@ -206,6 +212,7 @@ DIMENSION_LABEL = {
     "self_improvement": "Self-Improvement",
     "governance_cost": "Governance Cost",
     "novelty": "Novelty",
+    "efficiency": "Efficiency",
 }
 
 
@@ -263,6 +270,7 @@ DEPENDS_ON = {
     "certification": {"observation"},                  # the gate reads what the microscope sees
     "governance_cost": set(),                          # meta — the cost of the review machinery
     "novelty": {"experience"},                         # genuinely-new ideas build on meaning
+    "efficiency": {"memory"},                          # intelligence-per-GB compresses stored memory
 }
 
 # TIME-GATED dimensions CANNOT be advanced by spending engineering hours now — their maturity
@@ -471,6 +479,127 @@ def signal_reality_learning(creature: str = LIVE_CREATURE, store: Path = None):
         "ledger_present": ledger_present,
         "time_gated": True,
     }
+
+
+# A fixed reference corpus + query set for the Efficiency read. Distinct domains so retrieval has a
+# right answer to find; built via lerf's PUBLIC make_* factories (pure dict constructors — they do
+# NOT touch any store), so the read is hermetic by construction. The intelligence-per-GB the FMLGS
+# index preserves on THIS corpus is a real, deterministic engine measurement.
+_EFFICIENCY_QUERIES = (
+    "summarize the doctor's note and list the medications",
+    "plan the most efficient driving route between my errands",
+    "extract every invoice line item and the total due",
+    "find the root cause of a failing test from its traceback",
+    "write a short warm birthday message for a friend",
+)
+
+
+def _efficiency_corpus(lerf):
+    """A small fixed synthetic vault (skills + a concept/heuristic) spanning distinct domains, built
+    via lerf's public make_* factories (pure constructors — no store write). The reference corpus the
+    Efficiency dimension measures intelligence-per-GB on. No real data, ever."""
+    A = lerf.ACTIVE
+    return [
+        lerf.make_skill("summarize_medical_appointment", "health",
+            inputs=["raw doctor's note"],
+            steps=["Identify the diagnosis", "Extract instructions and dosages",
+                   "List follow-ups with dates", "Write a 3-sentence summary"],
+            outputs=["plain summary", "medication list"], state=A),
+        lerf.make_skill("plan_errands", "logistics",
+            inputs=["list of stops", "start location"],
+            steps=["Cluster stops by area", "Order to minimise backtracking",
+                   "Account for opening hours"],
+            outputs=["ordered route"], state=A),
+        lerf.make_skill("summarize_invoice", "finance",
+            inputs=["a raw invoice"],
+            steps=["Identify the vendor and invoice number",
+                   "Extract every line item with its amount", "Sum the total and note the due date"],
+            outputs=["plain summary", "total and due date"], state=A),
+        lerf.make_skill("debug_failing_test", "engineering",
+            inputs=["a failing test and its traceback"],
+            steps=["Read the assertion that failed", "Localise the offending function",
+                   "Form a hypothesis", "Reproduce and fix"],
+            outputs=["root cause", "the fix"], state=A),
+        lerf.make_skill("draft_birthday_message", "social",
+            inputs=["the person and the relationship"],
+            steps=["Recall a shared specific", "Open warmly", "Close with a wish"],
+            outputs=["a short warm message"], state=A),
+        lerf.make_concept("compound_interest",
+            "interest earned on principal plus accumulated interest",
+            common_misunderstandings=["confusing it with simple interest"], state=A),
+        lerf.make_heuristic("ship_when_tests_green", "engineering",
+            condition="the hermetic selftest exits zero and the diff is additive",
+            action="ship the change behind the existing freeze", state=A),
+    ]
+
+
+def signal_efficiency(creature: str = LIVE_CREATURE):
+    """MEASURED: Intelligence-per-GB. Runs anima/fmlgs.py over a FIXED reference corpus through the
+    real FMLGS engine and reads how much retrieval intelligence the compact index preserves — the
+    mean of recall_vs_keyword (does the compressed index serve the SAME top objects the shipping
+    keyword retrieval would) and recall_vs_linear (the index's own fidelity vs exact cosine). The
+    exact footprint bytes/object and the compute-saved fraction (1 - scored_fraction) are carried in
+    the detail. The live creature's real object COUNT is read READ-ONLY (public listers, no index
+    build -> no empty-vault hazard) purely for context. Score is from the EXACT recall numbers
+    (deterministic); only latency would vary run-to-run and it is NOT scored. Degrades to an honest
+    ESTIMATED verdict if fmlgs/numpy is unavailable. Hermetic: make_* are pure dict constructors and
+    FMLGSIndex.build/measure are pure compute — no store is touched. Returns (fraction_or_None, detail)."""
+    try:
+        import numpy  # noqa: F401  (fmlgs needs it; degrade honestly if absent)
+        fmlgs = importlib.import_module("anima.fmlgs")
+        lerf = importlib.import_module("anima.lerf")
+    except Exception as e:  # pragma: no cover - degrade honestly
+        return None, {"measured": False,
+                      "signal": "anima.fmlgs/numpy unavailable -> Efficiency is ESTIMATED",
+                      "error": repr(e)}
+
+    # the live vault's real object count — read-only, public active-only listers, NO index build.
+    live_n = None
+    try:
+        live_n = len(list(lerf.all_skills(name=creature)))
+        for t in tuple(sorted(lerf.OBJECT_TYPES)):
+            live_n += len(lerf.all_objects(t, name=creature))
+    except Exception:  # pragma: no cover - context only; never fatal
+        live_n = None
+
+    try:
+        index = fmlgs.FMLGSIndex.build(_efficiency_corpus(lerf))
+        queries = list(_EFFICIENCY_QUERIES)
+        m = fmlgs.measure(index, queries, k=5, repeats=40)
+        foot = m.get("footprint", {}) or {}
+        rk = float(m.get("recall_vs_keyword", 1.0))
+        rl = float(m.get("recall_vs_linear", 1.0))
+        fidelity = max(0.0, min(1.0, (rk + rl) / 2.0))   # fraction of intelligence the compact index keeps
+        per_obj = foot.get("per_object_bytes")
+        saved = 1.0 - float(m.get("scored_fraction", 1.0))
+        live_txt = (f"; live '{creature}' vault has {live_n} real objects"
+                    if live_n is not None else "")
+        return fidelity, {
+            "measured": True,
+            "signal": (f"anima/fmlgs.py measure() over a {m.get('n_objects')}-object reference corpus: "
+                       f"intelligence preserved {fidelity * 100:.0f}% (recall_vs_keyword {rk:.2f}, "
+                       f"recall_vs_linear {rl:.2f}); footprint "
+                       + (f"{per_obj:.0f} B/object" if per_obj is not None else "n/a")
+                       + f", compute-saved {saved * 100:.0f}% (scored_fraction "
+                       f"{m.get('scored_fraction'):.2f}){live_txt}"),
+            "recall_vs_keyword": rk,
+            "recall_vs_linear": rl,
+            "fidelity": fidelity,
+            "footprint_total_bytes": foot.get("total_bytes"),
+            "per_object_bytes": per_obj,
+            "scored_fraction": m.get("scored_fraction"),
+            "compute_saved": saved,
+            "speedup_vs_keyword": m.get("speedup_vs_keyword"),
+            "n_objects": m.get("n_objects"),
+            "live_objects": live_n,
+            "note": ("MEASURED on a fixed reference corpus through the real FMLGS engine (the engine's "
+                     "intelligence-per-GB); the live vault's real object count is read-only context. "
+                     "An optimization axis — scored + shown, never the bottleneck."),
+        }
+    except Exception as e:  # pragma: no cover - degrade honestly, never raise out
+        return None, {"measured": False,
+                      "signal": f"fmlgs measure() failed ({e!r}) -> Efficiency is ESTIMATED",
+                      "error": repr(e), "live_objects": live_n}
 
 
 def _engine_presence(dim: str):
@@ -1032,6 +1161,25 @@ def build_scorecard(creature: str = LIVE_CREATURE, debt_ledger_name=None) -> dic
         "governance_cost", _ABSENT_ESTIMATE + 8, "ESTIMATED",
         "governance cost is not yet instrumented (no measured overhead/$ of the review machinery)",
         note="meta-axis; this very board is the first step toward measuring it", essential=False)
+
+    # EFFICIENCY (Intelligence-per-GB) — the one OPTIMIZATION axis with a real numeric: how much
+    # retrieval intelligence the compact FMLGS index preserves, MEASURED on a fixed reference corpus
+    # through the real engine. Non-essential by doctrine (a Mind can be fully mature yet not yet
+    # optimized for per-GB) — scored + shown, never a bottleneck candidate.
+    eff, eff_d = signal_efficiency(creature)
+    if eff is not None:
+        cells["efficiency"] = _cell(
+            "efficiency", eff * 100, "MEASURED", eff_d["signal"],
+            note=("intelligence-per-GB: the fraction of retrieval intelligence the compact FMLGS "
+                  "index keeps vs the shipping baselines; an optimization axis (shown, not a "
+                  "bottleneck)"),
+            essential=False)
+    else:
+        cells["efficiency"] = _cell(
+            "efficiency", _PARTIAL_ENGINE_ESTIMATE, "ESTIMATED",
+            eff_d.get("signal", "FMLGS efficiency signal unavailable -> ESTIMATED"),
+            note="FMLGS/numpy unavailable -> engine-presence band; an optimization axis (ESTIMATED)",
+            essential=False)
 
     ordered = [cells[k] for k in DIMENSION_ORDER if k in cells]
 
@@ -1642,10 +1790,23 @@ def _selftest() -> int:
     sc = build_scorecard()
     mem = next((c for c in sc["cells"] if c["key"] == "memory"), None)
     cons_raw, cons_d = signal_conservation()
-    ok("scorecard builds with all 13 dimensions",
-       len(sc["cells"]) == len(DIMENSION_ORDER))
+    ok("scorecard builds with all 14 dimensions",
+       len(sc["cells"]) == len(DIMENSION_ORDER) == 14)
     ok("Conservation signal is MEASURED (real run_battery end-to-end retention)",
        cons_raw is not None and cons_d.get("measured") is True)
+
+    # --- EFFICIENCY (Intelligence-per-GB): a real FMLGS measurement, an OPTIMIZATION axis ---------
+    eff_cell = next((c for c in sc["cells"] if c["key"] == "efficiency"), None)
+    eff_raw, eff_d = signal_efficiency()
+    ok("Efficiency dimension is present (Intelligence-per-GB on the board)", eff_cell is not None)
+    ok("Efficiency signal is MEASURED via the real FMLGS engine (recall fidelity + footprint bytes)",
+       eff_raw is not None and eff_d.get("measured") is True
+       and eff_cell is not None and eff_cell["basis"] == "MEASURED")
+    ok("Efficiency score is a real fraction in [0,100] (deterministic recall, not fabricated)",
+       eff_cell is not None and 0 <= eff_cell["score"] <= 100)
+    ok("Efficiency is NON-essential (an optimization axis — scored + shown, never the bottleneck)",
+       eff_cell is not None and eff_cell["essential"] is False
+       and sc["bottleneck"]["key"] != "efficiency")
     ok("Memory cell is LABELLED MEASURED and equals the real retention",
        mem is not None and mem["basis"] == "MEASURED"
        and mem["score"] == int(round(cons_raw * 100)))
