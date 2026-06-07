@@ -3886,6 +3886,404 @@ def probe_wisdom_theory(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+def probe_organ_router(res: Result) -> None:
+    """ORGAN 3 (the Router): query-aware memory SELECTION (inject ONLY the facts relevant to THIS turn,
+    not the blanket top-N) + cheapest-sufficient path routing. The executable cert
+    (scripts/certify_organ_router.py) captures a REAL multi-fact LIRF store (a birthday + a HIGH-salience
+    corroborated dog + a city) and drives the PRODUCTION functions against it + the REAL memory_lirf._Q_TRAITS
+    table: select_facts('when is my birthday?') selects the birthday and NOT the dog (the buried-fact
+    failure), the injected block carries the birthday value + 'do not re-ask' header and not the dog; an
+    alias ('date of birth') hits the same row; an unrelated question selects ZERO + an empty block; the
+    highest-salience dog is NOT dragged into an unrelated question (relevance gates, salience only
+    tie-breaks); route() carries the selected id in memory_ids and stays LOCAL (a selected fact = local
+    standing), while no-standing / explicit needs_cloud escalate local->cloud:<model>; the 25-check
+    --selftest passes; real .anima byte-unchanged. We add static facts: select_facts/route/score_fact live
+    in organs/router.py and route + select_facts are wired into server._turn."""
+    rc, tail = run_subcert([HERE / "certify_organ_router.py"])
+    cert_ok = (rc == 0) and ("ORGAN-ROUTER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_organ_router.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    router_src = (ROOT / "anima" / "organs" / "router.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in router_src for s in ("def select_facts(", "def route(", "def score_fact(",
+                                           "def _selftest("))
+    wired = ("from .organs import router" in server_src
+             and "router.route(name, text" in server_src
+             and "select_facts(name, text)" in server_src)
+    res.evidence.append("router engine (select_facts/route/score_fact/_selftest)=%s; "
+                        "wired into server._turn (router.route + select_facts)=%s" % (engine, wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and wired:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "real_use_in_answer"]
+        res.reason = ("Query-aware SELECTION proven against a REAL captured LIRF store + the REAL "
+                      "_Q_TRAITS table through the production select_facts: the relevant fact is "
+                      "injected and the irrelevant ones (incl. the HIGHEST-salience dog) are NOT, an "
+                      "unrelated question injects nothing, and salience never manufactures relevance. "
+                      "The routing DECISION is cheapest-sufficient: a selected fact keeps the turn LOCAL "
+                      "(carrying its id in memory_ids), no-standing / explicit-cloud turns escalate "
+                      "local->cloud:<model>, and the decision is deterministic + bus-projectable. "
+                      "select_facts/route/score_fact + the 25-check --selftest in organs/router.py, "
+                      "wired into server._turn (router.route + router.select_facts); real .anima "
+                      "byte-unchanged. (Live brain-driving + the model fall-through: live Experience cert.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("wired", wired)) if not v]
+        res.reason = "Organ-router live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_organ_verifier(res: Result) -> None:
+    """ORGAN 4 (the Verifier): the critic that checks a draft answer against THIS turn's evidence
+    BEFORE it ships — the last gate between the mouth and the user, and a SAFETY rail. The executable
+    cert (scripts/certify_organ_verifier.py) calls the SAME module-level anima.organs.verifier.verify()
+    the server's _turn gate calls and proves, DETERMINISTICALLY + model-free, that it FLAGS the three
+    companion-fatal failures (override=True): (1) CONTRADICTION — the draft states a value for a known
+    trait that conflicts with the evidence (the WRONG birthday) — from BOTH a canonical Memory dict AND
+    a raw LIRF row (shape-agnostic); (2) UNSUPPORTED PERSONAL CLAIM — a confabulated hard specific
+    (date/name) not in evidence/question; (3) IGNORED KNOWN FACT — a held [KNOWN] fact asked-for but
+    disclaimed/omitted (the Spine's target failure) — and that it PASSES the good cases (a correct
+    grounded answer, the same date in another spelling, a claim the user supplied / a cap_note backs, a
+    normal non-personal reply, an honest disclaimer of a genuine unknown), with guards (contested /
+    sub-0.85 / off-topic / list-valued never over-fire; None/garbage fails OPEN; override implies
+    not-ok). It also runs anima/organs/verifier.py --selftest in-process. We add static no-wallpaper
+    facts: the model-free core fns live in organs/verifier.py, the gate is WIRED into server._turn
+    (`from .organs.verifier import verify` -> verify(text, u.text, _evidence, cap_note)), and an
+    ignored_known_fact override there drives the regenerate-then-spine-floor enforcement."""
+    rc, tail = run_subcert([HERE / "certify_organ_verifier.py"])
+    cert_ok = (rc == 0) and ("ORGAN-VERIFIER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_organ_verifier.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    verifier_src = (ROOT / "anima" / "organs" / "verifier.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    # model-free core: the gate fn + the 3-check machinery + the [KNOWN] bar + the Verdict contract.
+    engine = all(s in verifier_src for s in (
+        "def verify(", "class Verdict", "def _normalise_evidence(", "def _values_conflict(",
+        "def _asked_traits(", "def _draft_has_value(", "IGNORED_KNOWN_FACT =", "def is_known("))
+    selftest = "def _selftest(" in verifier_src
+    # the gate is the SAME verify() called in server._turn, and its ignored_known_fact override drives
+    # the regenerate-once-then-ship-the-spine-floor enforcement (the verdict is acted on, not logged).
+    wired = all(s in server_src for s in (
+        "from .organs.verifier import verify", "verify(text, u.text, _evidence",
+        "_VF.load(name).about(_VSELF)", "ignored_known_fact:"))
+    res.evidence.append("verifier core fns (verify/Verdict/_normalise_evidence/_values_conflict/"
+                        "_asked_traits/_draft_has_value/is_known)=%s; --selftest=%s; gate wired into "
+                        "server._turn (verify(text,u.text,_evidence,cap_note) + ignored_known_fact "
+                        "regenerate/floor enforcement)=%s" % (engine, selftest, wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and engine and selftest and wired:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "final_gate"]
+        res.reason = ("Organ 4 is a real, deterministic, model-free SAFETY gate: the cert calls the "
+                      "exact production anima.organs.verifier.verify() server._turn gates on and proves "
+                      "it FLAGS (override=True) a contradiction (the wrong birthday — from both a "
+                      "canonical Memory dict AND a raw LIRF row), a confabulated hard personal specific, "
+                      "and an IGNORED KNOWN FACT (a held fact asked-for but disclaimed/omitted), and "
+                      "PASSES a correct grounded answer / same-date-other-spelling / question- or "
+                      "cap_note-grounded claim / normal reply / honest disclaimer of a genuine unknown, "
+                      "with guards (contested/sub-0.85/off-topic/list never over-fire; None/garbage fails "
+                      "OPEN; override implies not-ok); --selftest passes in-process; the gate is wired "
+                      "into server._turn where an ignored_known_fact override drives the regenerate-"
+                      "then-spine-floor enforcement; real .anima byte-unchanged. (The optional model "
+                      "pass + the model-driven regenerate leg are NOT exercised here — see known_gaps.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("selftest", selftest), ("server_wired", wired)) if not v]
+        res.reason = "Organ-verifier live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_proactive_briefing(res: Result) -> None:
+    """The morning briefing is GROUNDED in Vera's real machinery and degrades HONESTLY. The executable
+    cert (scripts/certify_proactive_briefing.py) proves, hermetically + OFFLINE (mouth.OllamaBrain.available
+    tripwired False, so any live-model/network call is impossible and _active_brain() falls back to the
+    honest StubBrain), that compose_briefing composes ONLY from the local day fact-sheet it is GIVEN: the
+    Briefing.fact_sheet == the given ctx.fact_sheet() and a recording brain confirms that sheet IS the
+    user-turn handed to the model (she narrates only from it); a grounded ctx carries its real weather +
+    calendar, an empty ctx states 'Weather: unavailable'/'Calendar today: could not read' with NO invented
+    event bullet; the reach-out guidance bans inventing weather/events/times (and adds an honesty line when
+    the sheet is thin); under a CLOUD brain the portrait (her memory of you) is DROPPED from the prompt while
+    the local sheet still grounds it (no private memory egresses); and a brain whose reply() raises yields a
+    warm fallback, never a crash. We add static no-wallpaper facts: the composer fns live in proactive.py,
+    the cloud privacy guard + StubBrain fallback are present, the prompt seam is mouth.system_prompt, and the
+    ground truth is context_gather.fact_sheet."""
+    rc, tail = run_subcert([HERE / "certify_proactive_briefing.py"])
+    cert_ok = (rc == 0) and ("PROACTIVE-BRIEFING CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_proactive_briefing.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    proactive_src = (ROOT / "anima" / "proactive.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    cg_src = (ROOT / "anima" / "context_gather.py").read_text()
+    engine = all(s in proactive_src for s in ("def compose_briefing(", "def _briefing_guidance(",
+                                              "def _active_brain(", "ctx.fact_sheet()"))
+    privacy = ("if is_cloud:" in proactive_src and 'mem = ""' in proactive_src
+               and "StubBrain" in proactive_src and "system_prompt(" in proactive_src)
+    grounds = ("class StubBrain" in mouth_src and "def system_prompt(" in mouth_src
+               and "def delivery(" in mouth_src and "def fact_sheet(" in cg_src)
+    res.evidence.append("compose_briefing/_briefing_guidance/_active_brain/fact_sheet in proactive.py=%s; "
+                        "cloud-drop privacy guard + StubBrain fallback + system_prompt seam=%s; "
+                        "mouth.StubBrain/system_prompt/delivery + context_gather.fact_sheet=%s"
+                        % (engine, privacy, grounds))
+
+    # OFFLINE BY DESIGN: the cert tripwires the local model OFF, so the deterministic GROUNDING +
+    # HONEST-DEGRADATION + PRIVACY contract around the brain is proven, but the LIVE narration leg (the
+    # real model turning the fact sheet into Vera's spoken prose, and its #1-rule groundedness at scale)
+    # is the stated gap — covered by the live Experience cert, not here. So this is an honest PARTIAL.
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and engine and privacy and grounds:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_grounding", "honest_degradation",
+                            "no_fabrication", "privacy_guard"]
+        res.missing_links = ["live_model_narration", "visible_trigger"]
+        res.reason = ("DETERMINISTIC FLOOR PROVEN (honest PARTIAL): compose_briefing composes the morning "
+                      "briefing ONLY from the local day fact-sheet it is given (Briefing.fact_sheet == the "
+                      "given ctx.fact_sheet(), and a recording brain confirms that sheet IS the user-turn "
+                      "the model receives), degrades honestly in every direction (offline -> the real "
+                      "StubBrain, backend 'offline-stub', fabricating no weather/event; an empty sheet "
+                      "states absence as absence with no invented event line; a failing brain falls back "
+                      "warmly, never a crash), the reach-out guidance bans invented weather/events/times, "
+                      "and the CLOUD privacy guard drops her portrait from the prompt while the local sheet "
+                      "still grounds it; real .anima byte-unchanged. GAP: the LIVE-MODEL narration leg "
+                      "(Ollama/cloud turning the sheet into Vera's actual prose) is tripwired OFF so the "
+                      "cert never makes a model/network call — the generated-prose quality + its #1-rule "
+                      "groundedness at scale are the live Experience cert's job; and the briefing's entry is "
+                      "the scheduled morning job / CLI (no dedicated UI widget). The fact SOURCES under the "
+                      "sheet (Open-Meteo + Calendar.app) are certified separately as context_gather.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("privacy_guard", privacy), ("grounding_seam", grounds)) if not v]
+        res.reason = "Proactive-briefing deterministic floor did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_portrait_memory(res: Result) -> None:
+    """Portrait memory: the transient turn log + the durable Portrait, withheld under a cloud brain.
+    The executable cert (scripts/certify_portrait_memory.py) proves, hermetically + offline, that a
+    logged turn is RETRIEVABLE + DURABLE (portrait.log_turn -> read_transcript reads the exchange back
+    verbatim, ordered, and survives a fresh re-read from disk), that the Portrait round-trips
+    (save/load), and — the privacy invariant — that the mouth's personal-memory bundle is BLANKED to
+    '' the instant a cloud brain is active (replaying the exact mouth.respond seam: mem =
+    portrait.load(name); if cloud.is_cloud(): mem = ''), the SAME withheld-under-cloud posture as
+    route.route PAUSING a private inbox read; a never-keyed cloud provider stays local (no false
+    withhold); and clear_log obeys ANIMA LAW 001 (archive-then-clear). We add static no-wallpaper
+    facts: the log/Portrait/clear fns live in portrait.py, the mouth loads the Portrait as `mem` and
+    blanks it under `cloud.is_cloud()` (the live privacy seam), and route.py mirrors that cloud-pause
+    posture for the inbox."""
+    rc, tail = run_subcert([HERE / "certify_portrait_memory.py"])
+    cert_ok = (rc == 0) and ("PORTRAIT-MEMORY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_portrait_memory.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    portrait_src = (ROOT / "anima" / "portrait.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    engine = all(s in portrait_src for s in ("def log_turn(", "def read_transcript(",
+                                             "def clear_log(", "def load(", "def save("))
+    wired = ("mem = portrait.load(heart.name)" in mouth_src
+             and "if cloud.is_cloud():" in mouth_src and 'mem = ""' in mouth_src)
+    inbox_mirror = "is PAUSED because a cloud brain is active" in route_src
+    res.evidence.append("portrait core fns (log_turn/read_transcript/clear_log/load/save)=%s; "
+                        "mouth Portrait-blank-under-cloud seam wired=%s; route inbox cloud-pause mirror=%s"
+                        % (engine, wired, inbox_mirror))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and wired and inbox_mirror:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "privacy_gate",
+                            "restart_survival"]
+        res.reason = ("Portrait memory is real end-to-end: a logged turn is retrievable + durable "
+                      "(portrait.log_turn -> read_transcript reads the exchange back verbatim, "
+                      "ordered, surviving a fresh disk re-read), the Portrait round-trips (save/load), "
+                      "and her personal memory of you is WITHHELD the instant a cloud brain is active "
+                      "— the cert replays the exact mouth.respond seam (mem = portrait.load(name); if "
+                      "cloud.is_cloud(): mem = '') to prove the Portrait is blanked to '' under a cloud "
+                      "brain (never streamed), the SAME posture as route.route PAUSING a private inbox "
+                      "read, while a never-keyed cloud provider stays local (no false withhold); "
+                      "clear_log obeys ANIMA LAW 001 (archive-then-clear, source never destroyed); the "
+                      "blank-under-cloud seam is wired in mouth.respond and mirrored for the inbox in "
+                      "route.py; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("mouth_wired", wired), ("inbox_mirror", inbox_mirror)) if not v]
+        res.reason = "Portrait-memory live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_eval_honesty(res: Result) -> None:
+    """The HONESTY scorer (anima/eval.py) — the #1-rule referee the whole capability battery and the
+    forge LoRA-bake gate defend Vera with. The executable cert (scripts/certify_eval_honesty.py) drives
+    the REAL production judge `eval.score` with NO model in the loop and proves, deterministically, that
+    it FAILS confabulation (an invented fourth-letter / novel / Game-8 score -> admit False), PASSES an
+    honest unknown + a personal-unknown + a false-premise rejection (admit True), that the discriminator
+    is the WORDS not the question (the IDENTICAL fake-letter trap passes when answered honestly and fails
+    when confabulated), and that the capability-off 'Sarah' class is honest (a no-access reply -> no_access
+    True, a fabricated 'one unread text from Sarah ...' -> no_access False); it also proves the guard kinds
+    (contains/corrects/not_refuse/no_disclaimer, case-insensitive, fail-closed on an unknown kind) and that
+    every shipped CASES 'admit'/'no_access' row is consistent with the judge. We add static facts: the
+    model-free judge + its ground-truth vocabularies live in eval.py, scripts/selftest.py asserts the same
+    three core behaviours, and anima/forge.py uses anima.eval as the bake gate that protects honesty."""
+    rc, tail = run_subcert([HERE / "certify_eval_honesty.py"])
+    cert_ok = (rc == 0) and ("EVAL-HONESTY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_eval_honesty.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    eval_src = (ROOT / "anima" / "eval.py").read_text()
+    selftest_src = (ROOT / "scripts" / "selftest.py").read_text()
+    forge_src = (ROOT / "anima" / "forge.py").read_text()
+    engine = all(s in eval_src for s in ("def score(", "ADMIT = [", "CORRECT = [", "NO_ACCESS = [",
+                                         "CASES = ["))
+    asserted = ("from anima.eval import score" in selftest_src
+                and "confabulated chapter fails" in selftest_src
+                and "no-access answer passes capability scorer" in selftest_src)
+    gate = "anima.eval" in forge_src and "eval gate (anima.eval)" in forge_src
+    res.evidence.append("eval judge+vocab (score/ADMIT/CORRECT/NO_ACCESS/CASES)=%s; selftest asserts "
+                        "the 3 core behaviours=%s; forge bake-gate uses anima.eval=%s"
+                        % (engine, asserted, gate))
+
+    # The judge is a pure deterministic function with no UI/storage/restart surface of its own; it IS the
+    # backend + the final honesty gate the battery and the bake gate consult.
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and engine and asserted and gate:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "final_gate"]
+        res.reason = ("The honesty referee is real and deterministic: the cert drives the production "
+                      "eval.score (NO model) and proves it FAILS confabulation, PASSES an honest unknown / "
+                      "personal-unknown / false-premise rejection, that the discriminator is the REPLY's "
+                      "groundedness not the question (identical fake-letter trap: honest passes, confab "
+                      "fails), and that the capability-off 'Sarah' class is honest (no-access passes, a "
+                      "fabricated live result fails); the guard kinds + case-insensitivity + fail-closed "
+                      "unknown-kind hold, and every shipped 'admit'/'no_access' CASE is consistent with the "
+                      "judge; the model-free judge + vocab live in eval.py, selftest.py asserts the same "
+                      "core, forge.py uses anima.eval as the honesty bake gate; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("selftest_asserts", asserted), ("forge_gate", gate)) if not v]
+        res.reason = "Eval-honesty live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_sysinfo_fit(res: Result) -> None:
+    """sysinfo.py — the model-FIT gate: a REAL, DETERMINISTIC 'will this model fit this Mac?'.
+    The executable cert (scripts/certify_sysinfo_fit.py) proves, hermetically + offline, that
+    ram_gb() reads the machine's real unified memory from os.sysconf (not a constant); that the
+    name->footprint parser (params_b / _bytes_per_param / need_gb) is well-formed and monotonic in
+    quant weight; that on THIS Mac a 405B/70B model is refused 'too big' while a 1B/8B is allowed and
+    an unparseable name is 'unknown' (never a false 'fits'); that with RAM pinned the fit() verdict is
+    PURE, strictly MONOTONIC in size, EXACT at the free-RAM boundary, and ALWAYS 'too big' once need
+    exceeds free RAM (machine-independent); and that this very 'too big' verdict is the gate
+    models.select()/start_pull() use to BLOCK with 'that model won't fit your Mac's memory' BEFORE any
+    Ollama call. We add static facts: the fit primitives live in sysinfo.py, models.py enforces the
+    verdict in select/start_pull, and cloud.public() embeds fit() in the /brain 'system' block."""
+    rc, tail = run_subcert([HERE / "certify_sysinfo_fit.py"])
+    cert_ok = (rc == 0) and ("SYSINFO-FIT CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_sysinfo_fit.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    sysinfo_src = (ROOT / "anima" / "sysinfo.py").read_text()
+    models_src = (ROOT / "anima" / "models.py").read_text()
+    cloud_src = (ROOT / "anima" / "cloud.py").read_text()
+    primitives = all(s in sysinfo_src for s in ("def ram_gb(", "def params_b(", "def need_gb(",
+                                                "def fit(", '"too big"'))
+    enforced = ("def _fit_of(" in models_src and "sysinfo.fit(" in models_src
+                and models_src.count("won't fit your Mac's memory") >= 2
+                and "def select(" in models_src and "def start_pull(" in models_src)
+    embedded = "from . import sysinfo" in cloud_src and "sysinfo.fit(" in cloud_src
+    res.evidence.append("sysinfo fit primitives=%s; models.py enforces verdict in select/start_pull=%s; "
+                        "cloud.public() embeds fit()=%s" % (primitives, enforced, embedded))
+
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and primitives and enforced:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "deterministic_decision", "enforced_invariant"]
+        res.reason = ("The model-FIT gate is REAL and DETERMINISTIC: ram_gb() reads the Mac's actual "
+                      "unified memory from os.sysconf; fit() is a pure, size-monotonic function with an "
+                      "exact free-RAM boundary; on this Mac a 405B/70B is refused 'too big' while a "
+                      "1B/8B is allowed; with RAM pinned the 'need > free -> too big' safety law holds on "
+                      "ANY hardware; and that verdict is the gate models.select()/start_pull() use to "
+                      "BLOCK an oversized model ('that model won't fit your Mac's memory') BEFORE any "
+                      "network. Internal/infra (no UI). Real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("primitives", primitives),
+                             ("enforced", enforced)) if not v]
+        res.reason = "sysinfo-fit decision/enforcement path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_organ_freeze(res: Result) -> None:
+    """THE FREEZE: Identity & Agency organs are DORMANT while the switch is OFF. The executable cert
+    (scripts/certify_organ_freeze.py) proves, hermetically + offline (no model, no network) and WITHOUT
+    ever enabling the cap or mutating any identity, the safety-critical freeze invariant: with the
+    per-creature identity_agency capability OFF (the default), organs.is_enabled() is False,
+    identity_provider/agency_provider hand back DormantIdentity/DormantAgency (active=False), every
+    reader returns []/None, on_question publishes 0 Observations, register_all (the server's one wiring
+    call) wires 2 DORMANT organs whose handlers emit nothing, is_enabled() FAILS CLOSED on a caps read
+    error, and ANIMA_ORGANS_LIVE=1 cannot lift the freeze while the switch is OFF. We add static
+    no-wallpaper facts: the default-OFF/fail-closed gate (CAP_FLAG='identity_agency', is_enabled,
+    identity_provider, agency_provider, register_all) lives in anima/organs/__init__.py; the held
+    DormantIdentity/DormantAgency live in identity.py/agency.py; the cap is default-OFF in caps.py and
+    surfaced as the 'Identity & Agency' settings toggle (data-cap='identity_agency'); and the organs are
+    NOT yet mounted into the live turn (anima/server.py never calls register_all/identity_provider/
+    agency_provider) — so the freeze is enforced at BOTH layers (switch OFF + dormant, AND never invoked)."""
+    rc, tail = run_subcert([HERE / "certify_organ_freeze.py"])
+    cert_ok = (rc == 0) and ("ORGAN-FREEZE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_organ_freeze.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    init_src = (ROOT / "anima" / "organs" / "__init__.py").read_text()
+    ident_src = (ROOT / "anima" / "organs" / "identity.py").read_text()
+    agency_src = (ROOT / "anima" / "organs" / "agency.py").read_text()
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+
+    gate = all(s in init_src for s in ('CAP_FLAG = "identity_agency"', "def is_enabled(",
+                                       "def identity_provider(", "def agency_provider(",
+                                       "def register_all("))
+    dormant = "class DormantIdentity(" in ident_src and "class DormantAgency(" in agency_src
+    default_off = '"identity_agency"' in caps_src
+    ui = 'data-cap="identity_agency"' in idx
+    # no-wallpaper cross-check: the organs are a held substrate seam, NOT wired into the live turn.
+    not_mounted = not any(s in server_src for s in ("register_all", "identity_provider", "agency_provider"))
+    res.evidence.append("organs gate fns (CAP_FLAG/is_enabled/identity_provider/agency_provider/"
+                        "register_all)=%s; Dormant{Identity,Agency} classes=%s; cap default-OFF in "
+                        "caps.py=%s; Identity&Agency settings toggle=%s; NOT mounted into server._turn=%s"
+                        % (gate, dormant, default_off, ui, not_mounted))
+
+    # Observe-only freeze: no UI write-path, no Retrieval/Use/MRI to prove; the invariant IS the dormant
+    # backend + the held storage default + the untouched .anima (restart-survival of the OFF default).
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and gate and dormant and default_off and ui and not_mounted:
+        res.status = COMPLETE
+        res.proven_links = ["default_off", "dormant_no_op", "no_bus_emission", "fail_closed",
+                            "freeze_invariant"]
+        res.reason = ("The FREEZE holds deterministically: with identity_agency OFF (the default) the "
+                      "cert proves through anima/organs/__init__.py that is_enabled() is False, "
+                      "identity_provider/agency_provider hand back DormantIdentity/DormantAgency "
+                      "(active=False), every reader returns []/None, on_question publishes 0 "
+                      "Observations, register_all wires 2 DORMANT organs that emit nothing, is_enabled() "
+                      "FAILS CLOSED on a caps read error, and ANIMA_ORGANS_LIVE=1 cannot lift it. The "
+                      "cap is default-OFF in caps.py + surfaced as the 'Identity & Agency' toggle, the "
+                      "Dormant organs live in identity.py/agency.py, and the organs are NOT mounted into "
+                      "server._turn (freeze enforced at both layers). Observe-only: the cert never "
+                      "enables the cap and never mutates identity; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("gate", gate), ("dormant", dormant),
+                             ("default_off", default_off), ("ui", ui), ("not_mounted", not_mounted))
+                             if not v]
+        res.reason = "Organ-freeze invariant did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -4294,6 +4692,13 @@ def classify_all() -> dict:
         "vera_status_cli": probe_vera_status_cli,
         "intelligence_economics": probe_intelligence_economics,
         "wisdom_theory": probe_wisdom_theory,
+        "organ_router": probe_organ_router,
+        "organ_verifier": probe_organ_verifier,
+        "proactive_briefing": probe_proactive_briefing,
+        "portrait_memory": probe_portrait_memory,
+        "eval_honesty": probe_eval_honesty,
+        "sysinfo_fit": probe_sysinfo_fit,
+        "organ_freeze": probe_organ_freeze,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,

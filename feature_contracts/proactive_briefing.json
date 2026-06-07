@@ -1,0 +1,29 @@
+{
+  "feature": "proactive_briefing",
+  "claim": "Vera reaches out FIRST with a morning briefing — and she does it in HER real voice, through the same machinery a normal reply uses (persona + dials + honesty-rail framing + live heart-state + narrative + her memory of you), never a detached 'ollama run weather-bot' prompt. The briefing is GROUNDED: the ONLY ground truth handed to the brain is the local day fact-sheet (context_gather.DayContext.fact_sheet — weather + calendar + open loops), and the guidance explicitly forbids inventing weather, events, or times. It degrades HONESTLY in every direction: when the fact sheet is missing/empty the sheet states the absence as absence (no fabricated forecast, no invented event line) and the guidance tells her to be honest she has little to go on; when no local model is running the active brain is the honest offline stub (it announces itself, it does NOT fabricate a forecast); when the brain itself errors she ships a warm fallback line, never a crash. Privacy holds: if a CLOUD brain is active her portrait (concentrated memory of you) is DROPPED before the prompt is built — the exact guard mouth.respond uses — so a briefing never ships your life to a provider, while the local fact sheet still grounds it either way.",
+  "owner": "anima/proactive.py (compose_briefing = facts -> _briefing_guidance (the honesty-preserving reach-out instruction that bans invented weather/events) -> mouth.system_prompt(name, heart.feeling(), guidance, memory=portrait) -> _active_brain() [cloud.build_cloud_brain if configured+reachable, else mouth.OllamaBrain, else mouth.StubBrain] -> Vera's real line; the cloud privacy guard `if is_cloud: mem=\"\"`; the brain-error fallback; Briefing dataclass carrying text+backend+feeling+delivery+fact_sheet), anima/context_gather.py (DayContext.fact_sheet = the local-only weather+calendar ground truth, contracted separately as context_gather), anima/mouth.py (system_prompt = persona+dials+rail+state+narrative+portrait; StubBrain = the honest offline placeholder; delivery = prosody hints)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_grounding",
+    "honest_degradation",
+    "no_fabrication",
+    "privacy_guard",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "grounded_briefing_from_given_context_honest_degradation_offline_and_cloud_private",
+    "setup": "Hermetic temp store (proactive/portrait/mouth/cloud STORE redirected via gate0_prime_experience._temp_store) + OFFLINE ENFORCED: mouth.OllamaBrain.available is tripwired to False for the whole run, so any live-model path is impossible and _active_brain() falls back to the honest StubBrain (no Ollama is contacted, no network, no `say`/audio render). (A) OFFLINE DEGRADE: compose_briefing with a GIVEN grounded DayContext returns backend=='offline-stub' (the real StubBrain, NOT a live model) and a text that carries NO fabricated weather/event (it is the honest offline marker). (B) GROUNDING CONTRACT: the Briefing.fact_sheet equals the GIVEN ctx.fact_sheet() exactly, and a recording brain installed in place of _active_brain proves the user-turn handed to brain.reply() IS that fact sheet verbatim (the brain narrates ONLY from the local sheet) — when weather+calendar are present the sheet carries them; when both are absent the sheet states 'Weather: unavailable (...)' + 'Calendar today: could not read (...)' with NO invented '  - ' event bullet. (C) HONEST GUIDANCE: _briefing_guidance bans inventing weather/events/times ('never invent weather, events, or times'); with an empty sheet (has_real_ctx False) it ADDS the 'be honest that you don't have much to go on' line (a strict superset of the present-context guidance). (D) PRIVACY GUARD: with a non-empty portrait saved, a LOCAL brain receives the portrait in the system prompt, but a CLOUD brain has the portrait DROPPED ('mem=\"\"') — the local fact sheet still grounds the user-turn either way (no private memory egresses to a provider). (E) NEVER CRASHES: a brain whose reply() raises yields the warm fallback line ('My words are slow to come right now') and never propagates the exception. Real .anima byte-unchanged. scripts/certify_proactive_briefing.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "OFFLINE BY DESIGN: the LIVE-MODEL narration leg (the real OllamaBrain, or a configured cloud provider, turning the fact sheet into Vera's actual spoken sentences) is deliberately NOT exercised — Ollama is tripwired OFF so the cert can never silently make a model/network call. With the StubBrain the briefing TEXT is the honest offline placeholder, so the cert proves the GROUNDING + HONEST-DEGRADATION + PRIVACY contract around the brain (the fact sheet is the sole ground truth, absence is stated as absence, the portrait is dropped under cloud, errors fall back warmly) rather than the quality of the generated prose. The live narration (and its #1-rule groundedness at scale) is covered by the live (Ollama) Experience cert / gate0_prime_experience, not here.",
+    "The two LIVE fact SOURCES under the sheet — Open-Meteo weather (network) and Calendar.app (osascript) — are contracted + certified separately as `context_gather` (their honest-degradation + no-fabrication floor, both tripwired OFF there too). This cert consumes a hand-built DayContext so it tests compose_briefing's grounding/degradation independently of the source I/O.",
+    "Voice rendering (render_audio -> KokoroVoice / macOS `say` -> .anima/<name>.briefing.*) and playback (afplay) are real local-audio side effects deliberately NOT invoked (they would write under .anima and shell out); the cert composes the briefing only. The phone-location plumbing that feeds real coordinates is the separately-contracted `proactive_location` (/loc store)."
+  ],
+  "status": "UNKNOWN"
+}
