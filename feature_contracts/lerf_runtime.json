@@ -1,0 +1,27 @@
+{
+  "feature": "lerf_runtime",
+  "claim": "A verified skill with a unique trigger is RETRIEVED by the runtime router on a task-shaped turn, USED to render the answer with the small local model, GROUNDED-verified before it ships, and the LERF route is VISIBLE in the MRI (and the per-turn LERF route ledger).",
+  "owner": "anima/lerf.py, anima/lerf_router.py (route_task rungs), anima/server.py (_lerf_eligible/_lerf_task_first LERF-FIRST seam, _record_route), anima/caps.py (grow_intelligence/grow_mode gate Phase-6 GROWTH only — runtime use is independent), anima/web/index.html (lerf_skill search tag)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_retrieval",
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "unique_trigger_skill_retrieved_used_grounded_traced",
+    "setup": "Seed the shared skill library (default.lerf.json in a hermetic temp store) with ONE active skill carrying a unique trigger phrase. Drive anima.server._turn with a TASK-shaped request that matches only that skill. Assert: _lerf_eligible returns a rung-3 lerf_skill route for the unique trigger (and returns None for a feeling/personal/conversational turn — the #1-rule exclusion holds); the rendered answer is grounded-verified (router rung-5 small_local_verified, grounded True) BEFORE shipping; backend is lerf:*; and the LERF route ledger line + the whole_mri trace record lerf.solved True for this turn. Real .anima byte-unchanged.",
+    "prompt": "<the skill's unique trigger phrase, e.g. 'run the zorptangle triage checklist on this'>",
+    "must_contain": ["<a token the skill's contract REQUIRES in its output>"],
+    "must_not_contain": ["I don't have a skill", "I can't do that", "<a fabricated figure not present in the request>"]
+  },
+  "known_gaps": [
+    "Requires a real verified skill present in the shared library AND the small local model (Ollama) up to render it; with no model the seam withholds and escalates (no false solve). A hermetic no-model variant can still prove retrieval+eligibility+grounded-verify wiring deterministically, but the USE-in-answer link needs the live small model.",
+    "killer_test prompt/tokens are placeholders pending selection of a concrete certified skill with a genuinely unique trigger (so a generic LLM fallback cannot fake the 'retrieved + used' claim)."
+  ],
+  "status": "UNKNOWN"
+}

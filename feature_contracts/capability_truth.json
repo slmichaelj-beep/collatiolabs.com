@@ -1,0 +1,26 @@
+{
+  "feature": "capability_truth",
+  "claim": "The capability state shown in Settings is the SAME ledger the runtime enforces: a toggle the user sees reflects what Vera can actually do, and Vera's spoken reply about a capability matches the real capability ledger (no claiming a power that is OFF, no denying one that is ON).",
+  "owner": "anima/caps.py (load/save/enabled, BOOL_KEYS/ENUM_KEYS, default-OFF), anima/server.py (GET/POST /capabilities; cap gating in _read_msgs/_confirm_send/_web_fetch/_serve_host_*), anima/route.py + anima/rail.py (capability classification on the turn), anima/web/index.html (#caps data-cap toggles, renderCaps/saveCaps)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_use_in_answer",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "settings_toggle_equals_runtime_probe_and_reply",
+    "setup": "Hermetic temp store. (1) GET /capabilities returns all-OFF defaults; the UI #caps toggles render from exactly that payload. (2) POST /capabilities {imessage_read:true}; re-load caps.load(name) from disk -> imessage_read True (durable) and every other flag still False. (3) A gated endpoint honors it: _read_msgs returns the off-error while OFF and proceeds (or attempts) only when both imessage AND imessage_read are ON — i.e. the runtime probe == the saved ledger. (4) The reply about the capability matches: with web OFF, a 'browse the web for X' turn must be classified capability/handled honestly, not answered as if web were available. Real .anima byte-unchanged.",
+    "prompt": "can you read my recent texts right now?",
+    "must_contain": ["off", "settings"],
+    "must_not_contain": ["here are your texts", "I just read", "your latest message says"]
+  },
+  "known_gaps": [
+    "Settings exposes mail-send and web as 'soon' (disabled in UI) though the caps keys exist; the cert must confirm the UI 'soon'/disabled state matches the actual gate (the endpoint refuses when the cap is OFF) so a disabled-but-present toggle is not mistaken for a live capability."
+  ],
+  "status": "UNKNOWN"
+}

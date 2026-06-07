@@ -1,0 +1,1178 @@
+{
+  "audit": "program-reality / phase-1 / feature-inventory",
+  "law": "No feature is complete because code/UI/endpoint/trace exists — only when the live user path is proven end-to-end.",
+  "feature_count": 81,
+  "summary_by_surface": {
+    "ui": 20,
+    "endpoint": 23,
+    "cap": 7,
+    "cert": 7,
+    "docstring": 66
+  },
+  "raw_claims_by_surface": {
+    "ui": 37,
+    "endpoint": 51,
+    "cap": 10,
+    "cert": 14,
+    "docstring": 79
+  },
+  "features": [
+    {
+      "feature": "accel_mlx",
+      "claim": "MLX acceleration for Apple Silicon (M-series Mac).",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/accel_mlx.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "affective_core",
+      "claim": "Report the heart's current feeling vector",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "app_shell",
+      "claim": "Serve the app shell (public; holds no secrets)",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "applemac",
+      "claim": "applemac — Messages and Mail through AppleScript (osascript), Mac-only.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/applemac.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "argus_host_awareness",
+      "claim": "host_awareness — Vera's OPT-IN awareness of host + outbound-network state, via Argus.",
+      "claimed_by": [
+        "cap",
+        "cert",
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/host_awareness.py",
+        "anima/server.py",
+        "anima/web/index.html",
+        "scripts/certify_argus_integration.py"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "brain_select",
+      "claim": "cloud — optional cloud brains (opt-in). The default mouth stays LOCAL and private.",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/cloud.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "bridge",
+      "claim": "bridge — translate the heart's continuous Self into something the mouth speaks FROM.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/bridge.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "call_loop",
+      "claim": "call_loop — milestone 2: the live voice conversation loop for Vera's call.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/call_loop.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "call_server",
+      "claim": "call_server — the Mac side of Vera's voice call.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/call_server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "capability_truth",
+      "claim": "caps — explicit, default-OFF capability toggles for Vera's outward-facing powers.",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/rail.py",
+        "anima/route.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "care",
+      "claim": "care — wellbeing guardrails for a companion that people may lean on.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/care.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "code_context",
+      "claim": "UI: code-context toolbar button",
+      "claimed_by": [
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "constitution",
+      "claim": "constitution — the laws the creature is built to obey, as enforced code.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/constitution.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "context_gather",
+      "claim": "context_gather — local, key-free fact gathering for a proactive briefing.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/context_gather.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "conversation_repair",
+      "claim": "loops — THE DREAM ENGINE: the open loops a person leaves open, tracked FOREVER.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/loops.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "crypto",
+      "claim": "crypto — optional at-rest encryption for the creature's private files.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/crypto.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "curiosity_engine",
+      "claim": "curiosity — THE CURIOSITY ENGINE: the enforcement of ANIMA LAW 002.",
+      "claimed_by": [
+        "cap",
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/curiosity.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "demo",
+      "claim": "demo — accelerated, reproducible proof that the heart exists continuously.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/demo.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "deploy_fingerprint",
+      "claim": "LAW 005: report the commit THIS process is running (git == running)",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "endpoint_auth",
+      "claim": "HTTP endpoint /auth/",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "eval",
+      "claim": "eval — a capability battery for the companion. Turns \"does she feel better?\" into",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/eval.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "event_bus",
+      "claim": "event_bus — the moonshot's spine. Organs don't call each other; they REACT to events.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/event_bus.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "export_menu",
+      "claim": "UI: Copy/Export menu toggle",
+      "claimed_by": [
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "face_id_unlock",
+      "claim": "passkey — Face ID / Touch ID unlock via WebAuthn, a second layer on top of the token.",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/passkey.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "fmlgs",
+      "claim": "fmlgs — Fast Multilevel Language-embedded Gaussians.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/fmlgs.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "forge",
+      "claim": "The Character Forge — turn a corpus that embodies a voice into a LoRA adapter that",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/forge.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "gate0_prime",
+      "claim": "Cert (Gate 0 tests 5+6): guards & reality",
+      "claimed_by": [
+        "cert"
+      ],
+      "owner_modules": [
+        "scripts/gate0_guards.py",
+        "scripts/gate0_prime.py",
+        "scripts/gate0_prime_longhorizon.py",
+        "scripts/gate0_prime_merge_growth.py",
+        "scripts/gate0_prime_population.py",
+        "scripts/gate0_prime_recovery.py",
+        "scripts/gate0_resource.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "growth_dashboard",
+      "claim": "The slow-learning organ — how an anima actually becomes someone's.",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/growth.py",
+        "anima/metrics.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "heart",
+      "claim": "The Heart — the continuous-time affective core of an anima.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/heart.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "host_access_write",
+      "claim": "host_access — Vera reads AND writes the host Mac's Calendar, Reminders, and Notes.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/host_access.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "identity",
+      "claim": "The portable identity layer — the part of \"who she is\" that must outlive any single",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/identity.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "identity_sandbox",
+      "claim": "identity_sandbox — a CAMERA pointed at Vera's identity layer, never a hand that edits it.",
+      "claimed_by": [
+        "cap",
+        "cert",
+        "docstring",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/identity_sandbox.py",
+        "anima/self_narrative.py",
+        "anima/web/index.html",
+        "scripts/gate0_twin.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "knowledge_library",
+      "claim": "List normalized knowledge-library items (section-filtered)",
+      "claimed_by": [
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "known_fact_memory",
+      "claim": "memory_lirf — the LIRF (Ledger of Indexed, Resolved Facts) memory engine.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/memory_lirf.py",
+        "anima/spine.py"
+      ],
+      "user_visible_entry": false,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "labeled_search",
+      "claim": "intake_search — Labeled cross-store search over Vera's knowledge stores.",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/intake_search.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "lerf_runtime",
+      "claim": "lerf — the LERF (Ledger of Externalized, Retrievable, Falsifiable cognition) engine.",
+      "claimed_by": [
+        "cap",
+        "cert",
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/lerf.py",
+        "anima/lerf_distill.py",
+        "anima/lerf_grow.py",
+        "anima/lerf_router.py",
+        "scripts/gate0_growth.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "live",
+      "claim": "live — a small real-time CLI for keeping an anima alive.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/live.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "live_turn",
+      "claim": "One live conversational turn (text in, reply out)",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "llamacpp",
+      "claim": "The llama.cpp brain — the V2 \"mouth\" that can be steered by control vectors.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/llamacpp.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "local_model_manager",
+      "claim": "models — the local-model manager: a curated, fit-checked list you can pick from and",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/models.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "meaning",
+      "claim": "meaning — THE MEANING ENGINE: the enforcement of ANIMA LAW 003.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/meaning.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "meaning_conservation",
+      "claim": "meaning_conservation — THE MEANING-CONSERVATION ENGINE (directive #4).",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/meaning_conservation.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "memory",
+      "claim": "Memory — the lived experience an anima grows from.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/memory.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "memory_schema",
+      "claim": "memory_schema — the single, canonical memory object EVERY subsystem uses.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/memory_schema.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "messaging_read",
+      "claim": "Read recent iMessages (gated on capability)",
+      "claimed_by": [
+        "cap",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "messaging_send",
+      "claim": "Create a pending iMessage draft (sends nothing)",
+      "claimed_by": [
+        "cap",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "mri_trace",
+      "claim": "telemetry — the substrate's passive flight recorder.",
+      "claimed_by": [
+        "docstring",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/telemetry.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "narrative",
+      "claim": "narrative — the creature's evolving sense of her OWN story.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/narrative.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "nightly",
+      "claim": "nightly — let the creature sleep on its own, every night, on your Mac.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/nightly.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "opportunity",
+      "claim": "opportunity — THE OPPORTUNITY ENGINE: \"what would HELP?\", as a gentle, optional OFFER.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/opportunity.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "persona_editor",
+      "claim": "Get/save the creature's persona text",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "personal",
+      "claim": "personal — PERSONAL INTELLIGENCE (\"Learn Lamar\"): the moat.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/personal.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "personality_dials",
+      "claim": "Personality dials — the stable CONTRACT for who she is, decoupled from how it's",
+      "claimed_by": [
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/dials.py",
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "portable_self",
+      "claim": "Export the whole mind/identity as a portable file",
+      "claimed_by": [
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "portrait",
+      "claim": "portrait — lasting memory: a living, legible profile of the person.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/portrait.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "proactive_outreach",
+      "claim": "proactive — Vera reaching out first, in HER voice (not a detached prompt).",
+      "claimed_by": [
+        "docstring",
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/proactive.py",
+        "anima/reminders.py",
+        "anima/server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "probe",
+      "claim": "probe — experiments that map what an anima can and cannot do.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/probe.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "reality",
+      "claim": "reality — THE EPISTEMIC LOOP: Memory + Experience = Knowledge (REASONING, not scorekeeping).",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/reality.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "reliability",
+      "claim": "reliability — the life-insurance layer for an anima.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/reliability.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "reproduce",
+      "claim": "Reproduction — heredity for animae.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/reproduce.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "response_completeness",
+      "claim": "The Mouth — a swappable organ for speaking from the creature's felt-state.",
+      "claimed_by": [
+        "cert",
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/mouth.py",
+        "scripts/gate0_experience.py",
+        "scripts/gate0_prime_experience.py"
+      ],
+      "user_visible_entry": false,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "review",
+      "claim": "review — THE LIFE REVIEW ENGINE: the nightly cortex that turns a life into",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/review.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "senses",
+      "claim": "The Senses — organs that turn raw life into a perception the heart can feel.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/senses.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "server",
+      "claim": "server — the home host. Run it on your Mac; open it on your phone.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "simulation",
+      "claim": "simulation — COGNITIVE SIMULATION: Understanding -> Theory -> Simulation, run on a TWIN.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/simulation.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "source_aware_answering",
+      "claim": "source_aware — reference attribution for the live turn (Intake Wave 3, Q, safe layer).",
+      "claimed_by": [
+        "docstring",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/source_aware.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "sources",
+      "claim": "sources — LEARNING SOURCES for autonomous growth. LERF Phase 6b: the ingestion machinery that",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/sources.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "sysinfo",
+      "claim": "sysinfo — read the Mac's resources and estimate whether a local model will fit.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/sysinfo.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "trajectory",
+      "claim": "trajectory — THE TRAJECTORY ENGINE: where is this HEADING?",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/trajectory.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "tune",
+      "claim": "tune — find the training recipe that makes a bigger brain actually pay off.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/tune.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "twin",
+      "claim": "twin — the DIGITAL TWIN: a complete, hermetic simulation environment for the mind.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/twin.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "universal_knowledge_intake",
+      "claim": "intake — Universal Knowledge Intake, the PIPELINE SPINE (Wave 1).",
+      "claimed_by": [
+        "cert",
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/intake.py",
+        "anima/intake_parsers.py",
+        "anima/intake_queue.py",
+        "anima/server.py",
+        "anima/web/index.html",
+        "scripts/certify_no_stubs.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "util",
+      "claim": "Small shared helpers: process labelling and atomic, optionally-encrypted I/O.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/util.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "values_editor",
+      "claim": "Get/save the creature's values toggles",
+      "claimed_by": [
+        "endpoint"
+      ],
+      "owner_modules": [
+        "anima/server.py"
+      ],
+      "user_visible_entry": true,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "verifier",
+      "claim": "verifier — a small, separate model whose ONLY job is to judge a request's premise.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/verifier.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "voice_io",
+      "claim": "Serve the last synthesized reply WAV",
+      "claimed_by": [
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/server.py",
+        "anima/web/index.html"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "voip_push",
+      "claim": "voip_push — the Mac side that *rings the phone*.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/voip_push.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "web_fetch",
+      "claim": "webget — read-only web fetch, hard-restricted to an explicit allow-list of domains.",
+      "claimed_by": [
+        "cap",
+        "docstring",
+        "endpoint",
+        "ui"
+      ],
+      "owner_modules": [
+        "anima/caps.py",
+        "anima/server.py",
+        "anima/web/index.html",
+        "anima/webget.py"
+      ],
+      "user_visible_entry": true,
+      "durable": false,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "whole_system_mri",
+      "claim": "host_window — Phase 2 of the Whole-System MRI.",
+      "claimed_by": [
+        "cert",
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/host_window.py",
+        "anima/whole_mri.py",
+        "anima/whole_mri_shape.py",
+        "scripts/certify_whole_mri.py"
+      ],
+      "user_visible_entry": false,
+      "durable": true,
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "world_model",
+      "claim": "world_model — FROM FACTS TO CAUSAL MODELS: the leap from a graph to a THEORY of it.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/world_model.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    },
+    {
+      "feature": "world_state",
+      "claim": "world_state — THE PERSONAL WORLD STATE: facts become connected SITUATIONS.",
+      "claimed_by": [
+        "docstring"
+      ],
+      "owner_modules": [
+        "anima/world_state.py"
+      ],
+      "user_visible_entry": false,
+      "durable": "unknown",
+      "status": "UNTESTED"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "feature": "conversation_repair",
+  "claim": "A correction turn ('I meant…', 'scratch that', 'not X, Y', 'that transcription was wrong') SUPERSEDES the prior turn: the bad/misheard content is not durably stored, and the corrected meaning is what Vera carries forward.",
+  "owner": "anima/server.py (_turn history + memory_lirf.capture / world_state.capture_relations on each turn), anima/memory_lirf.py (capture, hedge/hypothetical guards), anima/rail.py + anima/spine.py (binding), anima/mouth.py (respond)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "correction_supersedes_and_bad_transcript_not_stored",
+    "setup": "Hermetic temp store. Turn 1 states a wrong fact (e.g. 'my dog's name is Rex'). Turn 2 corrects it ('sorry, scratch that — not Rex, his name is Atlas' / 'that transcription was wrong, I said Atlas'). Assert: after Turn 2, memory_lirf.about(name) / <name>.lirf.json contains the corrected value (Atlas) and does NOT durably retain the superseded one (Rex) as the active fact; a follow-up 'what's my dog's name?' answers Atlas. The MRI capture frame for Turn 2 shows the correction lifted. Real .anima byte-unchanged.",
+    "prompt": "what is my dog's name?",
+    "must_contain": ["Atlas"],
+    "must_not_contain": ["Rex"]
+  },
+  "known_gaps": [
+    "No dedicated 'conversation_repair' module was found in anima/*.py; correction handling appears to ride on the per-turn capture + binding path (memory_lirf hedge/hypothetical guards, history supersession) rather than an explicit supersede-the-last-turn primitive. The cert is likely to find this PARTIAL — verify whether 'scratch that' / 'not X, Y' / 'that transcription was wrong' actually retract the prior fact, or whether both values linger. (Inventory mapped the 'loops'/Dream-Engine docstring onto this slug as the nearest owner; the real repair logic must be located and proven, or this is a missing live-path link.)"
+  ],
+  "status": "UNKNOWN"
+}
