@@ -348,6 +348,27 @@ def classify_source(parsed: dict, *, name_hint: str = "", source_ref: str = "") 
         conf = 0.55
         reason = "A video file — once its audio is transcribed (Wave 4) store the transcript as reference."
         confirm = True
+    elif fmt == "audiobook":
+        # An audiobook transcript is a CITABLE reference (a published work quoted with attribution),
+        # never trained into LERF as Vera's own. DRM-locked .aax that didn't decode stays honest.
+        # Vera's first-person product message IS the user-facing reason (surfaced by /intake/plan).
+        from . import intake_audio as _ia
+        detected = "audiobook"
+        suggested = [DEST_REFERENCE]
+        title = (meta.get("audiobook_title") or meta.get("title_hint") or "audiobook")
+        author = meta.get("audiobook_author") or ""
+        product = _ia.product_message(parsed)
+        if parsed.get("status") == "ok" and text.strip():
+            conf = 0.8
+            reason = (product + f"  (Transcript of '{title[:50]}'"
+                      + (f" by {author[:40]}" if author else "")
+                      + f", {meta.get('transcript_segments', '?')} segments — stored as a CITABLE "
+                        "reference with timestamps; quotable + attributed, never trained as Vera's own.)")
+        else:
+            conf = 0.7
+            reason = (product + "  (Detection + safe metadata succeeded; transcription is blocked by "
+                      "DRM/tooling — Vera never circumvents DRM.)")
+        confirm = True
     else:
         # text / markdown / pdf — the prose family. Look at length + content shape.
         detected, suggested, conf, reason, confirm = _classify_prose(

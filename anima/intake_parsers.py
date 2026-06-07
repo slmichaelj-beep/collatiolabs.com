@@ -124,6 +124,9 @@ _EXT_FORMAT: dict[str, str] = {
     # audio
     ".mp3": "audio", ".wav": "audio", ".m4a": "audio", ".aac": "audio",
     ".flac": "audio", ".ogg": "audio", ".aiff": "audio", ".aif": "audio",
+    # audiobook — Audible .aax/.aaxc/.aa are DRM-protected (decodable only via the owner's authorized
+    # local path; Vera never circumvents the DRM); .m4b is the open audiobook container
+    ".aax": "audiobook", ".aaxc": "audiobook", ".aa": "audiobook", ".m4b": "audiobook",
     # video
     ".mp4": "video", ".mov": "video", ".mkv": "video", ".avi": "video",
     ".webm": "video", ".m4v": "video",
@@ -961,6 +964,16 @@ def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
     return _result(status="needs_dependency", need="stt+ffmpeg (whisper)", meta=meta)
 
 
+def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
+    """Audiobook / Audible .aax -> the HONEST audio-intake pipeline (anima/intake_audio): safe ffprobe
+    metadata (title/author/duration/codec — no decode, no key), DRM stays UNDECODABLE (Vera never
+    circumvents it — it supplies no key and fabricates no transcript), and a DECODABLE file is
+    converted via ffmpeg + transcribed by the approved LOCAL STT (faster-whisper) into a real
+    transcript chunked with timestamps. Heavy + opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1)."""
+    from . import intake_audio
+    return intake_audio.parse_audiobook(path_or_url, fmt=fmt or "audiobook")
+
+
 # --- safe web fetch (Wave 4) — stdlib urllib, SSRF-guarded, size + time capped ---------------
 def _host_is_safe(host: str) -> bool:
     """True iff `host` resolves ONLY to public, routable addresses. Blocks private / loopback /
@@ -1097,6 +1110,7 @@ PARSERS: dict[str, ParserFn] = {
     "pdf": parse_pdf,
     "image": parse_image,
     "audio": parse_audio,
+    "audiobook": parse_audiobook,
     "video": parse_video,
     "url": parse_url,
     "archive": parse_archive,
@@ -1106,7 +1120,7 @@ PARSERS: dict[str, ParserFn] = {
 # Which formats are FULLY implemented with zero/light deps in Wave 1 (vs the pluggable
 # heavy seam). PDF is conditional: light iff a PDF lib is importable.
 LIGHT_FORMATS = frozenset({"text", "markdown", "code", "csv", "json", "html", "folder"})
-HEAVY_FORMATS = frozenset({"image", "audio", "video", "url", "archive"})
+HEAVY_FORMATS = frozenset({"image", "audio", "audiobook", "video", "url", "archive"})
 
 
 def is_light(fmt: str) -> bool:

@@ -1,0 +1,26 @@
+{
+  "feature": "aax_intake",
+  "claim": "Audiobook / Audible .aax is a first-class Universal Knowledge Intake media type, implemented HONESTLY. Vera DETECTS .aax/.aaxc/.m4b, reads SAFE container metadata (title/author/duration/codec via ffprobe — no decode, no key), and NEVER circumvents the DRM: it extracts no Audible activation key, ships no key-recovery, and passes no decryption flag to ffmpeg — so a DRM-locked file is UNDECODABLE and Vera says so honestly, fabricating no transcript. If the file is decodable through the approved LOCAL path (ffmpeg reads it with no key), it is converted to an intermediate wav and transcribed by the approved LOCAL STT (faster-whisper; cloud only on explicit opt-in) into a real transcript chunked with timestamps (chapter-aware where ffprobe exposes chapters). The transcript is stored as a citable Reference (kind=audiobook_transcript, never trained as Vera's own), retrievable, and answered by the source-aware path with section/timestamp source labels. Transcription is heavy and opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1). The Intake MRI records uploaded -> detected .aax -> metadata -> decode status -> transcription status -> stored -> indexed -> used.",
+  "owner": "anima/intake_audio.py (media_probe/is_decodable/decode_to_wav/transcribe_wav/chunks_from_segments/parse_audiobook — no DRM bypass), anima/intake_parsers.py (.aax/.m4b -> 'audiobook' + PARSERS['audiobook']), anima/intake.py (classify_source audiobook -> Reference + the product messages), anima/web/index.html (upload advertises audiobooks .aax/.m4b), scripts/certify_aax_intake.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "real_use_in_answer",
+    "no_drm_bypass"
+  ],
+  "killer_test": {
+    "name": "aax_detected_drm_honest_decodable_transcribed_stored_retrieved_answered_no_bypass",
+    "setup": "scripts/certify_aax_intake.py proves 8 things: (1) .aax/.aaxc/.m4b detected as audiobook + routed to the honest parser; (2) an undecodable/DRM-shaped .aax returns needs_dependency with an EMPTY transcript + an honest message (never fabricated); (8) NO DRM-bypass token exists in anima/intake_audio.py and the ffmpeg commands pass no activation/decryption/key flag. Then, with the approved LOCAL tooling (macOS say + ffmpeg + faster-whisper; skip-not-fail when absent), it ingests a DRM-FREE audiobook fixture END TO END: (3) decode + real local-STT transcript with timestamped chunks; (4) stored as a citable reference; (5) retrievable; (6) the source-aware recall answers from the transcript; (7) labelled as a reference with audiobook/transcript provenance. The Intake MRI pipeline (detected->metadata->decode->transcription) rides in the parse meta.",
+    "prompt": "drop in an Audible .aax / audiobook",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "A real Audible .aax is DRM-protected and therefore UNDECODABLE here (Vera never circumvents DRM): detection + safe metadata + the honest 'provide a decodable version or transcript' path are what work for a locked file. End-to-end transcription is proven on a DECODABLE fixture through the approved local path; COMPLETE requires that local tooling (ffmpeg + a local STT model) to be present, else the contract is honestly PARTIAL (transcription blocked by tooling/DRM)."
+  ],
+  "status": "UNKNOWN"
+}
