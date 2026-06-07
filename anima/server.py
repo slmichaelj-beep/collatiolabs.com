@@ -1523,6 +1523,52 @@ def _web_fetch(name, data):
     return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"]))
 
 
+# --- Personal Intelligence ("Learn Lamar") — see + control your own learned model ----------
+# The model is built from CAPTURED data only (no inference); every claim is source-labeled,
+# confidence-scored, and sensitive-flagged. The user can distill on demand, relabel, or remove a
+# claim. These are LOCAL reads/writes of the user's OWN model — nothing is sent anywhere.
+
+def _serve_personal_profile(name):
+    """GET /personal/profile -> the grounded 'what Vera has learned about you' model: every claim
+    with its evidence, source, confidence, and a sensitive flag. An empty model returns
+    known=False (honest — never a fabricated personality)."""
+    from . import personal
+    try:
+        return json.dumps({"ok": True, "profile": personal.personal_profile(name)})
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)})
+
+
+def _serve_personal_learn(name):
+    """POST /personal/learn -> distill the personal model from ALL captured history (LIRF facts +
+    turn log) right now. Grounded-only: an empty history yields an empty model. Returns counts."""
+    from . import personal
+    try:
+        return json.dumps({"ok": True, "learned": personal.learn(name)})
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)})
+
+
+def _serve_personal_forget(name, data):
+    """POST /personal/forget {id} -> remove ONE learned claim (scoped to the user's own model;
+    conservation-respecting soft-delete). Refuses an id outside the personal model."""
+    from . import personal
+    oid = str((data or {}).get("id", "")).strip()
+    if not oid:
+        return json.dumps({"ok": False, "error": "need a claim id"})
+    return json.dumps(personal.forget(name, oid))
+
+
+def _serve_personal_edit(name, data):
+    """POST /personal/edit {id, text} -> relabel ONE learned claim (empty text reverts to the
+    distilled wording). Scoped to the user's own model; the edit is provenance-stamped."""
+    from . import personal
+    oid = str((data or {}).get("id", "")).strip()
+    if not oid:
+        return json.dumps({"ok": False, "error": "need a claim id"})
+    return json.dumps(personal.edit_statement(name, oid, str((data or {}).get("text", ""))))
+
+
 # --- proactive: serve a rendered briefing/reminder audio file ---------------
 # proactive.render_audio writes .anima/<Name>.briefing.wav (Kokoro) or .aiff (`say`);
 # a reminder escalation renders similarly. Caddy fronts vera.guruu.ai -> :8765, so a
@@ -2125,6 +2171,9 @@ class Handler(BaseHTTPRequestHandler):
                 # GET /library?name=...&section=...  -> {ok, items:[...]}
                 _out = _serve_library(self.name, u.query)
                 self._send(200, "application/json", json.dumps(_out).encode())
+            elif u.path == "/personal/profile":
+                # GET /personal/profile -> the grounded "what Vera has learned about you" model.
+                self._send(200, "application/json", _serve_personal_profile(self.name).encode())
             elif u.path == "/host/awareness":
                 # GET /host/awareness -> the human-level host picture (Argus). Cloud-redacted.
                 try:
@@ -2274,6 +2323,15 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/web/fetch":
                 data = json.loads(self._read_body() or b"{}")
                 self._send(200, "application/json", _web_fetch(self.name, data).encode())
+            elif path == "/personal/learn":
+                self._read_body()                       # drain (no args needed)
+                self._send(200, "application/json", _serve_personal_learn(self.name).encode())
+            elif path == "/personal/forget":
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _serve_personal_forget(self.name, data).encode())
+            elif path == "/personal/edit":
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _serve_personal_edit(self.name, data).encode())
             elif path == "/loc":
                 # iPhone posts {lat, lon, ts}; stored for the proactive briefing's weather.
                 # AUTHED (above) — must be, or the tailnet could spoof your location.

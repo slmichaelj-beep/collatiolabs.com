@@ -606,6 +606,93 @@ def learn(name: str, *, person: str = "Lamar", include_turns: bool = True,
 
 
 # ===================================================================================
+# SENSITIVE-CATEGORY FLAG — Vera distills ONLY what the person actually said (no inference),
+# so nothing sensitive is ever invented. But a CAPTURED statement can still touch a sensitive
+# domain (health, money, sexuality, religion, politics, legal). We FLAG such items so the read
+# surface can mark them and the person can review or delete them — honoring "no sensitive
+# *inference* without confirmation" by never inferring AND by surfacing the sensitive bits for
+# an explicit human call, rather than silently folding them into the model unseen.
+# ===================================================================================
+_SENSITIVE = re.compile(
+    r"\b("
+    r"health|medical|diagnos\w*|disease|illness|symptom|therapy|therapist|depress\w*|anxiet\w*|"
+    r"medication|prescription|disab\w*|pregnan\w*|"
+    r"salary|income|debt|loan|mortgage|bankrupt\w*|net ?worth|savings|invest\w*|"
+    r"sexual\w*|gender|orientation|lgbtq?|"
+    r"religio\w*|faith|church|mosque|temple|synagogue|god|"
+    r"politic\w*|democrat|republican|vote[ds]?|election|"
+    r"arrest\w*|criminal|lawsuit|conviction|immigration|citizenship"
+    r")\b", re.I)
+
+
+def is_sensitive(text: str) -> bool:
+    """True iff the text touches a sensitive category (health/finance/sexuality/religion/
+    politics/legal). Used only to FLAG captured items for human review — never to hide them."""
+    return bool(_SENSITIVE.search(text or ""))
+
+
+# ===================================================================================
+# EDIT / FORGET — the person's direct control over their own learned model. Both are scoped
+# to THIS person's personal slice (you can never retire or relabel an arbitrary system skill
+# through these). DELETE is conservation-respecting (lerf.retire_skill -> DEPRECATED, kept on
+# disk with a reason, never retrieved again). EDIT records a user label AND stamps the edit on
+# the object's own provenance, so 'who changed this and when' is always answerable.
+# ===================================================================================
+_PERSONAL_TYPES = (lerf.DECISION_PATTERN, lerf.PREFERENCE, lerf.VALUE, lerf.HEURISTIC)
+
+
+def _find_personal(name: str, object_id: str, person: str = "Lamar"):
+    """Return THIS person's ACTIVE personal object with `object_id`, or None. Scans only the
+    person's domain slice — an id outside the personal model is invisible here (the safety that
+    keeps forget/edit from touching arbitrary system skills)."""
+    dom = _person_domain(person)
+    for t in _PERSONAL_TYPES:
+        for o in lerf.all_objects(t, name=name):
+            if o.get("id") == object_id and o.get("domain") == dom:
+                return o
+    return None
+
+
+def forget(name: str, object_id: str, *, person: str = "Lamar") -> dict:
+    """Remove ONE learned claim from the person's model. Refuses any id that isn't part of this
+    person's personal slice (no retiring arbitrary skills). Conservation: the object is DEPRECATED
+    (kept on disk with a reason), never hard-deleted, and never retrieved again. Returns
+    {ok, id, state, reason}."""
+    o = _find_personal(name, object_id, person)
+    if o is None:
+        return {"ok": False, "id": object_id, "state": None,
+                "reason": "no such learned claim in your personal model"}
+    res = lerf.retire_skill(o["id"], name=name, force=True,
+                            reason="user removed this from their personal model")
+    return {"ok": bool(res.get("ok")), "id": object_id, "state": res.get("state"),
+            "reason": res.get("reason", "")}
+
+
+def edit_statement(name: str, object_id: str, new_text: str, *, person: str = "Lamar") -> dict:
+    """Let the person correct how a learned claim READS. Scoped to their own personal slice. The
+    grounding evidence is left intact; we set a `user_label` (which _one_line then prefers) and
+    stamp the edit on the object's support so the change is itself provenance-tracked. An empty
+    new_text CLEARS a prior label (reverts to the distilled wording). Returns {ok, id, summary}."""
+    label = (new_text or "").strip()[:280]
+    o = _find_personal(name, object_id, person)
+    if o is None:
+        return {"ok": False, "id": object_id, "summary": "",
+                "reason": "no such learned claim in your personal model"}
+    o = dict(o)
+    if label:
+        o["user_label"] = label
+        o.setdefault("support", []).append(f"user-edited:{label[:60]}")
+    else:
+        o.pop("user_label", None)
+        o.setdefault("support", []).append("user-edited:cleared")
+    try:
+        lerf.store_object(o, name=name)
+    except Exception as exc:                      # never silently swallow (LAW 001)
+        return {"ok": False, "id": object_id, "summary": "", "reason": f"store failed: {exc!r}"}
+    return {"ok": True, "id": object_id, "summary": _one_line(o)}
+
+
+# ===================================================================================
 # PROFILE — assemble what is KNOWN about how the person thinks/decides/prioritizes/
 # writes/learns. Reads back ONLY what was stored (the ACTIVE personal objects for this
 # person), each with its grounding evidence + provenance. An empty store -> an empty
@@ -641,11 +728,23 @@ def _facet(name: str, want_type: str, person: str) -> list:
     facet = []
     for o in objs:
         prov = lerf.provenance(o["id"], name=name)
+        summary = _one_line(o)
+        evidence = list(o.get("evidence", [])) or _evidence_from_support(o)
         facet.append({
             "id": o["id"],
             "name": o.get("name"),
-            "summary": _one_line(o),
-            "evidence": list(o.get("evidence", [])) or _evidence_from_support(o),
+            "summary": summary,
+            "evidence": evidence,
+            # confidence and source are first-class so the UI can show every claim as
+            # source-labeled + confidence-scored (the directive's bar for a learned claim).
+            "confidence": round(float(o.get("confidence", 0.0)), 3),
+            "source": o.get("source", "") or "captured",
+            "user_edited": bool((o.get("user_label") or "").strip()),
+            # sensitive items are FLAGGED (never hidden) so the user can review or remove them;
+            # Vera distills only what was captured (no inference), so nothing sensitive is invented.
+            "sensitive": is_sensitive(summary + " " + " ".join(evidence)),
+            "editable": True,
+            "deletable": True,
             "provenance": {
                 "where_from": prov.get("where_from"),
                 "who_taught": prov.get("who_taught"),
@@ -658,7 +757,11 @@ def _facet(name: str, want_type: str, person: str) -> list:
 
 
 def _one_line(o: dict) -> str:
-    """The single most informative line of an object for a profile listing."""
+    """The single most informative line of an object for a profile listing. A user-supplied
+    label (set via edit_statement) ALWAYS wins — the person can correct how a claim reads, and
+    that correction is itself provenance-stamped on the object (support: 'user-edited:...')."""
+    if (o.get("user_label") or "").strip():
+        return o["user_label"].strip()
     t = o.get("type")
     if t == lerf.DECISION_PATTERN:
         crit = o.get("criteria") or []

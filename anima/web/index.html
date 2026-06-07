@@ -556,6 +556,16 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
   <div id="idnote" class="hint" style="margin-top:8px"></div>
 
+  <h2 style="margin-top:22px">What I've learned about you</h2>
+  <p class="hint">Grounded only in what you've actually told me — never guessed. Each is
+    source-labeled and confidence-scored, and anything sensitive is flagged. You can relabel or
+    remove any of it; removing it stops her from using it.</p>
+  <div class="row" style="gap:10px;justify-content:flex-start;flex-wrap:wrap">
+    <button type="button" id="learnDistill" class="mbtn">Distill from my history</button>
+    <button type="button" id="learnRefresh" class="mbtn">Refresh</button>
+  </div>
+  <div id="learnlist" class="hint" style="margin-top:10px"></div>
+
   <h2 style="margin-top:22px">Your portable mind</h2>
   <p class="hint">What she's grounded about <b>you</b> — your facts and how you think — as a plain,
     model-agnostic file you can carry to any app or model. This is <i>your</i> mind, not her character.</p>
@@ -1601,6 +1611,7 @@ async function openSettings(){
   try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }catch(e){}
   try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(e){}
   renderFaceRow();
+  loadLearn();
 }
 
 // --- Face ID (WebAuthn passkey) — a second layer on top of the key ---------
@@ -1663,6 +1674,56 @@ document.getElementById('idexport').onclick=async()=>{
 };
 // your PORTABLE MIND (facts + how-you-think) — distinct from "Export self" (her character).
 const mindnote=document.getElementById('mindnote');
+// --- Learn-Lamar: see / distill / relabel / remove what Vera has grounded about you ---
+// User-derived strings go in via textContent (never innerHTML), so a captured phrase can't inject.
+function _learnRow(it){
+  const row=document.createElement('div');
+  row.style.cssText='border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 10px;margin:7px 0';
+  const top=document.createElement('div'); top.style.cssText='display:flex;align-items:center;gap:8px';
+  const sum=document.createElement('div'); sum.textContent=it.summary||'(no summary)';
+  sum.style.cssText='flex:1;color:#e8e8ec;font-size:13px;line-height:1.35';
+  top.appendChild(sum);
+  if(it.sensitive){ const s=document.createElement('span'); s.className='tag'; s.textContent='sensitive';
+    s.style.cssText='background:#5a2330;color:#ffd2da'; top.appendChild(s); }
+  const conf=document.createElement('span'); conf.className='tag'; conf.title='confidence';
+  conf.textContent=Math.round((it.confidence||0)*100)+'%'; top.appendChild(conf);
+  const edit=document.createElement('button'); edit.className='mbtn'; edit.textContent='✎';
+  edit.title='Reword'; edit.style.cssText='padding:2px 8px';
+  edit.onclick=async()=>{ const t=prompt('Reword this claim (leave blank to revert to the original):',
+      it.user_edited?(it.summary||''):''); if(t===null)return;
+    await apiFetch('/personal/edit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:it.id,text:t})}); loadLearn(); };
+  const del=document.createElement('button'); del.className='mbtn'; del.textContent='✕';
+  del.title='Remove'; del.style.cssText='padding:2px 8px';
+  del.onclick=async()=>{ if(!confirm('Remove this from your model? She stops using it.'))return;
+    await apiFetch('/personal/forget',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:it.id})}); loadLearn(); };
+  top.appendChild(edit); top.appendChild(del); row.appendChild(top);
+  const src=document.createElement('div'); src.style.cssText='font-size:11px;opacity:.55;margin-top:4px';
+  src.textContent='from '+(it.source||'captured')+(it.user_edited?' · you reworded this':'');
+  row.appendChild(src);
+  return row;
+}
+async function loadLearn(){
+  const box=document.getElementById('learnlist'); if(!box)return;
+  box.textContent='Loading…';
+  const d=await apiFetch('/personal/profile');
+  if(d._err){ box.textContent='Could not load your model right now.'; return; }
+  const p=(d&&d.profile)||{}; box.innerHTML='';
+  if(!p.known){ box.textContent="Nothing learned yet — as we talk and you share documents, what I "
+    +"ground about how you think will show up here, each with its source."; return; }
+  const facets=[['decision_patterns','How you decide'],['values','What you value'],
+    ['preferences','What you prefer'],['writing','How you write'],['lessons','What you’ve learned']];
+  for(const pair of facets){ const items=p[pair[0]]||[]; if(!items.length)continue;
+    const h=document.createElement('div'); h.textContent=pair[1]+' ('+items.length+')';
+    h.style.cssText='font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;margin:12px 0 2px';
+    box.appendChild(h); items.forEach(it=>box.appendChild(_learnRow(it))); }
+}
+document.getElementById('learnRefresh').onclick=loadLearn;
+document.getElementById('learnDistill').onclick=async()=>{
+  const b=document.getElementById('learnlist'); if(b)b.textContent='Distilling from your history…';
+  await apiFetch('/personal/learn',{method:'POST'}); loadLearn();
+};
 document.getElementById('mindexport').onclick=async()=>{
   try{ const r=await fetch('/mind/export',{headers:HDR});
     let n=null; try{ n=JSON.parse(await r.clone().text()).manifest.counts; }catch(_){}

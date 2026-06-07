@@ -752,6 +752,51 @@ def probe_mail_send(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- personal_intelligence -------------------------------------------------------------------
+def probe_personal_intelligence(res: Result) -> None:
+    """Learn-Lamar: distill -> see -> edit -> forget, grounded + freeze-safe. The executable cert
+    (scripts/certify_personal_intelligence.py) proves, hermetically, that an empty history yields an
+    empty model, that learn() distills source-labeled + confidence-scored + evidence-grounded claims,
+    that each item's sensitive flag is correctly wired, that forget/edit are scoped to the user's own
+    slice (and forget refuses unknown / cross-person ids), that the freeze holds, and that the server
+    handlers return ok. We add static facts: the 4 endpoints exist in server.py, the UI panel exists,
+    and the grounded/freeze contract lives in personal.py."""
+    rc, tail = run_subcert([HERE / "certify_personal_intelligence.py"])
+    cert_ok = (rc == 0) and ("PERSONAL-INTELLIGENCE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_personal_intelligence.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    personal_src = (ROOT / "anima" / "personal.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    endpoints = all(p in server_src for p in ('"/personal/profile"', '"/personal/learn"',
+                                              '"/personal/forget"', '"/personal/edit"'))
+    engine = all(s in personal_src for s in ("def learn(", "def personal_profile(", "def forget(",
+                                             "def edit_statement(", "def is_sensitive("))
+    ui = ('id="learnlist"' in idx and "function loadLearn(" in idx)
+    res.evidence.append("server endpoints=%s; engine fns (learn/profile/forget/edit/sensitive)=%s; "
+                        "UI panel=%s" % (endpoints, engine, ui))
+
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and endpoints and engine and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Learn-Lamar is grounded + controllable: empty history -> empty model (no "
+                      "fabrication); learn() distills source-labeled + confidence-scored + "
+                      "evidence-grounded claims; sensitive items are flagged; the user can distill, "
+                      "reword (provenance-stamped), and remove (scoped, conservation-respecting) any "
+                      "claim; forget refuses unknown/cross-person ids; the identity freeze holds; the "
+                      "4 endpoints + UI panel are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("endpoints", endpoints),
+                             ("engine", engine), ("ui", ui)) if not v]
+        res.reason = "Personal-intelligence live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1104,6 +1149,7 @@ def classify_all() -> dict:
         "capability_truth": probe_capability_truth,
         "host_apps": probe_host_apps,
         "mail_send": probe_mail_send,
+        "personal_intelligence": probe_personal_intelligence,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
