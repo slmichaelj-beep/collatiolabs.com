@@ -941,12 +941,16 @@ def parse_image(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
 
 
 def parse_audio(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
-    """Audio / long-form audio -> the honest local transcription pipeline (anima/intake_audio):
-    safe ffprobe metadata, ffmpeg decode (open formats only — NO DRM, NO key), and the approved
-    LOCAL STT (faster-whisper) into timestamped chunks. Undecodable -> needs_dependency, never a
-    fabricated transcript. Heavy + opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1)."""
-    from . import intake_audio
-    return intake_audio.parse_longform_audio(path_or_url, fmt=fmt or "audio")
+    """Audio / long-form audio (.mp3/.m4a/.wav/.aac) -> transcript via the approved LOCAL STT
+    (whisper / faster-whisper). Absent it, needs_dependency — never fabricates a transcript. (The
+    dedicated audiobook container .m4b takes the chapter-aware intake_audio path; both are honest,
+    local, and opt-in via ANIMA_INTAKE_ACTIVATE_HEAVY=1.)"""
+    meta = _base_meta(path_or_url, fmt or "audio")
+    meta["title_hint"] = _title_from_path(path_or_url)
+    activated = _activate_stt(path_or_url, meta)        # Wave 4: real STT iff whisper imports
+    if activated is not None:
+        return activated
+    return _result(status="needs_dependency", need="stt (whisper)", meta=meta)
 
 
 def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
