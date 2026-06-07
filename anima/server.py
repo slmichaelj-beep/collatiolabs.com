@@ -1528,6 +1528,29 @@ def _web_fetch(name, data):
 # confidence-scored, and sensitive-flagged. The user can distill on demand, relabel, or remove a
 # claim. These are LOCAL reads/writes of the user's OWN model — nothing is sent anywhere.
 
+def _serve_briefing(name):
+    """GET /briefing -> an ON-DEMAND morning briefing in Vera's voice. Composed ONLY from a
+    CAP-RESPECTING day sheet: the calendar is read ONLY when the calendar_read cap is on (else it is
+    stated as off, NEVER silently read), and no location/weather is used unless supplied — so the
+    button creates no silent power. Honest-degrading + grounded; the live-model narration is the same
+    path the scheduled morning job uses (proactive.compose_briefing)."""
+    import time as _t
+    from . import context_gather as cg
+    from . import caps
+    from .proactive import compose_briefing
+    cal = cg.calendar_today() if caps.enabled(name, "calendar_read") \
+        else cg.Calendar(ok=False, note="calendar reading is off in Settings")
+    ctx = cg.DayContext(when=_t.time(),
+                        weather=cg.Weather(ok=False, note="enable location to include weather"),
+                        calendar=cal)
+    try:
+        b = compose_briefing(name, ctx=ctx)
+        return json.dumps({"ok": True, "message": getattr(b, "text", str(b)),
+                           "fact_sheet": getattr(b, "fact_sheet", ctx.fact_sheet())})
+    except Exception as e:
+        return json.dumps({"ok": False, "error": ("briefing failed: %r" % (e,))[:200]})
+
+
 def _serve_personal_profile(name):
     """GET /personal/profile -> the grounded 'what Vera has learned about you' model: every claim
     with its evidence, source, confidence, and a sensitive flag. An empty model returns
@@ -2128,6 +2151,8 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/state":
                 heart = Heart.from_dict(load_json(_path(self.name)))
                 self._send(200, "application/json", json.dumps(heart.feeling()).encode())
+            elif u.path == "/briefing":
+                self._send(200, "application/json", _serve_briefing(self.name).encode())
             elif u.path == "/persona":
                 from .mouth import load_persona
                 self._send(200, "application/json",

@@ -567,6 +567,11 @@ form{padding:10px 12px;border-top:1px solid #141414;
   <p class="hint">Who Vera is — her character card. Read-only; her identity is frozen (you observe it, you don't rewrite it here).</p>
   <div id="personaCard" class="hint" style="white-space:pre-wrap;max-height:200px;overflow:auto;font-size:12px;line-height:1.5;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px">…</div>
 
+  <h2 style="margin-top:22px">Morning briefing</h2>
+  <p class="hint">Ask Vera to brief you now — composed only from today's facts (calendar only if you've turned Calendar on; never silently). The same voice as her scheduled morning reach-out.</p>
+  <div class="row"><button type="button" id="briefMe" class="mbtn">Brief me</button></div>
+  <div id="briefOut" class="hint" style="white-space:pre-wrap;margin-top:8px;font-size:12.5px;line-height:1.5"></div>
+
   <h2 style="margin-top:22px">Security</h2>
   <p class="hint">Face ID as a second lock on top of your key.</p>
   <div id="faceRow"></div>
@@ -1664,6 +1669,18 @@ async function loadPersona(){
     el.textContent=(d&&d.persona)||'No persona on record.';
   }catch(e){ el.textContent='Could not load the persona.'; }
 }
+// --- on-demand morning briefing (GET /briefing) — composed from a cap-respecting day sheet -----
+(function(){ const b=document.getElementById('briefMe'); if(!b) return;
+  b.onclick=async()=>{ const out=document.getElementById('briefOut');
+    b.disabled=true; const was=b.textContent; b.textContent='…';
+    if(out) out.textContent='Composing your briefing…';
+    try{ const r=await fetch('/briefing',{headers:HDR}); const d=await r.json();
+      if(out) out.textContent = d&&d.ok ? (d.message||'(empty briefing)')
+        : ('Could not compose a briefing'+(d&&d.error?': '+d.error:'.')); }
+    catch(e){ if(out) out.textContent='Could not reach the server for a briefing.'; }
+    finally{ b.disabled=false; b.textContent=was; }
+  };
+})();
 
 // --- Face ID (WebAuthn passkey) — a second layer on top of the key ---------
 const faceRow=document.getElementById('faceRow'),gate=document.getElementById('gate');
