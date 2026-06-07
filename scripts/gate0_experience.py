@@ -184,6 +184,8 @@ _STORE_MODULES = (
     "identity", "opportunity", "live",
     # … plus server itself (the live turn path) and the LERF modules the task seam reaches.
     "server", "lerf", "lerf_router",
+    # … plus the Whole-System MRI recorder + model-usage ledger the live turn now writes.
+    "whole_mri", "models",
 )
 
 

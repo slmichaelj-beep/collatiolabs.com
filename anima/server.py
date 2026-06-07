@@ -1100,6 +1100,10 @@ def _turn(name, text, voice=False):
             "rate": u.delivery["rate"], "backend": u.backend,
             "audio_url": f"/audio?name={name}&t={int(now)}" if u.audio_path else None,
             "gen_s": round(gen_s, 1),               # so the phone can show reply speed
+            # Whole-System MRI turn_id — the correlation key for THIS turn's unified trace.
+            # Additive; clients ignore unknown keys. Lets a caller pull the trace via
+            # `whole_mri.by_turn_id(name, turn_id)` / `scripts/whole_mri.py --turn <id>`.
+            "turn_id": _turn_id or "",
         }
         # SOURCE-AWARE ATTRIBUTION (Intake Wave 3, Q — safe layer): surface which uploaded
         # REFERENCE sources are relevant to this question, labeled and distinct from personal
