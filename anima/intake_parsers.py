@@ -788,18 +788,152 @@ def _tool_importable(*mods: str) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# WAVE 4 ACTIVATIONS — the heavy parsers now RUN their tool when (and only when) the optional
+# dependency is importable. Each activation returns a normalized _result on success, or None to
+# signal "not activated here" (the caller then emits the honest needs_dependency seam). The two
+# load-bearing promises hold exactly as in Wave 1: NEVER fabricate (an empty transcript/OCR is an
+# honest empty result with a note, never invented text) and NEVER crash the spine (any failure —
+# a missing binary behind an importable shim, a malformed file — degrades to needs_dependency).
+# In an environment without the heavy libs (the default) these all return None and the seam below
+# behaves precisely as before; a cert injects fakes to PROVE the activation path end-to-end.
+#
+# ACTIVATION IS OPT-IN. Per the Wave-1 doctrine ("even if the lib is present we do not block the
+# spine on the binary"), the mere presence of a heavy lib does NOT auto-activate — loading a whisper
+# model or shelling out to tesseract can be slow and can hit the network. Activation runs ONLY when
+# the operator flips ANIMA_INTAKE_ACTIVATE_HEAVY=1. Default (unset) = the honest needs_dependency
+# seam, no network, no blocking — exactly the Wave-1 behavior. The switch is the Wave-4 contract:
+# the seam is ready; flip it to turn a present-but-dormant lib into a live parser.
+_HEAVY_ENV = "ANIMA_INTAKE_ACTIVATE_HEAVY"
+
+
+def _heavy_on() -> bool:
+    """True iff the operator has opted into heavy-parser activation (ANIMA_INTAKE_ACTIVATE_HEAVY=1).
+    Default off so a present heavy lib never silently blocks the spine or touches the network."""
+    return os.environ.get(_HEAVY_ENV) == "1"
+
+
+def _activate_ocr(path_or_url: str, meta: dict) -> Optional[dict]:
+    """Real OCR via PIL + pytesseract when both import. Local files only (a URL would need a fetch
+    first). Returns ok (possibly empty-with-note), needs_dependency (importable shim but the
+    tesseract BINARY is missing / the image is unreadable), or None (libs absent -> Wave-1 seam)."""
+    if not _heavy_on():
+        return None
+    try:
+        from PIL import Image          # noqa: F401  (Pillow)
+        import pytesseract
+    except Exception:
+        return None
+    p = str(path_or_url)
+    if p.startswith(("http://", "https://")):
+        return None                    # OCR runs on a local image, not a URL
+    try:
+        with Image.open(p) as im:
+            text = (pytesseract.image_to_string(im) or "").strip()
+    except Exception as e:             # tesseract binary missing, or an unreadable image
+        return _result(status="needs_dependency", need="ocr (tesseract binary not found)",
+                       figures=[{"kind": "image", "ref": p}],
+                       meta={**meta, "ocr_error": ("%r" % (e,))[:160]})
+    chunks = [{"page": None, "section": "ocr", "text": text}] if text else []
+    return _result(status="ok", text=text, chunks=chunks,
+                   figures=[{"kind": "image", "ref": p}],
+                   meta={**meta, "ocr": "pytesseract", "ocr_chars": len(text),
+                         "note": "" if text else "OCR ran but found no text in the image"})
+
+
+def _activate_stt(path_or_url: str, meta: dict, *, need_extra: str = "") -> Optional[dict]:
+    """Real speech-to-text via openai-whisper or faster-whisper when importable. Returns ok with
+    the transcript, needs_dependency (importable but the model/ffmpeg failed), or None (no STT lib
+    -> Wave-1 seam). Whisper shells out to ffmpeg internally, so this also serves video files."""
+    if not _heavy_on():
+        return None
+    p = str(path_or_url)
+    if p.startswith(("http://", "https://")):
+        return None
+    # Prefer faster-whisper (lighter); fall back to reference whisper.
+    try:
+        from faster_whisper import WhisperModel  # type: ignore
+        try:
+            model = WhisperModel("base", device="cpu", compute_type="int8")
+            segments, _info = model.transcribe(p)
+            text = " ".join((seg.text or "").strip() for seg in segments).strip()
+        except Exception as e:
+            return _result(status="needs_dependency",
+                           need="stt (faster-whisper model/ffmpeg unavailable)" + need_extra,
+                           meta={**meta, "stt_error": ("%r" % (e,))[:160]})
+        return _result(status="ok", text=text,
+                       chunks=[{"page": None, "section": "transcript", "text": text}] if text else [],
+                       meta={**meta, "stt": "faster-whisper", "transcript_chars": len(text),
+                             "note": "" if text else "transcription ran but produced no speech text"})
+    except Exception:
+        pass
+    try:
+        import whisper  # type: ignore
+    except Exception:
+        return None
+    try:
+        model = whisper.load_model("base")
+        text = (model.transcribe(p) or {}).get("text", "").strip()
+    except Exception as e:
+        return _result(status="needs_dependency", need="stt (whisper model/ffmpeg unavailable)" + need_extra,
+                       meta={**meta, "stt_error": ("%r" % (e,))[:160]})
+    return _result(status="ok", text=text,
+                   chunks=[{"page": None, "section": "transcript", "text": text}] if text else [],
+                   meta={**meta, "stt": "whisper", "transcript_chars": len(text),
+                         "note": "" if text else "transcription ran but produced no speech text"})
+
+
+def _youtube_id(s: str) -> str:
+    """Extract the 11-char video id from a youtube URL (watch?v= / youtu.be/ / shorts/)."""
+    from urllib.parse import urlparse, parse_qs
+    try:
+        u = urlparse(s)
+    except Exception:
+        return ""
+    if "youtu.be" in (u.netloc or ""):
+        return (u.path or "/").split("/")[1][:32] if len(u.path) > 1 else ""
+    if "/shorts/" in (u.path or ""):
+        return u.path.split("/shorts/", 1)[1].split("/")[0][:32]
+    return (parse_qs(u.query or "").get("v", [""])[0])[:32]
+
+
+def _activate_youtube(s: str, meta: dict) -> Optional[dict]:
+    """Real YouTube transcript via youtube-transcript-api when importable. Returns ok with the
+    joined transcript, needs_dependency (importable but transcripts disabled / none found), or
+    None (lib absent -> Wave-1 seam). The transcript is DATA — never executed."""
+    if not _heavy_on():
+        return None
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi  # type: ignore
+    except Exception:
+        return None
+    vid = _youtube_id(s)
+    if not vid:
+        return None
+    try:
+        rows = YouTubeTranscriptApi.get_transcript(vid)
+        text = " ".join((r.get("text") or "").strip() for r in rows).strip()
+    except Exception as e:             # TranscriptsDisabled / NoTranscriptFound / network
+        return _result(status="needs_dependency", need="youtube-transcript (none available)",
+                       meta={**meta, "subkind": "youtube", "video_id": vid,
+                             "transcript_error": ("%r" % (e,))[:160]})
+    return _result(status="ok", text=text,
+                   chunks=[{"page": None, "section": "transcript", "text": text}] if text else [],
+                   meta={**meta, "subkind": "youtube", "video_id": vid,
+                         "transcript": "youtube-transcript-api", "transcript_chars": len(text),
+                         "note": "" if text else "the video has an empty transcript"})
+
+
 def parse_image(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
     """Image / screenshot -> text via OCR (Wave 4). Needs an OCR engine (pytesseract +
     tesseract, or a vision model). Absent the dependency, returns needs_dependency
     gracefully with the file recorded as a figure — never invents caption text."""
     meta = _base_meta(path_or_url, fmt or "image")
     meta["title_hint"] = _title_from_path(path_or_url)
-    if not _tool_importable("pytesseract"):
-        return _result(status="needs_dependency", need="ocr (pytesseract+tesseract)",
-                       figures=[{"kind": "image", "ref": str(path_or_url)}], meta=meta)
-    # Wave 4 will run real OCR here. Until then, even if the lib is present we do not
-    # block the spine on the binary; we declare the seam ready.
-    return _result(status="needs_dependency", need="ocr (activation pending Wave 4)",
+    activated = _activate_ocr(path_or_url, meta)        # Wave 4: real OCR iff PIL+pytesseract import
+    if activated is not None:
+        return activated
+    return _result(status="needs_dependency", need="ocr (pytesseract+tesseract)",
                    figures=[{"kind": "image", "ref": str(path_or_url)}], meta=meta)
 
 
@@ -809,9 +943,10 @@ def parse_audio(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
     transcript."""
     meta = _base_meta(path_or_url, fmt or "audio")
     meta["title_hint"] = _title_from_path(path_or_url)
-    need = "stt (whisper)" if not _tool_importable("whisper", "faster_whisper") \
-        else "stt (activation pending Wave 4)"
-    return _result(status="needs_dependency", need=need, meta=meta)
+    activated = _activate_stt(path_or_url, meta)        # Wave 4: real STT iff whisper imports
+    if activated is not None:
+        return activated
+    return _result(status="needs_dependency", need="stt (whisper)", meta=meta)
 
 
 def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
@@ -819,6 +954,10 @@ def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
     (ffmpeg). Absent them, needs_dependency — never fabricates a transcript."""
     meta = _base_meta(path_or_url, fmt or "video")
     meta["title_hint"] = _title_from_path(path_or_url)
+    # Whisper demuxes the audio track via ffmpeg internally, so the same STT activation serves video.
+    activated = _activate_stt(path_or_url, meta, need_extra=" + ffmpeg for the audio track")
+    if activated is not None:
+        return activated
     return _result(status="needs_dependency", need="stt+ffmpeg (whisper)", meta=meta)
 
 
@@ -896,9 +1035,10 @@ def parse_url(path_or_url: str, *, fmt: Optional[str] = None, _raw_html: Optiona
     meta = {"format": fmt or "url", "source_ref": s, "title_hint": s}
     if _is_youtube(s):
         meta["subkind"] = "youtube"
-        need = "youtube-transcript-api" if not _tool_importable("youtube_transcript_api") \
-            else "youtube-transcript (activation pending Wave 4)"
-        return _result(status="needs_dependency", need=need, meta=meta)
+        activated = _activate_youtube(s, meta)          # Wave 4: real transcript iff the api imports
+        if activated is not None:
+            return activated
+        return _result(status="needs_dependency", need="youtube-transcript-api", meta=meta)
     meta["subkind"] = "web_page"
     html = _raw_html
     if html is None:
