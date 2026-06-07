@@ -175,6 +175,12 @@ _STORE_TARGETS = (
     ("anima.spine", "STORE"),
     ("anima.mouth", "STORE"),
     ("anima.live", "STORE"),
+    # The live leg drives the REAL server._turn, so the modules IT writes through must redirect
+    # too, or its heart/mem/history + per-turn Whole-System MRI trace + model-usage ledger escape
+    # to the real .anima. (Mirrors scripts/gate0_prime_experience.py / gate0_experience.py.)
+    ("anima.server", "STORE"),
+    ("anima.whole_mri", "STORE"),
+    ("anima.models", "STORE"),
 )
 
 
