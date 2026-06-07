@@ -15,8 +15,10 @@ Design:
     dump (feedback_human_level_issues_and_actions).
   * HONEST + GUARDED: when Argus isn't running it says so ("the monitor isn't on") and never
     fabricates a network picture. Any failure degrades to a safe, empty-but-truthful summary.
-  * NO AGENCY: this module only READS and SUMMARISES. Pausing a destination is a separate,
-    confirm-gated power (caps host_block + the approval bridge in server.py); nothing here acts.
+  * NO AGENCY: this module only READS and SUMMARISES — it cannot act on the host. Pausing or
+    blocking a destination is a LOCKED Wave 2 capability that does NOT exist in this read-only
+    wave: no host_block cap, no approval bridge, no action endpoint. The action surface is
+    intentionally absent until Wave 2 is separately certified; nothing here can touch the host.
 """
 
 from __future__ import annotations
