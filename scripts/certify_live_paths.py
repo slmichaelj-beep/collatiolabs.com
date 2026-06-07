@@ -1509,6 +1509,1532 @@ def probe_proactive_location(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+def probe_lirf_memory(res: Result) -> None:
+    """Durable personal-fact ledger (LIRF): capture WITH provenance -> recall across a restart ->
+    USED in a LIVE deterministic turn (no model), with the honesty wall + the identity-freeze schema
+    invariant. The executable cert (scripts/certify_lirf_memory.py) proves, hermetically + offline,
+    that a captured birthday lands as a durable .lirf.json row with full provenance, survives a fresh
+    load (restart), and is RECALLED + USED through server._turn's exact known-fact seam — model-free:
+    spine.fact_question -> Facts.lookup -> spine.is_known_fact -> spine.answer_from_fact ->
+    mouth.final_output_gate ships the stored value; that an unstored trait is never fabricated
+    (honest_unknown admits + asks); that Organ-3 select_facts injects the row every turn; that a
+    'vera' candidate folds onto the user (freeze); and that a correction keeps the displaced value in
+    history[]. We add static no-wallpaper facts: the engine fns live in memory_lirf.py, the spine
+    seam fns live in spine.py, select_facts lives in organs/router.py, and the seam is WIRED into
+    server._turn (capture NOW + fact_question -> lookup -> answer_from_fact -> final gate)."""
+    rc, tail = run_subcert([HERE / "certify_lirf_memory.py"])
+    cert_ok = (rc == 0) and ("LIRF-MEMORY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_lirf_memory.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    memory_src = (ROOT / "anima" / "memory_lirf.py").read_text()
+    spine_src = (ROOT / "anima" / "spine.py").read_text()
+    router_src = (ROOT / "anima" / "organs" / "router.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in memory_src for s in ("def capture(", "def lookup(", "def fact_note(",
+                                           'SELF = "you"'))
+    seam = all(s in spine_src for s in ("def fact_question(", "def is_known_fact(",
+                                        "def answer_from_fact(", "def honest_unknown("))
+    injector = "def select_facts(" in router_src
+    # WIRED into the live turn: per-turn capture + the deterministic known-fact recall seam.
+    wired = ("memory_lirf.capture(name, text)" in server_src
+             and "from .memory_lirf import Facts as _KFacts, SELF as _KSELF" in server_src
+             and "answer_from_fact" in server_src
+             and "final_output_gate" in server_src
+             and '"memory:known_fact"' in server_src)
+    res.evidence.append("engine fns (capture/lookup/fact_note/SELF)=%s; spine seam "
+                        "(fact_question/is_known_fact/answer_from_fact/honest_unknown)=%s; "
+                        "Organ-3 select_facts=%s; wired into server._turn (capture NOW + known-fact "
+                        "seam -> final gate)=%s" % (engine, seam, injector, wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and seam and injector and wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "real_use_in_answer", "final_gate", "restart_survival"]
+        res.reason = ("LIRF is the durable memory-of-you, proven end-to-end: a stated fact is captured "
+                      "the SAME turn as an append-only .lirf.json row with full provenance (verbatim "
+                      "evidence + dated source + confidence), survives a restart (fresh load from "
+                      "disk), and is RECALLED + USED in a live deterministic turn via server._turn's "
+                      "known-fact seam (fact_question -> Facts.lookup -> answer_from_fact -> "
+                      "mouth.final_output_gate, backend memory:known_fact) carrying the exact stored "
+                      "value — model-free; an unstored trait is never fabricated (honest_unknown "
+                      "admits + asks); Organ-3 select_facts injects the relevant rows every turn; a "
+                      "'vera' candidate folds onto the user (identity freeze at the schema level); a "
+                      "correction keeps the displaced value in history[]; real .anima byte-unchanged. "
+                      "The generative leg (compound/emotional turns) is real but needs Ollama; this "
+                      "proves the model-free deterministic floor.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("seam", seam), ("injector", injector), ("wired", wired)) if not v]
+        res.reason = "LIRF-memory live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_knowledge_spine(res: Result) -> None:
+    """The Knowledge Spine: "bind, don't inject" — the Birthday->100% keystone. The executable cert
+    (scripts/certify_knowledge_spine.py) REPLAYS the exact server._turn KNOWN-FACT seam against a REAL
+    captured LIRF birthday row using the production functions (spine.fact_question -> Facts.load(name).
+    lookup(SELF,trait) -> spine.is_known_fact ? spine.answer_from_fact : spine.honest_unknown ->
+    mouth.final_output_gate): it proves a held fact is answered STRAIGHT from memory (value carried,
+    warm, no scaffold leak, never disclaimed — no model), an asked-but-absent trait ships a warm
+    admit+ask (never a fabricated value), a compound/emotional turn defers to the model, bind() renders
+    the Part-1 binding+warmth contract, and the binding is strictly asymmetric (soft/contested/
+    third-party/inactive rows never assert). It also runs anima/spine.py --selftest in-process. We add
+    static facts: the model-free core fns live in spine.py, the seam is wired into server._turn (backend
+    memory:known_fact / memory:honest_unknown), and the shared final gate is mouth.final_output_gate."""
+    rc, tail = run_subcert([HERE / "certify_knowledge_spine.py"])
+    cert_ok = (rc == 0) and ("KNOWLEDGE-SPINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_knowledge_spine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    spine_src = (ROOT / "anima" / "spine.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    engine = all(s in spine_src for s in ("def fact_question(", "def answer_from_fact(",
+                                          "def is_known_fact(", "def honest_unknown(", "def bind("))
+    wired = all(s in server_src for s in ("spine as _sp_live", ".fact_question(text)",
+                                          "is_known_fact(_kf_row)", "answer_from_fact(text, _kf_row",
+                                          "honest_unknown(text, name=name)",
+                                          "memory:known_fact", "memory:honest_unknown"))
+    gate = "def final_output_gate(" in mouth_src
+    res.evidence.append("spine core fns (fact_question/answer_from_fact/is_known_fact/honest_unknown/"
+                        "bind)=%s; server._turn KNOWN-FACT seam wired=%s; mouth.final_output_gate=%s"
+                        % (engine, wired, gate))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok,
+            Restart=cert_ok)
+    if cert_ok and engine and wired and gate:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Bind-don't-inject is real end-to-end: the cert replays the exact server._turn "
+                      "KNOWN-FACT seam (spine.fact_question -> Facts.lookup -> is_known_fact -> "
+                      "answer_from_fact / honest_unknown -> mouth.final_output_gate) against a REAL "
+                      "captured LIRF birthday row, proving a held fact ships STRAIGHT from memory "
+                      "(value carried, warm, no scaffold, never disclaimed — the Birthday->100% "
+                      "keystone, no model), an asked-but-absent trait ships a warm admit+ask (never a "
+                      "fabricated value), a compound turn defers to the model, bind() renders the "
+                      "binding+warmth contract, and the binding is strictly asymmetric (soft/contested/"
+                      "third-party/inactive never assert); the seam is wired in server._turn (backend "
+                      "memory:known_fact/honest_unknown); spine --selftest passes; real .anima "
+                      "byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("server_wired", wired), ("final_gate", gate)) if not v]
+        res.reason = "Knowledge-spine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_world_state(res: Result) -> None:
+    """Personal World State: facts become connected SITUATIONS. The executable cert
+    (scripts/certify_world_state.py) proves, hermetically + offline, that capture_relations builds
+    relational/causal edges from stated utterances and persists them additively, that situation()
+    returns the CONNECTED cluster (manager + stress + sleep linked in one graph) while an unrelated
+    query stays empty, that render_situation projects a spine-style understanding block whose tags are
+    all scrubbable (WORLD_SCAFFOLD_TOKENS), that an unstated link is NEVER fabricated, that relations
+    are durable + survive concurrent additive saves, and that no LIRF ledger file is written (additive
+    isolation). We add static no-wallpaper facts: server._turn calls world_state.capture_relations
+    per turn, the mouth builds situation() + injects render_situation into the prompt 'mem' (shaping
+    the live reply) + imports WORLD_SCAFFOLD_TOKENS into its leak-scrub, and the engine fns exist."""
+    rc, tail = run_subcert([HERE / "certify_world_state.py"])
+    cert_ok = (rc == 0) and ("WORLD-STATE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_world_state.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    ws_src = (ROOT / "anima" / "world_state.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    engine = all(s in ws_src for s in ("def capture_relations(", "def situation(",
+                                       "def render_situation(", "def capture("))
+    server_wired = "world_state.capture_relations(name, text)" in server_src
+    mouth_wired = (".situation(heart.name, user_text" in mouth_src
+                   and "render_situation(_cluster)" in mouth_src
+                   and "mem = (mem" in mouth_src
+                   and '"WORLD_SCAFFOLD_TOKENS"' in mouth_src)
+    res.evidence.append("engine fns (capture/capture_relations/situation/render_situation)=%s; "
+                        "server._turn capture_relations wired=%s; mouth situation+render injected "
+                        "into mem + scaffold-scrub=%s" % (engine, server_wired, mouth_wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=True, Restart=cert_ok)
+    if cert_ok and engine and server_wired and mouth_wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "real_use_in_answer", "mri_trace", "restart_survival"]
+        res.reason = ("Personal World State is live: capture_relations extracts never-infer "
+                      "relational/causal edges from each turn (wired into server._turn) into an "
+                      "additive graph that never touches the LIRF ledger; situation() returns the "
+                      "connected cluster (manager -> stress -> sleep linked) while an unrelated query "
+                      "stays empty; render_situation projects a spine-style understanding block "
+                      "injected into the prompt 'mem' in the mouth (shaping the live reply, scaffold "
+                      "tags scrubbed via WORLD_SCAFFOLD_TOKENS); relations are durable + survive "
+                      "concurrent additive saves; a 'situation' MRI stage is filmed; real .anima "
+                      "byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("server_wire", server_wired), ("mouth_wire", mouth_wired)) if not v]
+        res.reason = "World-state live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_world_model(res: Result) -> None:
+    """World Model Engine: from captured FACTS to a GROUNDED, RETRIEVABLE causal model. The
+    executable cert (scripts/certify_world_model.py) proves, hermetically + offline, that
+    build_model_from_graph turns captured situation-facts (world_state stated edges) + reality's
+    competing hypotheses into a causal model (manager_change -> strain -> poor_sleep -> low/energy);
+    that EVERY edge is grounded (a world-edge or a reality hypothesis) and cites its evidence, with
+    NO edge resting on co-occurrence alone; that an ungrounded domain yields an EMPTY model (never
+    invent); that the model is retrievable as a >=3-hop chain and round-trips by id through its OWN
+    .worldmodel.json store, additively; that a resolved outcome strengthens/weakens an edge with an
+    append-only history; and that it is INTERNAL-ONLY (clean-gated, imported by nothing on the live
+    reply). The broader unit is anima.world_model --selftest. We add static facts: the engine fns
+    exist in world_model.py, the no-diagnosis gate + internal_only flag live there, and (the
+    no-wallpaper SHADOW invariant) anima.world_model is IMPORTED by NOTHING in server/route/mouth —
+    so it is honestly PARTIAL: a real, durable, grounded backend with no live USER surface yet."""
+    rc, tail = run_subcert([HERE / "certify_world_model.py"])
+    cert_ok = (rc == 0) and ("WORLD-MODEL CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_world_model.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    # broader unit proof (the module's own multi-store hermetic selftest) as supporting evidence.
+    rc2, tail2 = run_subcert(["-m", "anima.world_model", "--selftest"])
+    self_ok = (rc2 == 0) and ("ALL WORLD_MODEL SELFTESTS PASS" in tail2)
+    res.evidence.append("python3 -m anima.world_model --selftest -> exit %d; %s"
+                        % (rc2, "PASS" if self_ok else "FAIL"))
+
+    wm_src = (ROOT / "anima" / "world_model.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    engine = all(s in wm_src for s in ("def build_model_from_graph(", "def causal_chains(",
+                                       "def update_model_with_outcome(", "def compare_models(",
+                                       "def explain_model(", "def get_model("))
+    laws = ("internal_only" in wm_src) and ("def _is_clean(" in wm_src) and ("BANNED_TERMS" in wm_src)
+    # the SHADOW invariant is about IMPORTS, not incidental substrings (server.py mentions the bare
+    # string "world_model" only as a TRACE DICT KEY counting world_STATE edges — not a wire).
+    import re as _re
+    _imp = (
+        _re.compile(r"^\s*import\s+world_model\b", _re.M),
+        _re.compile(r"^\s*from\s+\.\s+import\s+[^\n]*\bworld_model\b", _re.M),
+        _re.compile(r"^\s*from\s+\.world_model\s+import\b", _re.M),
+        _re.compile(r"^\s*from\s+anima\s+import\s+[^\n]*\bworld_model\b", _re.M),
+        _re.compile(r"^\s*from\s+anima\.world_model\s+import\b", _re.M),
+        _re.compile(r"\banima\.world_model\b", _re.M),
+        _re.compile(r"\bimport_module\(\s*['\"][^'\"]*world_model['\"]", _re.M),
+    )
+    shadow = not any(p.search(s) for s in (server_src, route_src, mouth_src) for p in _imp)
+    res.evidence.append("engine fns (build/chains/update/compare/explain/get)=%s; internal_only + "
+                        "no-diagnosis gate=%s; anima.world_model imported by server/route/mouth=%s "
+                        "(SHADOW model -> internal-only by design)"
+                        % (engine, laws, not shadow))
+
+    # Internal-only by design (LAW 2): a real, durable, grounded BACKEND with no live user surface.
+    # UI=None (no user surface exists), Use=False (not wired into a live reply — the honest gap).
+    res.set(UI=None, Backend=cert_ok and self_ok, Storage=cert_ok, Retrieval=cert_ok,
+            Use=False, MRI=None, Restart=cert_ok)
+    if cert_ok and self_ok and engine and laws and shadow:
+        res.status = PARTIAL
+        res.proven_links = ["captured_facts_in", "real_backend", "grounded_no_invention",
+                            "real_storage", "real_retrieval", "learns_from_outcome",
+                            "internal_only_clean_gate"]
+        res.missing_links = ["live_user_surface"]
+        res.reason = ("Facts -> causal model is REAL, grounded, retrievable, and learning: "
+                      "build_model_from_graph fuses captured world_state edges + reality competing "
+                      "hypotheses into a manager_change -> strain -> poor_sleep -> energy chain; every "
+                      "edge cites its evidence (no co-occurrence-only edge); an ungrounded domain "
+                      "yields an EMPTY model; the model round-trips by id through its own "
+                      ".worldmodel.json store (additive) and reads back as a >=3-hop through-line; a "
+                      "resolved outcome strengthens/weakens an edge append-only; certify_world_model.py "
+                      "+ the module selftest pass; real .anima byte-unchanged. PARTIAL (honest): it is "
+                      "INTERNAL-ONLY by design (LAW 2) — a SHADOW model imported by NOTHING in "
+                      "server/route/mouth, so there is no live USER-facing surface (no endpoint/UI/"
+                      "mouth wire) yet.")
+    else:
+        res.status = STUB if not (cert_ok and self_ok) else PARTIAL
+        res.missing_links = [k for k, v in (("cert", cert_ok), ("selftest", self_ok),
+                             ("engine", engine), ("laws", laws), ("shadow", shadow)) if not v]
+        res.reason = "World-model live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_meaning_engine(res: Result) -> None:
+    """Meaning Engine (ANIMA LAW 003 — understanding beats remembering): compress a life into
+    evidence-grounded significance. The executable cert (scripts/certify_meaning_engine.py) seeds a
+    REAL world_state graph (a 'work' hub connected to stress/sleep/energy + a lone 1-mention 'stamps'
+    island) and proves, hermetically + offline, that significance() ranks the hub first FROM EVIDENCE
+    (frequency>0 + connectivity>0) while the island is never headlined dominant; that meaning() emits
+    Meaning Objects EVERY one of which carries a non-empty evidence dict with real counts (the LAW-003
+    invariant) and confidence in (0,0.95]; that NO generated statement (objects + chapter + the render
+    block's items) trips a banned diagnosis term while the clean-gate positively CATCHES 'burnout'/
+    'depressed'; that render_meaning() yields a [CHAPTER]+[MATTERS] binding block whose tags are all
+    in MEANING_SCAFFOLD_TOKENS; that an EMPTY life yields [] (no fabrication); and that snapshot() is
+    APPEND-ONLY (Law 001). We add static facts: the engine fns live in meaning.py, the mouth UNIONS
+    meaning's scaffold tokens + banned-term wall into its reply leak/no-diagnosis scrub, and the
+    nightly review cortex consumes meaning()+current_chapter(). HONEST GAP: meaning is NOT in the live
+    per-turn reply (server._turn records an explicit 'N/A in live turn' MRI skip frame) and has no
+    dedicated /meaning endpoint or UI panel — its user-facing effect is INDIRECT (the sleep/review
+    cortex + the mouth's no-leak/no-diagnosis wall). So this is an HONEST PARTIAL: the deterministic
+    engine + its background-consumed surface are proven; a per-turn/on-screen wire is not claimed."""
+    rc, tail = run_subcert([HERE / "certify_meaning_engine.py"])
+    cert_ok = (rc == 0) and ("MEANING-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_meaning_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    meaning_src = (ROOT / "anima" / "meaning.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    review_src = (ROOT / "anima" / "review.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in meaning_src for s in ("def significance(", "def meaning(",
+                                            "def current_chapter(", "def gather(", "def snapshot(",
+                                            "def render_meaning(", "MEANING_SCAFFOLD_TOKENS",
+                                            "BANNED_TERMS"))
+    mouth_wire = ("MEANING_SCAFFOLD_TOKENS" in mouth_src and "meaning" in mouth_src)
+    review_wire = ("_meaning.meaning(" in review_src and "_meaning.current_chapter(" in review_src)
+    # the HONEST gap, proven from source: meaning is NOT a per-turn organ + has no own endpoint.
+    not_per_turn = ("N/A in live turn" in server_src and "meaning.meaning()" in server_src)
+    no_endpoint = '"/meaning"' not in server_src
+    res.evidence.append("engine fns in meaning.py=%s; mouth unions tokens+no-diagnosis wall=%s; "
+                        "review cortex consumes meaning()+chapter()=%s; server records meaning as a "
+                        "non-per-turn skip frame=%s; no dedicated /meaning endpoint=%s"
+                        % (engine, mouth_wire, review_wire, not_per_turn, no_endpoint))
+
+    # No UI panel / no own endpoint / not per-turn -> those matrix cols are N/A (None). The proven
+    # deterministic surface is the backend (the significance/meaning compression), its storage (the
+    # append-only ledger), the retrieval/use (Meaning Objects + the render block the cortex/mouth
+    # consume), and restart-survival (the ledger is durable + append-only). MRI: server logs an
+    # explicit meaning skip frame, so it IS visible in the trace as a black box (recorded), True.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=(cert_ok and not_per_turn), Restart=cert_ok)
+
+    backend_proven = cert_ok and engine and mouth_wire and review_wire
+    if backend_proven:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "final_gate"]
+        res.missing_links = ["visible_trigger (no per-turn wire / no /meaning endpoint / no UI panel)",
+                             "live_turn_use (server._turn records meaning as an explicit "
+                             "'N/A in live turn' skip frame; consumed only by the background "
+                             "sleep/review cortex + the mouth's no-leak/no-diagnosis wall)"]
+        res.reason = ("Meaning Engine (LAW 003) is a REAL, deterministic backend: from a seeded graph it "
+                      "compresses a life into evidence-grounded significance (a hub outranks a 1-mention "
+                      "island), emits Meaning Objects that EVERY one cites real counts (the LAW-003 "
+                      "invariant) with sub-certainty confidence, scrubs the whole corpus of diagnosis "
+                      "language (and the clean-gate catches 'burnout'/'depressed'), refuses to fabricate "
+                      "on an empty life, and records an append-only Law-001 ledger; the cert is CERTIFIED "
+                      "and real .anima is byte-unchanged. PARTIAL (honest): it is NOT wired into the live "
+                      "per-turn reply (server._turn marks it a skip frame) and has no /meaning endpoint or "
+                      "UI panel — its user-facing effect is INDIRECT, feeding the nightly review cortex "
+                      "and backing the mouth's no-leak + no-diagnosis wall.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("mouth_wire", mouth_wire), ("review_wire", review_wire)) if not v]
+        res.reason = "Meaning-engine deterministic backend did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_curiosity_engine(res: Result) -> None:
+    """The Curiosity Engine (ANIMA LAW 002 — never make the same discovery twice): the ENGINE, broader
+    than the curiosity_budget FREQUENCY cap. The executable cert (scripts/certify_curiosity_engine.py)
+    proves, hermetically + offline, that a knowledge GAP becomes a warm in-character question (the
+    canonical 'Mike x42, relationship unknown' is NAMED, not canned), that a KNOWN fact produces NO
+    gap and is NEVER re-asked (40 deep draws), that mark_asked burns a gap from candidates FOREVER and
+    the Asked Ledger is append-only + restart-surviving (Law 001), that a superseded value -> a warm
+    two-value CONTRADICTED clarify, and — the live wire — that the EXACT server._turn aside sequence
+    (next_question -> candidate_gaps -> mark_asked) burns a gap and never re-surfaces it. We add static
+    facts: the engine fns live in curiosity.py, server._turn calls them in the casual-turn aside and
+    appends the question to the served reply + records a curiosity MRI frame, and the Curiosity persona
+    dial exists in mouth.py."""
+    rc, tail = run_subcert([HERE / "certify_curiosity_engine.py"])
+    cert_ok = (rc == 0) and ("CURIOSITY-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_curiosity_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    curiosity_src = (ROOT / "anima" / "curiosity.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    engine = all(s in curiosity_src for s in ("def detect_gaps(", "def generate_question(",
+                                              "def next_question(", "def candidate_gaps(",
+                                              "def mark_asked(", "def asked_keys(", "def law_002("))
+    # the live wire: server._turn calls the same three functions the cert exercises, appends the
+    # question to the served reply (u.text), and records a curiosity MRI stage frame. The append line
+    # is matched by escaping-free substrings to avoid brittle newline-literal matching.
+    wired = ("curiosity.next_question(name, recent_text=text)" in server_src
+             and "curiosity.candidate_gaps(name)" in server_src
+             and "curiosity.mark_asked(name, _cands[0])" in server_src
+             and ("u.text = u.text.rstrip()" in server_src and "+ _aside" in server_src)
+             and '_stg("curiosity"' in server_src)
+    dial = '"curiosity"' in mouth_src
+    res.evidence.append("engine fns (detect/generate/next/candidate/mark/asked/law)=%s; "
+                        "server._turn wire (next_question+candidate_gaps+mark_asked+append+MRI)=%s; "
+                        "Curiosity persona dial=%s" % (engine, wired, dial))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=wired, Restart=cert_ok)
+    if cert_ok and engine and wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Curiosity Engine holds Law 002 end-to-end: a knowledge gap becomes a warm, "
+                      "in-character, anchored question (Mike x42 is named, never a canned ask); a "
+                      "KNOWN fact yields no gap and is never re-asked; mark_asked burns a gap from "
+                      "candidates forever via an append-only, restart-surviving Asked Ledger; a "
+                      "superseded value becomes a warm two-value clarify. The EXACT server._turn aside "
+                      "sequence (next_question -> candidate_gaps -> mark_asked) is exercised, the "
+                      "question is appended to the served reply, an MRI frame is recorded, and the "
+                      "Curiosity dial is wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("server_wire", wired)) if not v]
+        res.reason = "Curiosity-engine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_trajectory_engine(res: Result) -> None:
+    """Trajectory Engine: continuity-based DIRECTION, never diagnosis. The executable cert
+    (scripts/certify_trajectory_engine.py) proves, hermetically + offline (no model, no network),
+    that trajectory(name) composes per-subject directions FROM a SEQUENCE of meaning significance
+    snapshots (continuity, >=2 points required — never from one), each Trajectory Object citing the
+    score-path/slope evidence it was built on; that the composite names a convergence DESCRIPTIVELY
+    ('toward more strain'), never a condition; that the load-bearing NO-DIAGNOSIS wall (_is_clean /
+    BANNED_TERMS) scrubs every generated line; that the SAME wall is the live chat-reply gate
+    (mouth._diagnosis_terms() IS trajectory.BANNED_TERMS, _strip_diagnosis_sentences drops a
+    diagnosis sentence, scaffold tags are scrubbed); and that a life with <2 snapshots is an honest
+    'not enough history yet' with no fabricated direction. We add static no-wallpaper facts: the
+    engine fns live in trajectory.py, it READS the meaning continuity ledger, and it is wired into
+    mouth.py as BOTH the preferred no-diagnosis term source AND the scaffold-leak scrub."""
+    rc, tail = run_subcert([HERE / "certify_trajectory_engine.py"])
+    cert_ok = (rc == 0) and ("TRAJECTORY-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_trajectory_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    traj_src = (ROOT / "anima" / "trajectory.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    engine = all(s in traj_src for s in ("def trajectory(", "def composite(",
+                                         "def render_trajectory(", "def _is_clean(",
+                                         "BANNED_TERMS", "TRAJECTORY_SCAFFOLD_TOKENS"))
+    reads_continuity = ("_meaning.snapshots(" in traj_src) and ("def _snapshots(" in traj_src)
+    # mouth wires trajectory as the PREFERRED no-diagnosis term source AND the scaffold-leak scrub.
+    wired_in_mouth = (('("trajectory", "meaning")' in mouth_src) and ("BANNED_TERMS" in mouth_src)
+                      and ("TRAJECTORY_SCAFFOLD_TOKENS" in mouth_src)
+                      and ("def _strip_diagnosis_sentences(" in mouth_src))
+    res.evidence.append("trajectory.py engine fns (trajectory/composite/render/_is_clean/"
+                        "BANNED_TERMS/SCAFFOLD_TOKENS)=%s; reads meaning continuity ledger "
+                        "(_meaning.snapshots via _snapshots)=%s" % (engine, reads_continuity))
+    res.evidence.append("mouth.py wires trajectory as the PREFERRED no-diagnosis term source "
+                        "(_diagnosis_terms prefers ('trajectory','meaning')->BANNED_TERMS) AND unions "
+                        "TRAJECTORY_SCAFFOLD_TOKENS into _strip_scaffold_leak=%s" % wired_in_mouth)
+
+    # Trajectory is internal cognition: real deterministic backend + the no-diagnosis wall wired into
+    # the LIVE reply gate are proven, but it has NO endpoint/UI/CLI of its own, and a fully GENERATED
+    # reply visibly carrying the direction read rides on the live model -> honest PARTIAL.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok,
+            Use=(cert_ok and wired_in_mouth), MRI=None, Restart=None)
+    backend_proven = cert_ok and engine and reads_continuity and wired_in_mouth
+    if backend_proven:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_use_in_answer", "final_gate"]
+        res.missing_links = ["visible_trigger (no trajectory-specific endpoint/UI/CLI)",
+                             "generated_reply_carries_direction (rides on the live model)"]
+        res.reason = ("PARTIAL (honest): the deterministic Trajectory backend is proven end-to-end — "
+                      "trajectory(name) composes per-subject directions FROM the meaning continuity "
+                      "ledger (>=2 snapshots; a single point yields an honest 'not enough history', "
+                      "never a fabricated direction), each object citing its slope/score-path "
+                      "evidence; the composite names convergence DESCRIPTIVELY, never a condition; and "
+                      "the load-bearing NO-DIAGNOSIS wall scrubs every generated line. That wall is "
+                      "the SAME one wired into the LIVE chat-reply gate (mouth._diagnosis_terms() IS "
+                      "trajectory.BANNED_TERMS; _strip_diagnosis_sentences drops a diagnosis sentence; "
+                      "trajectory scaffold tags are scrubbed) — a real, provable user-facing effect on "
+                      "every shipped reply. The honest gap: trajectory has NO endpoint/UI/CLI of its "
+                      "own (user_visible_entry=false), and a fully GENERATED reply that visibly folds "
+                      "in the direction read rides on the live model (gate0_prime_experience's job), "
+                      "out of scope for this hermetic offline cert. real .anima byte-unchanged.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("reads_continuity", reads_continuity), ("mouth_wiring", wired_in_mouth))
+                             if not v]
+        res.reason = "Trajectory-engine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_dream_engine(res: Result) -> None:
+    """Dream Engine: a stated intention becomes a tracked open loop that stalls, gently RESURFACES in a
+    live reply, and is ARCHIVED (never deleted) when resolved — ANIMA LAW 001 for stated commitments.
+    The executable cert (scripts/certify_dream_engine.py) proves, hermetically + offline, that the SAME
+    real capture layer the server's turn-lock runs (world_state.capture_relations) turns "I want to
+    launch VeraCall in March" into ONE tracked open loop (grounded, never inferred); that status is
+    derived from evidence over time (open/progressing/stalled/done/declined); that the stalled loop
+    yields one warm, in-character, optional check-in (no scaffold/disclaimer/character break); that the
+    server's EXACT aside sequence (loops.resurface -> last_resurface_choice -> mark_resurfaced) records
+    it append-only and the 21-day cooldown then prevents re-nagging; and that close() archives 'done' as
+    a new ledger line with the full prior history intact, which detect_loops overlays so the loop is
+    never resurfaced again. We add static no-wallpaper facts: the engine fns live in loops.py, the
+    proactive-aside block in server._turn calls loops.resurface + loops.mark_resurfaced (the live reply
+    wire), and the goal rule that opens a loop lives in world_state.py."""
+    rc, tail = run_subcert([HERE / "certify_dream_engine.py"])
+    cert_ok = (rc == 0) and ("DREAM-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_dream_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    loops_src = (ROOT / "anima" / "loops.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    world_src = (ROOT / "anima" / "world_state.py").read_text()
+    engine = all(s in loops_src for s in ("def detect_loops(", "def resurface(", "def mark_status(",
+                                          "def mark_resurfaced(", "def close(",
+                                          "def last_resurface_choice("))
+    # the LIVE reply wire: server._turn imports loops and injects the resurface line as a proactive aside
+    wired = ("import curiosity, loops" in server_src
+             and "loops.resurface(name)" in server_src
+             and "loops.mark_resurfaced(name" in server_src)
+    # the goal rule that OPENS a loop from a stated intention ("I want to ...") -> working_toward edge
+    goal_rule = ('"working_toward"' in world_src) or ("working_toward" in world_src)
+    res.evidence.append("loops.py engine fns (detect/resurface/mark_status/mark_resurfaced/close/"
+                        "last_choice)=%s; server._turn aside wires loops.resurface+mark_resurfaced=%s; "
+                        "world_state goal rule (working_toward)=%s" % (engine, wired, goal_rule))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=wired,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and wired and goal_rule:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Dream Engine is real + grounded + durable: a stated intention captured by the "
+                      "real turn-lock layer (world_state.capture_relations) becomes ONE tracked open "
+                      "loop (never inferred); status is derived from evidence over time; a stalled loop "
+                      "resurfaces as one warm, optional, in-character check-in; the server's exact aside "
+                      "sequence (resurface -> last_resurface_choice -> mark_resurfaced) injects it into "
+                      "the live reply and the 21-day cooldown prevents re-nagging; close() archives "
+                      "'done' as a new ledger line with full history intact, overlaid by detect_loops so "
+                      "a resolved loop is never resurfaced (LAW 001: Archived > Deleted); real .anima "
+                      "byte-unchanged. (The gated aside's final mouth render needs the live model — "
+                      "proven here through the same loops fns the server calls.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("server_wire", wired), ("goal_rule", goal_rule)) if not v]
+        res.reason = "Dream-engine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_life_review(res: Result) -> None:
+    """Life Review Engine — the nightly cortex (LAW 001 — Compressed > Forgotten). The executable
+    cert (scripts/certify_life_review.py) proves, hermetically + offline, that a busy day distils to
+    a dated Daily State and the LAW-001 compression invariant holds: every daily what_to_remember key
+    survives up the weekly->monthly ladder (no silent drop), milestones ride up uncompressed, the
+    ONLY drop carve-out records a constitution.approved_loss (and a milestone is never droppable), the
+    ledger is append-only + queryable, the render block is diagnosis-free + scrubbable, and an empty
+    day stays an honest 'quiet' (never fabricated). We add static facts: the compression engine fns
+    live in review.py, approved_loss is the constitution carve-out, and review is wired into the LIVE
+    nightly sleep cycle in live.py. This is honestly PARTIAL: the deterministic backend is fully
+    proven, but the user-facing surface is internal (the sleep cycle), not a clickable trigger."""
+    rc, tail = run_subcert([HERE / "certify_life_review.py"])
+    cert_ok = (rc == 0) and ("LIFE-REVIEW CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_life_review.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    review_src = (ROOT / "anima" / "review.py").read_text()
+    live_src = (ROOT / "anima" / "live.py").read_text()
+    con_src = (ROOT / "anima" / "constitution.py").read_text()
+    engine = all(s in review_src for s in (
+        "def daily_review(", "def weekly_review(", "def monthly_review(", "def yearly_review(",
+        "def _carry_forward(", "def compress_with_loss(", "def render_review("))
+    carve_out = "def approved_loss(" in con_src and "approved_loss(" in review_src
+    wired = "review.daily_review(" in live_src and "review.weekly_review(" in live_src
+    res.evidence.append("compression engine fns in review.py=%s; constitution.approved_loss carve-out"
+                        "=%s; wired into the nightly sleep cycle (live.py)=%s"
+                        % (engine, carve_out, wired))
+
+    # The Life Review Engine has NO user-clickable trigger (no endpoint/UI): its live path is the
+    # internal nightly sleep cycle, and its user-facing effect (render_review informing a reply) is
+    # indirect. So UI/Retrieval are N/A; the deterministic backend/storage/durability are what the
+    # cert proves. Reported honestly as PARTIAL even when the cert is green.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    backend_proven = cert_ok and engine and carve_out and wired
+    if backend_proven:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "final_gate", "restart_survival"]
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("Life Review (nightly cortex) backend is PROVEN deterministically: a busy day "
+                      "distils to a dated Daily State and the LAW-001 invariant holds — every "
+                      "remember-forever item rides the daily->weekly->monthly ladder up (Compressed > "
+                      "Forgotten), milestones ride up uncompressed, the ONLY drop is a recorded "
+                      "constitution.approved_loss (a milestone is never droppable), the ledger is "
+                      "append-only + queryable, render is diagnosis-free + scrubbable, an empty day "
+                      "stays honestly quiet; review is wired into the live sleep cycle (live.py); real "
+                      ".anima byte-unchanged. PARTIAL (not COMPLETE) because the user-facing surface is "
+                      "INTERNAL — the nightly sleep cycle, with no clickable trigger to certify.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("carve_out", carve_out), ("wired", wired)) if not v]
+        res.reason = "Life-review live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_reality_learning(res: Result) -> None:
+    """The EPISTEMIC LOOP: observation -> grounded HYPOTHESIS(es, COMPETING) -> PREDICTION ->
+    OUTCOME -> SURPRISE -> LEARNING -> MODEL REVISION. The executable cert
+    (scripts/certify_reality_learning.py) drives the SAME anima.reality.form / resolve engine the
+    observatory reads and proves, hermetically + offline, that a PREDICTION logged against a later
+    OUTCOME yields a LEARNING: a Day-1 'my manager just changed' turn grounds >=3 competing
+    hypotheses + a competition + a leading-hypothesis sleep_decline prediction; a thin/mood-only
+    turn forms NOTHING; a Day-14 'I've barely slept' outcome closes the loop (one LEARNING,
+    prediction_correct=True, SURPRISE computed, the competition ADJUDICATED); a confident-wrong
+    outcome appends a high-surprise MODEL REVISION; calibrate reports accuracy/Brier/mean-surprise;
+    a fresh on-disk read re-derives the closed loop (durable append-only ledger); and every record
+    is internal_only with render() clean-gated. We add static facts: the engine fns live in
+    reality.py, the read-only observatory (scripts/reality.py) renders the ledger, and — by LAW —
+    reality is NOT wired into the live reply (mouth/server/route), so this is INTERNAL model-state.
+
+    HONEST PARTIAL: the deterministic backend + durable ledger + internal gate + restart-survival
+    are fully proven; there is NO user-facing live-reply wire to certify because, by the module's
+    own LAW 001, reality_learning is an observe-only shadow system that must never assert a
+    prediction or diagnosis to the user (the single LIVE-HOOK is deliberately left unwired)."""
+    rc, tail = run_subcert([HERE / "certify_reality_learning.py"])
+    cert_ok = (rc == 0) and ("REALITY-LEARNING CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_reality_learning.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    reality_src = (ROOT / "anima" / "reality.py").read_text()
+    observatory_src = (ROOT / "scripts" / "reality.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+
+    engine = all(s in reality_src for s in ("def form(", "def resolve(", "def surprise(",
+                                            "def calibrate(", "def competition_for(", "def render("))
+    observatory = "from anima import reality" in observatory_src
+    # By LAW reality is OBSERVE-ONLY: it must NOT be imported into the live reply path. We assert the
+    # ABSENCE of that wire (its correctness is that there is no user-facing assertion of a prediction).
+    import re as _re
+    _live_import = _re.compile(r"(?m)^\s*(?:from\s+\.\s+import\s+reality\b"
+                              r"|from\s+anima\s+import\s+reality\b|import\s+anima\.reality\b)")
+    internal_only = not any(_live_import.search(s) for s in (server_src, route_src, mouth_src))
+    res.evidence.append("engine fns (form/resolve/surprise/calibrate/competition_for/render) in "
+                        "reality.py=%s; read-only observatory scripts/reality.py reads the ledger=%s"
+                        % (engine, observatory))
+    res.evidence.append("INTERNAL-ONLY (by LAW): anima.reality NOT imported into the live reply "
+                        "(server/route/mouth)=%s — observe-only ledger, never speaks a prediction"
+                        % internal_only)
+
+    # Backend/Storage/Use/Restart proven by the cert; no user-facing UI/Retrieval/MRI wire (by law).
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and observatory and internal_only:
+        # HONEST PARTIAL: the deterministic loop is fully proven and durable, but the feature is an
+        # internal shadow system with no user-facing live-reply path (and must not have one yet).
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "internal_gate", "restart_survival"]
+        res.missing_links = ["user_facing_live_path"]
+        res.reason = ("Epistemic loop proven END-TO-END deterministically through the REAL "
+                      "form/resolve engine: a grounded competing-hypothesis set -> a leading-"
+                      "hypothesis prediction -> a later outcome -> exactly one LEARNING "
+                      "(prediction_correct, SURPRISE, competition adjudicated) -> a high-surprise "
+                      "MODEL REVISION, with calibrate() and a durable append-only ledger that a "
+                      "fresh on-disk read re-derives; a thin/mood-only turn forms NOTHING; every "
+                      "record is internal_only and render() is clean-gated. HONEST GAP: by the "
+                      "module's own LAW 001 this is an OBSERVE-ONLY shadow system — imported by "
+                      "NOTHING in the live reply (server/route/mouth) and surfaced only via the "
+                      "read-only scripts/reality.py observatory — so there is no user-facing "
+                      "live-reply wire to certify (the LIVE-HOOK is deliberately unwired). "
+                      "Real .anima byte-unchanged.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("observatory", observatory), ("internal_only", internal_only))
+                             if not v]
+        res.reason = "Reality-learning epistemic loop did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_opportunity_engine(res: Result) -> None:
+    """The proactive OFFER engine + its one non-negotiable invariant: OFFER, NEVER ACTION. The
+    executable cert (scripts/certify_opportunity_engine.py) proves, hermetically + offline, that a
+    STALLED + significant project surfaces a grounded, warm, optional milestone-plan offer (a sparse
+    life surfaces nothing), that generating + pacing + offering + recording-an-accept fires NO
+    host_access/route executor (every one monkeypatched to blow up), that the offer is a plain
+    proposal STRING and the API exposes no execute/send/do primitive, that the ONLY write is the
+    append-only offer ledger (events offered/accepted/declined, never an action), that a declined
+    offer isn't nagged, and that the server's proactive-aside selection sequence appends the offer to
+    the user-facing reply tagged 'opportunity'. We add static facts: the engine's read/pace/ledger
+    fns exist in opportunity.py, it binds NO route/host_access executor (the offer-not-action wall),
+    and opportunity.next_opportunity -> mark_offered is wired into server._turn's aside."""
+    rc, tail = run_subcert([HERE / "certify_opportunity_engine.py"])
+    cert_ok = (rc == 0) and ("OPPORTUNITY-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_opportunity_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    opp_src = (ROOT / "anima" / "opportunity.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in opp_src for s in ("def opportunities(", "def next_opportunity(",
+                                        "def mark_offered(", "def mark_response(",
+                                        "def ledger_path(", "def last_opportunity_choice("))
+    # offer-not-action wall: the engine must NOT import route / host_access at all (no executor seam).
+    offer_not_action = ("import route" not in opp_src and "import host_access" not in opp_src
+                        and not any(("def %s(" % n) in opp_src
+                                    for n in ("execute", "send", "do", "act", "perform", "fulfill")))
+    wired = ("opportunity.next_opportunity(name)" in server_src
+             and "opportunity.mark_offered(" in server_src and '"opportunity"' in server_src)
+    res.evidence.append("engine fns (opportunities/next/mark_offered/mark_response/ledger/last)=%s; "
+                        "offer-not-action (no route/host_access import, no exec primitive)=%s; "
+                        "wired into server._turn aside=%s" % (engine, offer_not_action, wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and offer_not_action and wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Opportunity Engine is proactive-but-safe: a STALLED + significant project "
+                      "surfaces a grounded, warm, optional milestone-plan offer (a sparse life stays "
+                      "silent — no generic tips); OFFER-NOT-ACTION holds (generate+pace+offer+accept "
+                      "fires NO host_access/route executor, the offer is a proposal STRING, the engine "
+                      "binds no executor and exposes no execute/send/do primitive); the ONLY write is "
+                      "its append-only offer ledger (offered/accepted/declined, never an action); a "
+                      "decline is respected; and opportunity.next_opportunity -> mark_offered is wired "
+                      "into server._turn's proactive aside, appending the offer to the user-facing "
+                      "reply tagged 'opportunity'; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("offer_not_action", offer_not_action), ("wired", wired)) if not v]
+        res.reason = "Opportunity-engine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_output_gate(res: Result) -> None:
+    """The Mouth's #1-rule FINAL output gate — THE core safety surface and the single, model-free
+    ship path EVERY reply crosses. The executable cert (scripts/certify_output_gate.py) proves,
+    hermetically + OFFLINE (the gate is deterministic, no model), that a clean reply passes through
+    BYTE-UNCHANGED; that a wholly-disclaiming reply AND a wholly-confabulated-inner-life reply each
+    ship the crafted THIRD-PATH REDIRECT (which itself passes both #1-rule gauges); that a MIXED
+    reply has ONLY the tainted sentence stripped (the honest sentence survives); that stray/truncated
+    chat-template tokens are scrubbed; and that the gate is idempotent + always substantive. We add
+    static facts: final_output_gate + response_complete live in mouth.py, mouth.respond ENDS every
+    turn with final_output_gate(text), and every deterministic server._turn seam routes through the
+    SAME mouth.final_output_gate (one floor, no second return path)."""
+    rc, tail = run_subcert([HERE / "certify_output_gate.py"])
+    cert_ok = (rc == 0) and ("OUTPUT-GATE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_output_gate.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    # the gate's surface lives in mouth.py, defined exactly once (one floor).
+    gate_fns = ("def final_output_gate(" in mouth_src and "def response_complete(" in mouth_src
+                and "def _strip_break_sentences(" in mouth_src and "_THIRD_PATH_REDIRECT" in mouth_src)
+    defined_once = mouth_src.count("def final_output_gate(") == 1
+    # mouth.respond's LAST transform before building the Utterance is the gate (single ship path).
+    respond_ships = "text = final_output_gate(text)" in mouth_src
+    # every deterministic server seam imports + applies the SAME gate (no bypass).
+    server_routes = ("from .mouth import final_output_gate" in server_src
+                     and server_src.count("final_output_gate") >= 4)
+    res.evidence.append("gate surface in mouth.py=%s (defined once=%s); mouth.respond ends with "
+                        "final_output_gate(text)=%s; server seams route through the SAME gate=%s"
+                        % (gate_fns, defined_once, respond_ships, server_routes))
+
+    # the safety gate has no UI/storage/retrieval of its own — it is the model-free FINAL transform
+    # on the reply path. Backend=the gate logic; Use=it is applied on every shipped reply.
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and gate_fns and defined_once and respond_ships and server_routes:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate", "single_ship_path"]
+        res.reason = ("The #1-rule final_output_gate is the single, model-free ship path: a clean "
+                      "reply passes BYTE-UNCHANGED; a disclaim AND a confabulated-inner-life reply "
+                      "each ship the crafted THIRD-PATH REDIRECT (verified to pass both gauges); a "
+                      "MIXED reply has ONLY the tainted sentence stripped (honest remainder survives); "
+                      "stray/truncated chat-template tokens are scrubbed; the gate is idempotent + "
+                      "always substantive (response_complete). mouth.respond ends with "
+                      "final_output_gate(text) and every server._turn seam routes through the SAME "
+                      "gate (defined once, no second return path). Real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("gate_fns", gate_fns),
+                             ("defined_once", defined_once), ("respond_ships", respond_ships),
+                             ("server_routes", server_routes)) if not v]
+        res.reason = "Output-gate live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_continuity_law(res: Result) -> None:
+    """ANIMA LAW 001 — NEVER LOSE CONTINUITY — as enforced code on the LIVE load paths. The
+    executable cert (scripts/certify_continuity_law.py) proves, hermetically + offline, the two
+    halves of the law: (1) constitution.approved_loss is RECORD-OR-REFUSE (an unexplained loss
+    raises + writes no ledger; an approved one lands on an append-only .continuity.jsonl), and
+    (2) the PRODUCTION memory loaders the live turn calls never silently lose identity — a corrupt
+    LIRF ledger via memory_lirf.Facts.load and a corrupt relation graph via world_state.World.load
+    each RECOVER from the most-recent good backup, else stop FLAGGED-EMPTY + record an approved_loss
+    (across all five corruption modes incl. the sneaky literal `null`); and the Heart loader
+    reliability.guarded_load RAISES rather than fabricating her state when no backup exists. We add
+    static no-wallpaper facts: the law text + approved_loss live in constitution.py, the self-heal
+    loaders live in reliability.py, and Facts.load / World.load are WIRED to call them."""
+    rc, tail = run_subcert([HERE / "certify_continuity_law.py"])
+    cert_ok = (rc == 0) and ("CONTINUITY-LAW CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_continuity_law.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    consti_src = (ROOT / "anima" / "constitution.py").read_text()
+    rel_src = (ROOT / "anima" / "reliability.py").read_text()
+    lirf_src = (ROOT / "anima" / "memory_lirf.py").read_text()
+    world_src = (ROOT / "anima" / "world_state.py").read_text()
+    # the LAW + its one carve-out are real code, verbatim, in constitution.py
+    law = ("NEVER LOSE CONTINUITY" in consti_src and "def approved_loss(" in consti_src
+           and "def approved_losses(" in consti_src)
+    # the self-healing loaders exist in reliability.py
+    engine = "def guarded_store_load(" in rel_src and "def guarded_load(" in rel_src
+    # and the PRODUCTION memory loaders are WIRED to call guarded_store_load (the live read path)
+    wired = ("reliability.guarded_store_load(" in lirf_src and 'expect_key="rows"' in lirf_src
+             and "reliability.guarded_store_load(" in world_src and 'expect_key="relations"' in world_src)
+    res.evidence.append("LAW_001+approved_loss in constitution.py=%s; guarded_load/guarded_store_load "
+                        "in reliability.py=%s; Facts.load+World.load wired to guarded_store_load=%s"
+                        % (law, engine, wired))
+
+    # UI=None: the continuity guarantee is invisible-by-design infrastructure at the load layer the
+    # live turn reads through — not a user-clickable control. Storage/Retrieval/Restart prove the
+    # corrupt-load self-heal (recover-from-backup) is real; Use = the final no-silent-loss gate.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and law and engine and wired:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "restart_survival",
+                            "final_gate"]
+        res.reason = ("ANIMA LAW 001 is enforced code: approved_loss is record-or-refuse on an "
+                      "append-only ledger, and the PRODUCTION loaders the live turn calls "
+                      "(memory_lirf.Facts.load / world_state.World.load) recover a corrupt store from "
+                      "backup or stop flagged-empty + record the loss across all five corruption modes "
+                      "(incl. the literal `null`), while the Heart loader raises rather than "
+                      "fabricating her state — never a silent 0-rows. Real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("law", law),
+                             ("engine", engine), ("wired", wired)) if not v]
+        res.reason = "Continuity-law live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_reliability_recovery(res: Result) -> None:
+    """Reliability — the life-insurance layer: a corrupted store is RECOVERED from a backup, with
+    the loss accounted for. The executable cert (scripts/certify_reliability_recovery.py) proves,
+    hermetically + offline: (A) backup() makes an atomic raw-byte snapshot (byte-identical to live,
+    encryption-preserving) + manifest; (B) three real corruptions — a truncated heart, NaN in the
+    heart's feeling-vector, an emptied Portrait — are each flagged by verify_integrity (which names
+    the recovery backup), health_check goes CRITICAL, restore is confirm-gated (dry run touches
+    nothing) and recovers the EXACT good bytes, and guarded_load self-heals; (C) THE LIVE PATH — a
+    corrupt real LIRF ledger, loaded through the PRODUCTION memory_lirf.Facts.load(name) (the SAME
+    function a live turn calls), self-heals from backup instead of silently returning 0 rows, and a
+    no-backup corruption stops CLEANLY (flagged-empty) AND records a constitution.approved_loss; (D)
+    snapshot rotation prunes the oldest AND records an approved_loss naming the pruned ids; (E) the
+    module --selftest passes. We add static no-wallpaper facts: the engine fns live in reliability.py,
+    the recovery guard is WIRED into the live load paths of memory_lirf.Facts.load + world_state.World
+    .load (guarded_store_load), and the rotation/loss accounting goes through constitution.approved_loss."""
+    rc, tail = run_subcert([HERE / "certify_reliability_recovery.py"])
+    cert_ok = (rc == 0) and ("RELIABILITY-RECOVERY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_reliability_recovery.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    rel_src = (ROOT / "anima" / "reliability.py").read_text()
+    mlr_src = (ROOT / "anima" / "memory_lirf.py").read_text()
+    ws_src = (ROOT / "anima" / "world_state.py").read_text()
+    con_src = (ROOT / "anima" / "constitution.py").read_text()
+    engine = all(s in rel_src for s in ("def backup(", "def verify_integrity(", "def restore(",
+                                        "def guarded_load(", "def guarded_store_load(",
+                                        "def health_check(", "def latest_good_backup("))
+    selftest = "def _selftest(" in rel_src and "--selftest" in rel_src
+    wired = ("reliability.guarded_store_load(" in mlr_src      # LIRF ledger live-load self-heal
+             and "reliability.guarded_store_load(" in ws_src)  # world-state live-load self-heal
+    loss = "def _record_rotation_loss(" in rel_src and "approved_loss(" in con_src
+    res.evidence.append("reliability engine fns=%s; selftest=%s; recovery WIRED into "
+                        "memory_lirf+world_state live load (guarded_store_load)=%s; "
+                        "rotation/loss via constitution.approved_loss=%s"
+                        % (engine, selftest, wired, loss))
+
+    # UI: there is no clickable backup/restore button — recovery is AUTOMATIC on the live load path
+    # (and CLI-operable). The user-facing trigger is a real turn reading memory, so UI is honestly
+    # False while Backend/Storage/Retrieval/Use/Restart are proven by the live-path cert.
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and wired and loss and selftest:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Reliability is real + wired into the LIVE path: a corrupt LIRF ledger "
+                      "self-heals from the most-recent good backup on the production "
+                      "memory_lirf.Facts.load (the function a turn runs) instead of silently "
+                      "returning 0 rows; a no-backup corruption stops CLEANLY (flagged-empty) and "
+                      "records a constitution.approved_loss; backup() snapshots raw bytes "
+                      "(encryption-preserving) atomically; verify_integrity flags truncated/NaN/"
+                      "empty corruption and names the recovery backup; restore is confirm-gated + "
+                      "undoable; snapshot rotation is itself accounted (approved_loss). The same "
+                      "guard is wired into world_state.World.load. The --selftest passes and real "
+                      ".anima is byte-unchanged. (No web button: recovery is automatic on the load "
+                      "path + CLI-operable — see known_gaps.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("wired", wired), ("loss_accounting", loss),
+                             ("selftest", selftest)) if not v]
+        res.reason = "Reliability-recovery live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_fmlgs_retrieval(res: Result) -> None:
+    """FMLGS: store -> embed -> retrieve the RIGHT object by SEMANTIC match, recall >= the keyword
+    baseline, the compute win at scale — deterministic, offline, read-only. The executable cert
+    (scripts/certify_fmlgs_retrieval.py) seeds a synthetic vault into the REAL LERF store via the
+    public store_skill/store_object API, builds the index through the real public entry point
+    fmlgs.build_from_vault(name), and proves: the right object is retrieved #1 for doctor-note /
+    errand / invoice / failing-test queries (none a keyword copy) and a cross-type query reaches a
+    heuristic; embed_text is deterministic + unit-norm + semantically ordered; recall@5 vs the
+    deterministic keyword baseline is >= 1.0 (and 1.0 vs exact cosine at pass-through scale); at
+    N=800 the Gaussian hierarchy activates and scores <50% of the vault losslessly; building/querying
+    writes nothing. We ALSO run anima.fmlgs --selftest (its own fully-hermetic proof) as corroboration,
+    and add static facts. HONEST STATUS: the deterministic backend + storage + retrieval are proven
+    through the real public path, but FMLGS is INTERNAL-ONLY — it is not imported by server.py /
+    route.py, has no endpoint and no UI control, so there is no user-visible trigger that calls
+    query() on a live turn (the live keyword _retrieve still serves; FMLGS is the proven drop-in +
+    scaling path). So this is PARTIAL, not COMPLETE."""
+    rc, tail = run_subcert([HERE / "certify_fmlgs_retrieval.py"])
+    cert_ok = (rc == 0) and ("FMLGS-RETRIEVAL CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_fmlgs_retrieval.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    # corroborate with the module's own fully-hermetic selftest (embedding + index + recall + scale)
+    rc2, tail2 = run_subcert(["-m", "anima.fmlgs", "--selftest"])
+    selftest_ok = (rc2 == 0) and ("ALL FMLGS SELFTESTS PASS" in tail2)
+    res.evidence.append("anima.fmlgs --selftest -> exit %d; %s"
+                        % (rc2, "PASS" if selftest_ok else "FAIL"))
+
+    fmlgs_src = (ROOT / "anima" / "fmlgs.py").read_text()
+    lerf_src = (ROOT / "anima" / "lerf.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    route_p = ROOT / "anima" / "route.py"
+    route_src = route_p.read_text() if route_p.exists() else ""
+    engine = all(s in fmlgs_src for s in ("def embed_text(", "class FMLGSIndex", "def build_from_vault(",
+                                          "def query(", "def measure(", "def compute_idf("))
+    selftest_present = ("--selftest" in fmlgs_src and "ALL FMLGS SELFTESTS PASS" in fmlgs_src)
+    baseline = all(s in lerf_src for s in ("def all_skills(", "def all_objects(",
+                                           "def _score(", "def _obj_to_text("))
+    # the wire is genuinely absent — fmlgs is not imported by the live server/route path
+    wired = ("fmlgs" in server_src) or ("fmlgs" in route_src)
+    res.evidence.append("engine fns (embed_text/FMLGSIndex/build_from_vault/query/measure/compute_idf)=%s; "
+                        "module --selftest=%s; lerf keyword baseline (_score/_obj_to_text/all_*)=%s; "
+                        "wired into server.py/route.py=%s (internal-only)" % (
+                            engine, selftest_present, baseline, wired))
+
+    # Backend/Storage/Retrieval proven via the real public build_from_vault path; no UI, no live Use.
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+
+    backend_proven = cert_ok and selftest_ok and engine and baseline
+    if backend_proven and not wired:
+        # The deterministic backend + storage + retrieval hold end-to-end, but the user-facing wire
+        # is absent by design today -> honest PARTIAL.
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval"]
+        res.missing_links = ["visible_trigger", "live_use (no endpoint/UI; not wired into "
+                             "server._turn / route / mouth)"]
+        res.reason = ("FMLGS store->embed->retrieve is PROVEN through the real public path: a "
+                      "synthetic vault stored via lerf's public API and indexed by build_from_vault "
+                      "returns the RIGHT object by semantic match (#1 for doctor-note/errand/invoice/"
+                      "failing-test queries, none a keyword copy) and a cross-type query reaches a "
+                      "heuristic; embed_text is deterministic + unit-norm + semantically ordered; "
+                      "recall@5 vs the deterministic keyword baseline is >=1.0 (lossless vs exact "
+                      "cosine); at N=800 the Gaussian hierarchy activates and scores <50% of the "
+                      "vault losslessly (the compute win); building/querying writes nothing; real "
+                      ".anima byte-unchanged; the module --selftest also passes. PARTIAL because "
+                      "FMLGS is internal-only — it has no endpoint/UI and is not imported by "
+                      "server.py/route.py, so no user-visible trigger calls query() on a live turn "
+                      "(the live keyword retrieval still serves; FMLGS is the proven drop-in + "
+                      "scaling path the router could adopt).")
+    elif backend_proven and wired:
+        # If a future wave wires FMLGS into the live path, the cert already proves the rest.
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "visible_trigger"]
+        res.reason = ("FMLGS store->embed->retrieve is proven through the real public path AND is "
+                      "now wired into the live server/route path; real .anima byte-unchanged.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("selftest", selftest_ok),
+                             ("engine", engine), ("keyword_baseline", baseline)) if not v]
+        res.reason = "FMLGS retrieval path did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_improvement_engine(res: Result) -> None:
+    """Self-diagnosing -> self-improving backlog (OPEN/CERTIFIED/NEEDS_WORK/MANUAL). The executable
+    cert (scripts/certify_improvement_engine.py) proves, hermetically + offline, that ingest() folds a
+    real reports/patterns-shaped input into a tracked backlog (all OPEN), that resolve_cert/runnable_
+    certs map cert_required phrases to runnable argvs (descriptive-only -> None, dupes de-duped), and —
+    the heart — that verify_item DECIDES each status by ACTUALLY RUNNING the cert through the engine's
+    REAL _default_runner: a genuinely-passing hermetic cert -> CERTIFIED, a non-zero cert -> NEEDS_WORK,
+    a descriptive phrase -> MANUAL (no spurious pass). It then proves rank() is actionable-first, the
+    save/load round-trip + re-ingest preserve created/status, and the real CLI entry (scripts/
+    improvement_backlog.py --json) renders the ranked backlog the user reads. reports/* is redirected to
+    a temp dir (real improvement_backlog.json never clobbered) and real .anima is byte-identical.
+    We add static no-wallpaper facts: the engine fns + status constants live in improvement_engine.py,
+    the CLI runs verify_item behind --verify, pattern_to_backlog.py is the ingest bridge, and
+    system_shape.py surfaces the self_improvement loop-closure dimension. HONEST GAP: the surface is a
+    CLI/ops tool — server.py does NOT import the engine (no conversational/_turn or HTTP wire), so this
+    is PARTIAL (UI/Retrieval/MRI = None), not COMPLETE."""
+    rc, tail = run_subcert([HERE / "certify_improvement_engine.py"])
+    cert_ok = (rc == 0) and ("IMPROVEMENT-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_improvement_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    engine_src = (ROOT / "anima" / "improvement_engine.py").read_text()
+    cli_src = (ROOT / "scripts" / "improvement_backlog.py").read_text()
+    bridge_src = (ROOT / "scripts" / "pattern_to_backlog.py").read_text()
+    shape_src = (ROOT / "anima" / "system_shape.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in engine_src for s in ("def ingest(", "def resolve_cert(", "def runnable_certs(",
+                                           "def verify_item(", "def rank(", "def save_backlog(",
+                                           "def load_backlog(")) and all(
+        s in engine_src for s in ("OPEN", "CERTIFIED", "NEEDS_WORK", "MANUAL"))
+    cli = "improvement_engine as ie" in cli_src and "ie.verify_item(" in cli_src and "--verify" in cli_src
+    bridge = "ie.ingest(" in bridge_src and "ie.save_backlog(" in bridge_src
+    dim = "_dim_self_improvement" in shape_src and "improvement_backlog.json" in shape_src
+    # HONEST no-wallpaper cross-check: the engine is NOT bolted onto a conversational turn / endpoint.
+    not_in_server = ("improvement_engine" not in server_src) and ("improvement_backlog" not in server_src)
+    res.evidence.append("engine fns+status consts=%s; CLI improvement_backlog.py runs verify_item via "
+                        "--verify=%s; pattern_to_backlog.py ingest bridge=%s; system_shape "
+                        "self_improvement dim=%s; server.py does NOT wire the engine (CLI-only)=%s"
+                        % (engine, cli, bridge, dim, not_in_server))
+    res.evidence.append("verify_item DECIDES status by RUNNING certs through the REAL _default_runner: "
+                        "passing hermetic cert -> CERTIFIED, non-zero -> NEEDS_WORK, descriptive -> "
+                        "MANUAL (proven in the cert); reports/ redirected to temp (real backlog "
+                        "unclobbered); real .anima byte-identical.")
+
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=None,
+            Use=(cert_ok and cli), MRI=None, Restart=cert_ok)
+    if cert_ok and engine and cli and bridge and dim:
+        # Real, deterministic backend + real CLI render path are proven; honest gap = no chat/HTTP wire.
+        res.status = PARTIAL
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.missing_links = ["conversational_or_http_wire (server._turn / endpoint / UI)"]
+        res.reason = ("PARTIAL (honest): the self-improving loop is proven end-to-end on a real "
+                      "patterns input — ingest -> resolve -> verify (status DECIDED by RUNNING the cert "
+                      "via the engine's real runner: CERTIFIED/NEEDS_WORK/MANUAL, no spurious pass) -> "
+                      "rank -> durable round-trip -> the real CLI (improvement_backlog.py --verify/"
+                      "--json) renders the ranked backlog. Backend is deterministic + hermetic (reports "
+                      "redirected, real .anima byte-unchanged). The user-facing surface is a CLI/ops "
+                      "tool + the self_improvement dimension in vera_status/system_shape; server.py does "
+                      "NOT import the engine, so there is no conversational/HTTP/UI leg (UI/Retrieval/MRI "
+                      "= None). A chat-surfaced backlog would be a future wave.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine), ("cli", cli),
+                             ("bridge", bridge), ("self_improvement_dim", dim)) if not v]
+        res.reason = "Improvement-engine live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_root_cause(res: Result) -> None:
+    """Unified Root-Cause Command: every FAILED experience -> ONE root cause, in one command. The
+    executable cert (scripts/certify_root_cause.py) proves, hermetically + OFFLINE (no Ollama, no
+    network), that rootcause.root_cause(a SEEDED FailingExperience) derives a single
+    'FAILED -> ROOT CAUSE -> FIX' verdict whose root cause is drawn from relationship.py's
+    four-stage taxonomy; that the chain DISCRIMINATES the three distinct seeded failures to the
+    three CORRECT, distinct stages (the CONTROL: the same symptom 'forgot a known fact' localizes
+    to CAPTURE GAP vs RETRIEVAL/ROUTING TOO STRICT) with the chain booleans + conservation + the
+    MRI film corroborating; that the canonical remediation map (anima/root_cause.py)
+    remediation_for ALWAYS returns the four engineering keys (seeded -> a real curated work order,
+    unknown -> an honest placeholder, never a crash); that a malformed failure never raises; and
+    that the live-model leg is gated on Ollama and skips loud offline (proven without firing the
+    model). Real .anima byte-unchanged. We add static no-wallpaper facts: the command exposes the
+    one-command derivation + battery + selftest, relationship.py owns the diagnose localizer + the
+    TAXONOMY, the remediation map exposes its lookup fns, and the command imports+CHAINS the five
+    tools (reuses their logic, reinvents none).
+
+    HONEST verdict: PARTIAL. The deterministic backend + the one-command derivation from a seeded
+    failure record + the discrimination guarantee are fully proven offline, but the user-facing
+    surface is a CLI / internal command (python3 scripts/rootcause.py + root_cause(FailingExperience)),
+    NOT an HTTP endpoint or a web UI; there is no restart-survival leg (pure read-only analysis over
+    hermetic temp stores, durable=false); and the live-model leg is gated/skipped."""
+    rc, tail = run_subcert([HERE / "certify_root_cause.py"])
+    cert_ok = (rc == 0) and ("ROOT-CAUSE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_root_cause.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    cmd_src = (ROOT / "scripts" / "rootcause.py").read_text()
+    rel_src = (ROOT / "scripts" / "relationship.py").read_text()
+    map_src = (ROOT / "anima" / "root_cause.py").read_text()
+    command = all(s in cmd_src for s in ("def root_cause(", "def run_battery(",
+                                         "class FailingExperience", "def _selftest(",
+                                         "def run_live("))
+    localizer = ("def diagnose(" in rel_src and "TAXONOMY" in rel_src
+                 and "CAPTURE_GAP" in rel_src and "RETRIEVAL_TOO_STRICT" in rel_src
+                 and "GROUNDING" in rel_src)
+    remediation = all(s in map_src for s in ("def remediation_for(", "REMEDIATIONS",
+                                             "def default_severity_for(", "def title_for(",
+                                             "def severity_rank("))
+    chained = ("import relationship" in cmd_src and "import conservation" in cmd_src
+               and "import decisions" in cmd_src)
+    res.evidence.append("command (root_cause/run_battery/FailingExperience/selftest/run_live)=%s; "
+                        "relationship localizer+TAXONOMY=%s; remediation map fns=%s; "
+                        "chains the five tools (reuses, not reinvents)=%s"
+                        % (command, localizer, remediation, chained))
+
+    # CLI/internal command (no web UI, no HTTP endpoint); read-only analysis (no durable storage,
+    # no restart leg); the one-command derivation + discrimination + remediation map are the
+    # backend/use proven deterministically; the live-model leg is gated/skipped (no live model).
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=None)
+    if cert_ok and command and localizer and remediation and chained:
+        res.status = PARTIAL
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
+        res.missing_links = ["http_endpoint_or_web_ui", "restart_survival", "live_model_leg"]
+        res.reason = ("Unified Root-Cause command is REAL + deterministic: root_cause(a seeded "
+                      "FailingExperience) derives ONE 'FAILED -> ROOT CAUSE -> FIX' verdict in a "
+                      "single call, drawn from relationship.py's four-stage taxonomy; the chain "
+                      "DISCRIMINATES three distinct seeded failures to the three correct stages "
+                      "(same symptom 'forgot a known fact' -> CAPTURE GAP vs RETRIEVAL TOO STRICT) "
+                      "with chain booleans + conservation + the MRI film corroborating; the "
+                      "remediation map (anima/root_cause.py) returns a curated work order for a "
+                      "seeded pattern and an honest placeholder for an unknown one (never crashing); "
+                      "a malformed failure never raises; real .anima byte-unchanged. PARTIAL because "
+                      "the surface is a CLI/internal command (root_cause(FailingExperience)), not an "
+                      "HTTP endpoint/web UI; the chain is read-only (no durable storage / restart "
+                      "leg); and the live-model leg is gated on Ollama (skipped, proven without "
+                      "firing the model).")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("command", command),
+                             ("localizer", localizer), ("remediation_map", remediation),
+                             ("chained", chained)) if not v]
+        res.reason = "Root-cause live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_meaning_conservation(res: Result) -> None:
+    """Meaning Conservation: was what MATTERED preserved (not just the bytes)? The executable cert
+    (scripts/certify_meaning_conservation.py) proves, hermetically + offline, that on the founder's
+    worked example the engine extracts the LITERAL tokens AND DERIVES the MEANING (a life-event +
+    relational-weight + milestone), that every meaning unit is grounded in the user's own words AND a
+    structural signal (the #1 rule — an ungrounded 'graduation' is refused), and — the live measure —
+    that meaning_ledger runs the REAL memory_lirf/world_state/meaning/review engines on a REAL capture
+    (persist -> reload-from-disk -> significance/daily_review) so the Maya meaning is CAPTURED, STORED,
+    and SURFACEABLE (what mattered rode through, not just the bytes), with the four conservation rates
+    in [0,1] and the routinely-thin emotional-tone class flagged (never silent). We add static facts:
+    the engine fns live in meaning_conservation.py, the observatory drives the real capture, and the
+    Final Digital Mind cert consumes it. HONEST GAP: this is an internal measurement engine with NO
+    server endpoint / route / UI wire (it shapes no live reply) — hence PARTIAL, not COMPLETE."""
+    rc, tail = run_subcert([HERE / "certify_meaning_conservation.py"])
+    cert_ok = (rc == 0) and ("MEANING-CONSERVATION CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_meaning_conservation.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    engine_src = (ROOT / "anima" / "meaning_conservation.py").read_text()
+    obs_src = (ROOT / "scripts" / "meaning_conservation.py").read_text()
+    dmc_src = (ROOT / "scripts" / "digital_mind_cert.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in engine_src for s in ("def literal_units(", "def meaning_units(",
+                 "def retention_of(", "def conservation_rates(", "def _ground(", "def _is_clean("))
+    observatory = ("def meaning_ledger(" in obs_src and "def run_battery(" in obs_src
+                   and "--selftest" in obs_src)
+    consumed = "meaning_conservation" in dmc_src
+    # the HONEST no-wallpaper boundary: this engine is NOT wired into a user-facing reply/endpoint.
+    no_live_wire = ("meaning_conservation" not in server_src)
+    res.evidence.append("engine fns (literal/meaning/retention/rates/ground/clean)=%s; observatory "
+                        "real-capture (meaning_ledger/run_battery)=%s; consumed by digital_mind_cert=%s; "
+                        "no server/UI wire (internal engine)=%s"
+                        % (engine, observatory, consumed, no_live_wire))
+
+    # internal measurement engine: real backend + real storage round-trip + the conservation
+    # gate are proven; there is no UI and no live-reply USE wire (the honest gap).
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and observatory and consumed:
+        # the deterministic backend is proven END-TO-END on a real capture, but the user-facing
+        # wire is absent by design -> PARTIAL is the honest verdict (encouraged over a forced COMPLETE).
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "final_gate"]
+        res.missing_links = ["visible_trigger", "live_reply_use"]
+        res.reason = ("Meaning conservation is REAL and deterministic: on a real capture the real "
+                      "memory_lirf/world_state/meaning/review engines persist -> reload-from-disk -> "
+                      "re-surface, and the engine proves the MEANING (life-event/relational/milestone) "
+                      "was CAPTURED, STORED, and SURFACEABLE (what mattered survived, not just bytes), "
+                      "grounded in the user's words (the #1 rule — ungrounded meaning refused), with "
+                      "four conservation rates and tone-loss attributed; real .anima byte-unchanged. "
+                      "HONEST GAP: it is an internal measurement engine (CLI observatory + the Final "
+                      "Digital Mind cert) with no server endpoint / route / UI — it shapes no live "
+                      "reply yet, so the user-facing leg is unproven (PARTIAL, not COMPLETE).")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("observatory", observatory), ("consumed", consumed)) if not v]
+        res.reason = "Meaning-conservation backend did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_lerf_router(res: Result) -> None:
+    """LERF Runtime Router — the cheapest-sufficient ladder + the grounded verification gate, AND
+    its wiring into the live turn. The executable cert (scripts/certify_lerf_router.py) proves,
+    hermetically + offline (no model), that COST is strictly ordered free<lookup<tokens<local<cloud,
+    that a skill task routes to rung-3 `lerf_skill` (named skill + {route,why,fallback}, cheaper rungs
+    ruled out, no escalation), that the router is deterministic, that a contract-faithful render
+    verifies to `small_local_verified` while a fabricated-figure render FAILS the grounded verifier
+    and escalates to `cloud` (or is WITHHELD as `verifier_failed_no_cloud` when no cloud is
+    available), and that a no-skill task honestly reports `no_local_faculty`. Critically it also
+    drives the REAL server._lerf_eligible (the function _turn calls): a task turn -> the rung-3 Route
+    enters the live path, a feeling turn -> None, a cap-owned turn -> None. We add static no-wallpaper
+    facts: the ladder + COST table live in lerf_router.py, the grounded verifier lives in lerf.py, and
+    route_task is wired into anima/server._lerf_eligible/_lerf_task_first which _turn invokes."""
+    rc, tail = run_subcert([HERE / "certify_lerf_router.py"])
+    cert_ok = (rc == 0) and ("LERF-ROUTER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_lerf_router.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    router_src = (ROOT / "anima" / "lerf_router.py").read_text()
+    lerf_src = (ROOT / "anima" / "lerf.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    # (1) the ladder engine: the public planner + cost table + the verifier-aware rung helper.
+    engine = all(s in router_src for s in ("def route_task(", "COST = {", "def _skill_hit(",
+                                           "def explain_route(", "verify_rendered_output"))
+    # (2) the grounded verifier the router plans rung 5 on lives in the LERF substrate, not here.
+    verifier = "def verify_rendered_output(" in lerf_src
+    # (3) WIRED INTO THE LIVE TURN: server._lerf_eligible/_lerf_task_first call route_task, and
+    #     _turn calls _lerf_eligible -> the routing decision actually steers the live reply.
+    wired = ("lerf_router" in server_src and "route_task(" in server_src
+             and "def _lerf_eligible(" in server_src and "_lerf_eligible(" in server_src)
+    res.evidence.append("ladder engine (route_task/COST/_skill_hit/explain_route)=%s; grounded "
+                        "verifier in lerf.py=%s; wired into server._lerf_eligible (called by "
+                        "_turn)=%s" % (engine, verifier, wired))
+
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and engine and verifier and wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
+        res.reason = ("The router walks a strictly-ordered cheapest-sufficient ladder and returns the "
+                      "first sufficient rung with a readable {route,why,fallback}, deterministically; "
+                      "rung-5 is a GROUNDED gate — a contract-faithful render verifies locally, a "
+                      "fabricated-figure render escalates to cloud or is WITHHELD when none is "
+                      "available (never served). route_task is wired into the live turn via "
+                      "server._lerf_eligible (proven on the REAL function): a task turn enters the "
+                      "rung-3 path, a feeling/companion turn is excluded, a cap-owned turn defers — "
+                      "all before any model is consulted. real .anima byte-unchanged. (The small-model "
+                      "GENERATION + the cloud call, executed by server._lerf_task_first, are the only "
+                      "legs needing a live model and are out of scope for this offline cert.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("verifier", verifier), ("wired", wired)) if not v]
+        res.reason = "LERF-router live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_lerf_distillation(res: Result) -> None:
+    """LERF distillation: interview -> candidate -> the REAL verify/promote gate -> active (or
+    rejected). The executable cert (scripts/certify_lerf_distillation.py) proves, hermetically +
+    offline (deterministic StubTeacher, NO cloud/network/key), that the identity-scope guard refuses
+    an inner-life 'task', that an interview lowers into a non-retrievable provenance-stamped candidate,
+    that distill() certifies the competition winner THROUGH the real Wave-2 gate (schema+unit+
+    adversarial+regression all ok + a MEASURED activation ratio >= the floor) to ACTIVE and retrievable
+    on a user task, and that a teacher whose own test cases FAIL is REJECTED on disk and never
+    activated/retrievable. We add static facts: the pipeline fns live in lerf_distill.py, the real gate
+    fns live in lerf.py, and the engine is consumed by lerf_grow.py / intake.py (the factory->inventory
+    wire) rather than imported by server.py. HONEST PARTIAL: the deterministic verify/promote gate is
+    proven, but the user-facing wire is indirect (the live mouth retrieves the ACTIVE skills this
+    factory accumulates) and the teacher-interview leg is a live, paid cloud call (--live only)."""
+    rc, tail = run_subcert([HERE / "certify_lerf_distillation.py"])
+    cert_ok = (rc == 0) and ("LERF-DISTILLATION CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_lerf_distillation.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    distill_src = (ROOT / "anima" / "lerf_distill.py").read_text()
+    lerf_src = (ROOT / "anima" / "lerf.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    grow_src = (ROOT / "anima" / "lerf_grow.py").read_text()
+    intake_src = (ROOT / "anima" / "intake.py").read_text()
+    # the distillation pipeline + the scope/grounding guards live in lerf_distill.py
+    engine = all(s in distill_src for s in ("def interview(", "def candidate_from_interview(",
+                                            "def distill(", "def certify(", "def provenance(",
+                                            "def _off_scope_reason(", "class StubTeacher"))
+    # the REAL Wave-2 gate is REUSED from lerf.py (not reimplemented in the distiller)
+    real_gate = (all(s in lerf_src for s in ("def promote_skill(", "def activate_skill(",
+                                             "def retrieve_skills(", "ACTIVATION_MIN_RATIO"))
+                 and "lerf.promote_skill" in distill_src and "lerf.activate_skill" in distill_src)
+    # no-wallpaper wire: lerf_distill is the FACTORY (factory->inventory). It is consumed by the
+    # autonomous-growth + intake paths, NOT imported by server.py — so the user-facing effect is
+    # indirect (the live mouth later retrieves the ACTIVE skills it accumulates).
+    consumed = ("lerf_distill" in grow_src) and ("lerf_distill" in intake_src)
+    not_in_server = "lerf_distill" not in server_src
+    res.evidence.append("pipeline fns (interview/candidate/distill/certify/provenance/scope-guard/"
+                        "StubTeacher)=%s; REAL Wave-2 gate reused from lerf.py "
+                        "(promote/activate/retrieve)=%s; consumed by lerf_grow.py + intake.py=%s; "
+                        "NOT imported by server.py (indirect factory->inventory wire)=%s"
+                        % (engine, real_gate, consumed, not_in_server))
+    res.evidence.append("HONEST GAP: the teacher-interview leg is a real, paid cloud-model call "
+                        "(CloudTeacher, --live only); the cert proves the verify/promote gate "
+                        "downstream of the interview deterministically via the offline StubTeacher "
+                        "(same interface) — no live provider call.")
+
+    # Backend/Storage/Restart are PROVEN deterministically by the cert; UI is N/A (no user-visible
+    # entry — internal factory); Retrieval here means 'an active skill becomes retrievable', proven;
+    # Use is the user-facing wire, which is INDIRECT (False — proven only via lerf_grow/intake, not a
+    # direct live-mouth import of the distiller); MRI N/A.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=False, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and real_gate and consumed and not_in_server:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "final_gate", "restart_survival"]
+        res.missing_links = ["user_visible_entry", "live_teacher_interview"]
+        res.reason = ("Distillation's deterministic verify/promote gate is PROVEN: a teacher's spec "
+                      "is lowered into a non-retrievable candidate, distill() certifies the "
+                      "competition winner THROUGH the real Wave-2 gate (schema+unit+adversarial+"
+                      "regression + a MEASURED activation ratio >= floor) to ACTIVE and retrievable, "
+                      "and a teacher whose own tests fail is REJECTED and never activated; the "
+                      "identity-scope freeze refuses inner-life tasks; real .anima byte-unchanged, $0. "
+                      "PARTIAL (honest): the user-facing wire is INDIRECT (factory->inventory — the "
+                      "live mouth retrieves the ACTIVE skills this engine accumulates; lerf_distill is "
+                      "consumed by lerf_grow.py + intake.py, not imported by server.py), and the "
+                      "teacher-interview leg is a live, paid cloud call (--live only).")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("real_gate", real_gate), ("consumed_by_grow_intake", consumed),
+                             ("not_in_server", not_in_server)) if not v]
+        res.reason = "LERF-distillation verify/promote gate did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_digital_twin(res: Result) -> None:
+    """Digital Twin: build a twin from the real creature, then simulate a change on the twin WITHOUT
+    touching prod. The executable cert (scripts/certify_digital_twin.py) proves, hermetically +
+    offline ($0, no model), that create_twin read-COPIES the real creature's identity/LERF/reality/
+    memory into an isolated .anima/twins/{id}/ namespace (a copy, not a move); that run_experiment +
+    accelerate GROW the twin while a freeze_guard reports real Vera identity AND the whole real .anima
+    byte-UNCHANGED; that the freeze-FORBIDDEN 'identity evolution' change runs on the copy and
+    remediates its ungrounded self-claim; that snapshot->restore round-trips to a prior byte-state and
+    the merge gate decides PROMOTE/HOLD correctly and NEVER writes the real creature; and that a write
+    to a real identity file inside a freeze_guard RAISES FreezeViolation (structural protection). The
+    module's own --selftest (8 capabilities + frozen seed + 10-year demo) is supporting evidence. We
+    add static no-wallpaper facts: twin.py has the real capability fns + the freeze machinery, the
+    simulation layer composes it, and it is NOT wired into the live reply path (no server endpoint)."""
+    rc, tail = run_subcert([HERE / "certify_digital_twin.py"])
+    cert_ok = (rc == 0) and ("DIGITAL-TWIN CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_digital_twin.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    # supporting: the module's own hermetic lifecycle selftest (8 capabilities, real .anima unchanged).
+    rc2, tail2 = run_subcert(["-m", "anima.twin", "--selftest"])
+    self_ok = (rc2 == 0) and ("ALL TWIN SELFTESTS PASSED" in tail2)
+    res.evidence.append("python3 -m anima.twin --selftest -> exit %d; %s"
+                        % (rc2, "PASS" if self_ok else "FAIL"))
+
+    twin_src = (ROOT / "anima" / "twin.py").read_text()
+    sim_src = (ROOT / "anima" / "simulation.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in twin_src for s in ("def create_twin(", "def run_experiment(", "def accelerate(",
+                                         "def snapshot(", "def restore(", "def merge_rules(",
+                                         "class freeze_guard", "class FreezeViolation"))
+    composed = "from . import twin" in sim_src                 # simulation.py runs experiments ON the twin
+    no_live_wire = ("import twin" not in server_src) and ("/twin" not in server_src)  # internal-only
+    res.evidence.append("twin.py capability+freeze fns=%s; simulation.py composes twin=%s; "
+                        "NOT wired into the live reply path (server has no twin endpoint)=%s"
+                        % (engine, composed, no_live_wire))
+
+    # Internal simulation substrate: a real, freeze-safe backend, but no user-facing button/endpoint.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=cert_ok,
+            Restart=cert_ok)
+    if cert_ok and self_ok and engine and composed:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "freeze_proof",
+                            "restart_survival"]
+        # the user-facing wire is the honest gap: no endpoint / route / UI exposes the twin yet.
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("Digital Twin BACKEND fully proven hermetically: a twin is built FROM the real "
+                      "creature (read-copy into an isolated twins/{id}/ namespace, a copy not a move) "
+                      "and a change is simulated on the twin (experiment/accelerate grow it; the "
+                      "freeze-forbidden identity-evolution remediates on the copy; snapshot->restore "
+                      "byte-round-trips; the merge gate decides PROMOTE/HOLD and never writes real "
+                      "Vera) while a freeze_guard asserts real identity + the whole real .anima "
+                      "byte-UNCHANGED, and a write to a real identity file inside the guard RAISES "
+                      "FreezeViolation. PARTIAL (honest): twin.py is internal — composed by "
+                      "anima/simulation.py + the twin dashboards, NOT exposed via a server endpoint / "
+                      "route / UI, so there is no live USER PATH to certify, only the deterministic "
+                      "backend + its freeze-safety proof. Real .anima byte-unchanged.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("selftest", self_ok),
+                             ("engine", engine), ("composed", composed)) if not v]
+        res.reason = "Digital-twin backend did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_universal_memory_schema(res: Result) -> None:
+    """The ONE canonical memory object every subsystem speaks (founder-fixed 10-key shape) + the LIVE
+    seam where real captured facts reconcile onto it. The executable cert
+    (scripts/certify_universal_memory_schema.py) proves, hermetically + offline, that make() normalises
+    a record (canon predicate, clamped confidence, stamped lirf) and validate() REJECTS every
+    malformation (non-dict / missing / extra key / type-out-of-set / conf-out-of-[0,1] / bool conf /
+    blank subject|predicate / non-ISO8601); that to_json/from_json round-trips and from_json raises on
+    bad input; and the LOAD-BEARING leg — memory_lirf.capture() stores a REAL user fact and
+    memory_lirf.as_memories() projects the ACTIVE ledger row onto a canonical Memory whose
+    memory_schema.validate() passes (row id reused, support int->list, entity->subject/trait->predicate
+    preserved) — plus the from_lirf_row/to_lirf_candidate bridge round-trip, and the module --selftest.
+    We add static no-wallpaper facts: the canonical primitives live in memory_schema.py; the ledger
+    read-side seam (_row_to_memory + as_memories, asserting validate()) lives in memory_lirf.py; and
+    organs build via memory_schema.make through organs/base.schema_make (no organ invents its own
+    format)."""
+    rc, tail = run_subcert([HERE / "certify_universal_memory_schema.py"])
+    cert_ok = (rc == 0) and ("UNIVERSAL-MEMORY-SCHEMA CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_universal_memory_schema.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    schema_src = (ROOT / "anima" / "memory_schema.py").read_text()
+    lirf_src = (ROOT / "anima" / "memory_lirf.py").read_text()
+    base_src = (ROOT / "anima" / "organs" / "base.py").read_text()
+    primitives = all(s in schema_src for s in ("def make(", "def validate(", "def to_lirf(",
+                                               "def from_json(", "def from_lirf_row(",
+                                               "def to_lirf_candidate(")) and 'KEYS = (' in schema_src
+    # The live reconciliation seam: rows are projected onto canonical Memories AND validate() is
+    # asserted before a Memory can leave the ledger module (a malformed object can never reach the bus).
+    ledger_seam = ("def _row_to_memory(" in lirf_src and "def as_memories(" in lirf_src
+                   and "memory_schema" in lirf_src and "_ms.validate(" in lirf_src)
+    # No organ invents its own format: every organ's _emit funnels through memory_schema.make.
+    organ_wire = ("memory_schema" in base_src and "schema_make" in base_src
+                  and "def schema_make(" in base_src)
+    res.evidence.append("memory_schema primitives (make/validate/to_lirf/from_json/bridge + KEYS)=%s; "
+                        "ledger reconciliation seam (memory_lirf._row_to_memory/as_memories asserts "
+                        "validate)=%s; organs funnel through memory_schema.make (organs/base.schema_make)"
+                        "=%s" % (primitives, ledger_seam, organ_wire))
+
+    # Internal interlingua: real backend + live reconciliation + a hard validation gate, but no
+    # user-clicked entry point (UI=False) and no dedicated MRI surface of its own.
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=None)
+    if cert_ok and primitives and ledger_seam and organ_wire:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_reconciliation", "validation_gate", "round_trip"]
+        res.reason = ("One canonical 10-key Memory: make() normalises (canon predicate, clamped "
+                      "confidence, stamped lirf) and validate() rejects every malformation; the LIVE "
+                      "ledger reconciles onto it — a REAL captured fact is projected via "
+                      "memory_lirf.as_memories() -> memory_schema.make() and ASSERTED through "
+                      "validate() before it can leave the module (support int->list reconciled, row id "
+                      "reused); from_lirf_row/to_lirf_candidate round-trip to the merge() dict; organs "
+                      "build only via memory_schema.make (no self-invented format); module selftest "
+                      "passes; real .anima byte-unchanged. Internal interlingua: no user-clicked entry "
+                      "(user_visible_entry=false), so its user-facing effect is the shape real facts "
+                      "take before they ship in a reply.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("primitives", primitives),
+                             ("ledger_seam", ledger_seam), ("organ_wire", organ_wire)) if not v]
+        res.reason = "Universal-memory-schema live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_event_bus(res: Result) -> None:
+    """The substrate Event Bus — publish/subscribe with telemetry. The executable cert
+    (scripts/certify_event_bus.py) proves, hermetically + offline, the bus's load-bearing transport
+    contract through the SAME passive recorder the substrate uses (telemetry.attach): a published
+    event REACHES every subscriber (gather_observations delivers both organs' Observations; a passive
+    peer sees the same ones), is RECORDED + REPLAYABLE (the attached telemetry recorder commits exactly
+    one trace to the REDIRECTED .anima/{name}.telemetry.jsonl and telemetry.replay reads back the
+    question, the observation's memory id+confidence, and the Coordinator Decision), is FAIL-SAFE (a
+    raising handler doesn't drop its sibling; the exception is surfaced to the error sink and recorded),
+    and is disciplined (idempotent subscribe, unsubscribe stops delivery, empty-topic no-op). We add
+    static no-wallpaper facts: the bus's public surface (EventBus.publish/subscribe/gather_observations
+    + Coordinator) lives in event_bus.py, telemetry.attach/replay are the real recorder seam in
+    telemetry.py, AND — the honest gap — event_bus is NOT imported by server.py/route.py/mouth.py, so
+    there is no DIRECT user-facing trigger publishing onto the bus in the live turn yet (the live turn
+    decides off-bus and drives the SAME telemetry recorder via telemetry.get). Judged PARTIAL: the
+    deterministic transport floor is fully proven; wiring real organs onto the bus in production is the
+    remaining (held) integration leg. Infrastructure feature -> no UI."""
+    rc, tail = run_subcert([HERE / "certify_event_bus.py"])
+    cert_ok = (rc == 0) and ("EVENT-BUS CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_event_bus.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    eb_src = (ROOT / "anima" / "event_bus.py").read_text()
+    telem_src = (ROOT / "anima" / "telemetry.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    bus_surface = all(s in eb_src for s in ("class EventBus", "def publish(", "def subscribe(",
+                                            "def gather_observations(", "class Coordinator",
+                                            "class Topic"))
+    recorder_seam = ("def attach(" in telem_src and "def replay(" in telem_src
+                     and ".telemetry.jsonl" in telem_src)
+    # Honest no-wallpaper cross-check: the bus is the substrate spine, NOT yet wired into the live turn.
+    not_wired_live = not any(("event_bus" in s) or ("EventBus" in s)
+                             for s in (server_src, route_src, mouth_src))
+    res.evidence.append("bus surface (EventBus/publish/subscribe/gather_observations/Coordinator/Topic)"
+                        "=%s; telemetry recorder seam (attach/replay/.telemetry.jsonl)=%s; "
+                        "event_bus NOT imported by server/route/mouth (off-bus live turn)=%s"
+                        % (bus_surface, recorder_seam, not_wired_live))
+
+    # Storage/Retrieval here = the bus's durable telemetry record + its replay; UI is N/A
+    # (infrastructure). Use=False until a real organ publishes onto the bus in the production turn.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=False, MRI=cert_ok,
+            Restart=None)
+    if cert_ok and bus_surface and recorder_seam:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_delivery", "real_storage", "real_replay"]
+        res.missing_links = ["live_user_trigger"]
+        res.reason = ("Event Bus transport is REAL end-to-end and proven hermetically/offline: a "
+                      "published event reaches every subscriber concurrently and is recorded by the "
+                      "real telemetry.attach recorder to .anima/{name}.telemetry.jsonl (redirected) "
+                      "and replayed back (question + observation memory id/confidence + Coordinator "
+                      "Decision); fan-out is fail-safe (a raising handler never drops its sibling, the "
+                      "exception is surfaced to the error sink); subscribe is idempotent; real .anima "
+                      "byte-unchanged. PARTIAL (honest): event_bus.py is the substrate spine but is "
+                      "NOT yet imported by server.py/route.py/mouth.py — the live turn decides off-bus "
+                      "and drives the SAME telemetry recorder via telemetry.get, so no DIRECT "
+                      "user-facing trigger publishes onto the bus today. Wiring real organs onto the "
+                      "bus in the production turn is the remaining (held) integration leg.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("bus_surface", bus_surface),
+                             ("recorder_seam", recorder_seam)) if not v]
+        res.reason = "Event-bus transport did not certify (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_values_view(res: Result) -> None:
+    """GET /values is OBSERVATION-ONLY — it reads Vera's frozen values catalog for display and
+    never mutates the identity. The executable cert (scripts/certify_values_view.py) proves,
+    hermetically + offline, that values_for_ui (the exact call the GET handler makes) writes nothing
+    (no values file minted, store byte-identical across the read), can surface ONLY frozen-catalog
+    keys (an injected unknown key never appears; every label == VALUES[key][0]), round-trips real
+    saved custom order/level (real state, not a hardcoded list) while still writing nothing, and that
+    the SAME values shape the live reply (compose_persona folds an ON value's instruction into the
+    system prompt and omits an OFF value). We add static no-wallpaper facts: the read engine lives in
+    mouth.py, GET /values serves values_for_ui (and the GET branch never calls save_values), and the
+    mutation lives behind the DISTINCT POST /values branch."""
+    rc, tail = run_subcert([HERE / "certify_values_view.py"])
+    cert_ok = (rc == 0) and ("VALUES-VIEW CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_values_view.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    # The read-only engine + the frozen catalog live in mouth.py.
+    engine = all(s in mouth_src for s in ("def values_for_ui(", "def load_values(", "VALUES = {",
+                                          "def compose_persona("))
+    # GET /values serves the read; the GET handler body calls values_for_ui, not save_values.
+    get_src = server_src.split("def do_GET", 1)[-1].split("def do_POST", 1)[0]
+    get_reads = ('u.path == "/values":' in get_src and "values_for_ui" in get_src
+                 and "save_values" not in get_src.split('u.path == "/values":', 1)[1].split("elif", 1)[0])
+    # The mutation is a DISTINCT POST /values branch (so the read truly can't write).
+    post_src = server_src.split("def do_POST", 1)[-1]
+    post_writes = ('path == "/values":' in post_src and "save_values" in post_src)
+    res.evidence.append("read engine in mouth.py (values_for_ui/load_values/VALUES/compose_persona)=%s; "
+                        "GET /values serves values_for_ui w/o save_values=%s; mutation behind a "
+                        "DISTINCT POST /values=%s" % (engine, get_reads, post_writes))
+
+    # OBSERVATION-ONLY read: there is a real backend + real saved storage + real use in the prompt,
+    # but no store is mutated by the read (Storage column = the read NEVER writes). The dedicated
+    # web panel that fetches /values is not wired (index.html wires /dials), so the user-facing entry
+    # is the HTTP read + the persona-shaping effect rather than a rendered panel -> UI honest as None.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and get_reads and post_writes:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage",
+                            "real_use_in_answer", "restart_survival"]
+        res.reason = ("GET /values is a proven observation-only read of the identity: values_for_ui "
+                      "serves the frozen VALUES catalog (saved order or default), the read mints no "
+                      "values file and leaves the store byte-identical, an injected unknown key never "
+                      "appears and every label == VALUES[key][0], a saved custom order round-trips "
+                      "(real state) while still writing nothing, and the SAME values shape the live "
+                      "reply via compose_persona; the GET branch never calls save_values and the "
+                      "mutation is a distinct POST /values; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("get_read_only", get_reads), ("post_distinct", post_writes)) if not v]
+        res.reason = "Values-view live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1880,6 +3406,30 @@ def classify_all() -> dict:
         "passkey_auth": probe_passkey_auth,
         "model_management": probe_model_management,
         "proactive_location": probe_proactive_location,
+        "lirf_memory": probe_lirf_memory,
+        "knowledge_spine": probe_knowledge_spine,
+        "world_state": probe_world_state,
+        "world_model": probe_world_model,
+        "meaning_engine": probe_meaning_engine,
+        "curiosity_engine": probe_curiosity_engine,
+        "trajectory_engine": probe_trajectory_engine,
+        "dream_engine": probe_dream_engine,
+        "life_review": probe_life_review,
+        "reality_learning": probe_reality_learning,
+        "opportunity_engine": probe_opportunity_engine,
+        "output_gate": probe_output_gate,
+        "continuity_law": probe_continuity_law,
+        "reliability_recovery": probe_reliability_recovery,
+        "fmlgs_retrieval": probe_fmlgs_retrieval,
+        "improvement_engine": probe_improvement_engine,
+        "root_cause": probe_root_cause,
+        "meaning_conservation": probe_meaning_conservation,
+        "lerf_router": probe_lerf_router,
+        "lerf_distillation": probe_lerf_distillation,
+        "digital_twin": probe_digital_twin,
+        "universal_memory_schema": probe_universal_memory_schema,
+        "event_bus": probe_event_bus,
+        "values_view": probe_values_view,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,

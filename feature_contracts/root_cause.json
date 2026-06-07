@@ -1,0 +1,25 @@
+{
+  "feature": "root_cause",
+  "claim": "Every FAILED experience becomes ONE root cause in one command. `python3 scripts/rootcause.py` chains the five observability tools (MRI/telemetry + conservation + decision + the relationship.diagnose localizer) so a failed moment is root-caused to a single stage and fix: 'FAILED: <symptom> -> ROOT CAUSE: <stage> -> FIX: <hint>'. It DISCRIMINATES — the same felt symptom ('forgot a known fact') localizes to CAPTURE GAP when the fact was never captured but to RETRIEVAL/ROUTING TOO STRICT when it is on disk and the router missed it, and a confabulation with nothing on disk localizes to GROUNDING — never collapsing every failure to one label. The root cause + fix always come from relationship.py's four-stage taxonomy (the CORE), and the canonical remediation map (anima/root_cause.py) turns a detected pattern_id into a certifiable work order (root_cause + recommended_fix + cert_required + expected_improvement); an unknown pattern yields an honest placeholder, never a crash or a fabrication.",
+  "owner": "scripts/rootcause.py (root_cause(FailingExperience) = the one-command derivation: drives _mri_film + _conservation_context + _decision_context + the _localize CORE and synthesizes the single verdict; run_battery = the deterministic discrimination gate over three seeded failures; run_live = the Ollama-gated observational leg; --selftest), scripts/relationship.py (the CORE localizer diagnose/_diagnose_preseeded + the CAPTURE_GAP/RETRIEVAL_TOO_STRICT/BINDING_GENERATION/GROUNDING TAXONOMY + _force_router_miss), anima/root_cause.py (the canonical REMEDIATIONS map + remediation_for/default_severity_for/title_for/severity_rank that anima/patterns.py stamps a detected Pattern from)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "one_command_derives_a_root_cause_from_a_seeded_failure_and_discriminates",
+    "setup": "Hermetic temp store (gate0_prime_experience._temp_store + reliability.DEFAULT_STORE redirected; the chain's own localizer/conservation each open their own temp store). (D) remediation_for ALWAYS returns the four engineering keys: a seeded pattern ('conversation_repair') returns its real curated work order + non-empty cert list; an unknown pattern returns the honest generic placeholder; the map is internally consistent (title/default_severity resolve for every entry, severity_rank sorts P0<P1<P2). (A) rootcause.root_cause(a SEEDED FailingExperience) returns in ONE call a 'FAILED -> ROOT CAUSE -> FIX' verdict whose root cause is drawn from relationship.TAXONOMY, carrying all four corroborating legs. (B) the three distinct seeded failures localize to the three CORRECT, DISTINCT stages (CAPTURE GAP / RETRIEVAL / GROUNDING) — the CONTROL: same symptom 'forgot a known fact', two different root causes. (C) the chain booleans corroborate (capture-gap AVAILABLE=no; retrieval AVAILABLE=yes+RETRIEVED=no with conservation confirming the in-play trait survived to disk; grounding INVENTED with nothing on disk) and the MRI film recorded capture/route/generate/verify. (E) a malformed FailingExperience root-causes without raising; the live-model leg is gated on Ollama and skips loud offline (proven WITHOUT firing the model). Real .anima byte-unchanged. scripts/certify_root_cause.py is the executable form (no live model, no network).",
+    "prompt": "why did that feel wrong?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The surface is a CLI / internal command (python3 scripts/rootcause.py + its --selftest), not an HTTP endpoint or a web UI panel, so the user-facing wire is command-line / programmatic (root_cause(FailingExperience)) rather than a clicked button. The deterministic one-command derivation from a seeded failure record and the discrimination guarantee are fully proven offline.",
+    "The chain is pure read-only analysis over hermetic temp stores and does not persist anything, so there is no restart-survival leg (durable=false by design).",
+    "The LIVE leg (driving the REAL generation path to root-cause a REAL reply) is gated on Ollama and is observational only — it never gates the verdict; the deterministic discrimination battery is the correctness gate. The cert asserts the gate degrades cleanly offline without invoking the model."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,26 @@
+{
+  "feature": "dream_engine",
+  "claim": "The Dream Engine tracks the open loops you leave open — the things you SAID you'd do — forever, and gently resurfaces a stalled one in a live reply (\"a while back you mentioned wanting to launch VeraCall in March — is that still in the picture?\"). A stated intention becomes a tracked OPEN LOOP grounded only in something you actually said (never inferred); its status (open/progressing/stalled/done/declined) is DERIVED FROM EVIDENCE over time; a long-silent loop becomes a resurface candidate; and a resolved loop is ARCHIVED via a status flip, NEVER deleted (ANIMA LAW 001). Resurfacing is paced (a 21-day per-loop cooldown + a budget) so Vera offers a thread, never nags, and never resurfaces a done/declined loop.",
+  "owner": "anima/loops.py (detect_loops = stated commitments from world_state goal/working_toward edges + LIRF goal/intention rows, never inferred; _status_from_evidence = open/progressing/stalled/done/declined from evidence; resurface = at most ONE warm, optional, in-character check-in on a stalled loop, paced; mark_resurfaced/mark_status/close/record_detected = append-only loops ledger writers; ledger_history overlay so a closed loop stays archived; render = audit surface), anima/world_state.py (rule 7: \"I want to / planning to / meaning to ...\" -> a working_toward goal edge), anima/server.py (server._turn proactive-aside block: on a casual, cloud-off turn loops.resurface(name) injects the check-in into the reply and loops.mark_resurfaced records it so it is never re-nagged)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "stated_intention_becomes_tracked_loop_stalls_resurfaces_and_archives_never_deletes",
+    "setup": "Hermetic temp store (loops.STORE redirected via _temp_store). (A) the SAME real capture layer the server's turn-lock calls, world_state.capture_relations(name, 'I want to launch VeraCall in March'), persists a working_toward goal edge, and loops.detect_loops then surfaces it as ONE tracked open loop (grounded, never inferred; a non-goal utterance yields no loop). (B) status is derived from evidence: a long-silent stated goal reads 'stalled'; a completion cue 'done'; a decline cue 'declined'; a fresh goal 'open'. (C) the stalled loop RESURFACES as one warm, in-character, optional line that names the intent and carries no scaffold/disclaimer/character-break. (D) the EXACT server aside sequence (loops.resurface -> loops.last_resurface_choice -> loops.mark_resurfaced) records the resurfacing append-only, and the SAME loop is then NOT resurfaced again within the 21-day cooldown (never nag). (E) LAW 001 ledger: mark_status open->progressing then close() archives 'done' as a NEW line (archived True) with the full prior history still on disk; detect_loops overlays that archive so the loop reads done and is NEVER resurfaced. The module --selftest passes. Real .anima byte-unchanged. scripts/certify_dream_engine.py is the executable form.",
+    "prompt": "I want to launch VeraCall in March",
+    "must_contain": [],
+    "must_not_contain": ["i'm just an ai", "as an ai", "according to my memory"]
+  },
+  "known_gaps": [
+    "The check-in is injected into the reply text by server._turn's proactive-aside block, which only runs on a casual, cloud-off turn where no fact/capability/host/reference/repair/known answer already fired; that gating and the final mouth render need the live model, so the cert proves the Dream Engine's effect through the SAME loops.resurface + last_resurface_choice + mark_resurfaced functions the server calls (deterministic, offline) plus the static wiring, rather than a live model turn.",
+    "Resurface frequency below the per-loop cooldown is governed by a pacing budget (minimal/balanced/deep) read from caps; the cert exercises the deterministic cooldown floor (the hard 'never nag' guarantee) and the deep budget, not the probabilistic balanced rate."
+  ],
+  "status": "UNKNOWN"
+}

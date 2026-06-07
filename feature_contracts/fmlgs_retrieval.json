@@ -1,0 +1,25 @@
+{
+  "feature": "fmlgs_retrieval",
+  "claim": "FMLGS is the embedding + fast-retrieval layer over the LERF knowledge vault: every cognitive object is turned into a deterministic, model-free hashed n-gram TF-IDF vector, and a multilevel-Gaussian index returns the right object for a query by SEMANTIC similarity (not just keyword overlap), recalling everything the shipping keyword baseline would have served while scoring only a fraction of the vault once it grows large (the intelligence-per-GB / 'same intelligence, less compute at scale' contract). It is a pure READ/INDEX layer: it embeds and ranks text already on disk, never writes the vault, and cannot mint or store anything.",
+  "owner": "anima/fmlgs.py (embed_text/Embedder = deterministic hashed n-gram TF-IDF; compute_idf; FMLGSIndex.build/query/query_ids/query_linear = the coarse-to-fine Gaussian-hierarchy index; _build_levels/_kmeans/_candidate_indices = the multilevel-Gaussian descent; footprint_bytes + measure = the intelligence-per-GB ledger: footprint, recall@k vs the keyword baseline and vs exact cosine, latency; build_from_vault = builds an index over the ACTIVE LERF vault through lerf's PUBLIC active-only listers, read-only), anima/lerf.py (all_skills/all_objects active-only listers + _obj_to_text/_kw/_score the keyword baseline FMLGS must not lose recall to)",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval"
+  ],
+  "killer_test": {
+    "name": "store_embed_retrieve_right_object_by_semantic_match_and_recall_ge_keyword",
+    "setup": "Hermetic temp store (lerf.STORE via _temp_store, plus constitution/reliability redirected here). Seed a SYNTHETIC vault of domain-distinct objects (skills + new object types) into the real LERF store via the public store_skill/store_object API, then build the index through the REAL public entry point build_from_vault(name) — never a private store reader. Prove: (A) build_from_vault indexes exactly the publicly-listable ACTIVE set (a CANDIDATE object is NOT indexed), embeddings are [N,D] unit-norm. (B) store->embed->retrieve returns the RIGHT object by semantic match: a doctor-note query retrieves the medical skill #1, an errand query the errand skill #1, an invoice query the invoice skill #1; and a cross-type query reaches a heuristic across object types. (C) embed_text is deterministic (same text -> identical vector), unit-norm, empty->zero, semantically near texts score higher than far ones, and morphology/typo tolerance (summarize~summarise) beats an unrelated text. (D) RECALL: FMLGS recall@5 vs the deterministic keyword baseline is >= 1.0 and vs exact linear cosine is 1.0 at this scale (pass-through, non-degrading). (E) SCALE: at N=800 fully-distinct objects the hierarchy activates (levels>=2), a query scores <50% of the vault (the compute win), stays lossless vs exact cosine, and returns each unique-phrase object as its own #1. (F) READ-ONLY: building + querying creates no new store files. Real .anima byte-unchanged. scripts/certify_fmlgs_retrieval.py is the executable form (it also runs anima.fmlgs --selftest).",
+    "prompt": "summarize this doctor note and turn it into reminders",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "FMLGS is an INTERNAL retrieval interface today: it is not imported by server.py / route.py / mouth.py and has no endpoint or UI control, so there is no user-visible trigger that calls query() on a live turn. The live retrieval the user experiences still flows through lerf's keyword _retrieve; FMLGS is the proven drop-in replacement + the scaling path the router could adopt (the module docstring states this explicitly). Hence this contract is honestly PARTIAL: the deterministic backend + storage + retrieval are proven end-to-end through the real public build_from_vault path, but the user-facing wire is absent.",
+    "At the current live vault scale (tens of objects) the Gaussian hierarchy collapses to a single flat level, so FMLGS is a correct PASS-THROUGH (same linear scan + a small embedding/cluster constant); the compute win is proven on a synthetic N=800 vault, not on the live one yet.",
+    "The semantic embedding is a deterministic hashed n-gram TF-IDF (pure numpy, no model) — it is offline and reproducible by design, NOT a learned/contextual embedding; richer semantics would need a model FMLGS deliberately avoids to stay local, deterministic, and dependency-free."
+  ],
+  "status": "UNKNOWN"
+}

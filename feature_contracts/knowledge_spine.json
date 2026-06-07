@@ -1,0 +1,26 @@
+{
+  "feature": "knowledge_spine",
+  "claim": "The Knowledge Spine fixes the founder's keystone failure (a fact on disk AND in the prompt, yet ~25% of turns reply 'I don't have your birthday saved') by BINDING, not injecting: when you ask a clean personal-fact question whose answer Vera holds at the [KNOWN] bar, she answers STRAIGHT from memory — warm, exact, model-free — so the model never gets the chance to hedge or disclaim a fact she has. When the same clean question's trait is NOT on record she ships a warm honest admission that asks (never a fabricated value), and a compound/emotional turn defers to the model (which still has the fact bound). The binding is strictly asymmetric: only a [KNOWN] SELF row carries binding force; a soft/contested (needs_reconfirm)/third-party/inactive row is NEVER asserted as settled fact.",
+  "owner": "anima/spine.py (the model-free core: fact_question = the clean-single-clause gate; is_known_fact/truth_class = the §1.3 [KNOWN] bar, the ONE place 'is this bindable?' is decided; answer_from_fact = the deterministic warm fact-assembly FLOOR; honest_unknown = the inverse FLOOR that admits+asks; bind = the Part-1 Binding Evidence Contract rendered for the prompt; asked_trait routes on memory_lirf._Q_TRAITS, the single shared question->trait table), anima/server.py (the KNOWN-FACT seam in _turn: spine.fact_question(text) -> memory_lirf.Facts.load(name).lookup(SELF, trait) -> is_known_fact ? answer_from_fact : honest_unknown -> mouth.final_output_gate -> shipped as the Utterance with backend memory:known_fact / memory:honest_unknown, plus the MRI 'bind' frame via spine.bind), anima/mouth.py (final_output_gate = the shared model-free #1-rule final gate every shipped reply crosses; the verifier's spine ENFORCEMENT floor also calls answer_from_fact/honest_unknown)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "bind_dont_inject_known_fact_straight_from_memory_honest_on_unknown_asymmetric",
+    "setup": "Hermetic temp store (spine + memory_lirf STORE redirected via _temp_store). A real birthday fact is captured through memory_lirf.capture (a durable LIRF row that survives reload). The cert then REPLAYS the EXACT server._turn KNOWN-FACT seam against that real row: (A) 'when is my birthday?' -> spine.fact_question routes 'birthday' -> Facts.load(name).lookup(SELF,'birthday') -> spine.is_known_fact True -> spine.answer_from_fact -> mouth.final_output_gate ships a reply that CARRIES the real value (September 14), is warm+possessive, and leaks NO scaffold token (the Birthday->100% keystone, model-free). (B) an asked-but-absent trait ('what is my cat's name?') -> is_known_fact False -> spine.honest_unknown ships a warm 'I don't have your cat ...' that admits+asks and asserts NO value. (C) a compound/emotional turn ('i feel awful and when's my birthday?') -> fact_question returns None (defer to the model). (D) spine.bind tags the KNOWN fact [KNOWN] with its real value and carries the binding ('EXPRESS what you know' / 'NEVER disclaim it') + warmth + no-leak framing; an empty selection on a routed slot renders a single [UNKNOWN] line (admit+ask), an off-topic empty turn renders ''. (E) ASYMMETRY: a soft (sub-0.85), a contested (needs_reconfirm), a third-party (non-SELF), and an inactive row all yield answer_from_fact -> None and never bind as [KNOWN] in bind(). (F) anima/spine.py --selftest passes in-process. Real .anima byte-unchanged. scripts/certify_knowledge_spine.py is the executable form.",
+    "prompt": "when is my birthday?",
+    "must_contain": [],
+    "must_not_contain": ["[KNOWN]", "[UNKNOWN]", "according to my memory", "i don't have your birthday"]
+  },
+  "known_gaps": [
+    "The cert replays the server's KNOWN-FACT seam (spine.fact_question -> Facts.lookup -> is_known_fact -> answer_from_fact/honest_unknown -> mouth.final_output_gate) with the REAL production functions and a REAL captured LIRF row, but it constructs the seam in-process rather than calling server._turn end-to-end (server._turn additionally wires a heart/mouth/brain and would run the model on the fall-through path). The deterministic known-fact/honest-unknown surface — the safety-critical keystone — is proven model-free; the full _turn assembly and the model fall-through are exercised only by the live (Ollama) Experience cert, not here.",
+    "The Part-2 verifier ENFORCEMENT (regenerate-once-then-floor when the model disclaims a bound KNOWN fact) is the same spine.answer_from_fact/honest_unknown floor proven here, but the regenerate leg needs a live model and so is not exercised in this hermetic cert."
+  ],
+  "status": "UNKNOWN"
+}

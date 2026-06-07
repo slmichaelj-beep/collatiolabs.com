@@ -1,0 +1,25 @@
+{
+  "feature": "continuity_law",
+  "claim": "ANIMA LAW 001 — NEVER LOSE CONTINUITY — is enforced code, not a slogan. The single privileged operation the law permits (discarding information) is gated through constitution.approved_loss, which REFUSES to record a loss without a named higher approver + what + why and writes it to an append-only ledger (no record, no loss). And the load paths the live turn actually uses NEVER silently lose identity: a corrupt LIRF fact ledger or world-relation store, read through the PRODUCTION memory_lirf.Facts.load / world_state.World.load, RECOVERS from the most-recent good backup if one exists, else stops CLEANLY with a flagged-empty result AND a recorded approved_loss — never a silently-wrong 0 rows. The Heart loader (reliability.guarded_load) RAISES rather than fabricating her state when no backup exists. Unknown > Lost; Compressed > Forgotten; Archived > Deleted; Observed > Assumed.",
+  "owner": "anima/constitution.py (LAW_001 verbatim + the four corollaries; approved_loss = record-or-refuse on an append-only .continuity.jsonl ledger; approved_losses readback), anima/reliability.py (guarded_store_load = corruption-aware MEMORY-store load: recover-from-backup -> else flagged-empty + approved_loss, with a structural gate that treats the literal `null`/bare-list as corruption; guarded_load = the Heart loader that RAISES on unrecoverable corruption; latest_good_backup/backup/restore/maybe_backup_store), anima/memory_lirf.py (Facts.load calls reliability.guarded_store_load(expect_key=rows) — the live LIRF read path), anima/world_state.py (World.load calls reliability.guarded_store_load(expect_key=relations) — the live world read path)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "restart_survival",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "approved_loss_record_or_refuse_plus_corrupt_memory_recovers_or_fails_loud_never_silent",
+    "setup": "Hermetic temp store (memory_lirf/world_state/constitution STORE + reliability.DEFAULT_STORE all redirected to a TemporaryDirectory; real .anima fingerprinted before/after and asserted byte-identical). (A) THE LAW: approved_loss REFUSES an unexplained loss (ValueError, NO ledger file written) and RECORDS an approved one to an append-only .continuity.jsonl with law/approver/at; verbatim LAW_001 + the four corollaries are intact. (B) LIVE LIRF RECOVERS: seed a real Facts ledger (birthday=June 11), reliability.backup it, then corrupt the live .lirf.json on disk in all 5 modes (truncate/empty/garbage/oops/null) — for EACH, the PRODUCTION memory_lirf.Facts.load(name) restores the rows from backup (birthday back), is NOT flagged-empty, and does NOT clobber the good backup. (C) LIVE LIRF FAILS LOUD: with NO backup, every corruption mode makes Facts.load return a FLAGGED-EMPTY store (0 rows) AND record an approved_loss under LAW 001 — never a silent wrong answer. (D) LIVE WORLD STORE: world_state.World.load mirrors (B)+(C) on the relation graph (recovers with a backup; flagged-empty + approved_loss without). (E) HEART: reliability.guarded_load returns the rows on a clean heart and RAISES (RuntimeError, no silent default) when the heart is corrupt and no backup exists. scripts/certify_continuity_law.py is the executable form.",
+    "prompt": "(offline) corrupt the live .lirf.json with the literal null and call memory_lirf.Facts.load",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The law is enforced at the LOAD/STORE layer the live turn reads through (Facts.load / World.load / the Heart loader), not surfaced as a user-clickable control — the continuity guarantee is invisible-by-design infrastructure, so UI=N/A. The cert proves the SAME production load functions the live turn calls, hermetically and offline (no live model); it does not drive a full HTTP turn end-to-end."
+  ],
+  "status": "UNKNOWN"
+}

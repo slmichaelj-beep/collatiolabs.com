@@ -1,0 +1,26 @@
+{
+  "feature": "improvement_engine",
+  "claim": "Vera does not just diagnose herself — she tracks each diagnosis to a VERIFIABLE fix. The Pattern Observatory's work orders (reports/patterns.json) are ingested into a tracked improvement backlog, and every item is driven to closure by ACTUALLY RUNNING its required cert: a fix is CERTIFIED only when its cert passes RIGHT NOW (the same no-wallpaper rule, one level up), NEEDS_WORK when a runnable cert fails, MANUAL when no cert resolves to a runnable command. Status is DECIDED by the cert, never hand-asserted. The backlog is ranked actionable-first (NEEDS_WORK, then OPEN, then MANUAL, then the proven-done CERTIFIED), re-ingesting preserves each item's history, and the user reads/drives it from the CLI.",
+  "owner": "anima/improvement_engine.py (ingest = fold patterns.json into BacklogItems preserving created/status; resolve_cert/runnable_certs = map a cert_required phrase to a runnable argv, de-duped; verify_item = decide status by RUNNING cert_required via an injectable runner; rank = actionable-first ordering from anima.root_cause severity; save_backlog/load_backlog = reports/improvement_backlog.json round-trip), anima/root_cause.py (single source of truth for severity + ranking), scripts/improvement_backlog.py (CLI: view the ranked backlog, --verify runs cert_required and updates status, --json/--gate/--selftest), scripts/pattern_to_backlog.py (CLI bridge patterns.json -> backlog), scripts/vera_status.py + anima/system_shape.py (surface the self_improvement loop-closure dimension)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "ingest_resolve_verify_by_real_cert_rank_and_persist",
+    "setup": "Hermetic temp store (reports paths redirected to a temp dir; .anima never touched). (A) ingest a real reports/patterns-shaped payload -> one BacklogItem per pattern, all OPEN. (B) resolve_cert maps an explicit/scripts/-m phrase to a runnable argv, returns None for a descriptive-only phrase, and runnable_certs de-dupes. (C) verify_item DECIDES status by RUNNING the cert via the engine's REAL _default_runner: an item whose cert_required is the genuinely-passing hermetic scripts/certify_cross_store_search.py -> CERTIFIED; an item whose cert exits non-zero -> NEEDS_WORK; an item with a descriptive-only phrase -> MANUAL. (D) rank puts NEEDS_WORK first and CERTIFIED last. (E) save_backlog/load_backlog round-trip to a TEMP path and re-ingest preserves created + prior CERTIFIED status. (F) the CLI scripts/improvement_backlog.py --json renders the ranked backlog from the redirected store. Real .anima byte-unchanged. scripts/certify_improvement_engine.py is the executable form.",
+    "prompt": "python3 scripts/improvement_backlog.py --verify",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The user-facing surface is a CLI / ops tool (scripts/improvement_backlog.py + scripts/pattern_to_backlog.py) and the self_improvement dimension in vera_status.py; the Improvement Engine is NOT wired into a conversational turn (server._turn / mouth) nor an HTTP endpoint, so there is no UI/Retrieval/MRI leg in the conversational sense (UI=None, MRI=None in the matrix). The deterministic backend + CLI render path are proven; a chat-surfaced backlog would be a future wave.",
+    "verify_item's verdict is only as strong as the certs it runs; this cert exercises the RUN loop against one real passing hermetic cert and a real failing exit so the CERTIFIED/NEEDS_WORK/MANUAL branches are each proven, rather than running the entire live backlog (which would shell many heavy certs)."
+  ],
+  "status": "UNKNOWN"
+}
