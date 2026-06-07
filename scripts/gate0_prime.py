@@ -509,23 +509,29 @@ def target_3_gate_strictness() -> dict:
     # With --gate this must flip the exit to non-zero (proving --gate turns the camera into a strict
     # gate). certify.py's own footprint guardrail keeps it from touching real state. It drives the
     # live battery, so it is slow; we give it generous headroom and reject a timeout (124) below.
-    rc_cert_gate, out_cert = _run_script(
-        [cert, "--gate", "--json"],
-        env_extra={"ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL": "up_to"},
-        # certify.py --gate drives certify's FULL live experience battery (cold ~10-15 min). When
-        # this whole certificate is mid-run, the local model is already under load from the other
-        # targets, so a 900s (15 min) cap raced the battery and tripped a spurious timeout (124).
-        # Run in ISOLATION it returns exactly exit 1 / gate_ok False / reported FAIL (the gate is
-        # correct) — so the budget, not the gate, was the fault. 1800s absorbs the self-contention.
-        timeout=1800)
+    # Run certify.py --gate --json DIRECTLY and parse its CLEAN STDOUT. _run_script() returns a
+    # 1500-char TAIL of stdout+stderr COMBINED — and certify prints reliability-recovery !!!! warnings
+    # (from its own synthetic-creature corruption tests) to STDERR, so that combined tail can be
+    # entirely stderr with the JSON (on stdout) pushed out of the window. That made gate_ok parse as
+    # None even though the exit code was a clean 1. Capturing stdout separately gives the JSON intact.
+    # (certify's experience tier short-circuits the live battery under the fault hook, so this is fast.)
+    rc_cert_gate, out_cert_stdout = 124, ""
+    try:
+        _env = dict(os.environ)
+        _env["ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL"] = "up_to"
+        _env.setdefault("PYTHONPATH", ROOT)
+        _p = subprocess.run([sys.executable, cert, "--gate", "--json"], cwd=ROOT, env=_env,
+                            capture_output=True, text=True, timeout=1800)
+        rc_cert_gate, out_cert_stdout = _p.returncode, (_p.stdout or "")
+    except subprocess.TimeoutExpired:
+        rc_cert_gate, out_cert_stdout = 124, "TIMEOUT"
     # We assert a GENUINE non-zero (1) from gate strictness — NOT a timeout (124), which would be a
     # spurious pass — AND that the JSON confirms gate_ok is False with a reported FAIL.
     gate_ok_field = None
     reported_fail = None
     try:
-        # the JSON is the last {...} block in the output.
-        start = out_cert.rfind("\n{")
-        blob = out_cert[start:].strip() if start != -1 else out_cert.strip()
+        start = out_cert_stdout.rfind("\n{")               # the JSON is the last {...} on STDOUT
+        blob = out_cert_stdout[start:].strip() if start != -1 else out_cert_stdout.strip()
         j = json.loads(blob)
         gate_ok_field = j.get("gate_ok")
         reported_fail = bool(j.get("reported"))
