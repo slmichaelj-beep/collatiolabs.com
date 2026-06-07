@@ -1,0 +1,25 @@
+{
+  "feature": "voice_io",
+  "claim": "Vera talks and listens. The web app and the iOS call stream voice both ways: POST /tts turns a chunk of text into a WAV she speaks (sentence-by-sentence, so she starts talking after the first sentence), POST /stt transcribes a mic recording into text, and POST /say + POST /talk run the honest reply turn that the voice path drives. On a live call (call_loop.py) she greets, listens with energy-VAD end-of-utterance detection, transcribes (Whisper), replies in her real voice (Kokoro), and BARGES IN: because there is no acoustic echo cancellation, she only treats incoming audio as a human talking over her when it exceeds a HIGHER threshold for several CONSECUTIVE frames (so her own speaker echo never makes her interrupt herself), and when a real barge-in fires she atomically flushes her queued + partially-played speech and falls through to listen.",
+  "owner": "anima/server.py (_tts -> Mouth.voice.speak: empty text -> 400, voice unavailable -> 503, synth -> 200 audio/wav; _transcribe -> WhisperEars.listen via a real temp file, failure -> {text:''}; do_POST routes /tts /stt /say /talk behind _authed()+_passed(); /say + /talk -> _turn(name,text,voice=False); _serve_audio_file -> path-traversal-safe GET /audio/<basename>), anima/mouth.py (KokoroVoice.speak/available = Kokoro TTS; WhisperEars.listen/available = faster-whisper STT; Mouth.assemble(voice=...) wires the voice), anima/call_loop.py (_is_barge = the higher-threshold + sustained-frames AEC-safe barge gate; SpeakerTrack.push/speaking/flush = the outgoing voice track + atomic mid-speech stop; CallSession._listen VAD loop), anima/web/index.html (#mic tap-to-talk, ttsClip/speak sentence-streamed /tts player, web barge-in AnalyserNode), ios/VeraCall InCallView.swift (in-call voice UI + barge-in cooperation)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "auth_gate",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "voice_io_endpoint_contract_auth_gate_and_aec_safe_bargein",
+    "setup": "Hermetic temp store (server.STORE + every store via gate0_prime_experience._temp_store). NO Ollama, NO real Kokoro/Whisper inference. (A) /tts contract via a FAKE injected voice: empty text -> (400); whitespace -> (400); a mouth whose .voice is None -> (503 voice unavailable); a voice that writes a real WAV -> (200, audio/wav) with a real RIFF body. (B) /stt contract via a FAKE injected ears: _transcribe(raw_bytes) writes a REAL temp file holding exactly those bytes, hands its path to ears.listen, and returns {text:...}; an ears that raises -> {text:''} (honest empty, never a crash). (C) AUTH-GATE (static): in do_POST the _authed() (token) and _passed() (Face-ID) guards both precede the /tts /stt /say /talk dispatch; /say + /talk call _turn(...,voice=False). (D) AEC-SAFE BARGE-IN (call_loop._is_barge, pure): sustained high energy -> True; sustained echo-level energy below the barge threshold -> False (no self-trigger); exactly-at-threshold -> False; too-short window -> False; barge_frames=0 -> False. (E) SpeakerTrack.flush(): after queuing chunks + a partial buffer, flush() drains both and speaking() flips True->False, and the track is reusable after. (F) /audio path-traversal: a non-audio extension, a ../ escape, and an empty name all 404; a real in-store WAV is served 200 audio/wav by basename. Real .anima byte-unchanged. scripts/certify_voice_io.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The two MODEL-dependent legs are NOT exercised offline and are disclosed here, not certified: (1) Kokoro TTS actually synthesising speech audio from text inside KokoroVoice.speak, and (2) faster-whisper actually transcribing audio to the correct words inside WhisperEars.listen. Both load heavy local audio models (not Ollama) and Whisper's transcription of synthesized speech is not byte-deterministic, so they are proven structurally (available() import-guards + a real WAV round-trip through a FAKE voice + a real-temp-file hand-off to a FAKE ears) rather than by running inference. The deterministic floor proven here is the entire request/response contract (status codes + content types + the empty/error fall-throughs), the auth-gating, the AEC-safe barge-in decision, the atomic mid-speech flush, and the path-traversal-safe audio fetch.",
+    "call_loop.py's live WebRTC session (CallSession greet/listen/handle, the real aiortc PeerConnection, the mic resampler) needs a live peer + audio hardware and is not driven here; its sole barge-in decision function (_is_barge) and its outgoing-track flush (SpeakerTrack.flush) ARE exercised directly, which is the safety-critical logic."
+  ],
+  "status": "UNKNOWN"
+}

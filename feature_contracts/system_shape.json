@@ -1,0 +1,22 @@
+{
+  "feature": "system_shape",
+  "claim": "System Shape is the one-glance, HONEST portrait of what kind of mind Vera is right now. It composes the reports the system already writes about ITSELF (Program Reality Audit, the live-path classifier, the feature inventory, the improvement backlog, the pattern observatory) into five founder-level axes — honesty (does any feature lie about itself?), self-knowledge (how much is formally classified?), live-integrity (of what's classified, how much is COMPLETE?), self-improvement (does it close its own work orders?), and open-work (what does it currently know is wrong?). In the no-wallpaper spirit it REFUSES to invent an axis it has no evidence for: a missing report yields an honest `unknown` dimension, never a flattering guess. Each axis is GROUNDED in raw evidence from its source report, and the headline + plain-English synthesis are derived from those axes — so the portrait can only mirror the reports on disk, it cannot fabricate a flattering shape.",
+  "owner": "anima/system_shape.py (compose() reads reports/*.json -> five Dimension axes via _dim_honesty/_dim_self_knowledge/_dim_live_integrity/_dim_self_improvement/_dim_open_work; each axis is grounded in its source's evidence; a missing report -> status='unknown' (anti-fabrication); _headline() = WEAK if any axis weak else UNKNOWN if any unknown else OK/STRONG; _synthesize() = the plain-English read; rank_dimensions() = weakest-axis-first; save() writes reports/system_shape.json). Surfaced to the founder by scripts/system_shape.py (the CLI portrait: default / --json / --selftest) and scripts/vera_status.py ('THE MIND' axis). NEVER runs a model, touches .anima, or hits the live server.",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage"
+  ],
+  "killer_test": {
+    "name": "five_axes_grounded_missing_is_unknown_never_fabricated",
+    "setup": "Hermetic temp store (_temp_store) AND a temp reports dir (compose(reports_dir)/save(path) take explicit paths, so real reports/ is never read or written). Fabricate synthetic self-reports in the temp dir and assert: (A) exactly five axes compose, each carrying its source's raw evidence (honesty<-audit counts, self_knowledge<-classified/inventory, live_integrity<-COMPLETE/total, self_improvement<-backlog stats, open_work<-pattern P0/P1/P2); (B) it READS the files, not a constant — flipping the audit to a WALLPAPER world flips honesty to WEAK and the headline to WEAK, and changing self_knowledge inputs changes that axis's value/status; (C) the ANTI-FABRICATION core: with NO reports present every axis is `unknown` and the headline is `unknown` (it refuses to guess); (D) deterministic — composing the same reports twice yields an identical object; (E) rank_dimensions puts a weak axis first; (F) save() round-trips valid JSON to the TEMP path and the real reports/system_shape.json is NOT created. Real .anima byte-identical before/after. scripts/certify_system_shape.py is the executable form.",
+    "prompt": "what kind of mind are you right now?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "This is an internal self-observability composer. It is REAL and deterministic end-to-end (reads the system's own reports -> five grounded axes -> headline/synthesis -> durable reports/system_shape.json), but its user-facing surface is the founder CLI (scripts/system_shape.py) and the 'THE MIND' axis of scripts/vera_status.py — there is NO server endpoint, route, or web/index.html widget that renders the shape (server.py does not import system_shape; it shapes no live chat reply). Hence PARTIAL: the deterministic backend + durable-storage legs are proven; the conversational/HTTP/UI leg is absent by design. The grounding proof is the absence of fabrication (a missing report -> `unknown`, never a flattering guess) and determinism, not a rendered string."
+  ],
+  "status": "UNKNOWN"
+}

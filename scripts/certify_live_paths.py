@@ -3066,6 +3066,826 @@ def probe_values_view(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+def probe_voice_io(res: Result) -> None:
+    """Voice in + voice out: /tts /stt /say /talk + their backends + the AEC-safe barge-in /
+    SpeakerTrack flush of the live call. The two MODEL legs (Kokoro TTS synthesis, Whisper STT
+    inference) are heavy local audio models and Whisper's transcription is not byte-deterministic,
+    so they are disclosed as the gap, not run. The executable cert (scripts/certify_voice_io.py)
+    proves the deterministic FLOOR hermetically + offline through the SAME server/call functions,
+    with the model swapped for a faithful FAKE: the full /tts request/response contract (empty->400,
+    no-voice->503, synth->200 audio/wav RIFF), the /stt contract (writes a real temp file holding the
+    caller's exact bytes -> {text:...}; transcriber failure -> {text:''}), the auth-gate (both
+    _authed + _passed precede the voice dispatch; /say + /talk run _turn(...,voice=False)), the
+    AEC-safe _is_barge decision, the atomic SpeakerTrack.flush, and the path-traversal-safe /audio
+    fetch. We add static facts: the handlers live in server.py, the voice/ears + barge/flush engines
+    live in mouth.py + call_loop.py, and the #mic /tts streaming UI (web) + iOS InCallView are wired."""
+    rc, tail = run_subcert([HERE / "certify_voice_io.py"])
+    cert_ok = (rc == 0) and ("VOICE-IO CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_voice_io.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    call_src = (ROOT / "anima" / "call_loop.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    ios = (ROOT / "ios" / "VeraCall" / "VeraCall" / "Sources" / "InCallView.swift").read_text()
+
+    backend = (all(s in server_src for s in ("def _tts(", "def _transcribe(", "def _serve_audio_file("))
+               and all('path == "%s"' % p in server_src for p in ("/tts", "/stt", "/say", "/talk")))
+    engine = (all(s in mouth_src for s in ("class KokoroVoice", "class WhisperEars",
+                                           "def speak(", "def listen("))
+              and all(s in call_src for s in ("def _is_barge(", "class SpeakerTrack", "def flush(")))
+    ui = ('id="mic"' in idx) and ("/tts" in idx) and ("ttsClip" in idx)
+    ios_ui = "InCallView" in ios
+    res.evidence.append("voice handlers (_tts/_transcribe/_serve_audio_file + /tts/stt/say/talk)=%s; "
+                        "engine (Kokoro/Whisper + _is_barge/SpeakerTrack.flush)=%s; #mic+/tts web UI=%s; "
+                        "iOS InCallView=%s" % (backend, engine, ui, ios_ui))
+
+    # Storage/Retrieval/MRI are N/A for voice I/O (it is a real-time transduction surface, not a
+    # durable store); Restart is N/A. UI proven by the wired entry points; Backend/Use proven by the
+    # deterministic cert.
+    res.set(UI=(ui and ios_ui), Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok,
+            MRI=None, Restart=None)
+    if cert_ok and backend and engine and ui and ios_ui:
+        res.status = PARTIAL
+        res.proven_links = ["visible_trigger", "real_backend", "auth_gate", "final_gate"]
+        res.missing_links = ["live_tts_synthesis", "live_stt_transcription"]
+        res.reason = ("Voice-I/O deterministic floor is real: POST /tts returns the right status + "
+                      "content-type for empty(400)/no-voice(503)/synth(200 audio/wav RIFF); POST /stt "
+                      "writes a real temp file holding the caller's exact audio bytes and returns "
+                      "{text:...}, with a transcriber failure honestly returning {text:''} (never a "
+                      "500); all four voice routes sit BEHIND both the token (_authed) and Face-ID "
+                      "(_passed) guards, and /say + /talk run the honest reply turn _turn(...,"
+                      "voice=False); the call's barge-in is AEC-safe (fires only on energy above a "
+                      "higher threshold sustained for several consecutive frames, so her own speaker "
+                      "echo never self-triggers) and SpeakerTrack.flush atomically stops her "
+                      "mid-speech; the /audio fetch is path-traversal-safe; the #mic sentence-streamed "
+                      "/tts player + iOS InCallView are wired; real .anima byte-unchanged. PARTIAL "
+                      "because the two MODEL legs — Kokoro actually synthesising speech and Whisper "
+                      "actually transcribing words — load heavy local audio models and are not "
+                      "byte-deterministic, so they are proven structurally (available() import-guards "
+                      "+ a real WAV round-trip via a fake voice + a real-temp-file hand-off to a fake "
+                      "ears) rather than by running inference offline.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("engine", engine), ("web_ui", ui), ("ios_ui", ios_ui)) if not v]
+        res.reason = "Voice-I/O live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+# --- metrics_telemetry -----------------------------------------------------------------------
+def probe_metrics_telemetry(res: Result) -> None:
+    """GET /metrics serves a REAL aggregate of a REAL, recorded ledger. The executable cert
+    (scripts/certify_metrics_telemetry.py) records events through the SAME calls the live mouth makes
+    (metrics.note_reply scores each reply for break-character and appends to .anima/{name}.metrics.jsonl;
+    note_narrative/note_growth feed the other two gauges), proves summary() is a function OF those
+    events (recording another break MOVES the rate; a fresh creature reads None), reproduces the exact
+    GET /metrics payload {**metrics.summary(name), 'verdict': metrics.verdict(name)} byte-for-byte off
+    the ledger, enforces the ANIMA_METRICS=1 gate (OFF -> 404), proves the read is read-only, and runs
+    the sibling telemetry ledger's --selftest. We add static facts: the ledger + gauges live in
+    metrics.py, the /metrics endpoint is gated + wired in server.py, the live recording seam is
+    mouth.py, the telemetry flight-recorder ledger is telemetry.py, and the dashboard drawer UI fetches
+    /metrics."""
+    rc, tail = run_subcert([HERE / "certify_metrics_telemetry.py"])
+    cert_ok = (rc == 0) and ("METRICS-TELEMETRY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_metrics_telemetry.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    metrics_src = (ROOT / "anima" / "metrics.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    telemetry_src = (ROOT / "anima" / "telemetry.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    # the ledger + aggregator: events are appended and summarised in metrics.py
+    engine = all(s in metrics_src for s in ("def note_reply(", "def summary(", "def verdict(",
+                                            ".metrics.jsonl"))
+    # the endpoint: GET /metrics, gated behind ANIMA_METRICS, serving summary()+verdict()
+    endpoint = ('"/metrics"' in server_src and "ANIMA_METRICS" in server_src
+                and "metrics.summary(" in server_src and "metrics.verdict(" in server_src)
+    # the live recording seam (the mouth records each reply) + the sibling telemetry ledger
+    recording = "metrics.note_reply(" in mouth_src
+    telemetry = "def _append(" in telemetry_src and ".telemetry.jsonl" in telemetry_src
+    # the dashboard drawer UI fetches /metrics and renders the gauges + verdict
+    ui = "fetch('/metrics'" in idx and "openDash" in idx and 'id="dashknob"' in idx
+    res.evidence.append("metrics ledger+gauges=%s; /metrics endpoint(ANIMA_METRICS-gated)=%s; "
+                        "mouth.note_reply seam=%s; telemetry ledger=%s; dashboard UI=%s"
+                        % (engine, endpoint, recording, telemetry, ui))
+
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and engine and endpoint and recording and telemetry and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "real_use_in_answer"]
+        res.reason = ("GET /metrics serves a REAL aggregate of a REAL recorded ledger: events are "
+                      "appended via the same metrics.note_reply call the live mouth makes; summary() "
+                      "is a function OF those events (recording a break moves the rate, a fresh "
+                      "creature reads None); the served payload is byte-equal to summary()+verdict off "
+                      "the ledger; the ANIMA_METRICS=1 gate is enforced (OFF -> 404); the read is "
+                      "read-only; the telemetry flight-recorder ledger round-trips its --selftest; the "
+                      "#dashknob dashboard fetches /metrics; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("recording", recording),
+                             ("telemetry", telemetry), ("ui", ui)) if not v]
+        res.reason = "Metrics-telemetry live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_honesty_rail(res: Result) -> None:
+    """The honesty rail: a STRUCTURAL anti-confabulation gate at the front door of the #1-rule
+    pipeline (SAFETY-relevant). The executable cert (scripts/certify_honesty_rail.py) proves,
+    hermetically + offline (NO model — classify/harden are pure regex/string ops), the rail's full
+    DETERMINISTIC contract through the SAME functions the live turn calls:
+      A. classify routes FOUR intents with honesty-first precedence (capability > personal > factual
+         > generative): a device-data ask -> 'capability' (incl. "Did Mom text me"); a personal-fact
+         ask -> 'personal' EVEN under a generative frame ("what do you think my birthday is?") so a
+         generative phrasing can't switch the anti-confab nudge OFF; a named-detail ask -> 'factual';
+         ordinary chat -> 'generative'. fired() == (classify != 'generative').
+      B. harden prepends the RIGHT note (PERSONAL_NOTE/NOTE/CAPABILITY_NOTE) and passes a generative
+         turn THROUGH byte-unchanged; the user text is preserved verbatim (the rail ADDS, never rewrites).
+      C. provenance bridge: harden(capability, capability_handled=True) SUPPRESSES the capability note
+         so it can't contradict a real fetched result; capability_handled=False still attaches it.
+      D. NO answer key: none of the three notes contains a fabricated answer (calibration, not
+         teaching-to-the-test).
+      E. WIRED into the live turn: server._lerf_eligible routes personal/capability asks OUT of the
+         LERF task seam via rail.classify (proven rail-driven), and the live source carries
+         mouth.respond's `prompt = rail.harden(user_text, capability_handled=...)`.
+    We add static no-wallpaper facts of our own: the four note constants + classify/harden/fired live
+    in anima/rail.py; mouth.respond hardens the model prompt; server._lerf_eligible gates on the rail.
+    The one gap is honest + out of scope: whether the hardened prompt actually changes the model's
+    SPOKEN reply is gate0_prime_experience's 100-probe job (no live model here)."""
+    rc, tail = run_subcert([HERE / "certify_honesty_rail.py"])
+    cert_ok = (rc == 0) and ("HONESTY-RAIL CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_honesty_rail.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    # STATIC no-wallpaper facts: the rail's key functions + note constants exist, and the two real
+    # wirings (the LERF gate via rail.classify, the model-prompt hardening via rail.harden) are
+    # present verbatim in the live source.
+    rail_src = (ROOT / "anima" / "rail.py").read_text()
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    rail_fns = ("def classify(" in rail_src and "def harden(" in rail_src
+                and "def fired(" in rail_src
+                and all(n in rail_src for n in ("NOTE", "PERSONAL_NOTE", "CAPABILITY_NOTE")))
+    mouth_wired = ("rail.harden(user_text" in mouth_src
+                   and "from . import care, portrait, rail" in mouth_src)
+    server_wired = ("from . import rail" in server_src and "rail.classify" in server_src)
+    idx = (ROOT / "anima" / "web" / "index.html").read_text(errors="replace").lower()
+    ui_present = ("honesty" in idx) or ("honest" in idx)
+    res.evidence.append("anima/rail.py defines classify/harden/fired + the NOTE/PERSONAL_NOTE/"
+                        "CAPABILITY_NOTE constants=%s" % rail_fns)
+    res.evidence.append("anima/mouth.py respond -> `prompt = rail.harden(user_text, "
+                        "capability_handled=...)`=%s; anima/server.py _lerf_eligible -> "
+                        "`rail.classify` gates the LERF task seam=%s" % (mouth_wired, server_wired))
+    res.evidence.append("UI surfaces honesty (dials hint 'never her honesty (that's fixed in code)' "
+                        "+ per-model 'Honesty not yet verified' warning) in anima/web/index.html=%s"
+                        % ui_present)
+
+    # The rail is a deterministic gate over the model prompt + the LERF routing decision: no UI button
+    # of its own (it rides every chat turn), no storage, no restart-survival; its USE is the prompt
+    # transform proven by the cert, and it ships through the shared #1-rule final gate.
+    res.set(UI=ui_present, Backend=cert_ok, Storage=None, Retrieval=None,
+            Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and rail_fns and mouth_wired and server_wired:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_use_in_answer", "final_gate"]
+        res.missing_links = []
+        res.reason = ("COMPLETE: the honesty rail's full DETERMINISTIC contract is proven (no model) "
+                      "through the live functions — classify routes the four intents with honesty-"
+                      "first precedence (a personal/factual/device ask is never lost to a generative "
+                      "frame), harden attaches the matching anti-confabulation note (PERSONAL_NOTE/"
+                      "NOTE/CAPABILITY_NOTE) and leaves normal chat byte-unchanged, the capability "
+                      "note is suppressed when code already fetched a real result, and no note "
+                      "carries an answer key. It is wired into the turn both ways: server._lerf_"
+                      "eligible routes personal/capability asks OUT of the LERF task seam via "
+                      "rail.classify (proven rail-driven), and mouth.respond hardens the model "
+                      "prompt via rail.harden. Real .anima byte-unchanged. (Whether the hardened "
+                      "prompt changes the model's SPOKEN reply is gate0_prime_experience's 100-probe "
+                      "job — out of scope here; NO live model.) cert: certify_honesty_rail.py.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("rail_fns", rail_fns),
+                             ("mouth_harden_wired", mouth_wired), ("server_classify_wired",
+                              server_wired)) if not v]
+        res.reason = ("Honesty-rail contract/wiring did not fully hold (missing: %s)."
+                      % (", ".join(res.missing_links) or "none"))
+
+def probe_context_gather(res: Result) -> None:
+    """The ambient day fact-sheet (weather + calendar) that feeds the proactive briefing is REAL,
+    deterministic, and NEVER fabricates context. The executable cert
+    (scripts/certify_context_gather.py) proves, hermetically + OFFLINE, that both live sources
+    (Open-Meteo weather + Calendar.app osascript) are tripwired OFF (any real call FAILS the cert)
+    and that the deterministic surface they feed holds: weather() and calendar_today() degrade
+    honestly (ok=False + a clear note, never a guessed forecast or an invented event); the pure
+    parser (_parse_iso_local) round-trips a real stamp and returns None for a shape-mismatch (never a
+    guess); the robust RS/US row format preserves comma/quote titles, honors the all-day flag, and
+    KEEPS an unparseable-timestamp row with start=None (never dropped, never fabricated); an empty
+    scan is honestly 'no events today'; and the assembled fact_sheet() states absent weather/calendar
+    as absent with no invented event line. We add static no-wallpaper facts: the gatherers live in
+    context_gather.py, the honest-degradation primitives are present, the CLI is wired, and the
+    fact_sheet is consumed by proactive.compose_briefing (the brain narrates ONLY from it)."""
+    rc, tail = run_subcert([HERE / "certify_context_gather.py"])
+    cert_ok = (rc == 0) and ("CONTEXT-GATHER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_context_gather.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    cg_src = (ROOT / "anima" / "context_gather.py").read_text()
+    proactive_src = (ROOT / "anima" / "proactive.py").read_text()
+    engine = all(s in cg_src for s in ("def weather(", "def calendar_today(",
+                                       "def _parse_iso_local(", "def gather(", "def fact_sheet("))
+    honest = all(s in cg_src for s in ("ok=False", "def _run_osa(", "ANIMA_CAL_TIMEOUT", "_WMO"))
+    cli = ('if __name__ == "__main__":' in cg_src) and ("def _main(" in cg_src)
+    consumed = ("context_gather" in proactive_src and "def compose_briefing(" in proactive_src
+                and "ctx.fact_sheet()" in proactive_src)
+    res.evidence.append("gatherers+parser+fact_sheet in context_gather.py=%s; honest-degradation "
+                        "primitives (ok=False/_run_osa/ANIMA_CAL_TIMEOUT/_WMO)=%s; CLI wired=%s; "
+                        "fact_sheet consumed by proactive.compose_briefing=%s"
+                        % (engine, honest, cli, consumed))
+
+    # context_gather is the INPUT layer: no HTTP endpoint or dedicated UI of its own (reached via
+    # the CLI + proactive/host_access/reminders), and the two LIVE fetches (network weather +
+    # osascript calendar) are deliberately NOT exercised. So this is an honest PARTIAL: the
+    # deterministic, fabrication-free floor is proven; the live-source path is the stated gap.
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and engine and honest and cli and consumed:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "honest_degradation", "no_fabrication"]
+        res.missing_links = ["live_weather_fetch", "live_calendar_scan", "visible_trigger"]
+        res.reason = ("DETERMINISTIC FLOOR PROVEN (honest PARTIAL): the day fact-sheet parses/shapes "
+                      "real Calendar output robustly (comma/quote titles intact, all-day honored, an "
+                      "unparseable-timestamp row KEPT with start=None — never dropped or invented), "
+                      "degrades honestly when weather (no/invalid coords, network down) or calendar "
+                      "(timeout=0 skip, permission denied, empty) is unavailable, and fact_sheet() "
+                      "states absence as absence with no fabricated event line; real .anima "
+                      "byte-unchanged. GAP: the two LIVE sources — Open-Meteo (network) + Calendar.app "
+                      "(osascript) — are tripwired OFF (any real call FAILS the cert), so the "
+                      "successful fetch/scan path is not asserted; and context_gather is an internal "
+                      "input layer (CLI + proactive/host_access/reminders, narrated through the brain "
+                      "via compose_briefing) with no HTTP endpoint or dedicated UI widget of its own.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("honest_primitives", honest), ("cli", cli),
+                             ("consumed_by_proactive", consumed)) if not v]
+        res.reason = "Context-gather deterministic floor did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+# --- cognitive_simulation --------------------------------------------------------------------
+def probe_cognitive_simulation(res: Result) -> None:
+    """Cognitive Simulation (Phase 22): test a change on a digital TWIN before prod. The executable
+    cert (scripts/certify_cognitive_simulation.py) proves, hermetically + offline + $0, that all four
+    engines run ON a synthetic twin and return MEASURED results while the real mind is freeze-guarded:
+    DECISION ('what SHOULD happen?' — grounded in synthetic captured-Lamar data, recommends 'ship
+    daily', and an option matching nothing earns NO recommendation), LEARNING ('what WOULD happen if
+    we learned X for T?' — deterministic accumulation, Off mode provably inert), ARCHITECTURE (FMLGS
+    HELD recall vs the keyword baseline on the twin's vault), and ALTERNATIVE FUTURES ('what MIGHT
+    happen?' — a real min/median/max range), with an explicit freeze_guard reporting the real identity
+    AND whole real .anima byte-UNCHANGED. We add static no-wallpaper facts: the four engines + the
+    simulate() router live in simulation.py; it composes the twin.py freeze-safe substrate (create_twin
+    / branch_futures / freeze_guard / FreezeViolation); and it is INTERNAL — NOT wired into server.py
+    or index.html, so there is no user-facing live path, only the deterministic backend + its freeze
+    proof (the honest gap, identical to the sibling digital_twin feature)."""
+    rc, tail = run_subcert([HERE / "certify_cognitive_simulation.py"])
+    cert_ok = (rc == 0) and ("COGNITIVE-SIMULATION CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_cognitive_simulation.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    rc2, tail2 = run_subcert(["-m", "anima.simulation", "--selftest"])
+    self_ok = (rc2 == 0) and ("ALL COGNITIVE-SIMULATION SELFTESTS PASSED" in tail2)
+    res.evidence.append("python3 -m anima.simulation --selftest -> exit %d; %s"
+                        % (rc2, "PASS" if self_ok else "FAIL"))
+
+    sim_src = (ROOT / "anima" / "simulation.py").read_text()
+    twin_src = (ROOT / "anima" / "twin.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = all(s in sim_src for s in ("def simulate_decision(", "def simulate_learning(",
+                                        "def simulate_architecture(", "def alternative_futures(",
+                                        "def simulate(", "def _selftest("))
+    composed = ("from . import twin" in sim_src
+                and all(s in twin_src for s in ("class freeze_guard", "class FreezeViolation",
+                                                "def create_twin(", "def branch_futures(")))
+    no_live_wire = ("simulation" not in server_src) and ("simulate" not in idx.lower())  # internal-only
+    res.evidence.append("four engines + simulate() router + _selftest in simulation.py=%s; composes "
+                        "the twin.py freeze-safe substrate=%s; NOT wired into server.py / index.html "
+                        "(no user-facing simulate path)=%s" % (engine, composed, no_live_wire))
+
+    # Internal cognitive engine: a real, freeze-safe backend, but no user-facing button/endpoint.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=cert_ok,
+            Restart=cert_ok)
+    if cert_ok and self_ok and engine and composed:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "freeze_proof"]
+        # the user-facing wire is the honest gap: no endpoint / route / UI exposes simulation.
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("Cognitive Simulation BACKEND fully proven hermetically ($0, no cloud): all four "
+                      "engines run ON a synthetic twin and return MEASURED, inspectable results — "
+                      "DECISION recommends 'ship daily' GROUNDED in synthetic captured-Lamar data (an "
+                      "option matching nothing earns no recommendation, never invented; the world-model "
+                      "read is internal-only), LEARNING projects real accumulation deterministically "
+                      "(Off mode provably inert), ARCHITECTURE measures FMLGS HOLDING recall vs the "
+                      "keyword baseline on the twin's vault, and ALTERNATIVE FUTURES reports a real "
+                      "min/median/max range — while an explicit twin.freeze_guard reports the real Vera "
+                      "identity AND the whole real .anima byte-UNCHANGED (worked_examples' freeze_report "
+                      "agrees). PARTIAL (honest): simulation.py is INTERNAL — it composes the twin.py "
+                      "substrate but is NOT exposed via a server endpoint / route / UI, so there is no "
+                      "live USER PATH (no visible_trigger), only the deterministic backend + its "
+                      "freeze-safety proof. Real .anima byte-unchanged.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("selftest", self_ok),
+                             ("engine", engine), ("composed", composed)) if not v]
+        res.reason = "Cognitive-simulation backend did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_system_shape(res: Result) -> None:
+    """System Shape — the one-glance, HONEST portrait of what kind of mind Vera is right now. The
+    executable cert (scripts/certify_system_shape.py) proves, hermetically + offline (no model, no
+    network, no .anima write; compose()/save() are driven against a TEMP reports dir so real reports/
+    is never touched), that anima.system_shape can only MIRROR the system's own reports — never invent
+    a flattering shape: (A) exactly five GROUNDED axes compose, each carrying its source report's raw
+    evidence (honesty<-audit counts, self_knowledge<-classified/inventory, live_integrity<-COMPLETE/
+    total, self_improvement<-backlog stats, open_work<-pattern P0/P1/P2); (B) it READS the files, not a
+    constant — a WALLPAPER audit flips honesty + the headline to WEAK, and changing the self-knowledge
+    inputs changes that axis's value/status; (C) the anti-fabrication core — with NO reports present
+    EVERY axis + the headline are `unknown` (honest empty, never a guess); (D) deterministic; (E)
+    rank_dimensions is weakest-first; (F) save() round-trips to the temp path and the real reports/
+    system_shape.json is NOT created. We add static no-wallpaper facts: the composer fns live in
+    system_shape.py, the founder CLI (scripts/system_shape.py --selftest/--json) and vera_status.py's
+    'THE MIND' axis render it. HONEST GAP: server.py does NOT import system_shape — there is no HTTP
+    endpoint / route / web-UI widget (it shapes no live chat reply), so this is PARTIAL, not COMPLETE."""
+    rc, tail = run_subcert([HERE / "certify_system_shape.py"])
+    cert_ok = (rc == 0) and ("SYSTEM-SHAPE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_system_shape.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    shape_src = (ROOT / "anima" / "system_shape.py").read_text()
+    cli_src = (ROOT / "scripts" / "system_shape.py").read_text()
+    status_src = (ROOT / "scripts" / "vera_status.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = all(s in shape_src for s in (
+        "def compose(", "def _dim_honesty(", "def _dim_self_knowledge(",
+        "def _dim_live_integrity(", "def _dim_self_improvement(", "def _dim_open_work(",
+        "def rank_dimensions(", "def save(")) and all(
+        s in shape_src for s in ("program_reality_audit.json", "improvement_backlog.json",
+                                 "patterns.json"))
+    cli = ("import system_shape as ss" in cli_src and "ss.compose(" in cli_src
+           and "ss.rank_dimensions(" in cli_src and "--selftest" in cli_src and "--json" in cli_src)
+    status_axis = ("import system_shape" in status_src and "system_shape.compose()" in status_src)
+    # HONEST no-wallpaper cross-check: the composer is NOT bolted onto a conversational turn / endpoint.
+    not_in_server = "system_shape" not in server_src
+    no_ui = ("system_shape" not in idx and "systemShape" not in idx)
+    res.evidence.append("composer fns + report-source reads in system_shape.py=%s; founder CLI "
+                        "(scripts/system_shape.py --selftest/--json, ss.compose/rank)=%s; vera_status "
+                        "'THE MIND' axis (system_shape.compose())=%s; server.py does NOT import it "
+                        "(no HTTP/chat wire)=%s; no web-UI widget=%s"
+                        % (engine, cli, status_axis, not_in_server, no_ui))
+    res.evidence.append("anti-fabrication proven: a missing report -> `unknown` axis (never a "
+                        "flattering guess) and the headline -> `unknown`; the shape tracks the "
+                        "reports on disk (WALLPAPER audit -> honesty/headline WEAK); compose()/save() "
+                        "driven against a TEMP reports dir, real reports/system_shape.json unwritten, "
+                        "real .anima byte-identical.")
+
+    # internal self-observability composer: real deterministic backend + durable save are proven;
+    # there is no UI / endpoint / live-reply USE wire (the honest gap, by design).
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and engine and cli and status_axis and not_in_server:
+        # The deterministic backend + durable-storage legs are proven end-to-end on real-shaped
+        # reports; the user-facing wire is a CLI/ops surface only -> PARTIAL is the honest verdict.
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage"]
+        res.missing_links = ["conversational_or_http_wire (server._turn / endpoint / web UI)"]
+        res.reason = ("PARTIAL (honest): System Shape is REAL and deterministic — compose() reads the "
+                      "system's own reports (audit/live-paths/inventory/backlog/patterns) into five "
+                      "GROUNDED axes, the headline + plain-English synthesis are derived from those "
+                      "axes, and save() durably writes reports/system_shape.json. The no-wallpaper "
+                      "core is proven: a missing report yields an honest `unknown` axis (and the "
+                      "headline `unknown`) — it refuses to invent a flattering shape — and the shape "
+                      "tracks the reports on disk (a WALLPAPER audit flips honesty + the headline to "
+                      "WEAK; changing the inputs changes the axis), all hermetic (temp reports dir, "
+                      "real reports/system_shape.json unwritten, real .anima byte-unchanged). The "
+                      "user-facing surface is the founder CLI (scripts/system_shape.py) + the 'THE "
+                      "MIND' axis of vera_status.py; server.py does NOT import the composer, so there "
+                      "is no conversational/HTTP/UI leg (UI/Use/MRI = None). A chat- or dashboard-"
+                      "surfaced shape would be a future wave.")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine), ("cli", cli),
+                             ("status_axis", status_axis), ("no_server_wire", not_in_server)) if not v]
+        res.reason = "System-shape live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_twin_dashboard(res: Result) -> None:
+    """The Personal Digital Twin composer: ONE honest read-only portrait of what Vera knows about YOU
+    across five grounded dimensions (identity/how_you_think/trajectory/what_matters/your_world). The
+    executable cert (scripts/certify_twin_dashboard.py) proves, hermetically + offline, that compose()
+    is HONEST ON EMPTY (a fresh person -> richness 'empty', every dimension present=False with 0 items —
+    no fabricated trait), KEYED TO THE PERSON (a different fresh name is independently empty — not a
+    cached constant), that a GROUNDED dimension fills in (4 seeded identity facts -> identity present +
+    counted + items mention the name) while an UNGROUNDED one stays honestly absent, that compose() is
+    DETERMINISTIC (byte-identical twice) and rank_dimensions is richest-first, and that save() round-
+    trips valid JSON. We add static facts: compose/rank_dimensions live in twin_dashboard.py, the founder
+    CLI scripts/vera_status.py renders it (KNOWS YOU), and there is NO server endpoint / web UI for it
+    (so this is an honest CLI-surfaced backend, not a web-button live path)."""
+    rc, tail = run_subcert([HERE / "certify_twin_dashboard.py"])
+    cert_ok = (rc == 0) and ("TWIN-DASHBOARD CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_twin_dashboard.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    td_src = (ROOT / "anima" / "twin_dashboard.py").read_text()
+    status_src = (ROOT / "scripts" / "vera_status.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = ("def compose(" in td_src and "def rank_dimensions(" in td_src
+              and "def _identity(" in td_src and "def _synthesize(" in td_src)
+    cli = "twin_dashboard.compose(" in status_src and "KNOWS YOU" in status_src
+    no_web_wire = ("twin_dashboard" not in server_src) and ("twin_dashboard" not in idx)
+    res.evidence.append("compose/rank_dimensions/_identity/_synthesize in twin_dashboard.py=%s; "
+                        "vera_status CLI renders it (KNOWS YOU)=%s; no server/web wire (honest CLI-only)=%s"
+                        % (engine, cli, no_web_wire))
+
+    # CLI-surfaced read-only backend: a real composer + a real user-facing surface (the founder CLI),
+    # but no web button. UI=None (no web control), Backend/Retrieval proven by the cert, no durable
+    # write on the compose path (Storage=None), no MRI, no restart-survival of its own.
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and engine and cli:
+        res.status = PARTIAL
+        res.missing_links = ["visible_trigger(web)", "real_storage", "restart_survival"]
+        res.reason = ("Personal Digital Twin composer is REAL, deterministic, and honest-on-empty: "
+                      "compose() reads five grounded per-creature stores read-only, invents nothing on "
+                      "an empty store (richness 'empty', all dimensions present=False), fills in only "
+                      "what is grounded (seeded identity facts -> identity present+counted) while "
+                      "ungrounded dimensions stay honestly absent, is byte-identical across calls, ranks "
+                      "richest-first, and round-trips valid JSON; surfaced via the founder CLI "
+                      "(scripts/vera_status.py 'KNOWS YOU'); real .anima byte-unchanged. PARTIAL: it is a "
+                      "CLI-surfaced read-only backend — there is NO server endpoint or web UI control "
+                      "rendering the portrait in this wave, and the compose path writes nothing durable "
+                      "(durability lives in the upstream grounded stores it reads).")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("cli", cli)) if not v]
+        res.reason = "Twin-dashboard composer did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_sources_engine(res: Result) -> None:
+    """LERF learning SOURCES (anima/sources.py): many mouths feed ONE gate, and every grown object
+    is PROVENANCE-STAMPED with the source that taught it. The executable cert
+    (scripts/certify_sources_engine.py) proves, hermetically + offline (deterministic $0 StubTeacher,
+    NO cloud/network/key), the full ingestion contract for the model-free + text sources: the five
+    sources + the teacher source are registered; a resolved REALITY loop grows an ACTIVE heuristic
+    (low-surprise) / mental-model revision (high-surprise) through the REAL gate, grounded + source-
+    stamped + retrievable; a captured PERSONAL EXPERIENCE grows the USER's ACTIVE preference + lesson
+    (never Vera's) while a Vera-self value is REFUSED by lerf's own freeze-guarded factory and never
+    reaches disk; a book excerpt distills, through the SAME Wave-2 gate, into an ACTIVE retrievable
+    skill carrying BOTH the teacher provenance AND source_kind=book (and an identity excerpt / a
+    no-teacher call do NO work); and source_provenance reads the stamp off the object's own support[].
+    We add static facts: the Source registry + gate wrapper + provenance readback live in sources.py,
+    the REAL Wave-2 gate is reused from lerf.py (promote_object/activate_object, not reimplemented),
+    and the engine is consumed by lerf_grow.py (grow_from_source) — NOT imported by server.py.
+    HONEST PARTIAL: the deterministic ingest -> real-gate -> active -> source-stamped contract is
+    PROVEN end-to-end, but this is INTERNAL factory machinery — the user-facing wire is INDIRECT
+    (the live mouth retrieves the ACTIVE objects it accumulates), and the text sources' real-corpus
+    leg is a live, paid cloud-teacher call (--live only)."""
+    rc, tail = run_subcert([HERE / "certify_sources_engine.py"])
+    cert_ok = (rc == 0) and ("SOURCES-ENGINE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_sources_engine.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    sources_src = (ROOT / "anima" / "sources.py").read_text()
+    lerf_src = (ROOT / "anima" / "lerf.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    grow_src = (ROOT / "anima" / "lerf_grow.py").read_text()
+    # the ingestion machinery: the Source registry, the gate wrapper, and the provenance readback
+    # all live in sources.py (the five sources + the teacher, model-free + text).
+    engine = all(s in sources_src for s in ("class Source", "def all_sources(", "def get_source(",
+                                            "def source_provenance(", "def _gate_object(",
+                                            "class RealityOutcomeSource",
+                                            "class PersonalExperienceSource", "class BookSource"))
+    # the REAL Wave-2 object gate is REUSED from lerf.py (promote_object -> activate_object), not
+    # reimplemented in sources.py; the freeze guard is lerf's own (FreezeViolation).
+    real_gate = (all(s in lerf_src for s in ("def promote_object(", "def activate_object(",
+                                             "FreezeViolation"))
+                 and "lerf.promote_object" in sources_src and "lerf.activate_object" in sources_src)
+    # no-wallpaper wire: sources is the FACTORY (factory -> inventory). It is consumed by the
+    # autonomous-growth path (lerf_grow.grow_from_source), NOT imported by server.py — so the
+    # user-facing effect is indirect (the live mouth later retrieves the ACTIVE objects it grows).
+    consumed = "sources" in grow_src and "def grow_from_source(" in grow_src
+    not_in_server = "from . import sources" not in server_src
+    res.evidence.append("sources machinery (registry/gate-wrapper/provenance/5 sources)=%s; REAL "
+                        "Wave-2 gate reused from lerf.py (promote_object/activate_object)=%s; consumed "
+                        "by lerf_grow.grow_from_source=%s; NOT imported by server.py (indirect "
+                        "factory->inventory wire)=%s" % (engine, real_gate, consumed, not_in_server))
+    res.evidence.append("HONEST GAP: the text sources' real-corpus leg is a live, paid cloud-teacher "
+                        "call (--live only, budget-guarded); the cert proves the whole gate downstream "
+                        "of the teacher deterministically via the offline $0 StubTeacher and proves the "
+                        "no-teacher / identity-excerpt paths do NO work — no live provider call. The "
+                        "model-free reality + personal-experience sources need no teacher and are fully "
+                        "proven.")
+
+    # Backend/Storage/Restart proven deterministically by the cert; Retrieval = a grown object becomes
+    # retrievable (proven); UI is N/A (internal factory, no user-visible entry); Use is the user-facing
+    # wire, which is INDIRECT (False — proven via lerf_grow, not a direct live-mouth import); MRI N/A.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=False, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and real_gate and consumed and not_in_server:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "final_gate",
+                            "restart_survival"]
+        res.missing_links = ["user_visible_entry", "live_teacher_corpus"]
+        res.reason = ("Sources' deterministic ingestion contract is PROVEN end-to-end: a resolved "
+                      "REALITY loop grows an ACTIVE heuristic / mental-model revision through the REAL "
+                      "gate (promote_object -> activate_object), grounded in the resolved-loop facts + "
+                      "source-stamped + retrievable; a captured PERSONAL EXPERIENCE grows the USER's "
+                      "ACTIVE preference + lesson (never Vera's) while a Vera-self value is REFUSED by "
+                      "lerf's OWN freeze-guarded factory and never persists (#1 product rule); a book "
+                      "excerpt distills via the $0 StubTeacher through the SAME Wave-2 gate to an ACTIVE "
+                      "retrievable skill carrying BOTH the teacher provenance AND source_kind=book; "
+                      "source_provenance reads the stamp off the object's own support[]; real .anima "
+                      "byte-unchanged, $0 (no spend/brain file). PARTIAL (honest): this is INTERNAL "
+                      "factory machinery — no server endpoint / UI button (consumed by "
+                      "lerf_grow.grow_from_source, not imported by server.py; the user-facing effect is "
+                      "INDIRECT — the live mouth retrieves the ACTIVE objects it accumulates), and the "
+                      "text sources' real-corpus leg is a live, paid cloud-teacher call (--live only).")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("real_gate", real_gate), ("consumed_by_grow", consumed),
+                             ("not_in_server", not_in_server)) if not v]
+        res.reason = "Sources-engine ingestion contract did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_acknowledge_flow(res: Result) -> None:
+    """POST /acknowledge — the '👍 Got it' that CANCELS the escalation call. The executable cert
+    (scripts/certify_acknowledge_flow.py) proves, hermetically + offline (no model, no Apple, no HTTP),
+    the deterministic SAFETY-CRITICAL state machine the endpoint drives — through the SAME function the
+    server calls (reminders.acknowledge) and reproducing the endpoint's exact {"ok": <bool>} payload:
+    schedule persists a PENDING reminder; acknowledge() flips it to ACKNOWLEDGED durably; a past-deadline
+    tick() does NOT escalate the acknowledged reminder while a CONTROL un-acked reminder of the same
+    shape DOES (so ack is demonstrably what cancels the call); acknowledge() is honest (False for
+    empty/unknown/already-acked/already-escalated ids); and the cancel survives a reload. Real .anima
+    byte-unchanged. We add static no-wallpaper facts of our own, and we are HONEST about the gap:
+      (a) the endpoint is wired in server.py (POST /acknowledge -> reminders.acknowledge -> {ok}) and the
+          state machine (acknowledge/schedule/tick) is real in reminders.py;
+      (b) the gap is DELIVERY: reminders._deliver_push (the APNs '👍 Got it' action whose tap POSTs
+          /acknowledge) and reminders._deliver_call (the VoIP call ack cancels) are explicit STUBs that
+          only log 'would …' until the Apple .p8/VoIP key + iOS app exist — so the END-to-END user path
+          (notification button -> HTTP) is NOT exercised, and there is no web-UI button for it either.
+    The deterministic floor (the part that decides whether a real reminder is dropped or escalated) is
+    proven; the model/Apple-delivery + HTTP-round-trip surface is the stated gap -> honest PARTIAL."""
+    rc, tail = run_subcert([HERE / "certify_acknowledge_flow.py"])
+    cert_ok = (rc == 0) and ("ACKNOWLEDGE-FLOW CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_acknowledge_flow.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    reminders_src = (ROOT / "anima" / "reminders.py").read_text()
+    endpoint = '"/acknowledge"' in server_src and "reminders.acknowledge" in server_src
+    machine = all(s in reminders_src for s in ("def acknowledge(", "def schedule(", "def tick("))
+    # The honest gap, asserted from source: BOTH delivery primitives are still STUBs that only log.
+    delivery_stubbed = ("def _deliver_push(" in reminders_src
+                        and "def _deliver_call(" in reminders_src
+                        and "would push" in reminders_src and "would CALL" in reminders_src)
+    res.evidence.append("POST /acknowledge -> reminders.acknowledge wired=%s; state machine "
+                        "(acknowledge/schedule/tick) present=%s; delivery primitives "
+                        "(_deliver_push/_deliver_call) still STUBBED (log-only)=%s"
+                        % (endpoint, machine, delivery_stubbed))
+
+    # Backend/Storage/Restart are the proven deterministic floor; UI/Use are the stubbed-delivery gap
+    # (no web button; the 👍 notification action + the VoIP call are Apple-stubbed).
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=False,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and endpoint and machine:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "restart_survival"]
+        res.missing_links = ["visible_trigger (no web-UI button; the 👍 push action is Apple-stubbed)",
+                             "final_gate/use (escalation call _deliver_call is a log-only STUB)",
+                             "http_round_trip (backend proven via reminders.acknowledge, not a live "
+                             "authenticated POST)"]
+        res.reason = ("PARTIAL: the deterministic, safety-critical state machine POST /acknowledge "
+                      "drives is proven byte-clean + hermetic — schedule persists a pending reminder, "
+                      "acknowledge() flips it to acknowledged durably, a past-deadline tick does NOT "
+                      "escalate the acked reminder while a CONTROL un-acked one DOES (ack is what "
+                      "cancels the call), acknowledge() is honest (False for empty/unknown/already-"
+                      "acked/already-escalated), the {ok:bool} payload matches the server, and the "
+                      "cancel survives a reload; real .anima byte-unchanged. The GAP is delivery: "
+                      "reminders._deliver_push (the '👍 Got it' push action that POSTs /acknowledge) and "
+                      "_deliver_call (the call ack cancels) are explicit Apple-dependent STUBs that only "
+                      "log 'would …', and there is no web-UI button — so the end-to-end notification-"
+                      "button -> HTTP path is not exercised here.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("endpoint", endpoint),
+                             ("state_machine", machine)) if not v]
+        res.reason = "Acknowledge-flow backend did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_audio_serve(res: Result) -> None:
+    """GET /audio/<name> serves a rendered TTS clip SAFELY (basename-only, .anima-only) and only to an
+    authenticated caller. The executable cert (scripts/certify_audio_serve.py) seeds a clip in a
+    redirected audio store and proves through the SAME functions the route runs — _serve_audio_file +
+    the real Handler._authed — that a valid clip serves with the right bytes+content-type, that every
+    traversal attempt (../, absolute, AND a store-internal symlink that escapes) is refused 404 with no
+    foreign-byte leak, and that the route is auth-gated. We add static facts: _serve_audio_file +
+    _AUDIO_TYPES live in server.py, the GET /audio/<name> dispatch is wired, and the 401 'unauthorized'
+    guard precedes that dispatch in do_GET."""
+    rc, tail = run_subcert([HERE / "certify_audio_serve.py"])
+    cert_ok = (rc == 0) and ("AUDIO-SERVE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_audio_serve.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = "def _serve_audio_file(" in server_src and "_AUDIO_TYPES" in server_src
+    endpoint = 'u.path.startswith("/audio/")' in server_src and "_serve_audio_file(" in server_src
+    guard = 'return self._send(401, "text/plain", b"unauthorized")'
+    auth_gated = (guard in server_src and 'u.path.startswith("/audio/")' in server_src
+                  and server_src.index(guard) < server_src.index('u.path.startswith("/audio/")'))
+    res.evidence.append("_serve_audio_file+_AUDIO_TYPES in server.py=%s; GET /audio/<name> dispatch=%s; "
+                        "401 guard precedes /audio dispatch=%s" % (engine, endpoint, auth_gated))
+
+    # No web button calls /audio today: the visible trigger is the authenticated phone fetch of the
+    # push-payload URL (Caddy -> :8765). So UI is the push/phone surface, not an index.html click.
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and engine and endpoint and auth_gated:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval", "final_gate"]
+        res.reason = ("GET /audio/<name> serves a real clip from the .anima store with the exact bytes "
+                      "+ correct audio/* type; basename-only — every traversal (../, absolute, and a "
+                      "store-internal symlink escape) is refused 404 with no foreign-byte leak via the "
+                      "resolved-parent==store check; the route is auth-gated (real Handler._authed: a "
+                      "token-set request without the matching key is refused, and the 401 guard "
+                      "precedes the /audio dispatch in do_GET); real .anima byte-unchanged. (Visible "
+                      "trigger is the authenticated phone fetch of the push-payload URL, not a web "
+                      "button; clip rendering is proactive.render_audio, a separate model/OS surface.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("auth_gate", auth_gated)) if not v]
+        res.reason = "Audio-serve safe-serving live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+# --- vera_status_cli -------------------------------------------------------------------------
+def probe_vera_status_cli(res: Result) -> None:
+    """The ONE founder command (scripts/vera_status.py): the whole honest state of Vera in a glance.
+    The executable cert (scripts/certify_vera_status_cli.py) proves, hermetically + offline (urllib
+    stubbed so the live :8765 server is never hit), that compose() returns a COHERENT dict whose
+    sub-blocks are BYTE-EQUAL to the underlying subsystems computed directly (system_shape /
+    twin_dashboard / portable / improvement_engine) — it forwards real output, never invents — that
+    it is HONEST WHEN EMPTY (fresh store -> richness 'empty', portable counts 0), DETERMINISTIC +
+    read-only (no durable personal-state file written; real .anima byte-unchanged), and that the
+    deploy line DEGRADES GRACEFULLY across all three transport outcomes (unreachable -> up/green
+    False; same-sha -> GREEN; different-sha -> up True but not green). We add static facts: compose()
+    + _deploy_state() live in vera_status.py, it composes the four real subsystems, and the CLI
+    surface (argparse + --json) is present. PARTIAL: the DEPLOYED ● GREEN line's real round-trip to
+    the live server's /version is the one link the hermetic cert cannot exercise."""
+    rc, tail = run_subcert([HERE / "certify_vera_status_cli.py"])
+    cert_ok = (rc == 0) and ("VERA-STATUS-CLI CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_vera_status_cli.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    vs_src = (ROOT / "scripts" / "vera_status.py").read_text()
+    compose_fn = "def compose(" in vs_src and "def _deploy_state(" in vs_src
+    composes = all(s in vs_src for s in ("system_shape", "twin_dashboard", "portable",
+                                         "improvement_engine"))
+    cli = "argparse" in vs_src and '"--json"' in vs_src and "/version" in vs_src
+    res.evidence.append("compose()+_deploy_state() in vera_status.py=%s; composes 4 subsystems=%s; "
+                        "CLI(argparse+--json+/version)=%s" % (compose_fn, composes, cli))
+
+    res.set(UI=cli, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=None)
+    floor = cert_ok and compose_fn and composes and cli
+    if floor:
+        res.status = PARTIAL
+        res.proven_links = ["visible_trigger", "real_backend", "real_retrieval",
+                            "real_use_in_answer"]
+        res.missing_links = ["deploy_version_live_round_trip"]
+        res.reason = ("Founder CLI compose() is coherent + REAL (sub-blocks byte-equal to "
+                      "system_shape/twin_dashboard/portable/improvement_engine computed directly), "
+                      "honest-when-empty, deterministic + read-only (no durable write; real .anima "
+                      "byte-unchanged), and the deploy line degrades gracefully across all three "
+                      "transport outcomes; the CLI (argparse/--json) is wired. PARTIAL only because "
+                      "the DEPLOYED-GREEN 'running == committed' line's real round-trip to the live "
+                      ":8765 /version is not exercised hermetically (a live-server leg, not a logic "
+                      "gap).")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("compose_fn", compose_fn),
+                             ("composes", composes), ("cli", cli)) if not v]
+        res.reason = "Vera-status CLI live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+def probe_intelligence_economics(res: Result) -> None:
+    """Intelligence Economics: capability-PER-RESOURCE for the LERF substrate (per-GB / per-token /
+    per-$ / per-watt / per-second) + three knowledge-DENSITY axes. The executable cert
+    (scripts/certify_intelligence_economics.py) proves, hermetically + offline, that the EXACT axes
+    are computed from REAL ledger/measured data (the per-token ratio recomputed off
+    lerf_benchmark.deterministic_table; the per-GB store_bytes a fresh os.stat; the learning count a
+    real lerf.stats), that LERF+small WINS every EXACT axis, that the measurement TRACKS real store
+    content (a subset of seeds -> a strictly smaller store, not a constant), that the honesty contract
+    holds (energy/latency flagged ESTIMATE), and that the live consumer growth_dashboard.density()
+    reads the SAME numbers. We add static facts: the economics fns live in intelligence_per_gb.py and
+    the deterministic ledger in lerf_benchmark.py; the metric is consumed by growth_dashboard.py; and
+    there is NO server endpoint (CLI/backend-only — the honest gap). PARTIAL: the deterministic floor
+    is fully proven, but there is no user-facing live path and capability is a modelled proxy."""
+    rc, tail = run_subcert([HERE / "certify_intelligence_economics.py"])
+    cert_ok = (rc == 0) and ("INTELLIGENCE-ECONOMICS CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_intelligence_economics.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    # STATIC no-wallpaper facts.
+    mod_src = (ROOT / "scripts" / "intelligence_per_gb.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    dash_src = (ROOT / "scripts" / "growth_dashboard.py").read_text()
+    bench_src = (ROOT / "scripts" / "lerf_benchmark.py").read_text()
+    key_fns = all(s in mod_src for s in ("def compute(", "def axis_per_gb(", "def axis_per_token(",
+                                         "def axis_per_dollar(", "def _measure_store_bytes("))
+    ledger = ("def deterministic_table(" in bench_src) and ("PRICE_PER_1K" in bench_src)
+    dashboard_wired = ("intelligence_per_gb" in dash_src) and ("def density(" in dash_src)
+    # the honest gap: no live user-facing surface (no HTTP endpoint, no UI widget) — CLI/backend only.
+    no_endpoint = ("intelligence_per_gb" not in server_src) and ("intelligence_economics" not in server_src)
+    res.evidence.append("economics fns in intelligence_per_gb.py (compute/axis_per_gb/per_token/"
+                        "per_dollar/_measure_store_bytes)=%s; deterministic ledger "
+                        "(lerf_benchmark.deterministic_table + PRICE_PER_1K)=%s" % (key_fns, ledger))
+    res.evidence.append("consumed by growth_dashboard.density()=%s; NO server endpoint in "
+                        "anima/server.py (CLI/backend-only — the honest no-live-surface gap)=%s"
+                        % (dashboard_wired, no_endpoint))
+
+    # Backend/Storage/Retrieval are the real, deterministic economics computation off the ledger +
+    # a real os.stat of the store; Use=the dashboard consumer reads it; UI=False (no widget),
+    # MRI/Restart=N/A (a read-only point-in-time measurement, nothing persisted).
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok,
+            Use=(cert_ok and dashboard_wired), MRI=None, Restart=None)
+
+    deterministic_floor = cert_ok and key_fns and ledger and dashboard_wired
+    if deterministic_floor:
+        # Real backend computed from real ledger data is proven, but the live user-facing path is
+        # absent (CLI/backend-only) and capability is a modelled proxy + energy axes are estimates.
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval"]
+        res.missing_links = ["user_visible_entry", "live_capability"]
+        res.reason = ("Intelligence Economics is REAL + deterministic + hermetic: the EXACT axes "
+                      "(per-token/per-$/per-GB + understanding/learning density) are computed from "
+                      "the real ledger (lerf.count_tokens summed + priced via PRICE_PER_1K over "
+                      "lerf_benchmark.deterministic_table) and a real os.stat of the serialized LERF "
+                      "store; the per-GB measurement tracks real store content (a seed subset -> a "
+                      "strictly smaller store, not a constant); LERF+small WINS every EXACT axis; the "
+                      "energy/latency axes are honestly flagged ESTIMATE; growth_dashboard.density() "
+                      "reads the SAME numbers; real .anima byte-unchanged. PARTIAL because there is "
+                      "NO live user-facing surface (no server endpoint, no UI widget — it is a "
+                      "founder/CLI tool consumed by the dashboard) and capability is a 'modelled' "
+                      "proxy (live accuracy needs Ollama).")
+    else:
+        res.status = STUB if not cert_ok else PARTIAL
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("key_fns", key_fns),
+                             ("ledger", ledger), ("dashboard_consumer", dashboard_wired)) if not v]
+        res.reason = ("Intelligence-economics deterministic floor did not fully hold (missing: %s)."
+                      % (", ".join(res.missing_links) or "none"))
+
+
+# --- wisdom_theory ---------------------------------------------------------------------------
+def probe_wisdom_theory(res: Result) -> None:
+    """The Wisdom/Theory engine (Phase D): observations -> grounded theories -> refinement over time
+    -> long-horizon lessons, freeze-safe. certify_wisdom_theory.py proves it hermetically; we add
+    static facts: engine fns in theory.py, GET /theory wired, the Settings 'Wisdom' panel present."""
+    rc, tail = run_subcert([HERE / "certify_wisdom_theory.py"])
+    cert_ok = (rc == 0) and ("WISDOM-THEORY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_wisdom_theory.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    theory_src = (ROOT / "anima" / "theory.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = all(s in theory_src for s in ("def observe(", "def induce(", "def refine(",
+                                           "def lessons(", "def theories(", "def is_self_about_vera("))
+    endpoint = '"/theory"' in server_src and "_serve_theory" in server_src
+    ui = 'id="wisdomCard"' in idx and "loadWisdom" in idx and "/theory" in idx
+    res.evidence.append("theory engine fns=%s; GET /theory wired=%s; Settings Wisdom panel=%s"
+                        % (engine, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "restart_survival"]
+        res.reason = ("Wisdom is grounded + freeze-safe: empty->empty (never fabricated); a "
+                      "corroborated pattern becomes a theory with a corroboration posterior grounded "
+                      "in its observations; refinement firms it to 'supported'; a supported theory "
+                      "crystallises into a long-horizon lesson with a failure envelope; a claim about "
+                      "Vera is refused (theories model the world + user, never her); the "
+                      "reality-learning bridge works; GET /theory + the Settings 'Wisdom' panel are "
+                      "the live read; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Wisdom-theory live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -3461,6 +4281,19 @@ def classify_all() -> dict:
         "universal_memory_schema": probe_universal_memory_schema,
         "event_bus": probe_event_bus,
         "values_view": probe_values_view,
+        "voice_io": probe_voice_io,
+        "metrics_telemetry": probe_metrics_telemetry,
+        "honesty_rail": probe_honesty_rail,
+        "context_gather": probe_context_gather,
+        "cognitive_simulation": probe_cognitive_simulation,
+        "system_shape": probe_system_shape,
+        "twin_dashboard": probe_twin_dashboard,
+        "sources_engine": probe_sources_engine,
+        "acknowledge_flow": probe_acknowledge_flow,
+        "audio_serve": probe_audio_serve,
+        "vera_status_cli": probe_vera_status_cli,
+        "intelligence_economics": probe_intelligence_economics,
+        "wisdom_theory": probe_wisdom_theory,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,

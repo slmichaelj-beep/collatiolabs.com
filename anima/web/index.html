@@ -577,6 +577,10 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
   <div id="learnlist" class="hint" style="margin-top:10px"></div>
 
+  <h2 style="margin-top:22px">Wisdom</h2>
+  <p class="hint">What's held up <b>over time</b> — theories she's formed by watching outcomes, and the long-horizon lessons distilled from them. Grounded in observed results, never guessed; about the world and you, never about her.</p>
+  <div id="wisdomCard" class="hint" style="margin-top:8px"></div>
+
   <h2 style="margin-top:22px">Your portable mind</h2>
   <p class="hint">What she's grounded about <b>you</b> — your facts and how you think — as a plain,
     model-agnostic file you can carry to any app or model. This is <i>your</i> mind, not her character.</p>
@@ -1625,6 +1629,21 @@ async function openSettings(){
   renderFaceRow();
   loadLearn();
   loadPersona();
+  loadWisdom();
+}
+async function loadWisdom(){
+  const el=document.getElementById('wisdomCard'); if(!el)return;
+  const d=await apiFetch('/theory');
+  if(d._err){ el.textContent='Could not load wisdom right now.'; return; }
+  const th=(d&&d.theories)||[], ls=(d&&d.lessons)||[];
+  el.innerHTML='';
+  if(!th.length&&!ls.length){ el.textContent="No theories yet — wisdom accrues as outcomes pile up over time (nothing invented)."; return; }
+  th.forEach(t=>{ const r=document.createElement('div'); r.style.cssText='margin:6px 0;font-size:12px;color:#e8e8ec;line-height:1.4';
+    r.textContent='• ['+(t.status||'')+' · '+Math.round((t.confidence||0)*100)+'%] '+t.statement+' ('+t.held+'/'+t.observed+')'; el.appendChild(r); });
+  if(ls.length){ const h=document.createElement('div'); h.textContent='Long-horizon lessons';
+    h.style.cssText='font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;margin:12px 0 2px'; el.appendChild(h);
+    ls.forEach(L=>{ const r=document.createElement('div'); r.style.cssText='margin:4px 0;font-size:12px;opacity:.85';
+      r.textContent='◆ when '+L.condition+' → '+L.action+'  ('+L.expectation+')'; el.appendChild(r); }); }
 }
 async function loadPersona(){
   const el=document.getElementById('personaCard'); if(!el)return;

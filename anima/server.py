@@ -1569,6 +1569,19 @@ def _serve_personal_edit(name, data):
     return json.dumps(personal.edit_statement(name, oid, str((data or {}).get("text", ""))))
 
 
+def _serve_theory(name):
+    """GET /theory -> the WISDOM the Theory engine has accrued: durable THEORIES (patterns that hold
+    over time, each with corroboration-based confidence + the observations grounding it) and the
+    long-horizon LESSONS distilled from them. Grounded-only: an empty history returns empty lists
+    (never a fabricated wisdom)."""
+    from . import theory
+    try:
+        return json.dumps({"ok": True, "theories": theory.theories(name),
+                           "lessons": theory.lesson_set(name)})
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": str(exc)})
+
+
 # --- proactive: serve a rendered briefing/reminder audio file ---------------
 # proactive.render_audio writes .anima/<Name>.briefing.wav (Kokoro) or .aiff (`say`);
 # a reminder escalation renders similarly. Caddy fronts vera.guruu.ai -> :8765, so a
@@ -2174,6 +2187,9 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/personal/profile":
                 # GET /personal/profile -> the grounded "what Vera has learned about you" model.
                 self._send(200, "application/json", _serve_personal_profile(self.name).encode())
+            elif u.path == "/theory":
+                # GET /theory -> the Wisdom engine's grounded theories + long-horizon lessons.
+                self._send(200, "application/json", _serve_theory(self.name).encode())
             elif u.path == "/host/awareness":
                 # GET /host/awareness -> the human-level host picture (Argus). Cloud-redacted.
                 try:
