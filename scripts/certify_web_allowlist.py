@@ -120,6 +120,16 @@ def main() -> int:
                on_empty.get("ok") is False and "allow-list" in (on_empty.get("error") or ""))
 
             ck("Z1: NO real network fetch was ever attempted (every gate short-circuited)", not opened)
+
+            # ---- F. THE UI TOGGLE IS LIVE (go-live) — the user can opt in; the floor above HOLDS ---
+            idx = (ROOT / "anima" / "web" / "index.html").read_text(encoding="utf-8")
+            web_line = next((ln for ln in idx.splitlines() if 'data-cap="web"' in ln), "")
+            ck("F1: the Web toggle is LIVE (data-cap=\"web\" present, NOT disabled, no 'soon' tag on it)",
+               bool(web_line) and "disabled" not in web_line and ">soon<" not in web_line
+               and "cap soon" not in web_line)
+            ck("F2: going live did NOT weaken the floor — A1/A2/B1/E1 above still prove off-by-default, "
+               "empty allow-list, and the webget gate refuses until a domain is added",
+               c.get("web") is False and c.get("allowlist") == [])
     finally:
         _ureq.build_opener = _orig_build_opener
 
