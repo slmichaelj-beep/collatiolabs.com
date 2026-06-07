@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -101,14 +102,35 @@ def _strip_break_sentences(text: str) -> str:
     return (out[:1].upper() + out[1:]) if out else out
 
 
+# ── Chat-template token scrub ─────────────────────────────────────────────────────────────────
+# Local models occasionally emit their chat-template CONTROL tokens as literal text: a COMPLETE
+# token anywhere (<|im_end|>, <|im_start|>, <|eot_id|>, <|end_of_text|>, |done|, </s>) OR — when a
+# generation is cut off mid-token — a TRUNCATED fragment left dangling at the very end (e.g.
+# "...interested!<|im" from an unfinished <|im_end|>). Neither must ever reach the user, and a
+# reply must never END on such a stray fragment ("strange sentence endings").
+_TEMPLATE_TOKEN_RE = re.compile(r"\s*(?:\|done\|?|</s>|<\|[A-Za-z0-9_]+\|>)\s*")
+_TRUNCATED_TEMPLATE_RE = re.compile(r"\s*<\|[^>\s]*\s*$")
+
+
+def _strip_template_tokens(text: str) -> str:
+    """Strip stray chat-template control tokens — COMPLETE ones anywhere, plus a TRUNCATED one left
+    dangling at the end. Pure regex, idempotent, never raises. Applied by BOTH _strip_scaffold_leak
+    and final_output_gate, so no shipped reply ends on a stray '<|im' / '<|eot' fragment."""
+    s = _TEMPLATE_TOKEN_RE.sub(" ", text or "")
+    s = _TRUNCATED_TEMPLATE_RE.sub("", s)
+    return re.sub(r"[ \t]{2,}", " ", s).strip()
+
+
 def final_output_gate(text: str) -> str:
     """The model-free, #1-rule FINAL output gate + completeness/integrity guard — the hard floor
     EVERY shipped reply passes through (mouth.respond AND the deterministic host-awareness seam, so
-    there is ONE final gate and never a second return path that ships before it). If `text` trips
-    scan_breaks / scan_self_narrative, strip the offending sentence(s) (pure regex); if no clean,
-    substantive remainder (>= 4 words) survives, ship the crafted THIRD-PATH REDIRECT. No model
+    there is ONE final gate and never a second return path that ships before it). It FIRST scrubs any
+    stray/truncated chat-template token (so no reply ends on a '<|im' fragment), then if `text` trips
+    scan_breaks / scan_self_narrative, strips the offending sentence(s) (pure regex); if no clean,
+    substantive remainder (>= 4 words) survives, ships the crafted THIRD-PATH REDIRECT. No model
     call — it cannot time out or raise into a turn — and the result is always non-empty +
     substantive. Idempotent."""
+    text = _strip_template_tokens(text)              # scrub stray/truncated chat-template tokens FIRST
     try:
         from . import metrics as _m
         dirty = bool(_m.scan_breaks(text) or _m.scan_self_narrative(text))
@@ -201,10 +223,11 @@ def _strip_scaffold_leak(text: str) -> str:
                   "WHAT YOU UNDERSTAND ABOUT THEIR SITUATION")
     TOKENS = tuple(dict.fromkeys(TOKENS))            # dedupe, preserve order
     s = text or ""
-    # Stray model control/template markers (chat-template end tokens some local models emit
-    # into the body, e.g. Stheno's "|done|"). Never scaffolding from us, but they must not
-    # reach the user either — strip them unconditionally, cheaply.
-    s = re.sub(r"\s*(?:\|done\|?|<\|eot_id\|>|<\|end\|>|<\|im_end\|>|</s>)\s*", " ", s).strip()
+    # Stray model control/template markers (chat-template tokens some local models emit into the
+    # body, e.g. Stheno's "|done|" or a truncated "<|im"). Never scaffolding from us, but they must
+    # not reach the user — strip complete AND truncated ones via the shared scrub (final_output_gate
+    # applies the same, so it's belt-and-suspenders).
+    s = _strip_template_tokens(s)
     if not any(tok.lower() in s.lower() for tok in TOKENS):
         return s if s else text                      # fast path: only a stray marker (if any)
     bracket = [t for t in TOKENS if t.startswith("[") and t.endswith("]")]
