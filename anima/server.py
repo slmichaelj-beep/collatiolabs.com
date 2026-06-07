@@ -1542,6 +1542,59 @@ def _serve_library_edit(name: str, data: dict) -> dict:
     return {"ok": True, "item": item, "audit": audit_out}
 
 
+# --------------------------------------------------------------------------------------------
+# HOST AWARENESS (Argus integration — FIRST WAVE: READ-ONLY). Reading the host picture is gated
+# on the host_awareness capability (default OFF). There is deliberately NO host-action path in
+# this wave (no pause/block endpoint exists), and the client integrates ONLY with a CERTIFIED,
+# frozen, read-only Argus (the /capabilities handshake). Under a cloud brain specifics are redacted.
+# --------------------------------------------------------------------------------------------
+def _serve_host_awareness(name: str, cloud_on: bool) -> dict:
+    """GET /host/awareness -> the human-level host picture, or {on:False} when not opted in.
+    Under a cloud brain the specifics are redacted (host/process/IP are private)."""
+    from . import caps, host_awareness
+    if not caps.enabled(name, "host_awareness"):
+        return {"on": False}
+    try:
+        return host_awareness.summary(name, cloud_safe=bool(cloud_on))
+    except Exception:
+        return {"on": True, "available": False,
+                "headline": "Host awareness is on, but the monitor couldn't be reached."}
+
+
+def _serve_host_timeline(name: str, hours: int) -> dict:
+    """GET /host/timeline -> Argus's narrated recent history (read-only)."""
+    from . import caps
+    if not caps.enabled(name, "host_awareness"):
+        return {"on": False}
+    from .tools.argus_client import client
+    c = client()
+    if not c.available():
+        return {"on": True, "available": False}
+    return {"on": True, "available": True, "timeline": c.timeline(hours)}
+
+
+def _serve_host_action_log(name: str) -> dict:
+    """GET /host/action_log -> Argus's audit log of actions IT has taken (read-only)."""
+    from . import caps
+    if not caps.enabled(name, "host_awareness"):
+        return {"on": False}
+    from .tools.argus_client import client
+    c = client()
+    if not c.available():
+        return {"on": True, "available": False}
+    return {"on": True, "available": True, "action_log": c.action_log()}
+
+
+def _serve_host_certification(name: str) -> dict:
+    """GET /host/certification -> the Argus handshake result Vera verified BEFORE integrating
+    (frozen release, ARGUS PRIME pass, loopback-only, read-only, 0 third-party deps)."""
+    from . import caps
+    if not caps.enabled(name, "host_awareness"):
+        return {"on": False}
+    from .tools.argus_client import client
+    return {"on": True, **client().certification()}
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -1695,6 +1748,28 @@ class Handler(BaseHTTPRequestHandler):
                 # GET /library?name=...&section=...  -> {ok, items:[...]}
                 _out = _serve_library(self.name, u.query)
                 self._send(200, "application/json", json.dumps(_out).encode())
+            elif u.path == "/host/awareness":
+                # GET /host/awareness -> the human-level host picture (Argus). Cloud-redacted.
+                try:
+                    from . import cloud as _cl_host
+                    _cloud_host = _cl_host.is_cloud()
+                except Exception:
+                    _cloud_host = False
+                _out = _serve_host_awareness(self.name, _cloud_host)
+                self._send(200, "application/json", json.dumps(_out).encode())
+            elif u.path == "/host/timeline":
+                try:
+                    _hrs = int(parse_qs(u.query).get("hours", ["12"])[0])
+                except Exception:
+                    _hrs = 12
+                self._send(200, "application/json",
+                           json.dumps(_serve_host_timeline(self.name, _hrs)).encode())
+            elif u.path == "/host/action_log":
+                self._send(200, "application/json",
+                           json.dumps(_serve_host_action_log(self.name)).encode())
+            elif u.path == "/host/certification":
+                self._send(200, "application/json",
+                           json.dumps(_serve_host_certification(self.name)).encode())
             else:
                 self._send(404, "text/plain", b"not found")
         except Exception:

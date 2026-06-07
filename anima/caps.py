@@ -30,8 +30,14 @@ KEYS = ("imessage", "mail", "web")
 # nothing is spent unless the user has EXPLICITLY opted in. It governs ONLY task-skill
 # growth; the identity freeze is independent and absolute (a curriculum can never be
 # about who Vera is).
+# host_awareness — READ-ONLY awareness of host + outbound-network state via the Argus monitor
+# (anima/host_awareness.py reads a CERTIFIED, frozen Argus's localhost /mri etc.). OFF until the
+# user turns it on; while OFF it is a provable no-op (no Argus call, nothing read). Local-first:
+# the data never leaves the Mac, and it is blanked under a cloud brain like any private fact.
+# This FIRST integration wave is READ-ONLY: there is NO host-action capability (no pause/block).
+# A future wave may add a separate, confirm-gated action capability — intentionally absent here.
 BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency",
-             "grow_intelligence")
+             "grow_intelligence", "host_awareness")
 
 # Enum (multi-value) settings, persisted alongside the booleans. Each maps a key to
 # (allowed_values, default); load()/save() read this map so a new enum stays in lockstep

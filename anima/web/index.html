@@ -452,6 +452,11 @@ form{padding:10px 12px;border-top:1px solid #141414;
       <textarea id="allow" placeholder="allowed sites, one per line"></textarea>
     </div>
     <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg> Host awareness</div>
+      <label class="cap"><span class="lbl">Read host &amp; network state</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="host_awareness"></label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Read-only. Reads a certified, local Argus monitor so she can notice which apps are reaching the network — nothing leaves your Mac, and she takes no host action (no blocking) in this first integration.</p>
+    </div>
+    <div class="svc">
       <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg> Inner life</div>
       <label class="cap" title="Experimental. Held until the observation window closes (2026-07-03). Off by default; turn it on only when you choose. While off, nothing identity- or agency-shaping runs.">
         <span class="lbl">Identity &amp; Agency <span style="opacity:.6">— held until the observation window (2026-07-03)</span></span>
