@@ -1326,9 +1326,10 @@ def probe_state_snapshot(res: Result) -> None:
     server_src = (ROOT / "anima" / "server.py").read_text()
     engine = "def feeling(" in heart_src and "def from_dict(" in heart_src and "AFFECTS" in heart_src
     endpoint = ('u.path == "/state"' in server_src
-                and "Heart.from_dict(load_json(_path(self.name))).feeling()" in server_src)
-    res.evidence.append("feeling()/from_dict/AFFECTS in heart.py=%s; GET /state reads "
-                        "Heart.from_dict(load_json(_path)).feeling() read-only=%s" % (engine, endpoint))
+                and "Heart.from_dict(load_json(_path(self.name)))" in server_src
+                and ".feeling()" in server_src)
+    res.evidence.append("feeling()/from_dict/AFFECTS in heart.py=%s; GET /state reads the persisted "
+                        "Heart.from_dict(load_json(_path)) + .feeling() read-only=%s" % (engine, endpoint))
     res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None,
             MRI=None, Restart=cert_ok)
     if cert_ok and engine and endpoint:
