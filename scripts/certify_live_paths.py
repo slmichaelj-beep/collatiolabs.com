@@ -833,6 +833,46 @@ def probe_portable_mind(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- brain_select ----------------------------------------------------------------------------
+def probe_brain_select(res: Result) -> None:
+    """Local↔Cloud brain switch + the privacy moat it gates. The executable cert
+    (scripts/certify_brain_select.py) proves, hermetically + offline, that the switch is real +
+    durable + key-safe (public() never leaks the key), that PII + personal names are scrubbed, and
+    that private host/inbox reads PAUSE under a cloud brain. We add static facts: the privacy
+    primitives live in cloud.py, the /brain endpoint exists, and the #provider selector is wired."""
+    rc, tail = run_subcert([HERE / "certify_brain_select.py"])
+    cert_ok = (rc == 0) and ("BRAIN-SELECT CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_brain_select.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    cloud_src = (ROOT / "anima" / "cloud.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    primitives = all(s in cloud_src for s in ("def is_cloud(", "def scrub(", "def public(",
+                                              "def save_cfg("))
+    endpoint = '"/brain"' in server_src and "cloud.public()" in server_src
+    ui = 'id="provider"' in idx and "renderBrain" in idx
+    res.evidence.append("cloud privacy primitives=%s; /brain endpoint=%s; #provider UI=%s"
+                        % (primitives, endpoint, ui))
+
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and primitives and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Local-first brain switch is real, durable, and key-safe (public() never leaks "
+                      "the key); PII + personal names are scrubbed; private host/inbox reads pause "
+                      "under a cloud brain; a never-keyed cloud provider stays local; the /brain "
+                      "endpoint + #provider selector are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("primitives", primitives),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Brain-select live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1187,6 +1227,7 @@ def classify_all() -> dict:
         "mail_send": probe_mail_send,
         "personal_intelligence": probe_personal_intelligence,
         "portable_mind": probe_portable_mind,
+        "brain_select": probe_brain_select,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
