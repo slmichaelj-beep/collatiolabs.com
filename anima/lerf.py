@@ -732,7 +732,14 @@ def verify_rendered_output(skill: dict, rendered: str, *, inputs: dict | None = 
     if inputs:
         src = " ".join(str(v) for v in inputs.values())
         src_nums = set(re.findall(r"\d+", src))
-        out_nums = set(re.findall(r"\d+", rendered))
+        # Enumeration scaffolding is STRUCTURE, not a fabricated FACT: a list ordinal ("1.", "2)",
+        # "- 3.", "step 4") must NOT be read as an invented figure, or a perfectly grounded NUMBERED
+        # render is false-rejected (the small model naturally answers tasks as numbered steps). Strip
+        # that scaffolding first; a genuinely invented figure — a dosage, a price, an invented time or
+        # date — is NOT an ordinal and is still caught by the check below.
+        body = re.sub(r"(?m)^[\s\-*•]*\d+\s*[.)]\s+", "", rendered)   # "1. " / "2) " / "- 3. " starts
+        body = re.sub(r"(?im)\bstep\s+\d+\b", " ", body)              # "step 4"
+        out_nums = set(re.findall(r"\d+", body))
         invented = sorted(out_nums - src_nums)
         if invented:
             reasons.append(f"fabricated figure(s) {invented} not present in the inputs "
