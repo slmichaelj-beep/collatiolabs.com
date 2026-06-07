@@ -742,6 +742,37 @@ def _turn(name, text, voice=False):
                              note="model-free #1-rule final gate + output integrity (shared)")
         except Exception:
             _reference_reply = None
+        # CONVERSATION REPAIR seam — deterministic value correction. When the user rejects a fact
+        # they earlier stated and gives the right one ("scratch that — not Rex, his name is Atlas"),
+        # the anchorless LIRF extractor lifts NOTHING, so the old value would LINGER and the new one
+        # be LOST. This seam reads the rejected OLD value, finds the active ledger row that holds it
+        # (that row's trait IS the slot, even with no fresh anchor), and folds the NEW value through
+        # the SAME Facts.merge() correction path every fact uses (old -> history "user-corrected",
+        # new -> active @0.97). The labelled confirmation ships through the SAME #1-rule
+        # final_output_gate as every reply — fixed text, no LLM, no second return path. It supersedes
+        # only a slot it can PROVE holds the rejected value, so it never mis-corrects or hijacks a
+        # normal turn; None -> the pipeline runs unchanged. MRI stages:
+        #   input -> repair_correction_detected -> deterministic_repair_reply -> final_gate -> shipped
+        _repair_reply = None
+        try:
+            if not _host_reply and not _reference_reply:
+                from . import repair as _rp_live
+                from .mouth import final_output_gate as _final_gate3
+                _rep_plan = _rp_live.detect(text)
+                if _rep_plan:
+                    _stg("repair_correction_detected", in_shape={"text_chars": len(text or "")},
+                         out={"old": _rep_plan.get("old"), "new": _rep_plan.get("new")},
+                         note="conversation-repair correction detected (reject old, install new)")
+                    _raw_rep = _rp_live.repair(name, text, cloud_safe=_cloud_on)
+                    if _raw_rep:
+                        _stg("deterministic_repair_reply", out={"chars": len(_raw_rep)},
+                             note="fixed text — ledger superseded (old->history, new->active), no LLM")
+                        _repair_reply = _final_gate3(_raw_rep)   # SAME #1-rule final gate
+                        _stg("final_gate", out={"changed": _repair_reply != _raw_rep,
+                                                "chars": len(_repair_reply or "")},
+                             note="model-free #1-rule final gate + output integrity (shared)")
+        except Exception:
+            _repair_reply = None
         _lerf_solved = False
         _lerf_reply = None
         _lerf_rec = None
@@ -781,6 +812,21 @@ def _turn(name, text, voice=False):
             if voice and audio_out and getattr(mouth, "voice", None) is not None:
                 try:
                     u.audio_path = mouth.voice.speak(_reference_reply, _rh, audio_out)
+                except Exception:
+                    u.audio_path = None
+        elif _repair_reply:
+            # deterministic conversation-repair confirmation (the ledger was already superseded) — no LLM.
+            from .mouth import Utterance as _UttC
+            try:
+                from .mouth import delivery as _delivC
+                _ch = _delivC(heart.feeling(), 0)
+            except Exception:
+                _ch = {"register": "plain", "rate": 1.0}
+            u = _UttC(text=_repair_reply, delivery=_ch, backend="repair:supersede",
+                      feeling="", audio_path=None)
+            if voice and audio_out and getattr(mouth, "voice", None) is not None:
+                try:
+                    u.audio_path = mouth.voice.speak(_repair_reply, _ch, audio_out)
                 except Exception:
                     u.audio_path = None
         elif _lerf_solved:
@@ -853,7 +899,7 @@ def _turn(name, text, voice=False):
         # certified task output, so the whole block is skipped for a LERF-solved turn.
         _verdict = None
         try:
-            if _lerf_solved or _host_reply or _reference_reply:   # certified task / deterministic host or reference answer
+            if _lerf_solved or _host_reply or _reference_reply or _repair_reply:   # certified task / deterministic host, reference, or repair answer
                 raise _SkipConvVerifier()
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
@@ -1021,6 +1067,7 @@ def _turn(name, text, voice=False):
                             and not _lerf_solved    # a certified task answer is not a casual turn
                             and not _host_reply     # nor is a deterministic host-awareness answer
                             and not _reference_reply  # nor is a deterministic reference-recall answer
+                            and not _repair_reply   # nor is a deterministic conversation-repair confirmation
                             and not (_verdict is not None and getattr(_verdict, "override", False)))
             if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
@@ -1266,6 +1313,8 @@ def _turn(name, text, voice=False):
                     _wk_input, _wk_route = "host_question", "argus"
                 elif _reference_reply:
                     _wk_input, _wk_route = "source", "source"
+                elif _repair_reply:
+                    _wk_input, _wk_route = "correction", "repair"
                 elif _lerf_solved:
                     _wk_input, _wk_route = "task", "lerf"
                 else:

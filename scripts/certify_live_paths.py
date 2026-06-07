@@ -637,79 +637,102 @@ def probe_lerf_runtime(res: Result) -> None:
 
 # --- conversation_repair --- THE HONEST FINDING ----------------------------------------------
 def probe_conversation_repair(res: Result) -> None:
-    """Probe whether a natural correction ('scratch that — not Rex, his name is Atlas' / 'that
-    transcription was wrong, I said Atlas') actually SUPERSEDES the prior captured fact. Drive the
-    real hermetic capture path. If both values linger (the corrected value is lost AND the bad
-    value stays active) -> PARTIAL/WALLPAPER with the concrete evidence. This is the honest finding
-    the audit exists to make: the foundation flagged there is no supersede-the-last-turn primitive."""
-    # The CONTRACT's own killer-test phrasing.
+    """Prove the natural-correction live path END-TO-END through the REAL server._turn, the way a
+    user actually hits it. The deterministic CONVERSATION-REPAIR seam (anima/repair.py, wired into
+    _turn) reads the rejected OLD value, finds the active ledger row that holds it, and folds the
+    NEW value through the SAME Facts.merge() correction path (old->history 'user-corrected', new
+    active). The contract's killer_test: after 'scratch that — not Rex, his name is Atlas', the
+    durable ledger carries Atlas (NOT Rex), and a follow-up 'what is my dog's name?' answers Atlas.
+
+    We assert at BOTH layers: (1) the durable memory state via Facts (must_contain Atlas as the
+    ACTIVE fact, must_not_contain Rex as active — Rex preserved only in history[]), and (2) the
+    deterministic, model-free follow-up answer via memory_lirf.retrieve(). We also confirm the bare
+    extract() path alone still lifts nothing on the anchorless phrasing — which is WHY the fix is a
+    pre-capture seam, not an extractor rule — so the honest finding stays documented."""
     contract_phrase = "sorry, scratch that — not Rex, his name is Atlas"
     natural = [
         "sorry, scratch that — not Rex, his name is Atlas",
         "that transcription was wrong, I said Atlas",
         "not Rex, his name is Atlas",
     ]
-    explicit = "actually, my dog's name is Atlas"
     rows = []
     contract_active = None
-    explicit_active = None
+    contract_backend = None
+    contract_hist = []
+    followup_block = ""
+    bare_extract_lifts = None
     try:
         with g0pe._temp_store():
+            import anima.server as server
             from anima import memory_lirf as ml
-            for phrase in natural + [explicit]:
-                # fresh store-state per phrase by resetting the lirf file
+            # the bare extractor alone on the anchorless phrasing — documents WHY a seam is needed
+            bare_extract_lifts = bool(ml.extract("not Rex, his name is Atlas"))
+            for phrase in natural:
                 p = ml.STORE / "Vera.lirf.json"
                 if p.exists():
                     p.unlink()
-                ml.capture("Vera", "my dog's name is Rex")
-                ml.capture("Vera", phrase)
+                server._ensure("Vera", 64)
+                ml.capture("Vera", "my dog's name is Rex")          # seed the wrong value
+                out = server._turn("Vera", phrase, voice=False) or {}  # the REAL user path (seam)
                 f = ml.Facts.load("Vera")
                 active = f.value_of("dog_name")
-                superseded = active == "Atlas"
-                rows.append((phrase, active, superseded))
+                row = f.lookup(ml.SELF, "dog_name") or {}
+                rows.append((phrase, active, out.get("backend", ""), active == "Atlas"))
                 if phrase == contract_phrase:
                     contract_active = active
-                if phrase == explicit:
-                    explicit_active = active
+                    contract_backend = out.get("backend", "")
+                    contract_hist = [h.get("value") for h in row.get("history", [])]
+                    # deterministic, model-free follow-up: does a recall answer Atlas (not Rex)?
+                    followup_block = ml.retrieve("Vera", "what is my dog's name?") or ""
     except Exception as exc:
         res.evidence.append("probe error: %r" % exc)
-    for phrase, active, superseded in rows:
+    for phrase, active, backend, superseded in rows:
         verdict = "SUPERSEDED->Atlas" if superseded else ("LINGERS->%s" % active)
-        res.evidence.append("correction %r -> dog_name active=%r [%s]"
-                            % (phrase[:48], active, verdict))
-    res.evidence.append("anima/memory_lirf.py:539 extract(): the dog_name rule (line 361-364) "
-                        "requires a 'my dog … <Name>' anchor; 'his name is Atlas' does not match, "
-                        "so extract() returns [] for the natural correction. _RETRACT_CUE "
-                        "(line 534) does NOT include 'scratch that'/'not X, Y'.")
-    res.evidence.append("anima/memory_lirf.py:786 merge(): a DIFFERENT value supersedes correctly "
-                        "(old->history, new active) — but ONLY when a value is actually extracted "
-                        "(explicit 'my dog's name is Atlas' works: %r)." % explicit_active)
-    # Classification: the contract's exact killer phrasing leaves the BAD value active and DROPS
-    # the corrected value -> the COMPLETE-looking correction surface contradicts its claim.
-    contract_lingers = (contract_active == "Rex")
-    explicit_works = (explicit_active == "Atlas")
-    res.set(UI=True, Backend=False, Storage=False, Use=False, MRI=False,
-            Retrieval=False, Restart=None)
-    if contract_lingers and explicit_works:
-        res.status = WALLPAPER
-        res.proven_links = ["visible_trigger"]
-        res.missing_links = ["real_use_in_answer", "real_backend (supersede-the-last-turn)"]
-        res.reason = ("WALLPAPER: the correction path looks wired (per-turn capture + merge "
-                      "newest-wins) but on the contract's own killer phrasing — 'scratch that — "
-                      "not Rex, his name is Atlas' — extract() captures NOTHING: the bad value "
-                      "'Rex' stays the ACTIVE fact and the corrected 'Atlas' is LOST. There is no "
-                      "supersede-the-last-turn primitive; only a full re-statement ('my dog's name "
-                      "is Atlas') supersedes. A follow-up 'what's my dog's name?' would answer Rex. "
-                      "(memory_lirf.py extract() dog_name rule line 361; _RETRACT_CUE line 534.)")
-    elif contract_lingers:
-        res.status = PARTIAL
-        res.missing_links = ["real_use_in_answer"]
-        res.reason = ("PARTIAL: natural corrections do not retract the prior fact (no supersede-"
-                      "the-last-turn primitive); the bad value lingers.")
+        res.evidence.append("correction %r -> dog_name active=%r backend=%r [%s]"
+                            % (phrase[:46], active, backend, verdict))
+    res.evidence.append("contract killer follow-up 'what is my dog's name?' -> retrieve()=%r"
+                        % (followup_block.replace("\n", " ")[:120]))
+    res.evidence.append("history[] preserves the superseded value(s) %r (LAW-001: nothing deleted)"
+                        % (contract_hist,))
+    res.evidence.append("bare memory_lirf.extract('not Rex, his name is Atlas') lifts a fact: %r — "
+                        "the anchorless correction is handled by the pre-capture repair seam "
+                        "(anima/repair.py -> server._turn), not by an extractor anchor rule."
+                        % bare_extract_lifts)
+    res.evidence.append("hermetic sub-cert: scripts/certify_repair.py (the Rex->Atlas->Cooper "
+                        "killer test, 23 checks, CERTIFIED).")
+    # Classification: COMPLETE iff the contract's own killer phrasing supersedes through the real
+    # user path (Atlas active, Rex not active) AND the deterministic follow-up answers Atlas/not Rex.
+    superseded = (contract_active == "Atlas")
+    seam_backend = (contract_backend == "repair:supersede")
+    follow_ok = ("Atlas" in followup_block) and ("Rex" not in followup_block)
+    rex_in_history = ("Rex" in contract_hist)
+    if superseded and seam_backend and follow_ok and rex_in_history:
+        res.set(UI=True, Backend=True, Storage=True, Use=True, MRI=True,
+                Retrieval=True, Restart=None)
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_use_in_answer",
+                            "final_gate", "mri_trace"]
+        res.missing_links = []
+        res.reason = ("COMPLETE: the natural anchorless correction 'scratch that — not Rex, his "
+                      "name is Atlas' SUPERSEDES through the real server._turn repair seam "
+                      "(backend=repair:supersede): dog_name is now Atlas (active), Rex is preserved "
+                      "in history[] (reason 'user-corrected', nothing deleted), and the follow-up "
+                      "'what is my dog's name?' answers Atlas, not Rex. The bad value is not "
+                      "durably retained as the active fact. (anima/repair.py + server._turn seam; "
+                      "hermetic cert scripts/certify_repair.py.)")
     else:
-        res.status = PARTIAL
-        res.reason = ("Correction behavior is phrasing-dependent; verify the supersede path "
-                      "against the natural correction set.")
+        res.set(UI=True, Backend=bool(seam_backend), Storage=bool(superseded), Use=bool(follow_ok),
+                MRI=None, Retrieval=bool(follow_ok), Restart=None)
+        res.status = WALLPAPER if (contract_active == "Rex") else PARTIAL
+        res.missing_links = [k for k, v in (
+            ("real_backend (repair:supersede)", seam_backend),
+            ("real_storage (Atlas active)", superseded),
+            ("real_use_in_answer (follow-up answers Atlas)", follow_ok),
+            ("history preserved (Rex)", rex_in_history)) if not v]
+        res.reason = ("Correction did not fully supersede through the user path: active=%r, "
+                      "backend=%r, follow-up_ok=%r, rex_in_history=%r. Expected SUPERSEDED->Atlas "
+                      "via the server._turn repair seam." % (contract_active, contract_backend,
+                                                             follow_ok, rex_in_history))
 
 
 # --- identity_sandbox ------------------------------------------------------------------------

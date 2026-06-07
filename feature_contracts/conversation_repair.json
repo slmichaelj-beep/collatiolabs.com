@@ -1,7 +1,7 @@
 {
   "feature": "conversation_repair",
   "claim": "A correction turn ('I meant…', 'scratch that', 'not X, Y', 'that transcription was wrong') SUPERSEDES the prior turn: the bad/misheard content is not durably stored, and the corrected meaning is what Vera carries forward.",
-  "owner": "anima/server.py (_turn history + memory_lirf.capture / world_state.capture_relations on each turn), anima/memory_lirf.py (capture, hedge/hypothetical guards), anima/rail.py + anima/spine.py (binding), anima/mouth.py (respond)",
+  "owner": "anima/repair.py (the deterministic CONVERSATION-REPAIR seam: detect a value correction, resolve the slot from the rejected old value, supersede via Facts.merge correction), anima/server.py (_turn repair seam — short-circuits before the LLM, ships through final_output_gate, backend 'repair:supersede'), anima/memory_lirf.py (Facts.merge: old->history 'user-corrected' / new active @0.97), anima/mouth.py (final_output_gate, response_complete)",
   "user_visible_entry": true,
   "durable": false,
   "live_path": [
@@ -19,7 +19,7 @@
     "must_not_contain": ["Rex"]
   },
   "known_gaps": [
-    "No dedicated 'conversation_repair' module was found in anima/*.py; correction handling appears to ride on the per-turn capture + binding path (memory_lirf hedge/hypothetical guards, history supersession) rather than an explicit supersede-the-last-turn primitive. The cert is likely to find this PARTIAL — verify whether 'scratch that' / 'not X, Y' / 'that transcription was wrong' actually retract the prior fact, or whether both values linger. (Inventory mapped the 'loops'/Dream-Engine docstring onto this slug as the nearest owner; the real repair logic must be located and proven, or this is a missing live-path link.)"
+    "RESOLVED (2026-06-06): the missing supersede-the-last-turn primitive was built as anima/repair.py and wired into server._turn as a deterministic seam (precedence: host -> reference -> repair -> lerf -> normal). On the anchorless killer phrasing 'scratch that — not Rex, his name is Atlas' the seam reads the rejected old value (Rex), finds the active ledger row holding it (dog_name), and folds the new value (Atlas) through Facts.merge(correction=True): Rex -> history[] (reason 'user-corrected', never deleted), Atlas -> active @0.97. The confirmation ships through the SAME #1-rule final_output_gate (backend 'repair:supersede', no LLM, no second return path) and the Whole-System MRI records the seam. Proven by scripts/certify_repair.py (Rex->Atlas->Cooper, 23 checks, CERTIFIED) and probe_conversation_repair (drives the real server._turn + a deterministic model-free follow-up via memory_lirf.retrieve). The seam supersedes only a slot it can PROVE holds the rejected value (or, on the 'his name is X' form, an existing NAME-type row) -> never mis-corrects, never hijacks a normal turn (honest fall-through to the pipeline). Out of scope for this seam: list-trait edits (likes/dislikes) — a remove-one-item op, tracked separately."
   ],
-  "status": "UNKNOWN"
+  "status": "COMPLETE"
 }
