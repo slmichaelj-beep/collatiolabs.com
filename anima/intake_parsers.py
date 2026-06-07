@@ -121,12 +121,12 @@ _EXT_FORMAT: dict[str, str] = {
     ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
     ".bmp": "image", ".tiff": "image", ".tif": "image", ".webp": "image",
     ".heic": "image", ".heif": "image",
-    # audio
+    # audio + audiobook (long-form). .mp3/.m4a/.wav/.aac/.flac/.ogg/.aiff are ordinary audio; .m4b is
+    # the open audiobook container. All route through the honest local transcription path
+    # (anima/intake_audio). DRM-protected stores (e.g. Audible .aax) are intentionally NOT supported.
     ".mp3": "audio", ".wav": "audio", ".m4a": "audio", ".aac": "audio",
     ".flac": "audio", ".ogg": "audio", ".aiff": "audio", ".aif": "audio",
-    # audiobook — Audible .aax/.aaxc/.aa are DRM-protected (decodable only via the owner's authorized
-    # local path; Vera never circumvents the DRM); .m4b is the open audiobook container
-    ".aax": "audiobook", ".aaxc": "audiobook", ".aa": "audiobook", ".m4b": "audiobook",
+    ".m4b": "audiobook",
     # video
     ".mp4": "video", ".mov": "video", ".mkv": "video", ".avi": "video",
     ".webm": "video", ".m4v": "video",
@@ -941,15 +941,12 @@ def parse_image(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
 
 
 def parse_audio(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
-    """Audio note -> transcript via speech-to-text (Wave 4). Needs an STT engine
-    (whisper / faster-whisper). Absent it, needs_dependency — never fabricates a
-    transcript."""
-    meta = _base_meta(path_or_url, fmt or "audio")
-    meta["title_hint"] = _title_from_path(path_or_url)
-    activated = _activate_stt(path_or_url, meta)        # Wave 4: real STT iff whisper imports
-    if activated is not None:
-        return activated
-    return _result(status="needs_dependency", need="stt (whisper)", meta=meta)
+    """Audio / long-form audio -> the honest local transcription pipeline (anima/intake_audio):
+    safe ffprobe metadata, ffmpeg decode (open formats only — NO DRM, NO key), and the approved
+    LOCAL STT (faster-whisper) into timestamped chunks. Undecodable -> needs_dependency, never a
+    fabricated transcript. Heavy + opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1)."""
+    from . import intake_audio
+    return intake_audio.parse_longform_audio(path_or_url, fmt=fmt or "audio")
 
 
 def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
@@ -965,13 +962,13 @@ def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
 
 
 def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
-    """Audiobook / Audible .aax -> the HONEST audio-intake pipeline (anima/intake_audio): safe ffprobe
-    metadata (title/author/duration/codec — no decode, no key), DRM stays UNDECODABLE (Vera never
-    circumvents it — it supplies no key and fabricates no transcript), and a DECODABLE file is
-    converted via ffmpeg + transcribed by the approved LOCAL STT (faster-whisper) into a real
-    transcript chunked with timestamps. Heavy + opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1)."""
+    """Audiobook (.m4b) / long-form audio -> the HONEST local transcription pipeline
+    (anima/intake_audio): safe ffprobe metadata (title/author/duration/codec/chapters — no decode,
+    no key), ffmpeg decode of OPEN formats only (no DRM, no key), and the approved LOCAL STT
+    (faster-whisper) into a real transcript chunked with timestamps. An undecodable file ->
+    needs_dependency, never a fabricated transcript. Heavy + opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1)."""
     from . import intake_audio
-    return intake_audio.parse_audiobook(path_or_url, fmt=fmt or "audiobook")
+    return intake_audio.parse_longform_audio(path_or_url, fmt=fmt or "audiobook")
 
 
 # --- safe web fetch (Wave 4) — stdlib urllib, SSRF-guarded, size + time capped ---------------

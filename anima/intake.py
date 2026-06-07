@@ -337,10 +337,19 @@ def classify_source(parsed: dict, *, name_hint: str = "", source_ref: str = "") 
         reason = "An image/screenshot — once OCR'd (Wave 4) any text becomes reference data; the image is kept as a figure."
         confirm = True
     elif fmt == "audio":
-        detected = "audio_note"
-        suggested = [DEST_PERSONAL, DEST_REFERENCE]
-        conf = 0.6
-        reason = "An audio note — once transcribed (Wave 4) it may carry personal context (Personal Intelligence) and citable content (Reference)."
+        # Audiobook / long-form audio intake (ordinary audio: .mp3/.m4a/.wav/.aac). Transcribed by the
+        # approved LOCAL STT into a citable reference; a recording may also carry personal context.
+        from . import intake_audio as _ia
+        detected = "audio_recording"
+        suggested = [DEST_REFERENCE, DEST_PERSONAL]
+        product = _ia.product_message(parsed)
+        if parsed.get("status") == "ok" and text.strip():
+            conf = 0.78
+            reason = (product + f"  ({meta.get('transcript_segments', '?')} segments — stored as a "
+                      "citable reference with timestamps; personal context may inform Personal Intelligence.)")
+        else:
+            conf = 0.6
+            reason = product
         confirm = True
     elif fmt == "video":
         detected = "youtube_video" if meta.get("subkind") == "youtube" else "reference"
@@ -349,14 +358,14 @@ def classify_source(parsed: dict, *, name_hint: str = "", source_ref: str = "") 
         reason = "A video file — once its audio is transcribed (Wave 4) store the transcript as reference."
         confirm = True
     elif fmt == "audiobook":
-        # An audiobook transcript is a CITABLE reference (a published work quoted with attribution),
-        # never trained into LERF as Vera's own. DRM-locked .aax that didn't decode stays honest.
-        # Vera's first-person product message IS the user-facing reason (surfaced by /intake/plan).
+        # Audiobook / long-form audio intake (.m4b — open container). The transcript is a CITABLE
+        # reference (a published work quoted with attribution + timestamps), never trained into LERF
+        # as Vera's own. Vera's first-person product message IS the user-facing reason (/intake/plan).
         from . import intake_audio as _ia
         detected = "audiobook"
         suggested = [DEST_REFERENCE]
-        title = (meta.get("audiobook_title") or meta.get("title_hint") or "audiobook")
-        author = meta.get("audiobook_author") or ""
+        title = (meta.get("audio_title") or meta.get("title_hint") or "audiobook")
+        author = meta.get("audio_author") or ""
         product = _ia.product_message(parsed)
         if parsed.get("status") == "ok" and text.strip():
             conf = 0.8
@@ -366,8 +375,7 @@ def classify_source(parsed: dict, *, name_hint: str = "", source_ref: str = "") 
                         "reference with timestamps; quotable + attributed, never trained as Vera's own.)")
         else:
             conf = 0.7
-            reason = (product + "  (Detection + safe metadata succeeded; transcription is blocked by "
-                      "DRM/tooling — Vera never circumvents DRM.)")
+            reason = product
         confirm = True
     else:
         # text / markdown / pdf — the prose family. Look at length + content shape.

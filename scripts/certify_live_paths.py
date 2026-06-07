@@ -4837,80 +4837,78 @@ def probe_call_auth(res: Result) -> None:
         res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
-# --- aax_intake ------------------------------------------------------------------------------
-def probe_aax_intake(res: Result) -> None:
-    """Audiobook / Audible .aax as an HONEST Universal Knowledge Intake media type. The executable
-    cert (scripts/certify_aax_intake.py) proves: (1) .aax/.aaxc/.m4b detected as 'audiobook' and
-    routed to the honest parser; (2) an undecodable/DRM-shaped file returns needs_dependency with an
-    EMPTY transcript (never fabricated); (8) NO DRM-bypass path exists in anima/intake_audio.py and
-    the ffmpeg commands pass no activation/decrypt/key flag; then END-TO-END on a DRM-FREE fixture via
-    the approved LOCAL path (say+ffmpeg+faster-whisper, skip-not-fail): decode -> local-STT transcript
-    with timestamped chunks -> stored reference -> retrievable -> answered with audiobook/transcript
-    provenance. The user's classification rule, verbatim: COMPLETE only if a decodable fixture is
-    ingested end-to-end (END-TO-END: REAL); PARTIAL if detection/metadata work but transcription is
-    blocked by DRM/tooling (END-TO-END: SKIPPED); WALLPAPER if the UI advertises .aax but the honest
-    pipeline does not hold (cert fails)."""
-    rc, tail = run_subcert([HERE / "certify_aax_intake.py"])
-    cert_ok = (rc == 0) and ("AAX-INTAKE CERT: CERTIFIED" in tail)
+# --- audiobook_intake ------------------------------------------------------------------------
+def probe_audiobook_intake(res: Result) -> None:
+    """Audiobook / long-form audio as an HONEST Universal Knowledge Intake media type — OPEN,
+    unencrypted formats only (.m4b + .mp3/.m4a/.wav/.aac/.flac/.ogg/.aiff). The executable cert
+    (scripts/certify_audiobook_intake.py) proves: (1) .m4b->audiobook, .mp3/.m4a/.wav/.aac->audio,
+    both routed to the honest parser, and DRM stores (.aax) are NOT claimed; (2) an undecodable file
+    returns needs_dependency with an EMPTY transcript (never fabricated); (8) NO DRM-circumvention
+    token in anima/intake_audio.py and the ffmpeg commands pass only safe transcode args; then
+    END-TO-END on a DRM-FREE fixture via the approved LOCAL path (say+ffmpeg+faster-whisper,
+    skip-not-fail): decode -> local-STT transcript with timestamped chunks -> stored reference ->
+    retrievable -> answered with audio/audiobook transcript provenance. Classification rule: COMPLETE
+    iff a decodable fixture is ingested end-to-end (END-TO-END: REAL); PARTIAL if detection/metadata
+    work but transcription is blocked by tooling (END-TO-END: SKIPPED); WALLPAPER if the UI advertises
+    audio/audiobook support but the honest pipeline does not hold (cert fails)."""
+    rc, tail = run_subcert([HERE / "certify_audiobook_intake.py"])
+    cert_ok = (rc == 0) and ("AUDIOBOOK-INTAKE CERT: CERTIFIED" in tail)
     real_e2e = "END-TO-END: REAL" in tail
     skipped = "END-TO-END: SKIPPED" in tail
-    res.evidence.append("scripts/certify_aax_intake.py -> exit %d; %s; end-to-end=%s"
+    res.evidence.append("scripts/certify_audiobook_intake.py -> exit %d; %s; end-to-end=%s"
                         % (rc, "CERTIFIED" if cert_ok else "FAIL",
                            "REAL" if real_e2e else ("SKIPPED" if skipped else "?")))
 
     # Static, hermetic signals (independent of the model/tooling being present).
     par_src = (ROOT / "anima" / "intake_parsers.py").read_text()
-    detected = ('"audiobook"' in par_src and ".aax" in par_src
-                and "parse_audiobook" in par_src and "PARSERS" in par_src)
+    detected = ('"audiobook"' in par_src and '".m4b"' in par_src
+                and "intake_audio" in par_src and '".aax"' not in par_src)
     audio_src = (ROOT / "anima" / "intake_audio.py").read_text().lower()
-    bypass_tokens = ("activation_bytes", "activation bytes", "-activation", "rcrack",
-                     "rainbow table", "rainbow_table", "deactivation", "audible_key", "audible key")
-    present = [t for t in bypass_tokens if t in audio_src]
-    no_bypass = not present
+    circ_tokens = ("activation_bytes", "activation bytes", "-activation", "rcrack",
+                   "rainbow table", "rainbow_table", "deactivation", "audible_key")
+    present = [t for t in circ_tokens if t in audio_src]
+    no_drm = not present
     html = (ROOT / "anima" / "web" / "index.html").read_text().lower()
-    ui_adv = (".aax" in html and "audiobook" in html)
-    res.evidence.append("detect(.aax->audiobook)+honest parser=%s; NO DRM-bypass token in "
-                        "intake_audio.py=%s%s; UI advertises audiobook/.aax=%s"
-                        % (detected, no_bypass,
+    ui_adv = ("audiobook" in html and ".m4b" in html and ".aax" not in html)
+    res.evidence.append("detect(.m4b->audiobook, no .aax mapping)=%s; NO DRM-circumvention token in "
+                        "intake_audio.py=%s%s; UI advertises audiobook/audio (no .aax)=%s"
+                        % (detected, no_drm,
                            (" (FOUND %s!)" % present) if present else "", ui_adv))
 
     res.set(UI=ui_adv, Backend=cert_ok, Storage=real_e2e or None,
             Retrieval=real_e2e or None, Use=cert_ok, MRI=cert_ok, Restart=None)
 
-    if cert_ok and detected and no_bypass and real_e2e:
+    if cert_ok and detected and no_drm and real_e2e:
         res.status = COMPLETE
         res.proven_links = ["visible_trigger", "real_backend", "real_storage",
-                            "real_retrieval", "real_use_in_answer", "no_drm_bypass"]
-        res.reason = ("Audiobook .aax is a first-class UKI type, honest end-to-end: a DRM-FREE fixture "
-                      "was detected -> safe metadata -> decoded via the approved local path (no key) -> "
-                      "transcribed by local STT -> stored as a citable reference -> retrieved -> "
-                      "answered with audiobook/transcript provenance + timestamps. A DRM-locked .aax "
-                      "stays honestly UNDECODABLE (Vera never circumvents DRM; no activation key, no "
-                      "key-recovery, no decrypt flag). END-TO-END: REAL on this host.")
-    elif cert_ok and detected and no_bypass and skipped:
+                            "real_retrieval", "real_use_in_answer", "no_drm_code"]
+        res.reason = ("Audiobook / long-form audio is a first-class UKI type, honest end-to-end: a "
+                      "DRM-FREE fixture (.m4b) was detected -> safe metadata -> decoded via the approved "
+                      "local path (open formats only, no key) -> transcribed by local STT -> stored as a "
+                      "citable reference -> retrieved -> answered with transcript provenance + timestamps. "
+                      "DRM stores (.aax) are intentionally unsupported and there is NO DRM code in the "
+                      "pipeline. END-TO-END: REAL on this host.")
+    elif cert_ok and detected and no_drm and skipped:
         res.status = PARTIAL
-        res.proven_links = ["visible_trigger", "real_backend", "no_drm_bypass"]
+        res.proven_links = ["visible_trigger", "real_backend", "no_drm_code"]
         res.missing_links = ["real_use_in_answer (local STT tooling — say/ffmpeg/faster-whisper — "
                              "absent on this host, so real transcription is blocked; detection + safe "
-                             "metadata + no-DRM-bypass + the honest undecodable path are proven)"]
-        res.reason = ("PARTIAL — detection/metadata/no-DRM-bypass + the honest 'provide a decodable "
-                      "version' path are proven, but real transcription is blocked by DRM/tooling on "
-                      "this host (no local STT). Run with macOS say + ffmpeg + faster-whisper to close "
-                      "to COMPLETE (END-TO-END: REAL).")
+                             "metadata + no-DRM + the honest undecodable path are proven)"]
+        res.reason = ("PARTIAL — detection/metadata/no-DRM + the honest 'send a decodable file' path "
+                      "are proven, but real transcription is blocked by tooling on this host (no local "
+                      "STT). Run with macOS say + ffmpeg + faster-whisper to close to COMPLETE.")
     elif ui_adv and not cert_ok:
         res.status = WALLPAPER
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("detected", detected),
-                             ("no_drm_bypass", no_bypass)) if not v]
-        res.reason = ("WALLPAPER — the upload UI advertises audiobook/.aax support but the honest "
-                      "intake pipeline does NOT hold (cert failed: %s). Either detection/answering is "
-                      "broken or — critically — a DRM-bypass token appeared in intake_audio.py%s."
-                      % (", ".join(res.missing_links) or "unknown",
-                         (" (FOUND %s)" % present) if present else ""))
+                             ("no_drm_code", no_drm)) if not v]
+        res.reason = ("WALLPAPER — the upload UI advertises audiobook/long-form-audio support but the "
+                      "honest intake pipeline does NOT hold (cert failed: %s)."
+                      % (", ".join(res.missing_links) or "unknown"))
     else:
         res.status = STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("detected", detected),
-                             ("no_drm_bypass", no_bypass), ("ui_advertises", ui_adv)) if not v]
-        res.reason = ("Audiobook/.aax intake not yet a live path (missing: %s)."
+                             ("no_drm_code", no_drm), ("ui_advertises", ui_adv)) if not v]
+        res.reason = ("Audiobook / long-form audio intake not yet a live path (missing: %s)."
                       % (", ".join(res.missing_links) or "none"))
 
 
@@ -4948,7 +4946,7 @@ def classify_all() -> dict:
         "knowledge_library": probe_knowledge_library,
         "memory_editor": probe_memory_editor,
         "intake_queue_flow": probe_intake_queue_flow,
-        "aax_intake": probe_aax_intake,
+        "audiobook_intake": probe_audiobook_intake,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
         "deployment_proof": probe_deployment_proof,

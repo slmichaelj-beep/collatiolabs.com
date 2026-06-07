@@ -1,27 +1,26 @@
-"""intake_audio — Universal Knowledge Intake for AUDIOBOOK / audio sources (.aax, .aaxc, .m4b, ...).
+"""intake_audio — Universal Knowledge Intake for AUDIOBOOK / long-form audio sources.
 
-THE HONEST DRM POSTURE (load-bearing — read this before changing anything):
+WHAT THIS HANDLES — open, unencrypted formats only:
 
-  An Audible .aax is DRM-protected. Vera reads SAFE container metadata — title, author, duration,
-  codec/container — via ffprobe, which inspects headers and never decodes the protected audio and
-  never needs a key. But Vera NEVER circumvents the DRM:
+  Audiobook / long-form audio: .m4b (the open audiobook container) plus ordinary audio
+  (.mp3, .m4a, .wav, .aac, .flac, .ogg, .aiff). Vera reads SAFE container metadata — title,
+  author, duration, codec/container, chapters — via ffprobe (headers only, never decoding),
+  converts a decodable file to a 16 kHz mono wav with ffmpeg, and transcribes it with the
+  approved LOCAL STT (faster-whisper) into timestamped, chapter-aware chunks, to be stored as a
+  citable reference and answered with source labels by the intake spine.
 
-    * it does NOT extract, compute, or use any Audible activation key,
-    * it ships no key-recovery tables or crackers of any kind,
-    * it passes no decryption key — and no decrypt flag — to ffmpeg.
+DELIBERATELY OUT OF SCOPE — NO DRM, NO PROTECTED FORMATS:
 
-  Consequently a DRM-locked file is UNDECODABLE here, and this module SAYS SO HONESTLY — it returns a
-  needs_dependency result and NEVER fabricates a transcript. If, and only if, the file is decodable
-  through the approved LOCAL path (ffmpeg can read the audio with NO key — a DRM-free .m4b, a
-  user-provided decodable export, or any ordinary audio), it is converted to an intermediate 16 kHz
-  mono wav and transcribed by the approved LOCAL STT (faster-whisper). Cloud STT is used ONLY on an
-  explicit opt-in (ANIMA_AUDIO_ALLOW_CLOUD=1) and is not implemented here by default. The transcript
-  is returned as normalized chunks with timestamps (and per-chapter grouping where ffprobe exposes
-  chapters), to be stored as a citable reference and answered with source labels by the intake spine.
+  This module supports ONLY files that ffmpeg can already read WITHOUT a key. It contains NO
+  DRM-handling code of any kind — no keys, no key-recovery, no decryption flags — and it does not
+  support DRM-protected stores. If a file cannot be decoded (corrupt, or an unsupported/encrypted
+  encoding), Vera says so HONESTLY and NEVER fabricates a transcript; it asks for a standard audio
+  file or a text transcript instead. scripts/certify_audiobook_intake.py greps this module and
+  fails if any DRM/decrypt/key token ever appears, so the "open formats only" posture is enforced.
 
-  NO DRM-BYPASS PATH EXISTS IN THIS MODULE. scripts/certify_aax_intake.py greps for one and fails if
-  it ever appears. Transcription is HEAVY and therefore opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1), same
-  as every other heavy parser — dropping in an audiobook never silently spins a model or the network.
+  Transcription is HEAVY and therefore opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1), same as every other
+  heavy parser — dropping in audio never silently spins a model or the network. Cloud STT is used
+  ONLY on an explicit opt-in (ANIMA_AUDIO_ALLOW_CLOUD=1) and is not implemented here by default.
 """
 from __future__ import annotations
 
@@ -33,15 +32,19 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-# Audible + open audiobook containers. .aa/.aax/.aaxc are Audible (DRM by default); .m4b is the open
-# audiobook container (often DRM-free) — decodability is decided at probe time, never assumed.
-AUDIOBOOK_EXTS = {".aax", ".aaxc", ".aa", ".m4b"}
+# Open audiobook / long-form audio containers this pipeline transcribes. .m4b is the open audiobook
+# container; the rest are ordinary unencrypted audio. Protected formats are intentionally NOT here.
+LONGFORM_AUDIO_EXTS = {".m4b", ".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".aiff", ".aif"}
 
 _DEFAULT_STT_MODEL = os.environ.get("ANIMA_AUDIO_STT_MODEL", "base.en")
 
 
-def is_audiobook(path_or_url: str) -> bool:
-    return Path(str(path_or_url)).suffix.lower() in AUDIOBOOK_EXTS
+def is_longform_audio(path_or_url: str) -> bool:
+    return Path(str(path_or_url)).suffix.lower() in LONGFORM_AUDIO_EXTS
+
+
+# Back-compat alias (an audiobook is just long-form audio); keeps existing importers working.
+is_audiobook = is_longform_audio
 
 
 def _tool(name: str) -> Optional[str]:
@@ -64,14 +67,13 @@ def _run(cmd: list, timeout: float = 120.0) -> tuple:
 
 # ---------------------------------------------------------------------------
 # 1. SAFE METADATA — ffprobe reads headers only: container, codec, duration, title/author, chapters.
-#    No decode, no key, no DRM interaction. Returns {} when ffprobe is absent or the file is opaque.
+#    No decode, no key. Returns {} when ffprobe is absent or the file is opaque.
 # ---------------------------------------------------------------------------
 def media_probe(path: str) -> dict:
     ffprobe = _tool("ffprobe")
     out = {"container": "", "audio_codec": "", "duration_s": None, "title": "", "author": "",
-           "chapters": [], "drm_protected": None, "probe_tool": "ffprobe" if ffprobe else None}
+           "chapters": [], "probe_tool": "ffprobe" if ffprobe else None}
     if not ffprobe or not Path(path).exists():
-        out["drm_protected"] = None
         return out
     rc, so, se = _run([ffprobe, "-v", "quiet", "-print_format", "json",
                        "-show_format", "-show_streams", "-show_chapters", str(path)], timeout=30)
@@ -96,13 +98,6 @@ def media_probe(path: str) -> dict:
          "start_s": _f(c.get("start_time")), "end_s": _f(c.get("end_time"))}
         for c in (data.get("chapters", []) or [])
     ]
-    # DRM signal: Audible's encrypted audio shows up as codec aax/aavd (or no decodable codec on an
-    # .aax). We treat that as DRM-protected and decline to decode it — never as something to "unlock".
-    codec = (out["audio_codec"] or "").lower()
-    ext = Path(path).suffix.lower()
-    out["drm_protected"] = bool(codec in ("aax", "aavd")
-                                or (ext in (".aax", ".aaxc", ".aa") and codec not in (
-                                    "aac", "mp3", "alac", "flac", "opus", "vorbis", "pcm_s16le")))
     return out
 
 
@@ -114,16 +109,12 @@ def _f(x):
 
 
 # ---------------------------------------------------------------------------
-# 2. DECODE — ffmpeg to a 16 kHz mono wav, with NO key and NO decryption flag of any kind. A
-#    DRM-locked file simply fails here (ffmpeg errors without a key), which is the honest, correct outcome.
+# 2. DECODE — ffmpeg to a 16 kHz mono wav, with NO key and NO decryption flag of any kind. An
+#    unreadable file (corrupt / unsupported / encrypted) simply fails here — the honest outcome.
 # ---------------------------------------------------------------------------
 def is_decodable(path: str, probe: Optional[dict] = None) -> tuple:
-    """(bool, reason). DRM-protected -> NOT decodable (we never supply a key). Otherwise ffmpeg is
-    asked to decode the first 0.2s to a null sink; success means the audio is readable WITHOUT a key."""
-    probe = probe if probe is not None else media_probe(path)
-    if probe.get("drm_protected"):
-        return False, ("DRM-protected (Audible/AAX): decodable only with the owner's authorization; "
-                       "Vera does not circumvent DRM")
+    """(bool, reason). ffmpeg is asked to decode the first 0.2s to a null sink; success means the
+    audio is readable as-is, WITHOUT any key. A file ffmpeg cannot read returns (False, why)."""
     ffmpeg = _tool("ffmpeg")
     if not ffmpeg:
         return False, "ffmpeg not available"
@@ -135,12 +126,11 @@ def is_decodable(path: str, probe: Optional[dict] = None) -> tuple:
 
 
 def decode_to_wav(path: str, out_wav: str) -> tuple:
-    """Convert to 16 kHz mono wav for STT. NO decryption flag, NO key — a DRM file fails here.
-    Returns (out_wav_or_None, reason)."""
+    """Convert to 16 kHz mono wav for STT. NO decryption flag, NO key. Returns (out_wav_or_None, why)."""
     ffmpeg = _tool("ffmpeg")
     if not ffmpeg:
         return None, "ffmpeg not available"
-    # NOTE: deliberately NO decryption flags. This command can only ever read already-decodable audio.
+    # NOTE: deliberately only safe, standard transcode args. This command reads already-readable audio.
     rc, so, se = _run([ffmpeg, "-v", "error", "-y", "-i", str(path),
                        "-ac", "1", "-ar", "16000", str(out_wav)], timeout=600)
     if rc == 0 and Path(out_wav).exists() and Path(out_wav).stat().st_size > 0:
@@ -171,7 +161,7 @@ def transcribe_wav(wav: str, *, model: str = _DEFAULT_STT_MODEL, allow_cloud: bo
 
 
 # ---------------------------------------------------------------------------
-# 4. CHUNKING — audiobook-aware: group transcript segments under the ffprobe chapter they fall in
+# 4. CHUNKING — chapter-aware: group transcript segments under the ffprobe chapter they fall in
 #    (else a single "transcript" section), every chunk carrying [start_s, end_s] for citation.
 # ---------------------------------------------------------------------------
 def chunks_from_segments(segments: list, chapters: Optional[list] = None) -> list:
@@ -201,31 +191,31 @@ def _ts(sec) -> str:
 
 # ---------------------------------------------------------------------------
 # 5. THE PARSER — the normalized intake parse dict (same contract as intake_parsers' parsers). It
-#    NEVER fabricates: undecodable/DRM -> needs_dependency with an honest message; decodable + STT ->
+#    NEVER fabricates: undecodable -> needs_dependency with an honest message; decodable + STT ->
 #    a real transcript with timestamped chunks; the per-stage pipeline status rides in meta for the MRI.
 # ---------------------------------------------------------------------------
-def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None,
-                    allow_cloud: bool = False) -> dict:
+def parse_longform_audio(path_or_url: str, *, fmt: Optional[str] = None,
+                         allow_cloud: bool = False) -> dict:
     path = str(path_or_url)
+    is_book = (Path(path).suffix.lower() == ".m4b") or (fmt == "audiobook")
+    kind = "audiobook" if is_book else "audio"
     pipeline = {"detected": True, "metadata": "pending", "decode": "pending",
                 "transcription": "pending"}
-    meta = {"format": fmt or "audiobook", "subkind": "audiobook", "source_ref": path,
-            "title_hint": Path(path).name, "drm_safe": True, "audiobook_pipeline": pipeline}
+    meta = {"format": fmt or kind, "subkind": kind, "source_ref": path,
+            "title_hint": Path(path).name, "audio_pipeline": pipeline}
 
     probe = media_probe(path)
     meta.update({"container": probe.get("container"), "audio_codec": probe.get("audio_codec"),
-                 "duration_s": probe.get("duration_s"), "audiobook_title": probe.get("title"),
-                 "audiobook_author": probe.get("author"), "chapters": len(probe.get("chapters") or []),
-                 "drm_protected": probe.get("drm_protected")})
+                 "duration_s": probe.get("duration_s"), "audio_title": probe.get("title"),
+                 "audio_author": probe.get("author"), "chapters": len(probe.get("chapters") or [])})
     pipeline["metadata"] = "read" if probe.get("probe_tool") else "ffprobe_absent"
 
     decodable, reason = is_decodable(path, probe)
     pipeline["decode"] = "decodable" if decodable else "undecodable"
     if not decodable:
         pipeline["transcription"] = "skipped (undecodable)"
-        need = ("a decodable audio version or a transcript — this audiobook is DRM-protected and "
-                "Vera does not circumvent DRM" if probe.get("drm_protected")
-                else "a decodable audio version (" + reason + ")")
+        need = ("a decodable audio file (.mp3/.m4a/.m4b/.wav/.aac) or a text transcript — I couldn't "
+                "read this one (" + reason + ")")
         return _result(status="needs_dependency", need=need, text="", chunks=[], meta=meta,
                        decode_reason=reason)
 
@@ -236,7 +226,7 @@ def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None,
                             "approved local STT to run)",
                        text="", chunks=[], meta=meta, decode_reason=reason)
 
-    tmp = tempfile.mkdtemp(prefix="aax-")
+    tmp = tempfile.mkdtemp(prefix="audio-")
     wav = str(Path(tmp) / "audio.wav")
     try:
         out, dreason = decode_to_wav(path, wav)
@@ -244,7 +234,8 @@ def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None,
             pipeline["decode"] = "undecodable"
             pipeline["transcription"] = "skipped (decode failed)"
             return _result(status="needs_dependency",
-                           need="a decodable audio version (" + dreason + ")",
+                           need="a decodable audio file (.mp3/.m4a/.m4b/.wav/.aac) — I couldn't read "
+                                "this one (" + dreason + ")",
                            text="", chunks=[], meta=meta, decode_reason=dreason)
         segments, engine, terr = transcribe_wav(wav, allow_cloud=allow_cloud)
         if segments is None:
@@ -256,10 +247,14 @@ def parse_audiobook(path_or_url: str, *, fmt: Optional[str] = None,
         text = "\n".join(c["text"] for c in chunks if c["text"]).strip()
         pipeline["transcription"] = "transcribed (%d segments, %s)" % (len(segments), engine)
         meta.update({"stt_engine": engine, "transcript_segments": len(segments),
-                     "provenance": "audiobook transcript (local STT, %s)" % engine})
+                     "provenance": "%s transcript (local STT, %s)" % (kind, engine)})
         return _result(status="ok", text=text, chunks=chunks, meta=meta, decode_reason=dreason)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+# Canonical name is parse_longform_audio; keep parse_audiobook as the back-compat entry point.
+parse_audiobook = parse_longform_audio
 
 
 def _result(*, status, text="", chunks=None, figures=None, meta=None, need="",
@@ -271,19 +266,19 @@ def _result(*, status, text="", chunks=None, figures=None, meta=None, need="",
             "figures": list(figures or []), "tables": [], "meta": m, "need": need}
 
 
-# A human one-liner the intake classifier surfaces when an audiobook is detected vs transcribed.
+# A human one-liner the intake classifier surfaces when audio is detected vs transcribed.
 def product_message(parsed: dict) -> str:
     if parsed.get("status") == "ok":
-        return ("I transcribed this audiobook and stored it as a reference source. You can ask "
-                "questions from it, and I'll cite the transcript section/timestamp where possible.")
-    return ("I found an Audible/AAX audiobook file. I can use it if it's decodable through an "
-            "authorized local path — you can provide a transcript or a decodable audio version and "
-            "I'll ingest that. (I don't circumvent the DRM.)")
+        return ("I transcribed this audio and stored it as a reference source. You can ask "
+                "questions from it, and I'll cite the section/timestamp where possible.")
+    return ("I can transcribe audiobooks and long-form audio (.mp3, .m4a, .m4b, .wav, .aac) on a "
+            "local, on-device speech-to-text path. I couldn't decode this file — send a standard "
+            "audio file or a text transcript and I'll ingest it.")
 
 
 def _selftest() -> int:
-    """Light, dependency-free checks: detection + the no-DRM-bypass invariant + honest-on-undecodable.
-    The full real-transcription end-to-end proof is scripts/certify_aax_intake.py (needs ffmpeg+STT)."""
+    """Light, dependency-free checks: detection of open formats + honest-on-undecodable + no DRM
+    surface. The full real-transcription end-to-end proof is scripts/certify_audiobook_intake.py."""
     fails = []
 
     def ok(label, cond):
@@ -291,21 +286,23 @@ def _selftest() -> int:
         if not cond:
             fails.append(label)
 
-    ok("detects .aax/.aaxc/.m4b as audiobook", is_audiobook("x.aax") and is_audiobook("y.m4b")
-       and not is_audiobook("z.txt"))
-    # (the no-DRM-bypass grep lives in scripts/certify_aax_intake.py, which greps THIS module's source
-    #  — keeping it out of the module avoids a self-referential false match on the check's own tokens)
-    # an obviously-undecodable .aax (random bytes) must NOT pretend success
+    ok("detects .m4b/.mp3/.m4a/.wav/.aac as long-form audio",
+       is_longform_audio("x.m4b") and is_longform_audio("y.mp3") and is_longform_audio("z.wav")
+       and not is_longform_audio("z.txt"))
+    ok("DRM-protected stores are NOT claimed (.aax/.aaxc/.aa unsupported by design)",
+       not is_longform_audio("book.aax") and not is_longform_audio("book.aaxc")
+       and not is_longform_audio("book.aa"))
+    # an obviously-undecodable file (random bytes) must NOT pretend success
     import tempfile as _t
     d = _t.mkdtemp()
-    p = Path(d) / "fake.aax"
-    p.write_bytes(b"\x00\x01not a real audible file\x02\x03" * 8)
-    r = parse_audiobook(str(p))
-    ok("an undecodable .aax does NOT pretend success (needs_dependency, empty transcript, honest need)",
+    p = Path(d) / "fake.m4b"
+    p.write_bytes(b"\x00\x01not a real audio file\x02\x03" * 8)
+    r = parse_longform_audio(str(p))
+    ok("an undecodable file does NOT pretend success (needs_dependency, empty transcript, honest need)",
        r["status"] == "needs_dependency" and not r["text"] and bool(r["need"]))
-    ok("the detected-audiobook MRI pipeline is recorded in meta",
+    ok("the detected-audio MRI pipeline is recorded in meta",
        set(("detected", "metadata", "decode", "transcription"))
-       <= set((r["meta"].get("audiobook_pipeline") or {}).keys()))
+       <= set((r["meta"].get("audio_pipeline") or {}).keys()))
     shutil.rmtree(d, ignore_errors=True)
     print("\nINTAKE-AUDIO: " + ("ALL PASS" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1
@@ -315,4 +312,5 @@ if __name__ == "__main__":
     import sys
     if "--selftest" in sys.argv:
         raise SystemExit(_selftest())
-    print("intake_audio — honest audiobook/.aax intake. Use --selftest, or parse_audiobook(path).")
+    print("intake_audio — honest audiobook / long-form audio intake (open formats only). "
+          "Use --selftest, or parse_longform_audio(path).")
