@@ -1094,6 +1094,25 @@ def section_experience() -> list:
     # the fault-injection hook for the induced-failure demo (additive; default off).
     forced_key = os.environ.get("ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL", "").strip() or None
 
+    if forced_key:
+        # FAULT INJECTION (Gate 0 Prime's gate-strictness check drives this): inject a REPORTED
+        # experience FAIL WITHOUT running the live battery. Whether `--gate` flips the exit code on
+        # a reported FAIL is a property of the GATE PLUMBING, not of the model — so it must not
+        # depend on, or be slowed by, a real 100-probe run. Skipping the battery here keeps the
+        # gate-strictness test fast + deterministic + immune to model contention (the REAL
+        # experience tier still runs the full battery on every normal, un-forced certify run).
+        results.append(CheckResult(
+            f"experience probe FAILED + root-caused: {forced_key!r}", "FAIL",
+            f"INDUCED FAILURE (ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL={forced_key}) — forced "
+            f"ungrounded  ->  ROOT CAUSE: CAPTURE GAP  ->  FIX: widen capture   "
+            f"[fault injection — the live battery is intentionally skipped for the gate-strictness test]"))
+        results.insert(0, CheckResult(
+            "EXPERIENCE CERTIFICATION", "FAIL",
+            f"INDUCED experience FAIL via ANIMA_CERTIFY_FORCE_EXPERIENCE_FAIL={forced_key} "
+            f"(fault injection; live battery skipped). A reported FAIL here must flip --gate to a "
+            f"NON-ZERO exit — that is exactly what this hook verifies, with no dependence on the model."))
+        return results
+
     try:
         # redirect cloud.STORE around the WHOLE live battery + chain so no spend.json can leak.
         with _cloud_store_redirect():
