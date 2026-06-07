@@ -112,6 +112,35 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .emitem:hover{background:rgba(255,255,255,.07);color:#e8e8ec}
 .emitem:active{background:rgba(255,255,255,.12)}
 .emitem svg{flex:none;color:#8a8a8a}
+/* "+ Add Knowledge" menu — same look as the export menu */
+#addMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
+  background:rgba(22,22,28,.95);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:212px;
+  box-shadow:0 12px 40px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
+#addMenu.open{opacity:1;pointer-events:auto;transform:none}
+/* intake queue + paste overlays — reuse the trace-overlay look */
+#queueOverlay,#pasteOverlay{position:fixed;inset:0;z-index:21;background:rgba(5,5,7,.82);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;
+  justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+#queueOverlay.open,#pasteOverlay.open{opacity:1;pointer-events:auto}
+#queueBox,#pasteBox{background:#0f1117;border:1px solid rgba(255,255,255,.12);border-radius:18px;
+  padding:18px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+#queueBox h3,#pasteBox h3{font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  color:#888;margin-bottom:12px}
+.qitem{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.qitem .qtitle{font-size:14px;color:#e4e4e7;font-weight:500;word-break:break-word}
+.qitem .qmeta{font-size:12px;color:#888;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.qitem .qhist{font-size:11px;color:#5f6672;margin-top:7px;line-height:1.55;
+  border-top:1px solid rgba(255,255,255,.06);padding-top:6px}
+#pasteText{width:100%;min-height:120px;background:#0a0c11;border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;color:#e4e4e7;font-size:14px;padding:11px 13px;font-family:inherit;resize:vertical}
+#pasteText:focus{outline:none;border-color:#2f7fff}
+.paste-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.paste-actions button{background:#1a1d26;border:1px solid rgba(255,255,255,.14);color:#d4d4d8;
+  border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;transition:background .15s}
+.paste-actions button.primary{background:#2f7fff;border-color:#2f7fff;color:#fff}
+.paste-actions button:active{background:rgba(255,255,255,.12)}
 /* intake preview card — floated in the chat, below the message that triggered it */
 .intake-card{align-self:flex-start;max-width:90%;background:#0f1117;border:1px solid rgba(255,255,255,.1);
   border-radius:16px;padding:14px 16px;font-size:14px;color:#c8c8ce;line-height:1.5;margin-top:2px}
@@ -330,12 +359,32 @@ form{padding:10px 12px;border-top:1px solid #141414;
     </button>
     <!-- attachment toolbar: Add, Code, Search, Library, Export -->
     <div id="toolbar">
-      <!-- + Add/Attach -->
-      <button type="button" class="tbtn" id="tbAdd" aria-label="Attach file or add knowledge" title="Attach / Add">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </button>
+      <!-- + Add Knowledge — opens a menu: upload file / paste a link / paste text / view queue -->
+      <div style="position:relative">
+        <button type="button" class="tbtn" id="tbAdd" aria-label="Add knowledge" title="Add Knowledge">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+        <div id="addMenu">
+          <div class="emitem" id="amUpload">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload file
+          </div>
+          <div class="emitem" id="amLink">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Paste a link
+          </div>
+          <div class="emitem" id="amText">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+            Paste text
+          </div>
+          <div class="emitem" id="amQueue">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
+            View intake queue
+          </div>
+        </div>
+      </div>
       <!-- </> Code -->
       <button type="button" class="tbtn" id="tbCode" aria-label="Add code context" title="Code context">
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -523,6 +572,27 @@ form{padding:10px 12px;border-top:1px solid #141414;
     <h3>Intake trace</h3>
     <div id="mriContent"></div>
     <button type="button" class="overlay-close" id="mriClose">Close</button>
+  </div>
+</div>
+
+<!-- Intake queue overlay: every ingested source + its status + lifecycle (the per-item MRI) -->
+<div id="queueOverlay">
+  <div id="queueBox">
+    <h3>Intake queue</h3>
+    <div id="queueContent"></div>
+    <button type="button" class="overlay-close" id="queueClose">Close</button>
+  </div>
+</div>
+
+<!-- Paste a link / paste text modal -> runIntake -->
+<div id="pasteOverlay">
+  <div id="pasteBox">
+    <h3 id="pasteTitle">Add knowledge</h3>
+    <textarea id="pasteText" placeholder=""></textarea>
+    <div class="paste-actions">
+      <button type="button" id="pasteCancel">Cancel</button>
+      <button type="button" class="primary" id="pasteAdd">Add</button>
+    </div>
   </div>
 </div>
 
@@ -1011,10 +1081,73 @@ function fileToB64(file){
 // Detect URL or YouTube
 function looksLikeUrl(s){ return /^https?:\/\//i.test(s.trim()); }
 
-// tbAdd: opens file picker
+// tbAdd: opens the "+ Add Knowledge" menu (upload file / paste a link / paste text / view queue)
 const filePicker=document.getElementById('filePicker');
-document.getElementById('tbAdd').onclick=()=>filePicker.click();
+const addMenu=document.getElementById('addMenu');
+const closeAddMenu=()=>addMenu.classList.remove('open');
+document.getElementById('tbAdd').onclick=(e)=>{ e.stopPropagation(); addMenu.classList.toggle('open'); };
+document.addEventListener('click',e=>{ if(!addMenu.contains(e.target)&&!e.target.closest('#tbAdd')) closeAddMenu(); });
+document.getElementById('amUpload').onclick=()=>{ closeAddMenu(); filePicker.click(); };
+document.getElementById('amLink').onclick=()=>{ closeAddMenu(); openPaste('url'); };
+document.getElementById('amText').onclick=()=>{ closeAddMenu(); openPaste('text'); };
+document.getElementById('amQueue').onclick=()=>{ closeAddMenu(); openQueue(); };
 document.getElementById('tbCode').onclick=()=>filePicker.click();  // code: same picker, classify handles it
+
+// Paste a link / paste text modal -> runIntake({kind})
+const pasteOverlay=document.getElementById('pasteOverlay');
+let pasteKind='text';
+function openPaste(kind){
+  pasteKind=kind;
+  document.getElementById('pasteTitle').textContent = kind==='url' ? 'Paste a link' : 'Paste text';
+  const ta=document.getElementById('pasteText');
+  ta.value='';
+  ta.placeholder = kind==='url' ? 'https://…  or a YouTube link' : 'Paste or type text to add as knowledge…';
+  pasteOverlay.classList.add('open');
+  setTimeout(()=>ta.focus(),60);
+}
+const closePaste=()=>pasteOverlay.classList.remove('open');
+document.getElementById('pasteCancel').onclick=closePaste;
+pasteOverlay.addEventListener('click',e=>{ if(e.target===pasteOverlay) closePaste(); });
+document.getElementById('pasteAdd').onclick=()=>{
+  const v=document.getElementById('pasteText').value.trim();
+  if(!v) return;
+  closePaste();
+  if(pasteKind==='url'||looksLikeUrl(v)) runIntake({kind:'url',input:v});
+  else runIntake({kind:'text',text:v});
+};
+
+// Intake queue viewer -> GET /intake/queue: each source + status + lifecycle history (per-item MRI)
+const queueOverlay=document.getElementById('queueOverlay');
+document.getElementById('queueClose').onclick=()=>queueOverlay.classList.remove('open');
+queueOverlay.addEventListener('click',e=>{ if(e.target===queueOverlay) queueOverlay.classList.remove('open'); });
+async function openQueue(){
+  const qc=document.getElementById('queueContent');
+  qc.innerHTML='<div style="font-size:12px;color:#555">loading…</div>';
+  queueOverlay.classList.add('open');
+  const d=await apiFetch('/intake/queue');
+  if(d._err){ qc.innerHTML='<div style="font-size:12px;color:#b91c1c">'+esc(d.msg||'could not load the queue')+'</div>'; return; }
+  const recs=(d.records||[]).slice().reverse();   // newest first
+  if(!recs.length){
+    qc.innerHTML='<div style="font-size:13px;color:#888;line-height:1.6">Nothing ingested yet.<br>Use <b>+ → Upload file / Paste a link / Paste text</b> to add knowledge.</div>';
+    return;
+  }
+  qc.innerHTML=recs.map(r=>{
+    const dest=(r.routing||[]).map(x=>x.destination||x.store||x).filter(Boolean).join(', ');
+    const hist=(r.history||[]).slice(-6).map(h=>{
+      const st=STATUS_LABELS[h.state]||h.state||'';
+      return '· '+esc(st)+(h.reason?' — '+esc(h.reason):'');
+    }).join('<br>');
+    return '<div class="qitem">'+
+      '<div class="qtitle">'+esc(r.title||r.source_id||'untitled source')+'</div>'+
+      '<div class="qmeta">'+statusDot(r.state)+
+        '<span>'+esc(r.detected_type||'—')+'</span>'+
+        (r.control?'<span>·&nbsp;'+esc(String(r.control).replace(/_/g,' '))+'</span>':'')+
+        (dest?'<span>·&nbsp;→ '+esc(dest)+'</span>':'')+
+        (r.committed?'<span>·&nbsp;stored</span>':'')+'</div>'+
+      (hist?'<div class="qhist">'+hist+'</div>':'')+
+    '</div>';
+  }).join('');
+}
 
 filePicker.onchange=async(e)=>{
   const files=Array.from(e.target.files||[]); e.target.value='';
