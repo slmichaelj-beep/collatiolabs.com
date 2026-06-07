@@ -533,6 +533,13 @@ form{padding:10px 12px;border-top:1px solid #141414;
       <p class="hint" style="margin:8px 2px 0;font-size:11px">Read-only. Reads a certified, local Argus monitor so she can notice which apps are reaching the network — nothing leaves your Mac, and she takes no host action (no blocking) in this first integration.</p>
     </div>
     <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7.5"/><path d="M11 7.5v3.5l2.2 2.2"/></svg> Curiosity &amp; growth</div>
+      <label class="cap"><span class="lbl">How often I ask</span> <select id="curiosity" data-enum="curiosity" style="width:auto;margin:0;padding:3px 6px"><option value="minimal">Minimal</option><option value="balanced">Balanced</option><option value="deep">Deep</option></select></label>
+      <label class="cap"><span class="lbl">Grow Intelligence <span style="opacity:.6">(idle-time · may use cloud)</span></span> <span class="tag exp">experimental</span> <input type="checkbox" class="sw" data-cap="grow_intelligence"></label>
+      <label class="cap"><span class="lbl">Growth intensity</span> <select id="growmode" data-enum="grow_mode" style="width:auto;margin:0;padding:3px 6px"><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="research">Research</option></select></label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Curiosity sets how often Vera surfaces a question (frequency only). Grow Intelligence is OFF by default — while off it is a provable no-op ($0, nothing autonomous). It grows task-skill only, never who Vera is (the identity freeze is absolute).</p>
+    </div>
+    <div class="svc">
       <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg> Inner life</div>
       <label class="cap" title="Experimental. Held until the observation window closes (2026-07-03). Off by default; turn it on only when you choose. While off, nothing identity- or agency-shaping runs.">
         <span class="lbl">Identity &amp; Agency <span style="opacity:.6">— held until the observation window (2026-07-03)</span></span>
@@ -542,6 +549,10 @@ form{padding:10px 12px;border-top:1px solid #141414;
       <p class="hint" style="margin:8px 2px 0;font-size:11px">Lets her form a sense of self and weigh her own actions. Held until the observation window closes; leave off unless you mean to turn it on.</p>
     </div>
   </div>
+
+  <h2 style="margin-top:22px">Persona</h2>
+  <p class="hint">Who Vera is — her character card. Read-only; her identity is frozen (you observe it, you don't rewrite it here).</p>
+  <div id="personaCard" class="hint" style="white-space:pre-wrap;max-height:200px;overflow:auto;font-size:12px;line-height:1.5;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px">…</div>
 
   <h2 style="margin-top:22px">Security</h2>
   <p class="hint">Face ID as a second lock on top of your key.</p>
@@ -1553,6 +1564,7 @@ async function modelAction(path,ref){
 }
 function renderCaps(){
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
+  capsBox.querySelectorAll('select[data-enum]').forEach(s=>{ if(CAPS&&CAPS[s.dataset.enum]!=null) s.value=CAPS[s.dataset.enum]; });
   allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
 }
 function applyProvider(p){
@@ -1612,6 +1624,13 @@ async function openSettings(){
   try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(e){}
   renderFaceRow();
   loadLearn();
+  loadPersona();
+}
+async function loadPersona(){
+  const el=document.getElementById('personaCard'); if(!el)return;
+  try{ const r=await fetch('/persona',{headers:HDR}); const d=await r.json();
+    el.textContent=(d&&d.persona)||'No persona on record.';
+  }catch(e){ el.textContent='Could not load the persona.'; }
 }
 
 // --- Face ID (WebAuthn passkey) — a second layer on top of the key ---------
@@ -1765,6 +1784,7 @@ async function saveBrain(){
 function saveCaps(){
   const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
   capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
+  capsBox.querySelectorAll('select[data-enum]').forEach(s=>{caps[s.dataset.enum]=s.value;});
   fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify(caps)}).catch(()=>{});
 }
 let _dialT;
@@ -1773,7 +1793,7 @@ function saveDials(){
   fetch('/dials',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({dials:dvals})}).catch(()=>{});
 }
 modelBox.onchange=saveBrain; keyBox.onchange=saveBrain; budgetBox.onchange=saveBrain;
-capsBox.addEventListener('change',e=>{ if(e.target.matches('input[data-cap]')) saveCaps(); });
+capsBox.addEventListener('change',e=>{ if(e.target.matches('input[data-cap], select[data-enum]')) saveCaps(); });
 allowBox.onblur=saveCaps;
 dialsBox.addEventListener('input',()=>{ clearTimeout(_dialT); _dialT=setTimeout(saveDials,450); });
 // open / close — cog toggles; the edge pull-bar or a tap on the chat dismisses

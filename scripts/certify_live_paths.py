@@ -985,21 +985,28 @@ def probe_curiosity_budget(res: Result) -> None:
     engine_reads = "def read_budget(" in cur_src and "def _budget_allows(" in cur_src
     endpoint = ('"/capabilities"' in server_src and "caps.load(" in server_src
                 and "caps.save(" in server_src)
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    ui = 'id="curiosity"' in idx and 'data-enum="curiosity"' in idx
     res.evidence.append("caps curiosity enum+helpers=%s; engine reads budget (curiosity.py)=%s; "
-                        "persists via GET/POST /capabilities=%s" % (backend, engine_reads, endpoint))
-    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+                        "persists via GET/POST /capabilities=%s; Settings 'Curiosity' control=%s"
+                        % (backend, engine_reads, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
             Restart=cert_ok)
-    if cert_ok and backend and engine_reads and endpoint:
+    if cert_ok and backend and engine_reads and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_use_in_answer",
+                            "restart_survival"]
+        res.reason = ("Curiosity Budget defaults 'balanced', a set value is durable, an invalid value "
+                      "coerces safe, the Curiosity Engine READS it (read_budget matches; the frequency "
+                      "gate honours minimal<=balanced<=deep), and the Settings 'Curiosity & growth' "
+                      "select (data-enum='curiosity' -> /capabilities) is the live control; real .anima "
+                      "byte-unchanged.")
+    elif cert_ok and backend and engine_reads and endpoint:
         res.status = PARTIAL
         res.proven_links = ["real_backend", "real_storage", "real_use_in_answer", "restart_survival"]
         res.missing_links = ["visible_trigger"]
-        res.reason = ("Curiosity Budget defaults 'balanced', a set value is durable, an invalid "
-                      "value coerces safe, and the Curiosity Engine reads it (read_budget matches "
-                      "the set value; the frequency gate honours minimal<=balanced<=deep) — proven "
-                      "by certify_curiosity_budget.py; real .anima byte-unchanged. PARTIAL: no "
-                      "dedicated control is rendered in index.html — the budget persists through the "
-                      "same GET/POST /capabilities ledger (no slider), so the visible_trigger link "
-                      "is an endpoint, not UI.")
+        res.reason = ("Curiosity Budget backend + engine-read proven; PARTIAL: no Settings control "
+                      "rendered (rides the /capabilities ledger).")
     else:
         res.status = STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
@@ -1025,21 +1032,30 @@ def probe_autonomous_growth(res: Result) -> None:
                  and "def set_grow_mode(" in caps_src and '"grow_mode"' in caps_src)
     endpoint = ('"/capabilities"' in server_src and "caps.load(" in server_src
                 and "caps.save(" in server_src)
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    ui = 'data-cap="grow_intelligence"' in idx and 'data-enum="grow_mode"' in idx
     res.evidence.append("lerf_grow OFF-gate+modes=%s; caps grow_intelligence/grow_mode default-OFF=%s; "
-                        "persists via GET/POST /capabilities=%s" % (off_gate, caps_keys, endpoint))
-    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+                        "persists via GET/POST /capabilities=%s; Settings Grow control=%s"
+                        % (off_gate, caps_keys, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
             Restart=cert_ok)
-    if cert_ok and off_gate and caps_keys and endpoint:
+    if cert_ok and off_gate and caps_keys and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Autonomous growth ships OFF and is provably INERT while OFF (idle loop selects/"
+                      "grows/writes nothing; $0 proven — no spend/brain/grow-state written); the mode is "
+                      "durable + coerces a bad value to 'off' with the master switch in lockstep; and "
+                      "the Settings 'Curiosity & growth' Grow-Intelligence toggle + intensity select "
+                      "(data-cap='grow_intelligence' + data-enum='grow_mode' -> /capabilities) are the "
+                      "live, default-OFF, opt-in controls; real .anima byte-unchanged. (The ON learning "
+                      "path needs a live teacher — covered by lerf_grow --selftest.)")
+    elif cert_ok and off_gate and caps_keys and endpoint:
         res.status = PARTIAL
         res.proven_links = ["real_backend", "real_storage", "final_gate", "restart_survival"]
         res.missing_links = ["visible_trigger"]
-        res.reason = ("Autonomous growth ships OFF and is provably INERT while OFF: the idle loop "
-                      "selects/grows/writes nothing and $0 is proven (no spend.json/brain.json/"
-                      "grow-state written); the mode is durable, coerces a bad value to 'off', and "
-                      "the master switch stays in lockstep — proven by certify_autonomous_growth.py; "
-                      "real .anima byte-unchanged. PARTIAL: no dedicated Grow-Intelligence control is "
-                      "rendered in index.html (it rides the /capabilities caps ledger), and the ON "
-                      "path needs a live teacher (covered by lerf_grow --selftest).")
+        res.reason = ("Autonomous-growth OFF-is-$0-inert + durable mode proven; PARTIAL: no dedicated "
+                      "Grow control rendered (rides the /capabilities ledger).")
     else:
         res.status = STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("off_gate", off_gate),
@@ -1061,22 +1077,27 @@ def probe_persona_card(res: Result) -> None:
                                            "DEFAULT_PERSONA", "def persona_path("))
     endpoint = ('"/persona"' in server_src and "load_persona(" in server_src
                 and "save_persona(" in server_src)
-    res.evidence.append("mouth persona primitives (load/save/DEFAULT)=%s; GET/POST /persona=%s"
-                        % (backend, endpoint))
-    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=None, MRI=None,
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    ui = 'id="personaCard"' in idx and "loadPersona" in idx and "/persona" in idx
+    res.evidence.append("mouth persona primitives (load/save/DEFAULT)=%s; GET/POST /persona=%s; "
+                        "Settings Persona card viewer=%s" % (backend, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
             Restart=None)
-    if cert_ok and backend and endpoint:
+    if cert_ok and backend and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval"]
+        res.reason = ("The persona card is served (a fresh creature gets the canonical DEFAULT_PERSONA "
+                      "— never blank), byte-stable across reads, and OBSERVATION-ONLY (a read never "
+                      "creates the persona file — identity is frozen against being looked at; only an "
+                      "explicit save_persona mutates); and the Settings 'Persona' card (loadPersona -> "
+                      "GET /persona, read-only) is the live viewer; real .anima byte-unchanged. Whether "
+                      "the persona governs replies in character is downstream of the live model (mouth "
+                      "final-gate probes).")
+    elif cert_ok and backend and endpoint:
         res.status = PARTIAL
         res.proven_links = ["real_backend", "real_storage"]
         res.missing_links = ["visible_trigger"]
-        res.reason = ("The persona card is served (a fresh creature gets the canonical DEFAULT_"
-                      "PERSONA — never blank), byte-stable across reads, and OBSERVATION-ONLY (a "
-                      "read never creates the persona file — identity is frozen against being looked "
-                      "at); only an explicit save_persona mutates — proven by certify_persona_card."
-                      "py; real .anima byte-unchanged. PARTIAL: GET/POST /persona is a live endpoint "
-                      "with no rendered card viewer in index.html, and whether the persona governs "
-                      "replies in character is downstream of the live model (mouth final-gate "
-                      "probes).")
+        res.reason = ("Persona served + observation-only proven; PARTIAL: no rendered card viewer.")
     else:
         res.status = STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
@@ -2166,10 +2187,20 @@ def probe_opportunity_engine(res: Result) -> None:
     engine = all(s in opp_src for s in ("def opportunities(", "def next_opportunity(",
                                         "def mark_offered(", "def mark_response(",
                                         "def ledger_path(", "def last_opportunity_choice("))
-    # offer-not-action wall: the engine must NOT import route / host_access at all (no executor seam).
-    offer_not_action = ("import route" not in opp_src and "import host_access" not in opp_src
-                        and not any(("def %s(" % n) in opp_src
-                                    for n in ("execute", "send", "do", "act", "perform", "fulfill")))
+    # offer-not-action wall: the engine must BIND no route/host_access MODULE in its namespace and
+    # expose no executor primitive. (A source-text grep is wrong here: opportunity.py legitimately
+    # NAMES host_access/route in its OWN tripwire self-test that PROVES offer-not-action; the real
+    # wall is what the module binds at runtime + the behavioural cert above, which fires no executor.)
+    offer_not_action = False
+    try:
+        import importlib as _il, types as _ty
+        _opp = _il.import_module("anima.opportunity")
+        _bound = [n for n in ("route", "host_access", "_route", "_host_access")
+                  if isinstance(getattr(_opp, n, None), _ty.ModuleType)]
+        offer_not_action = (not _bound) and not any(
+            ("def %s(" % n) in opp_src for n in ("execute", "send", "do", "act", "perform", "fulfill"))
+    except Exception:
+        offer_not_action = False
     wired = ("opportunity.next_opportunity(name)" in server_src
              and "opportunity.mark_offered(" in server_src and '"opportunity"' in server_src)
     res.evidence.append("engine fns (opportunities/next/mark_offered/mark_response/ledger/last)=%s; "
