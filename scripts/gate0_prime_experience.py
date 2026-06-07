@@ -291,6 +291,8 @@ _STORE_MODULES = (
     "meaning", "curiosity", "trajectory", "reminders", "proactive", "caps",
     "identity", "opportunity", "live",
     "server", "lerf", "lerf_router",
+    "whole_mri",                        # Whole-System MRI recorder (append-only trace store)
+    "models",                           # model-usage ledger (models.touch writes model-usage.json)
 )
 
 

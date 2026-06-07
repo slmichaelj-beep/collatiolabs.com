@@ -453,6 +453,33 @@ def _turn(name, text, voice=False):
     """One exchange: feel it, record it, reply from state. Serialised for safety."""
     with _lock:
         _turn_t0 = time.perf_counter()             # MRI: wall-clock for the whole turn
+        # ── WHOLE-SYSTEM MRI (Phase 1): mint the turn_id ONCE, at the top of the turn. Every
+        # subsystem (cognitive trace, host samples, cost, safety) attaches to THIS id so the
+        # mind-trace and the machine-trace for one turn are correlated. "No turn_id = not
+        # observable." Fully guarded: if minting fails, _turn_id is None and we simply do not
+        # record a Whole-System trace this turn — it can NEVER break or slow a reply.
+        try:
+            from . import whole_mri as _wmri
+            _turn_id = _wmri.mint_turn_id()
+        except Exception:
+            _wmri, _turn_id = None, None
+        # ── WHOLE-SYSTEM MRI (Phase 2): open the host window. ONLY when Host Awareness is ON,
+        # and ONLY via the certified read-only Argus (/mri). The 'before' snapshot brackets the
+        # turn; 'during' and 'after' are captured later. Read-only — no host action, no .anima
+        # write by Argus. Guarded so an Argus hiccup never fails the Vera turn.
+        _host_before = _host_during = _host_after = None
+        _host_aware_on = False
+        try:
+            from . import host_awareness as _ha_probe
+            _host_aware_on = bool(_ha_probe.is_on(name))
+        except Exception:
+            _host_aware_on = False
+        if _host_aware_on:
+            try:
+                from . import host_window as _hw_cap
+                _host_before = _hw_cap.capture_host_state(name)
+            except Exception:
+                _host_before = None
         heart = Heart.from_dict(load_json(_path(name)))
         # ---- perception (MRI frame) ----
         _ps0 = time.perf_counter()
@@ -743,6 +770,14 @@ def _turn(name, text, voice=False):
                               audio_out=audio_out, perception=p, cap_note=cap_note,
                               fact_block=_fact_block)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
+        # WHOLE-SYSTEM MRI (Phase 2): 'during' host snapshot — captured right after the reply is
+        # generated, at the peak of the turn's work. Read-only /mri; guarded; only when ON.
+        if _host_aware_on:
+            try:
+                from . import host_window as _hw_cap2
+                _host_during = _hw_cap2.capture_host_state(name)
+            except Exception:
+                _host_during = None
         # MRI: generate frame — model + reply + token count + tok/s. tok/s is the brain's
         # real measured rate; token count is estimated from rate*seconds (the brain doesn't
         # hand back an exact count here). Recorded immediately so the trace pins the FIRST
@@ -1140,6 +1175,133 @@ def _turn(name, text, voice=False):
         try:
             if _mri is not None:
                 _mri.commit(reply=u.text, total_ms=(time.perf_counter() - _turn_t0) * 1000.0)
+        except Exception:
+            pass
+        # ── WHOLE-SYSTEM MRI (Phases 2-4): close the host window, assemble the UnifiedTrace
+        # correlating this turn's COGNITIVE trace (the mind) with the HOST trace (the machine),
+        # and append it as one JSONL line. This is the LAST thing in the turn — AFTER the final
+        # gate, AFTER the reply is already in `out`. It is a pure OBSERVER: it never mutates
+        # u.text/out, never opens a second response path, and is fully guarded so a recorder
+        # failure can never touch the reply the user already holds. Every trace carries the
+        # turn_id minted at the top; if that mint failed we skip — no turn_id = not observable.
+        try:
+            if _wmri is not None and _turn_id:
+                # 'after' host snapshot — closes the read-only window (guarded; only when ON).
+                if _host_aware_on:
+                    try:
+                        from . import host_window as _hw_cap3
+                        _host_after = _hw_cap3.capture_host_state(name)
+                    except Exception:
+                        _host_after = None
+                # host-window delta (before→during→after); graceful-unavailable degrades cleanly.
+                _host_win = None
+                if _host_aware_on and isinstance(_host_before, dict) \
+                        and isinstance(_host_during, dict) and isinstance(_host_after, dict):
+                    try:
+                        from . import host_window as _hw_delta
+                        _host_win = _hw_delta.host_window_delta(_host_before, _host_during, _host_after)
+                    except Exception:
+                        _host_win = None
+                _hwd = _host_win if isinstance(_host_win, dict) else {}
+
+                # Final-gate CROSS-CHECK on the SHIPPED text — non-mutating, NOT a second response
+                # path: does the reply the user already has pass the model-free #1-rule final gate
+                # unchanged? (Host replies were explicitly gated; mouth.respond gates internally;
+                # a LERF answer is simply OBSERVED here.) The result is discarded — never shipped.
+                try:
+                    from .mouth import final_output_gate as _fog_chk, response_complete as _rc_chk
+                    _gate_clean = (_fog_chk(u.text) == u.text)
+                    _resp_complete = bool(_rc_chk(u.text))
+                except Exception:
+                    _gate_clean, _resp_complete = None, None
+
+                # input_kind + route — honest classification of how this turn was actually solved.
+                _mem_used = bool(_fact_block) or bool(locals().get("_bound"))
+                if _host_reply:
+                    _wk_input, _wk_route = "host_question", "argus"
+                elif _lerf_solved:
+                    _wk_input, _wk_route = "task", "lerf"
+                else:
+                    _wk_input = "chat"
+                    _wk_route = ("hybrid" if cap_note else ("memory" if _mem_used else "llm"))
+
+                # Argus queries actually issued this turn (honest count for cost.argus_calls):
+                # one '/mri' per SUCCESSFUL host snapshot, plus the host-seam read ONLY when Argus
+                # was actually reachable+certified (a not-connected / awareness-off reply read
+                # nothing from Argus, so it must not inflate the call count).
+                _caps_ok = bool(isinstance(_host_before, dict) and not _host_before.get("unavailable"))
+                _argus_queries = []
+                for _snap in (_host_before, _host_during, _host_after):
+                    if isinstance(_snap, dict) and not _snap.get("unavailable"):
+                        _argus_queries.append("/mri")
+                if _host_reply and _caps_ok:
+                    _argus_queries.append("host_awareness.respond")
+
+                # Token estimates (the local brain reports a rate, not an exact count).
+                _w_tok_s = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+                _tokens_out = int(round(_w_tok_s * gen_s)) if (_w_tok_s and gen_s) else None
+                _tokens_in = locals().get("_llm_baseline_tokens")
+
+                _wtrace = _wmri.assemble(
+                    turn_id=_turn_id,
+                    input_kind=_wk_input,
+                    route=_wk_route,
+                    vera={
+                        "capture": {"sentiment": round(float(getattr(p, "mood", 0.0)), 3),
+                                    "presence": round(float(getattr(p, "presence", 0.0)), 3)},
+                        "memory": {"facts_selected": len(_bind_rows or [])},
+                        "lerf": {"solved": bool(_lerf_solved)},
+                        "world_model": {"edges_written": len(_edges_written or [])},
+                        "reality_learning": None,   # built at sleep / on demand — not per-turn
+                        "generation": {"model": getattr(u, "backend", ""),
+                                       "reply_chars": len(getattr(u, "text", "") or ""),
+                                       "tok_s": (round(float(_w_tok_s), 1) if _w_tok_s else None)},
+                        "final_gate": {"passed": _gate_clean},
+                        "response": {"chars": len(getattr(u, "text", "") or ""),
+                                     "backend": getattr(u, "backend", "")},
+                    },
+                    argus={
+                        "enabled": _host_aware_on,
+                        "capabilities_ok": _caps_ok,
+                        "queries": _argus_queries,
+                        "host_before": _host_before,
+                        "host_during": _host_during,
+                        "host_after": _host_after,
+                        "shape_delta": _hwd.get("shape_delta"),
+                        "blind_spots": _hwd.get("blind_spots") or [],
+                    },
+                    quality={
+                        "grounded": (True if (_host_reply or _lerf_solved or _mem_used) else None),
+                        "complete": _resp_complete,
+                        "source_labeled": bool(out.get("sources")),
+                        "host_labeled": bool(_host_reply),
+                        "confidence": (float(getattr(_verdict, "confidence", None))
+                                       if (_verdict is not None
+                                           and getattr(_verdict, "confidence", None) is not None)
+                                       else None),
+                    },
+                    cost={
+                        "latency_ms": round((time.perf_counter() - _turn_t0) * 1000.0, 1),
+                        "tokens_in": _tokens_in,
+                        "tokens_out": _tokens_out,
+                        "argus_calls": len(_argus_queries),
+                        "memory_reads": len(_bind_rows or []),
+                        "memory_writes": len(_lirf_written or []) + len(_edges_written or []),
+                        "lerf_objects_used": (1 if _lerf_solved else 0),
+                        "cpu_delta": _hwd.get("cpu_delta"),
+                        "memory_delta_mb": _hwd.get("memory_delta_mb"),
+                        "disk_io_delta": _hwd.get("disk_io_delta"),
+                        "network_delta": _hwd.get("network_delta"),
+                    },
+                    safety={
+                        "final_gate_passed": _gate_clean,
+                        "response_complete": _resp_complete,
+                        "identity_mutation": False,    # no identity change in this turn/wave
+                        "host_action_taken": False,    # READ-ONLY wave — non-negotiable #4
+                        "memory_contamination": False, # host data never auto-promoted — non-negotiable #3
+                    },
+                )
+                _wmri.record(name, _wtrace)
         except Exception:
             pass
         return out
