@@ -1849,6 +1849,13 @@ document.getElementById('grab').onclick=()=>panel.classList.remove('open');
 // --- dashboard drawer (operator gauges + the pre-registered verdict) ---
 const dash=document.getElementById('dash'), dashBody=document.getElementById('dashbody');
 function _pct(x){ return (x==null)?'—':(x*100).toFixed(1)+'%'; }
+// which deployment is this dashboard talking to? derived from the URL host — local (Mac/tailnet)
+// vs a remote domain — so the operator always knows whose Mind these gauges describe.
+function _envLabel(){
+  const h=location.hostname||'localhost';
+  const isLocal = h==='localhost'||h==='127.0.0.1'||/^(192\.168|10|172\.(1[6-9]|2\d|3[01]))\./.test(h)||/\.local$|\.ts\.net$/.test(h);
+  return (isLocal?'local':'remote')+' · '+h;
+}
 async function openDash(){
   dash.classList.add('open');
   dashBody.innerHTML='<div class="dhint">loading…</div>';
@@ -1858,7 +1865,9 @@ async function openDash(){
   catch(e){ dashBody.innerHTML='<div class="dhint">couldn’t reach the server.</div>'; return; }
   const c=d.contamination||{}, co=d.coherence||{}, g=d.growth||{};
   dashBody.innerHTML=
-   '<h2 style="margin-bottom:12px">'+esc(document.title||'Vera')+' · identity health</h2>'
+   '<h2 style="margin-bottom:4px">'+esc(document.title||'Vera')+' · identity health</h2>'
+   +'<div style="margin:0 0 14px;font-size:11px;letter-spacing:.06em;color:#6f6f76">'
+     +'<span style="text-transform:uppercase">env</span> · <b style="color:#9aa0ac;font-weight:500">'+esc(_envLabel())+'</b></div>'
    +'<div class="gauge"><div class="gh">Contamination<span>is identity being corrupted?</span></div>'
      +'<div class="grow"><span>organic break-rate</span><b>'+_pct(c.organic_break_rate)+'</b><span class="gn">'+(c.organic_n?'('+(c.organic_broken||0)+'/'+c.organic_n+')':'')+'</span></div>'
      +'<div class="grow"><span>adversarial (eval)</span><b>'+_pct(c.eval_break_rate)+'</b><span class="gn">'+(c.eval_n?'('+(c.eval_broken||0)+'/'+c.eval_n+')':'')+'</span></div>'
