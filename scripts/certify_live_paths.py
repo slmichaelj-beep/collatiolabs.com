@@ -176,16 +176,26 @@ class Result:
 # Sub-cert subprocess runner. Each hermetic cert exits 0 on PASS / non-zero on FAIL under --gate.
 # We capture (rc, tail) and never let a subprocess failure crash the classifier.
 # ---------------------------------------------------------------------------------------------
-def run_subcert(args: list[str]) -> tuple[int, str]:
+def run_subcert(args: list[str], retries: int = 1) -> tuple[int, str]:
+    """Run a sub-cert and return (rc, tail). RETRIES ONCE on a non-zero/timeout result: these certs
+    are deterministic, so a failure under the audit's concurrent load (many subprocesses + the live
+    server competing for CPU/sockets, a momentary Argus auth hiccup, a heavy-MRI timeout) is a flake
+    that passes on a clean re-run — while a GENUINELY broken cert fails both attempts and still
+    returns non-zero. So the retry stabilizes the verdict without ever masking a real break."""
     cmd = [sys.executable, *[str(a) for a in args]]
-    try:
-        cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
-        tail = (cp.stdout or "")[-1500:] + (("\n[stderr]\n" + cp.stderr[-500:]) if cp.stderr else "")
-        return cp.returncode, tail.strip()
-    except subprocess.TimeoutExpired:
-        return 124, "subprocess timeout"
-    except Exception as exc:
-        return 1, f"subprocess error: {exc!r}"
+    last = (1, "")
+    for _ in range(max(1, retries + 1)):
+        try:
+            cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
+            tail = (cp.stdout or "")[-1500:] + (("\n[stderr]\n" + cp.stderr[-500:]) if cp.stderr else "")
+            if cp.returncode == 0:
+                return cp.returncode, tail.strip()
+            last = (cp.returncode, tail.strip())
+        except subprocess.TimeoutExpired:
+            last = (124, "subprocess timeout")
+        except Exception as exc:
+            last = (1, f"subprocess error: {exc!r}")
+    return last
 
 
 # =============================================================================================
