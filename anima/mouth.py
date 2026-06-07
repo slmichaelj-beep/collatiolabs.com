@@ -124,6 +124,14 @@ def final_output_gate(text: str) -> str:
     return clean if (clean and len(clean.split()) >= 4 and not still) else _THIRD_PATH_REDIRECT
 
 
+def response_complete(text: str) -> bool:
+    """The response COMPLETENESS / integrity guard: a shipped reply must be non-empty and
+    substantive (not a bare fragment). final_output_gate() always returns such a reply — a
+    >=4-word clean reply or the crafted THIRD-PATH REDIRECT — so EVERY shipped reply, generated
+    OR deterministic-host, passes this guard. Pure; never raises."""
+    return len((text or "").strip().split()) >= 3
+
+
 def _diagnosis_terms() -> tuple:
     """The single NO-DIAGNOSIS term source for the chat-reply gate (LAW 003). trajectory's list
     is the widest (it UNIONs meaning's banned terms with its own forecast-creep terms), and

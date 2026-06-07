@@ -57,13 +57,13 @@ class _Stub:
         return {"actions": []}
 
 
-_HOST_STAGES = {"host_awareness_match", "capability_check", "deterministic_reply", "final_gate"}
+_HOST_STAGES = {"host_awareness_match", "capability_check", "deterministic_host_reply", "final_gate"}
 
 
 def main() -> int:
     import anima.server as server
     import anima.tools.argus_client as ac
-    from anima import caps, telemetry, host_awareness as ha
+    from anima import caps, telemetry, host_awareness as ha, mouth
 
     fails = []
 
@@ -105,6 +105,11 @@ def main() -> int:
             tr = telemetry.last_trace(name) or {}
             stages = {s.get("stage") for s in (tr.get("stages") or [])}
             ck(f"{label}: MRI records host seam {sorted(_HOST_STAGES)}", _HOST_STAGES <= stages)
+            # shipped text EQUALS the certified final text (final_output_gate output) — the host
+            # reply did NOT bypass the final gate, and nothing mutated it after the gate.
+            certified = mouth.final_output_gate(ha.respond(name, prompt, cloud_safe=False))
+            ck(f"{label}: shipped == certified final text (no gate bypass)", reply == certified)
+            ck(f"{label}: response completeness guard passes", mouth.response_complete(reply))
 
         # NON-host turns must NOT be hijacked by the seam (classify is the gate). We assert at the
         # classify layer (a non-host _turn would call the live model, out of scope for this test).

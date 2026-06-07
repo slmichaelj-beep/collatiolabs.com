@@ -682,7 +682,7 @@ def _turn(name, text, voice=False):
                      note="read-only capability gate — no host action available this wave")
                 _raw_host = _ha_live.respond(name, text, cloud_safe=_cloud_on)
                 if _raw_host:
-                    _stg("deterministic_reply", out={"chars": len(_raw_host)},
+                    _stg("deterministic_host_reply", out={"chars": len(_raw_host)},
                          note="fixed text — no LLM, no curiosity/aside, no model verifier")
                     _host_reply = _final_gate(_raw_host)   # the SAME #1-rule final gate every reply uses
                     _stg("final_gate", out={"changed": _host_reply != _raw_host,

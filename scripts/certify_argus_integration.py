@@ -241,6 +241,13 @@ def run_cert(*, verbose=True):
            ha.respond(name, "please block this connection to 1.2.3.4") == ha.READ_ONLY_REFUSAL)
         ck("LIVE: host question + connected -> 'Argus shows …'",
            (ha.respond(name, "what is my mac doing on the network") or "").startswith("Argus shows"))
+        from anima.mouth import final_output_gate as _fg, response_complete as _rc
+        _hr_a = ha.respond(name, "please block this connection")
+        _hr_q = ha.respond(name, "what is my mac doing on the network")
+        ck("FINAL-GATE: host replies pass UNCHANGED through the model-free #1-rule final gate (no bypass)",
+           _fg(_hr_a) == _hr_a and _fg(_hr_q) == _hr_q)
+        ck("COMPLETENESS: response completeness guard passes on every host reply",
+           all(_rc(x) for x in (_hr_a, _hr_q, ha.OFF_MESSAGE, ha.NOT_CONNECTED_MESSAGE)))
         ck("LIVE: non-host turn -> None (no hijack)",
            all(ha.respond(name, t) is None for t in
                ("Do you ever get lonely?", "do you have a soul?", "help me plan my day", "I love you")))
