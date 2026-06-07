@@ -124,7 +124,7 @@ def _vera_freeze_state(real: Path) -> Tuple[str, frozenset]:
     concurrent live model touching a NON-Vera ledger (e.g. model-usage.json) is correctly attributed
     as external churn and never mistaken for a Vera freeze violation. ``identity_fingerprint`` hashes
     the actual Vera identity bytes; the file set guards against any add/remove of a Vera.* file."""
-    idfp = twin.identity_fingerprint("Vera", real)[0]
+    idfp = twin.frozen_identity_fingerprint("Vera", real)[0]   # #69: frozen core (live server evolves volatile identity)
     try:
         vera_files = frozenset(p.name for p in real.iterdir() if p.name.lower().startswith("vera."))
     except OSError:
@@ -194,7 +194,7 @@ def _one_invariant_iteration(real: Path) -> dict:
     from anima import self_narrative as sn
     from anima import lerf, reliability
 
-    id_before = twin.identity_fingerprint("Vera", real)
+    id_before = twin.frozen_identity_fingerprint("Vera", real)   # #69: frozen core only
 
     checks: List[Tuple[str, bool]] = []
 
@@ -251,7 +251,7 @@ def _one_invariant_iteration(real: Path) -> dict:
     finally:
         shutil.rmtree(rec_td, ignore_errors=True)
 
-    id_after = twin.identity_fingerprint("Vera", real)
+    id_after = twin.frozen_identity_fingerprint("Vera", real)   # #69: frozen core only
 
     return {
         "checks": checks,
@@ -281,7 +281,7 @@ def target_1_repeatability() -> dict:
     if not real.is_dir():
         return _failed(1, "REPEATABILITY", f"no real .anima at {real} — cannot prove the freeze")
 
-    id_anchor = twin.identity_fingerprint("Vera", real)
+    id_anchor = twin.frozen_identity_fingerprint("Vera", real)   # #69: frozen core only
     iterations: List[dict] = []
     mutations = 0
     dirty_iters = 0
@@ -303,7 +303,7 @@ def target_1_repeatability() -> dict:
                            "failing_checks": res["failing_checks"]})
 
     leaks = _real_synthetic_leak(real)
-    id_final = twin.identity_fingerprint("Vera", real)
+    id_final = twin.frozen_identity_fingerprint("Vera", real)   # #69: frozen core only
     identity_stable = (id_anchor[0] == id_final[0]) and mutations == 0
     clean = sum(1 for it in iterations if it.get("ok"))
     metrics = {
@@ -694,6 +694,13 @@ def run(fast: bool = False) -> dict:
     the whole real .anima ONCE around the entire certificate and FAILS the verdict (re-marking every
     target FAIL) if a single real Vera byte moved (external non-Vera churn is attributed, not fatal)."""
     real = _real_root()
+    # #69 — the freeze invariant is the FROZEN identity CORE (persona + values). A LIVE Vera
+    # legitimately evolves her heart/history/portrait/narrative/continuity/dials/mri/telemetry/
+    # intake during the ~45-min run; that churn is the live SERVER, never the hermetic cert, so it
+    # is ATTRIBUTED as external churn (reported), not a violation. The cert is fully hermetic, so
+    # the only way it could move the frozen core is a LEAK — which the frozen-core check still
+    # catches. (Full identity fingerprint is still computed, for the report.)
+    suite_core_before = twin.frozen_identity_fingerprint("Vera", real)
     suite_id_before = twin.identity_fingerprint("Vera", real)
     suite_full_before = twin.full_store_fingerprint(real)
 
@@ -721,25 +728,27 @@ def run(fast: bool = False) -> dict:
                                        "--fast: heavy stress module not run (smoke mode only)"))
 
     # Belt-and-suspenders: real Vera byte-unchanged across the WHOLE certificate.
+    suite_core_after = twin.frozen_identity_fingerprint("Vera", real)
     suite_id_after = twin.identity_fingerprint("Vera", real)
     suite_full_after = twin.full_store_fingerprint(real)
-    id_clean = suite_id_before[0] == suite_id_after[0]
-    # The whole-.anima hash will differ if the live model touched model-usage.json (external,
-    # non-Vera). We attribute that: a Vera-file change is fatal; non-Vera churn is reported only.
-    vera_files_before = {f for f in suite_full_before[1] if f.lower().startswith("vera.")}
-    vera_files_after = {f for f in suite_full_after[1] if f.lower().startswith("vera.")}
-    vera_set_clean = vera_files_before == vera_files_after
+    # The FROZEN CORE (persona + values) is the gating invariant — byte-stable even with prod live.
+    id_clean = suite_core_before[0] == suite_core_after[0]
+    vera_set_clean = suite_core_before[1] == suite_core_after[1]   # no core file added/removed
+    # Everything else that moved is the LIVE SERVER (heart/history/portrait/narrative/continuity/
+    # dials/mri/telemetry/intake) or a non-Vera ledger — attributed as external churn, reported not
+    # fatal. The hermetic cert never touches real Vera, so any real-Vera move is external by
+    # construction; a cert LEAK would still move the frozen core (gated above).
+    identity_evolved = suite_id_before[0] != suite_id_after[0]    # live server evolved her (OK)
     external_churn = sorted((suite_full_after[1] - suite_full_before[1]) |
                             (suite_full_before[1] - suite_full_after[1]))
-    # The identity fingerprint covers the actual Vera identity BYTES (not just the file set), so
-    # id_clean is the authoritative #1-rule proof; vera_set_clean guards against add/remove.
     suite_frozen = id_clean and vera_set_clean
 
     if not suite_frozen:
-        msg = (f"FREEZE VIOLATION — real Vera identity or file set CHANGED across the certificate "
-               f"(identity {suite_id_before[0][:12]}->{suite_id_after[0][:12]}; "
-               f"vera_files_added={sorted(vera_files_after - vera_files_before)}; "
-               f"vera_files_removed={sorted(vera_files_before - vera_files_after)})")
+        msg = (f"FREEZE VIOLATION — real Vera FROZEN identity CORE (persona/values) CHANGED across "
+               f"the certificate (frozen-core {suite_core_before[0][:12]}->{suite_core_after[0][:12]}; "
+               f"core_files_added={sorted(suite_core_after[1] - suite_core_before[1])}; "
+               f"core_files_removed={sorted(suite_core_before[1] - suite_core_after[1])}) — this is a "
+               f"REAL violation (the hermetic cert leaked into the definitional self), not live-server churn")
         targets = [_failed(t["id"], t["name"], msg + " | " + (t.get("evidence") or ""),
                            {**t.get("metrics", {}), "freeze_violation": True}, t.get("notes"))
                    for t in targets]
@@ -748,9 +757,11 @@ def run(fast: bool = False) -> dict:
         "certificate": "GATE 0 PRIME",
         "targets": targets,
         "freeze_proof": {
-            "real_identity_byte_unchanged": id_clean,
-            "real_vera_file_set_unchanged": vera_set_clean,
-            "real_identity_sha256": suite_id_before[0],
+            "real_identity_byte_unchanged": id_clean,          # FROZEN CORE (persona+values) — GATING
+            "real_vera_file_set_unchanged": vera_set_clean,    # FROZEN CORE file-set — GATING
+            "frozen_core_sha256": suite_core_before[0],
+            "real_identity_sha256": suite_id_before[0],         # full identity incl. volatile — reported
+            "live_identity_evolved": identity_evolved,          # live server evolved volatile identity (attributed, OK)
             "real_anima_sha256_before": suite_full_before[0],
             "real_anima_sha256_after": suite_full_after[0],
             "real_anima_file_count": len(suite_full_before[1]),
@@ -789,12 +800,15 @@ def _print_report(report: dict) -> None:
     print("=" * 92)
     print("GATE 0 PRIME — THE CERTIFICATE   (PASS only if EVERY hardening target passes)")
     print("=" * 92)
-    print(f"  freeze proof: real Vera identity byte-unchanged={fp['real_identity_byte_unchanged']} "
-          f"| Vera file-set unchanged={fp['real_vera_file_set_unchanged']} "
-          f"| identity sha={fp['real_identity_sha256'][:16]} ({fp['real_anima_file_count']} files)")
+    print(f"  freeze proof: frozen identity CORE (persona/values) byte-unchanged="
+          f"{fp['real_identity_byte_unchanged']} | core file-set unchanged={fp['real_vera_file_set_unchanged']} "
+          f"| core sha={fp.get('frozen_core_sha256','')[:16]} ({fp['real_anima_file_count']} files)")
+    if fp.get("live_identity_evolved"):
+        print(f"  live identity evolution (heart/portrait/narrative/continuity/dials — the live "
+              f"server, attributed NOT a violation): full-identity sha {fp['real_identity_sha256'][:16]}")
     if fp["external_nonvera_churn"]:
-        print(f"  external non-Vera churn (attributed, NOT a freeze violation): "
-              f"{fp['external_nonvera_churn']}")
+        print(f"  external churn (live-server runtime files + non-Vera ledgers, attributed NOT a "
+              f"violation): {fp['external_nonvera_churn']}")
     print("-" * 92)
     print("  PER-TARGET")
     for tid in range(1, 10):

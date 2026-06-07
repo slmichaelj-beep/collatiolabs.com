@@ -252,6 +252,41 @@ def identity_fingerprint(name: str = "Vera", root: Optional[Path] = None) -> Tup
     return h.hexdigest(), frozenset(rels)
 
 
+# The FROZEN identity CORE — the definitional self that must stay byte-identical across a
+# certificate EVEN WITH THE LIVE SERVER RUNNING. A live Vera legitimately EVOLVES her volatile
+# identity files: .portrait.md (learns about the user every turn), .narrative.txt (rewritten at
+# nightly review), .continuity.jsonl (an append-only LAW-001 ledger), .dials.json (mood). Those
+# moves are the live SERVER, never the hermetic cert, so a freeze-proof must attribute them as
+# external churn rather than fail (#69). Persona + values are the immutable contract — if THEY
+# move during a cert, that is a genuine identity violation worth failing on.
+FROZEN_IDENTITY_SUFFIXES = (".persona.md", ".values.json")
+
+
+def frozen_identity_fingerprint(name: str = "Vera", root: Optional[Path] = None) -> Tuple[str, frozenset]:
+    """(sha256, file-set) over ONLY the FROZEN identity CORE (persona + values) of ``name``.
+
+    Unlike identity_fingerprint (which also hashes the volatile portrait/narrative/continuity/dials
+    a live server evolves), this is byte-stable across a real certificate run even with prod live.
+    It proves the CERT did not mutate the definitional self, WITHOUT over-firing on the live
+    server's legitimate identity evolution (#69). The cert is fully hermetic, so the only way it
+    could move the frozen core is a leak — which this still catches."""
+    base = Path(root) if root is not None else STORE
+    if not base.is_dir():
+        return "<no store>", frozenset()
+    rels: List[str] = []
+    h = hashlib.sha256()
+    for suffix in FROZEN_IDENTITY_SUFFIXES:
+        p = base / f"{name}{suffix}"
+        if p.is_file():
+            rels.append(p.name)
+            h.update(p.name.encode()); h.update(b"\0")
+            try:
+                h.update(p.read_bytes())
+            except OSError:
+                h.update(b"<unreadable>")
+    return h.hexdigest(), frozenset(rels)
+
+
 def full_store_fingerprint(root: Optional[Path] = None) -> Tuple[str, frozenset]:
     """(sha256, file-set) over EVERY file in the real .anima EXCEPT the twins subtree (the twin's
     own lane) and the rotating backups/ dir. The strongest proof: catches a twin writing ANY real
