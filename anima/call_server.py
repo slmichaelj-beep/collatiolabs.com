@@ -15,12 +15,16 @@ Run:   python3 -m anima.call_server
 Test:  open http://localhost:8766/calltest in a browser, allow the mic, hit
        Connect — you should hear your own voice echoed back within a second.
 
-SECURITY (before this carries real audio): /webrtc_offer is currently OPEN for the
-local echo test. Phase 2 gates it behind the server's ANIMA_TOKEN and binds it to
-the tailnet, exactly like the /loc and /device endpoints — see TODO below.
+SECURITY: /webrtc_offer is gated behind the server's ANIMA_TOKEN, exactly like the
+main server's /loc and /device endpoints (anima/server.py::_authed). A loop-mode
+offer opens a live voice channel to Vera's brain, so EVERY offer must present the
+token — via an Authorization: Bearer header, an X-Anima-Key header, or a ?k= query
+param (constant-time compare). With ANIMA_TOKEN UNSET the server is open for the
+local echo / dev test, matching the main server's auth-off dev posture.
 """
 from __future__ import annotations
 
+import hmac
 import os
 
 from aiohttp import web
@@ -31,9 +35,28 @@ _pcs: set = set()
 _relay = MediaRelay()
 
 
+def _authed(request: web.Request) -> bool:
+    """Mirror anima/server.py::_authed — open when no ANIMA_TOKEN is configured (dev), else require
+    the token, supplied via a ?k= query param, an X-Anima-Key header, or an Authorization: Bearer
+    header, compared in constant time. This is the wall that keeps a loop-mode call (a live channel
+    to Vera's brain) from being opened by any peer that can merely reach the port."""
+    token = os.environ.get("ANIMA_TOKEN", "")
+    if not token:
+        return True
+    given = request.query.get("k", "") or request.headers.get("X-Anima-Key", "")
+    if not given:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            given = auth[7:]
+    return hmac.compare_digest(given, token)
+
+
 async def _offer(request: web.Request) -> web.Response:
-    # TODO(phase2): require os.environ["ANIMA_TOKEN"] via an Authorization header before
-    # accepting an offer, so only your own devices on the tailnet can open a call.
+    # SECURITY (phase 2, done): every offer must clear the ANIMA_TOKEN wall BEFORE we read the body
+    # or build a peer connection. A loop-mode offer opens a live voice channel to Vera's brain; echo
+    # mode is likewise gated whenever a token is configured — both are open ONLY in dev (no token).
+    if not _authed(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
     params = await request.json()
     mode = request.query.get("mode", "loop")          # "loop" = talk to Vera; "echo" = audio test
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])

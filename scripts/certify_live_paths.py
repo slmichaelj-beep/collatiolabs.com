@@ -4752,6 +4752,40 @@ def probe_intake_storage_tiers(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- call_auth -------------------------------------------------------------------------------
+def probe_call_auth(res: Result) -> None:
+    """The WebRTC call server's ANIMA_TOKEN wall (anima/call_server.py). The executable cert
+    (scripts/certify_call_auth.py) proves _authed() is open only in dev (no token), refuses a no/
+    wrong-credential offer when a token is set, and that the real _offer handler returns HTTP 401
+    BEFORE building a peer connection — so an unauthenticated loop-mode call never reaches Vera's
+    brain. Static facts: the 401 gate precedes the CallSession construction; the phase-2 TODO is gone."""
+    rc, tail = run_subcert([HERE / "certify_call_auth.py"])
+    cert_ok = (rc == 0) and ("CALL-AUTH CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_call_auth.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    src = (ROOT / "anima" / "call_server.py").read_text()
+    gate_at = src.find("if not _authed(request):")
+    sess_at = src.find("CallSession")
+    gate = (gate_at != -1 and "status=401" in src)
+    gate_before_session = (gate_at != -1 and (sess_at == -1 or gate_at < sess_at))
+    no_todo = "TODO(phase2)" not in src
+    res.evidence.append("_offer 401 gate present=%s; gate precedes CallSession=%s; phase-2 TODO removed=%s"
+                        % (gate, gate_before_session, no_todo))
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and gate and gate_before_session and no_todo:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "final_gate"]
+        res.reason = ("POST /webrtc_offer is gated behind ANIMA_TOKEN exactly like server.py's /loc and "
+                      "/device: an unauthenticated loop OR echo offer is refused 401 before any peer "
+                      "connection is built (never reaches CallSession); open only in dev (no token); "
+                      "constant-time compare, ?k=/X-Anima-Key/Bearer accepted.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("gate", gate),
+                             ("gate_before_session", gate_before_session), ("no_todo", no_todo)) if not v]
+        res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
 # =============================================================================================
 # MAIN
 # =============================================================================================
@@ -4774,6 +4808,7 @@ def classify_all() -> dict:
         "intake_heavy_parsers": probe_intake_heavy_parsers,
         "intake_background_worker": probe_intake_background_worker,
         "intake_storage_tiers": probe_intake_storage_tiers,
+        "call_auth": probe_call_auth,
         "personal_intelligence": probe_personal_intelligence,
         "portable_mind": probe_portable_mind,
         "brain_select": probe_brain_select,

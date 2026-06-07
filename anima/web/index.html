@@ -413,12 +413,8 @@ form{padding:10px 12px;border-top:1px solid #141414;
           </div>
         </div>
       </div>
-      <!-- </> Code -->
-      <button type="button" class="tbtn" id="tbCode" aria-label="Add code context" title="Code context">
-        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
-        </svg>
-      </button>
+      <!-- (removed the </> "Code" button — it opened the same file picker as "+ Add Knowledge →
+           Upload file"; the intake classifier handles code regardless, so it was a pure duplicate) -->
       <!-- magnifier Search -->
       <button type="button" class="tbtn" id="tbSearch" aria-label="Search knowledge" title="Search">
         <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -1195,7 +1191,6 @@ document.getElementById('amUpload').onclick=()=>{ closeAddMenu(); filePicker.cli
 document.getElementById('amLink').onclick=()=>{ closeAddMenu(); openPaste('url'); };
 document.getElementById('amText').onclick=()=>{ closeAddMenu(); openPaste('text'); };
 document.getElementById('amQueue').onclick=()=>{ closeAddMenu(); openQueue(); };
-document.getElementById('tbCode').onclick=()=>filePicker.click();  // code: same picker, classify handles it
 
 // Paste a link / paste text modal -> runIntake({kind})
 const pasteOverlay=document.getElementById('pasteOverlay');
