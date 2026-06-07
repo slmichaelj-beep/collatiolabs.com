@@ -873,6 +873,44 @@ def probe_brain_select(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- cross_store_search ----------------------------------------------------------------------
+def probe_cross_store_search(res: Result) -> None:
+    """One search box across every store, with the hard contract that source_type is never blurred
+    (private memory vs external reference). The executable cert (scripts/certify_cross_store_search.py)
+    seeds a fact + a reference and proves correct labeling, scope filtering, empty-query no-op, and
+    the endpoint. We add static facts: search() lives in intake_search.py, the /search endpoint
+    exists, and the search panel is wired."""
+    rc, tail = run_subcert([HERE / "certify_cross_store_search.py"])
+    cert_ok = (rc == 0) and ("CROSS-STORE-SEARCH CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_cross_store_search.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    search_src = (ROOT / "anima" / "intake_search.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = "def search(" in search_src and "source_type" in search_src
+    endpoint = '"/search"' in server_src and "_serve_search" in server_src
+    ui = 'id="searchPanel"' in idx and "doSearch" in idx
+    res.evidence.append("search() in intake_search=%s; /search endpoint=%s; #searchPanel UI=%s"
+                        % (engine, endpoint, ui))
+
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and engine and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate"]
+        res.reason = ("Cross-store search reaches every store and labels each hit with its TRUE "
+                      "source_type, never blurring private memory with external reference; scopes "
+                      "filter, an empty query scans nothing, the /search endpoint + search panel are "
+                      "wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Cross-store-search live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1228,6 +1266,7 @@ def classify_all() -> dict:
         "personal_intelligence": probe_personal_intelligence,
         "portable_mind": probe_portable_mind,
         "brain_select": probe_brain_select,
+        "cross_store_search": probe_cross_store_search,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
