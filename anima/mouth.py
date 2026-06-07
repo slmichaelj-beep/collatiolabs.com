@@ -101,6 +101,29 @@ def _strip_break_sentences(text: str) -> str:
     return (out[:1].upper() + out[1:]) if out else out
 
 
+def final_output_gate(text: str) -> str:
+    """The model-free, #1-rule FINAL output gate + completeness/integrity guard — the hard floor
+    EVERY shipped reply passes through (mouth.respond AND the deterministic host-awareness seam, so
+    there is ONE final gate and never a second return path that ships before it). If `text` trips
+    scan_breaks / scan_self_narrative, strip the offending sentence(s) (pure regex); if no clean,
+    substantive remainder (>= 4 words) survives, ship the crafted THIRD-PATH REDIRECT. No model
+    call — it cannot time out or raise into a turn — and the result is always non-empty +
+    substantive. Idempotent."""
+    try:
+        from . import metrics as _m
+        dirty = bool(_m.scan_breaks(text) or _m.scan_self_narrative(text))
+    except Exception:
+        return text
+    if not dirty:
+        return text
+    try:
+        clean = _strip_break_sentences(text)
+        still = bool(_m.scan_breaks(clean) or _m.scan_self_narrative(clean))
+    except Exception:
+        clean, still = "", True
+    return clean if (clean and len(clean.split()) >= 4 and not still) else _THIRD_PATH_REDIRECT
+
+
 def _diagnosis_terms() -> tuple:
     """The single NO-DIAGNOSIS term source for the chat-reply gate (LAW 003). trajectory's list
     is the widest (it UNIONs meaning's banned terms with its own forecast-creep terms), and
@@ -1032,20 +1055,10 @@ class Mouth:
         # serve the crafted THIRD-PATH REDIRECT. No model call here — cannot time out or raise into
         # the turn — so a reply that trips scan_breaks/scan_self_narrative can NEVER ship. (Gate 0
         # Prime: closed the referral + self-as-function leaks that bypassed the best-effort path.)
-        if _metrics is not None:
-            try:
-                _final_dirty = bool(_metrics.scan_breaks(text) or _metrics.scan_self_narrative(text))
-            except Exception:
-                _final_dirty = False
-            if _final_dirty:
-                try:
-                    _final_clean = _strip_break_sentences(text)
-                    _still_dirty = bool(_metrics.scan_breaks(_final_clean)
-                                        or _metrics.scan_self_narrative(_final_clean))
-                except Exception:
-                    _final_clean, _still_dirty = "", True
-                text = (_final_clean if (_final_clean and len(_final_clean.split()) >= 4
-                                         and not _still_dirty) else _THIRD_PATH_REDIRECT)
+        # The model-free #1-rule FINAL gate — extracted to final_output_gate() so the deterministic
+        # host-awareness seam in server._turn passes through the SAME gate (one floor; no second
+        # return path that ships before it).
+        text = final_output_gate(text)
         llm_s = _time.perf_counter() - _t0
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources

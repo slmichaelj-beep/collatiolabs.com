@@ -660,15 +660,34 @@ def _turn(name, text, voice=False):
         # On a self/personal/conversational turn, or no skill match, or a verifier-withheld
         # render, this is a no-op and the EXISTING pipeline below runs UNCHANGED (the #1-rule
         # guard in mouth.respond remains the gate for every self turn). Fully guarded.
-        # HOST AWARENESS — a deterministic, READ-ONLY answer for a host/network question (or an
-        # honest read-only refusal for a host-ACTION request). Like the LERF seam below, the text
-        # is FIXED (no LLM), so it ships verbatim and skips the conversational #1-rule backstop and
-        # the casual aside — it is host reporting, not a self/feeling turn. Guarded; returns None
-        # for any non-host turn so the normal pipeline runs unchanged.
+        # HOST AWARENESS seam — deterministic, READ-ONLY answer for a host/network question (or an
+        # honest read-only refusal for a host-ACTION request). Fixed text (no LLM); it may skip the
+        # casual aside and the model-based conversational verifier — but it STILL passes through the
+        # SAME model-free #1-rule final gate as every other reply (mouth.final_output_gate). There
+        # is no second return path that ships before the gate. MRI stages recorded along the way:
+        #   input -> host_awareness_match -> capability_check -> deterministic_reply -> final_gate -> shipped
+        # Guarded; None for any non-host turn so the normal pipeline runs unchanged.
         _host_reply = None
         try:
             from . import host_awareness as _ha_live
-            _host_reply = _ha_live.respond(name, text, cloud_safe=_cloud_on)
+            from .mouth import final_output_gate as _final_gate
+            _host_match = _ha_live.classify(text)
+            if _host_match:
+                _stg("host_awareness_match", in_shape={"text_chars": len(text or "")},
+                     out={"matched": True, "kind": _host_match},
+                     note="host question / action request detected")
+                _ha_on = _ha_live.is_on(name)
+                _stg("capability_check",
+                     out={"host_awareness": bool(_ha_on), "wave": "read-only", "kind": _host_match},
+                     note="read-only capability gate — no host action available this wave")
+                _raw_host = _ha_live.respond(name, text, cloud_safe=_cloud_on)
+                if _raw_host:
+                    _stg("deterministic_reply", out={"chars": len(_raw_host)},
+                         note="fixed text — no LLM, no curiosity/aside, no model verifier")
+                    _host_reply = _final_gate(_raw_host)   # the SAME #1-rule final gate every reply uses
+                    _stg("final_gate", out={"changed": _host_reply != _raw_host,
+                                            "chars": len(_host_reply or "")},
+                         note="model-free #1-rule final gate + output integrity (shared)")
         except Exception:
             _host_reply = None
         _lerf_solved = False

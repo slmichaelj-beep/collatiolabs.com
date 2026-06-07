@@ -209,6 +209,19 @@ def _is_host_question(low: str) -> bool:
     return any(t in low for t in _HOST_TERMS)
 
 
+def classify(text: str) -> Optional[str]:
+    """The host-awareness MATCH (for the MRI seam): 'action' (a host-action request), 'question'
+    (a host/network question), or None (an ordinary turn). Pure; mirrors respond()'s routing."""
+    low = (text or "").lower().strip()
+    if not low:
+        return None
+    if _is_action_request(low):
+        return "action"
+    if _is_host_question(low):
+        return "question"
+    return None
+
+
 def respond(name: str, text: str, *, cloud_safe: bool = False) -> Optional[str]:
     """The deterministic host-awareness reply, or None when the turn isn't about the host.
       * a host-ACTION request -> the read-only refusal (Vera takes no host action this wave)
