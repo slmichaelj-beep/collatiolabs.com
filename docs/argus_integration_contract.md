@@ -51,5 +51,14 @@ This prevents Vera from ever connecting to a non-certified or **action-capable**
 9. **No #1-rule regression** — the reply-path scanners are unaffected; Gate 0 Prime stays green.
 10. **Isolation** — the Argus repo (`~/Developer/Argus`) is never modified, and Argus never writes `.anima`.
 
+## Live answer behavior (deterministic, no LLM)
+Routed before generation in `server._turn` (mirrors the LERF seam — fixed text, so the #1-rule
+reply path is untouched). `host_awareness.respond(name, text)` returns:
+- **Host Awareness off** → "Host Awareness is off. I can answer generally, or you can enable Argus Host MRI in settings."
+- **Argus not running** → "I don't currently have Argus connected, so I can't inspect your Mac live."
+- **Connected + certified** → "Argus shows … / Evidence: … / Confidence: …"
+- **Asked to take a host action** → "This integration is read-only right now. I can explain what Argus sees and simulate possible outcomes, but I can't take host actions from Vera in this wave."
+- **Any non-host turn** → `None` (the normal reply pipeline runs unchanged — no hijack).
+
 > A future wave may add a separate, confirm-gated host-action capability. It is intentionally
 > absent here: this first integration is read-only by contract and by code.

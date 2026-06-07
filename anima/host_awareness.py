@@ -174,3 +174,69 @@ def actions(name: str) -> Optional[dict]:
         return c.action_log() if c.available() else None
     except Exception:
         return None
+
+
+# --------------------------------------------------------------------------------------------
+# LIVE ANSWER BEHAVIOR — the deterministic replies Vera gives for host questions / action asks.
+# These are FIXED strings (no LLM), routed before generation in server._turn, so the #1-rule
+# reply path stays untouched. Perception only: a host-ACTION request gets an honest read-only
+# refusal — Vera takes no host action in this wave ("nerves, not muscles").
+# --------------------------------------------------------------------------------------------
+OFF_MESSAGE = ("Host Awareness is off. I can answer generally, or you can enable Argus Host MRI "
+               "in settings.")
+NOT_CONNECTED_MESSAGE = "I don't currently have Argus connected, so I can't inspect your Mac live."
+READ_ONLY_REFUSAL = ("This integration is read-only right now. I can explain what Argus sees and "
+                     "simulate possible outcomes, but I can't take host actions from Vera in this wave.")
+
+_ACTION_VERBS = ("block", "pause", "kill", "quarantine", "cut off", "cut-off", "disconnect",
+                 "shut off", "shut down", "firewall", "deny ", "ban ", "stop")
+_NET_OBJECTS = ("connection", "destination", " ip", "outbound", "traffic", "network", "internet",
+                "phoning home", "phone home", "from connecting", "from reaching", "from talking to",
+                "from phoning")
+_HOST_TERMS = ("argus", "host mri", "host awareness", "my mac", "this mac", "my computer",
+               "my machine", "outbound", "network connection", "what is my mac doing",
+               "what's my mac doing", "phoning home", "phone home", "reaching out to",
+               "what apps are connecting", "which apps are connecting", "is anything connecting",
+               "data leaving", "sending data out", "talking to the internet")
+
+
+def _is_action_request(low: str) -> bool:
+    return any(v in low for v in _ACTION_VERBS) and (
+        any(o in low for o in _NET_OBJECTS) or "argus" in low)
+
+
+def _is_host_question(low: str) -> bool:
+    return any(t in low for t in _HOST_TERMS)
+
+
+def respond(name: str, text: str, *, cloud_safe: bool = False) -> Optional[str]:
+    """The deterministic host-awareness reply, or None when the turn isn't about the host.
+      * a host-ACTION request -> the read-only refusal (Vera takes no host action this wave)
+      * a host QUESTION       -> off / not-connected / "Argus shows … Evidence … Confidence …"
+    Read-only + guarded; returns None for any ordinary turn so the normal pipeline runs unchanged."""
+    low = (text or "").lower().strip()
+    if not low:
+        return None
+    if _is_action_request(low):
+        return READ_ONLY_REFUSAL
+    if not _is_host_question(low):
+        return None
+    if not is_on(name):
+        return OFF_MESSAGE
+    try:
+        s = summary(name, cloud_safe=cloud_safe)
+    except Exception:
+        return NOT_CONNECTED_MESSAGE
+    if not s.get("available"):
+        return NOT_CONNECTED_MESSAGE
+    head = s.get("headline", "")
+    if s.get("redacted"):                       # cloud brain — specifics stay on the Mac
+        return (f"Argus shows: {head}\nEvidence:\n- (specifics kept on your Mac — I'm on a cloud "
+                f"brain right now)\nConfidence: based on the local monitor")
+    notable = s.get("notable", []) or []
+    ev = [f"- {n.get('issue')}: {n.get('means')}".rstrip(": ") for n in notable[:4]]
+    if not ev:
+        ev = ["- nothing flagged right now."]
+    confs = [n.get("confidence") for n in notable if isinstance(n.get("confidence"), (int, float))]
+    conf = (str(round(sum(confs) / len(confs), 2)) if confs else "—")
+    return f"Argus shows: {head}\nEvidence:\n" + "\n".join(ev) + f"\nConfidence: {conf}"

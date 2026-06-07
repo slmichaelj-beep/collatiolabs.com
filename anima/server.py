@@ -660,6 +660,17 @@ def _turn(name, text, voice=False):
         # On a self/personal/conversational turn, or no skill match, or a verifier-withheld
         # render, this is a no-op and the EXISTING pipeline below runs UNCHANGED (the #1-rule
         # guard in mouth.respond remains the gate for every self turn). Fully guarded.
+        # HOST AWARENESS — a deterministic, READ-ONLY answer for a host/network question (or an
+        # honest read-only refusal for a host-ACTION request). Like the LERF seam below, the text
+        # is FIXED (no LLM), so it ships verbatim and skips the conversational #1-rule backstop and
+        # the casual aside — it is host reporting, not a self/feeling turn. Guarded; returns None
+        # for any non-host turn so the normal pipeline runs unchanged.
+        _host_reply = None
+        try:
+            from . import host_awareness as _ha_live
+            _host_reply = _ha_live.respond(name, text, cloud_safe=_cloud_on)
+        except Exception:
+            _host_reply = None
         _lerf_solved = False
         _lerf_reply = None
         _lerf_rec = None
@@ -671,7 +682,22 @@ def _turn(name, text, voice=False):
         except Exception:
             _lerf_solved, _lerf_reply, _lerf_rec = False, None, None
         _g0 = time.perf_counter()
-        if _lerf_solved:
+        if _host_reply:
+            # deterministic host-awareness answer (fixed text) — ship verbatim, no LLM.
+            from .mouth import Utterance as _UttH
+            try:
+                from .mouth import delivery as _delivH
+                _hh = _delivH(heart.feeling(), 0)
+            except Exception:
+                _hh = {"register": "plain", "rate": 1.0}
+            u = _UttH(text=_host_reply, delivery=_hh, backend="host:awareness",
+                      feeling="", audio_path=None)
+            if voice and audio_out and getattr(mouth, "voice", None) is not None:
+                try:
+                    u.audio_path = mouth.voice.speak(_host_reply, _hh, audio_out)
+                except Exception:
+                    u.audio_path = None
+        elif _lerf_solved:
             # The task was solved LOCALLY by a certified skill, grounded-verified. Wrap it in an
             # Utterance so the SAME downstream bookkeeping (history, durable-fact capture, save,
             # telemetry) runs — but the conversational #1-rule/confabulation backstop and the
@@ -733,7 +759,7 @@ def _turn(name, text, voice=False):
         # certified task output, so the whole block is skipped for a LERF-solved turn.
         _verdict = None
         try:
-            if _lerf_solved:
+            if _lerf_solved or _host_reply:        # certified task / deterministic host answer
                 raise _SkipConvVerifier()
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
@@ -899,6 +925,7 @@ def _turn(name, text, voice=False):
                             and name not in _CURIOSITY_ASKED
                             and not _fact_block and not cap_note
                             and not _lerf_solved    # a certified task answer is not a casual turn
+                            and not _host_reply     # nor is a deterministic host-awareness answer
                             and not (_verdict is not None and getattr(_verdict, "override", False)))
             if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
