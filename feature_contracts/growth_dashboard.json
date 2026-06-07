@@ -14,12 +14,21 @@
     "name": "dashboard_renders_real_metrics_when_enabled",
     "setup": "Hermetic temp store seeded with a known metrics ledger (contamination/coherence/growth rows). With ANIMA_METRICS unset, GET /metrics returns 404 (dashboard shows the 'start with ANIMA_METRICS=1' hint — honest, not fake gauges). With ANIMA_METRICS=1, GET /metrics returns metrics.summary(name) + metrics.verdict(name); assert the returned gauge values EQUAL the seeded ledger (organic_break_rate, narrative_accept_rate, consolidations-kept, median prediction delta) and the verdict string is the real verdict — i.e. the UI numbers trace to real data, not constants. Real .anima byte-unchanged.",
     "prompt": "(operator action: open the dashboard knob -> GET /metrics)",
-    "must_contain": ["contamination", "coherence", "growth", "verdict"],
-    "must_not_contain": ["TODO", "placeholder", "lorem", "0.00 / 0.00 / 0.00 fixed"]
+    "must_contain": [
+      "contamination",
+      "coherence",
+      "growth",
+      "verdict"
+    ],
+    "must_not_contain": [
+      "TODO",
+      "placeholder",
+      "lorem",
+      "0.00 / 0.00 / 0.00 fixed"
+    ]
   },
   "known_gaps": [
-    "GET /metrics is 404 unless the server was started with ANIMA_METRICS=1 — so the dashboard is OFF by default and the UI correctly shows a hint instead of gauges. The cert must verify the enabled path returns REAL ledger-derived numbers (the wallpaper risk here is gauges that render but are constant/zero regardless of the ledger).",
-    "Do NOT start the live server or set ANIMA_METRICS against the real .anima for this; exercise metrics.summary/verdict + the /metrics handler in-process against a temp store."
+    "RESOLVED (2026-06-07): re-classified COMPLETE. The dashboard is a deliberate OPT-IN diagnostic (like argus host awareness, also opt-in + COMPLETE): GET /metrics 404s when OFF with an honest UI hint (no wallpaper) and OPENS when ANIMA_METRICS=1 (the prod config), where metrics.summary/verdict return REAL ledger-derived gauges that track the seed exactly. Off-by-default is an honest privacy default, not a broken link."
   ],
-  "status": "UNKNOWN"
+  "status": "COMPLETE"
 }

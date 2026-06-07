@@ -204,6 +204,34 @@ def asked_trait(question: str) -> Optional[str]:
     return None
 
 
+# Compound / non-lookup cues: if a turn carries one of these it is NOT a clean fact-recall
+# question — there is more to address than the fact, so the deterministic seam must defer to the
+# model (which has the fact bound) rather than answer only the slot and drop the rest.
+_COMPOUND_CUES = re.compile(
+    r"(?:\band\b|\bbut\b|\balso\b|\bplus\b|\bbesides\b|\bfeel|\bfeeling|\badvice\b|"
+    r"\bshould i\b|\bwhat should\b|\bremind me\b|\bbecause\b)", re.I)
+
+
+def fact_question(question: str) -> Optional[str]:
+    """The trait slug IFF ``question`` is a CLEAN, direct personal-fact question suitable for a
+    deterministic answer: it routes to a known trait (``asked_trait``), is short and single-clause,
+    and carries no compound/emotional content the model should handle. Returns None otherwise so
+    the normal pipeline runs unchanged. This is the gate for the deterministic known-fact seam
+    (the "known-fact binding, no-hedge" path): a clean "when's my birthday?" is answered straight
+    from memory with zero hedge and no model; "I'm down today, when's my birthday again?" is not."""
+    slot = asked_trait(question)
+    if not slot:
+        return None
+    t = (question or "").strip()
+    if len(t.split()) > 14:                      # a long turn carries more than a lookup
+        return None
+    if t.count("?") > 1:                         # multiple questions -> let the model handle it
+        return None
+    if _COMPOUND_CUES.search(t):                 # compound/emotional content present
+        return None
+    return slot
+
+
 # ---------------------------------------------------------------------------
 # PART 1 — THE BINDING EVIDENCE CONTRACT.
 #

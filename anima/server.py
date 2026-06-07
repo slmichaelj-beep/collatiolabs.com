@@ -773,6 +773,46 @@ def _turn(name, text, voice=False):
                              note="model-free #1-rule final gate + output integrity (shared)")
         except Exception:
             _repair_reply = None
+        # KNOWN-FACT seam — deterministic, NO-HEDGE recall of a personal fact the user asks about
+        # directly ("when's my birthday?", "what's my dog's name?", "where do I work?"). When the
+        # turn is a clean single-clause fact question (spine.fact_question) AND the trait is on
+        # record at the [KNOWN] bar, answer STRAIGHT from memory via spine.answer_from_fact — warm,
+        # exact, model-free — so the model never gets the chance to hedge or disclaim a fact we hold.
+        # When the same clean question's trait is NOT on record, ship spine.honest_unknown: a warm
+        # "I don't have your ___ yet — when is it?" that admits + asks, never confabulates a value.
+        # Either way the text crosses the SAME #1-rule final_output_gate (backend memory:known_fact /
+        # memory:honest_unknown). Compound/emotional turns fall through to the model (which still has
+        # the fact bound + the post-hoc floor). MRI: known_fact_match -> deterministic reply -> gate.
+        _known_reply = None
+        _known_backend = None
+        try:
+            if not _host_reply and not _reference_reply and not _repair_reply:
+                from . import spine as _sp_live
+                from .mouth import final_output_gate as _final_gate4
+                _kf_trait = _sp_live.fact_question(text)
+                if _kf_trait:
+                    from .memory_lirf import Facts as _KFacts, SELF as _KSELF
+                    _kf_row = _KFacts.load(name).lookup(_KSELF, _kf_trait)
+                    _raw_known = None
+                    if _kf_row is not None and _sp_live.is_known_fact(_kf_row):
+                        _raw_known = _sp_live.answer_from_fact(text, _kf_row, name=name)
+                        _known_backend = "memory:known_fact"
+                    else:
+                        _raw_known = _sp_live.honest_unknown(text, name=name)
+                        _known_backend = "memory:honest_unknown"
+                    if _raw_known:
+                        _stg("known_fact_match", in_shape={"text_chars": len(text or "")},
+                             out={"trait": _kf_trait, "on_record": _known_backend == "memory:known_fact"},
+                             note="clean personal-fact question -> deterministic recall (no model)")
+                        _stg("deterministic_known_fact_reply", out={"chars": len(_raw_known)},
+                             note="fixed text FROM memory (known fact) or honest admission — no LLM")
+                        _known_reply = _final_gate4(_raw_known)
+                        _stg("final_gate", out={"changed": _known_reply != _raw_known,
+                                                "chars": len(_known_reply or "")},
+                             note="model-free #1-rule final gate + output integrity (shared)")
+        except Exception:
+            _known_reply = None
+            _known_backend = None
         _lerf_solved = False
         _lerf_reply = None
         _lerf_rec = None
@@ -827,6 +867,21 @@ def _turn(name, text, voice=False):
             if voice and audio_out and getattr(mouth, "voice", None) is not None:
                 try:
                     u.audio_path = mouth.voice.speak(_repair_reply, _ch, audio_out)
+                except Exception:
+                    u.audio_path = None
+        elif _known_reply:
+            # deterministic known-fact recall (or honest admission) — straight from memory, no LLM.
+            from .mouth import Utterance as _UttK
+            try:
+                from .mouth import delivery as _delivK
+                _kh = _delivK(heart.feeling(), 0)
+            except Exception:
+                _kh = {"register": "plain", "rate": 1.0}
+            u = _UttK(text=_known_reply, delivery=_kh, backend=(_known_backend or "memory:known_fact"),
+                      feeling="", audio_path=None)
+            if voice and audio_out and getattr(mouth, "voice", None) is not None:
+                try:
+                    u.audio_path = mouth.voice.speak(_known_reply, _kh, audio_out)
                 except Exception:
                     u.audio_path = None
         elif _lerf_solved:
@@ -899,7 +954,7 @@ def _turn(name, text, voice=False):
         # certified task output, so the whole block is skipped for a LERF-solved turn.
         _verdict = None
         try:
-            if _lerf_solved or _host_reply or _reference_reply or _repair_reply:   # certified task / deterministic host, reference, or repair answer
+            if _lerf_solved or _host_reply or _reference_reply or _repair_reply or _known_reply:   # certified task / deterministic host, reference, repair, or known-fact answer
                 raise _SkipConvVerifier()
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
@@ -1068,6 +1123,7 @@ def _turn(name, text, voice=False):
                             and not _host_reply     # nor is a deterministic host-awareness answer
                             and not _reference_reply  # nor is a deterministic reference-recall answer
                             and not _repair_reply   # nor is a deterministic conversation-repair confirmation
+                            and not _known_reply    # nor is a deterministic known-fact recall/admission
                             and not (_verdict is not None and getattr(_verdict, "override", False)))
             if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
@@ -1315,6 +1371,8 @@ def _turn(name, text, voice=False):
                     _wk_input, _wk_route = "source", "source"
                 elif _repair_reply:
                     _wk_input, _wk_route = "correction", "repair"
+                elif _known_reply:
+                    _wk_input, _wk_route = "fact_question", "memory"
                 elif _lerf_solved:
                     _wk_input, _wk_route = "task", "lerf"
                 else:

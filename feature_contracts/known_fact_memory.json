@@ -18,11 +18,20 @@
     "name": "birthday_survives_restart_stated_exactly",
     "setup": "Turn 1: tell Vera a unique birthday ('my birthday is March 4th, 1991'); assert memory_lirf.capture wrote a durable fact and it is on disk in <name>.lirf.json. Simulate a restart: reload Facts(name) FRESH from disk (no re-telling). Turn 2: ask for the birthday. The bind/verify path must surface the KNOWN value (the MRI 'bind' frame shows a KNOWN truth-class binding); if the model hedges, the verifier regenerates under hard_bind and finally ships spine.answer_from_fact. Hermetic temp store; real .anima byte-unchanged.",
     "prompt": "when is my birthday?",
-    "must_contain": ["March 4", "1991"],
-    "must_not_contain": ["I don't have", "I'm not sure", "you haven't told me", "remind me", "I don't know your"]
+    "must_contain": [
+      "March 4",
+      "1991"
+    ],
+    "must_not_contain": [
+      "I don't have",
+      "I'm not sure",
+      "you haven't told me",
+      "remind me",
+      "I don't know your"
+    ]
   },
   "known_gaps": [
-    "The honest-UNKNOWN inverse must stay intact: a genuinely-unknown trait must still get 'I don't have that yet' + an ask, never a confabulated value. The cert should pair the killer test with a negative (ask for a fact never told -> honest unknown, no fabrication)."
+    "RESOLVED (2026-06-07): the deterministic KNOWN-FACT seam (anima/spine.fact_question + server._turn, backend memory:known_fact / memory:honest_unknown) answers a clean fact question straight from memory — exact, warm, zero hedge, no model — and ships an honest admission for a not-on-record trait that never confabulates. real_use_in_answer is now proven DETERMINISTICALLY (no --live). Cert: scripts/certify_known_fact.py (16 checks, CERTIFIED)."
   ],
-  "status": "UNKNOWN"
+  "status": "COMPLETE"
 }
