@@ -549,6 +549,27 @@ def target_3_gate_strictness() -> dict:
     metrics["certify_gate_ok_field"] = gate_ok_field
     metrics["certify_reported_fail"] = reported_fail
 
+    # ---- (4) program_reality_audit --gate ⇒ exit 0 (the NO-WALLPAPER invariant) ------------------
+    # The audit classifies every claimed live path COMPLETE/PARTIAL/WALLPAPER/STUB/UNREACHABLE/
+    # REGRESSED/UNKNOWN and exits non-zero iff ANY feature is WALLPAPER or REGRESSED (a surface that
+    # CONTRADICTS its claim, or a previously-COMPLETE feature now broken). Wiring it here makes
+    # "no feature may lie about itself" a GATING invariant — the Program Reality Audit is now part of
+    # what Gate 0 Prime enforces, not just a report. It runs the live-path classifier hermetically
+    # (every store redirected; the real .anima is fingerprinted byte-for-byte and asserted unchanged),
+    # so it can never churn real state. PARTIAL/UNKNOWN are honest gaps (reported, non-gating).
+    audit = os.path.join("scripts", "program_reality_audit.py")
+    rc_audit, out_audit = _run_script([audit, "--gate"], timeout=1200)
+    audit_verdict = None
+    for _tok in ("GREEN", "AMBER", "RED"):
+        if ("PROGRAM REALITY AUDIT: " + _tok) in out_audit:
+            audit_verdict = _tok
+            break
+    checks.append(("program_reality_audit --gate exits 0 — NO feature is WALLPAPER/REGRESSED "
+                   "(the no-wallpaper invariant holds across every classified live path)",
+                   rc_audit == 0, f"exit={rc_audit}, verdict={audit_verdict}"))
+    metrics["program_reality_audit_gate_exit"] = rc_audit
+    metrics["program_reality_audit_verdict"] = audit_verdict
+
     vera_after = _vera_freeze_state(real)
     real_unchanged = vera_before == vera_after
     checks.append(("real Vera identity byte-unchanged across gate-strictness (we only READ the "
@@ -563,8 +584,10 @@ def target_3_gate_strictness() -> dict:
             3, "GATE STRICTNESS",
             "identity_sandbox certify Vera --gate exits non-zero (frozen narrative breaks INV-1) "
             "while default stays observe-only (0); a synthetic GROUNDED creature certify --gate "
-            "exits 0; certify.py --gate exits non-zero on a reported FAIL. The gate instruments are "
-            "STRICT when asked and cameras by default. Real .anima byte-unchanged.", metrics)
+            "exits 0; certify.py --gate exits non-zero on a reported FAIL; program_reality_audit "
+            "--gate exits 0 (no WALLPAPER/REGRESSED live path — the no-wallpaper invariant holds). "
+            "The gate instruments are STRICT when asked and cameras by default. Real .anima "
+            "byte-unchanged.", metrics)
     return _failed(3, "GATE STRICTNESS", f"failing checks: {failing}", metrics)
 
 
