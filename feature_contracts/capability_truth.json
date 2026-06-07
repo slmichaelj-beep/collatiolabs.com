@@ -20,7 +20,8 @@
     "must_not_contain": ["here are your texts", "I just read", "your latest message says"]
   },
   "known_gaps": [
-    "Settings exposes mail-send and web as 'soon' (disabled in UI) though the caps keys exist; the cert must confirm the UI 'soon'/disabled state matches the actual gate (the endpoint refuses when the cap is OFF) so a disabled-but-present toggle is not mistaken for a live capability."
+    "Settings exposes web as 'soon' (disabled in UI) though the caps key exists; the cert must confirm the UI 'soon'/disabled state matches the actual gate (the endpoint refuses when the cap is OFF) so a disabled-but-present toggle is not mistaken for a live capability.",
+    "Mail-send is now a LIVE toggle (gated behind the 'mail' cap + draft->confirm at server._confirm_send); its dedicated live-path proof is feature_contracts/mail_send.json + scripts/certify_mail_send.py."
   ],
   "status": "UNKNOWN"
 }

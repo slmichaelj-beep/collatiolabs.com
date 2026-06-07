@@ -1268,9 +1268,11 @@ def _turn(name, text, voice=False):
         if routed and routed.get("send"):          # surface a pending draft for the UI
             s = routed["send"]                      # to render a confirm card. Sends nothing.
             try:
-                d = json.loads(_draft(f"/{s['kind']}/draft", {"to": s["to"], "body": s["body"]}))
+                d = json.loads(_draft(f"/{s['kind']}/draft",
+                                      {"to": s["to"], "body": s["body"],
+                                       "subject": s.get("subject", "")}))
                 if d.get("ok"):
-                    out["draft"] = d["draft"]       # {id, kind, to, body}
+                    out["draft"] = d["draft"]       # {id, kind, to, body[, subject]}
             except Exception:
                 pass
         # LERF ROUTE LEDGER — one structured line per turn (which rung solved it, full-solve

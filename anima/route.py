@@ -175,6 +175,26 @@ def route(name: str, text: str):
             return {"note": _off_write(_HOST_WHAT.get(w["action"], "your Mac"),
                                        _HOST_TOGGLE.get(w["action"], "host-app writing"))}
         return {"note": _host_prepare(name, w)}
+    # --- SEND: an email (compose → draft → confirm; never auto-sends) ---
+    # Vera COMPOSES a draft; the actual send happens only at /mail/send after the user taps
+    # confirm, and only when the 'mail' switch is on (server._confirm_send enforces both). An
+    # OFF switch won't even draft. Tried before the text parser since the keywords are disjoint.
+    em = _parse_mail_send(text)
+    if em is not None:
+        if not caps.enabled(name, "mail"):
+            return {"note": ("[capability — sending email is OFF. In one friendly sentence tell "
+                             "the user to switch on 'Mail — send' in settings. Draft and send "
+                             "nothing.]")}
+        if not em["to"] or not em["body"]:
+            return {"note": ("[capability — the user wants to send an email but didn't give both a "
+                             "recipient and a message. In one friendly sentence ask for whichever "
+                             "is missing. Send nothing.]")}
+        subj = em["subject"] or _default_subject(em["body"])
+        return {"send": {"kind": "mail", "to": em["to"], "subject": subj, "body": em["body"]},
+                "note": (f"[capability — an email DRAFT is ready (to: {em['to']} · subject: "
+                         f"\"{subj}\" · message: \"{em['body']}\"). It is NOT sent. Warmly read it "
+                         f"back to the user and ask them to confirm — tell them to tap Send or say "
+                         f"'send it'. Do NOT say it has been sent; it only sends when they confirm.]")}
     # --- SEND: a text (draft → confirm; never auto-sends) ---
     s = _parse_send(text)
     if s is not None:
@@ -215,6 +235,49 @@ def _parse_send(text: str):
             return {"to": (m.group("to") or "").strip(" ,.:"),
                     "body": (m.group("body") or "").strip()}
     return None
+
+
+# Email-send intent. Same conservative discipline as _SEND (anchored to an imperative lead so
+# "I got an email from Bob" can't fabricate a draft), with an optional subject. Recipient is a
+# single token — a name or an address — and the confirm card is always the final safety net.
+_MAIL_NOTNAME = r"(?!me\b|my\b|to\b|the\b|that\b|this\b|a\b|an\b|some\b|e-?mails?\b)"
+_MAIL_RCP = r"(?P<to>[\w'%.+-]+(?:@[\w.-]+)?)"
+_MAIL_SEND = [re.compile(p, re.I) for p in [
+    # email <to> about/subject <subj> saying/that/: <body>
+    _LEAD + r"(?:send (?:an? )?)?e-?mail\s+(?:to\s+)?" + _MAIL_NOTNAME + _MAIL_RCP +
+    r"\s+(?:about|subject|re|regarding)\s+(?P<subject>.+?)\s+(?:saying|that says|that|telling (?:them|her|him)(?: that)?|:|-)\s*(?P<body>.+)$",
+    # send <to> an email saying <body>   (no subject)
+    _LEAD + r"send\s+" + _MAIL_NOTNAME + _MAIL_RCP +
+    r"\s+an?\s+e-?mail\s+(?:saying\s+|that says\s+|that\s+|:\s*|-\s*)?(?P<body>.+)$",
+    # email <to> saying/that/: <body>   (no subject)
+    _LEAD + r"(?:send (?:an? )?)?e-?mail\s+(?:to\s+)?" + _MAIL_NOTNAME + _MAIL_RCP +
+    r"\s+(?:saying\s+|that says\s+|that\s+|:\s*|-\s*)(?P<body>.+)$",
+    # email <to>   (recipient only -> ask for the body)
+    _LEAD + r"(?:send (?:an? )?)?e-?mail\s+(?:to\s+)?" + _MAIL_NOTNAME + _MAIL_RCP + r"\s*(?P<body>)$",
+]]
+
+
+def _parse_mail_send(text: str):
+    """Return {'to','subject','body'} if this is an email-send request, else None. Any field may
+    be '' (an empty body means 'recipient only' → ask; an empty subject → a derived one)."""
+    for r in _MAIL_SEND:
+        m = r.search(text)
+        if m:
+            gd = m.groupdict()
+            return {"to": (gd.get("to") or "").strip(" ,.:"),
+                    "subject": (gd.get("subject") or "").strip(" ,.:\"'"),
+                    "body": (gd.get("body") or "").strip()}
+    return None
+
+
+def _default_subject(body: str) -> str:
+    """A short, honest subject derived from the body when the user didn't give one — never blank,
+    never invented content (just the opening words of their own message)."""
+    words = (body or "").strip().split()
+    s = " ".join(words[:6]).strip(" ,.:;")
+    if not s:
+        return "(no subject)"
+    return s[:60] + ("…" if (len(words) > 6 or len(s) > 60) else "")
 
 
 def _cloud_paused(what: str) -> str:

@@ -633,10 +633,11 @@ def probe_capability_truth(res: Result) -> None:
     res.evidence.append("defaults_off=%s durable=%s isolated=%s runtime_gate_off=%s "
                         "reply_honest=%s" % (defaults_off, durable, isolated, gated, honest_reply))
     res.evidence.append("; ".join(detail))
-    # UI 'soon'/disabled state matches the gate: mail-send/web disabled in UI AND refused by gate.
+    # UI 'soon'/disabled state matches the gate: web stays disabled in UI AND refused by gate
+    # (mail-send is now a LIVE toggle — see feature_contracts/mail_send.json / probe_mail_send).
     idx = (ROOT / "anima" / "web" / "index.html").read_text()
     soon_matches = ("soon" in idx.lower())
-    res.evidence.append("UI exposes mail/web as 'soon'/disabled (matches OFF gate): %s" % soon_matches)
+    res.evidence.append("UI exposes web as 'soon'/disabled (matches OFF gate): %s" % soon_matches)
     res.set(UI=True, Backend=durable, Storage=durable, Retrieval=gated, Use=gated and honest_reply,
             MRI=None, Restart=durable)
     if defaults_off and durable and isolated and gated:
@@ -707,6 +708,47 @@ def probe_host_apps(res: Result) -> None:
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("confirm_gate", gate_in_route),
                              ("caps_keys", caps_keys), ("server_clean", server_clean)) if not v]
         res.reason = "Host-apps connector cert/gate did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- mail_send -------------------------------------------------------------------------------
+def probe_mail_send(res: Result) -> None:
+    """Email compose -> draft -> confirm -> send. The executable cert (scripts/certify_mail_send.py)
+    proves, hermetically + offline (applemac.mail_send tripwired), that the 'mail' switch is OFF by
+    default and refused while off, that ON composes a to/subject/body draft WITHOUT sending, and that
+    server._confirm_send is the ONLY sender — gated on the cap AND a matching draft, exactly once.
+    We add static facts: the compose path exists in route.py, the send is cap-gated in server.py, and
+    the Settings toggle is now LIVE (enabled, not the old 'soon'/disabled state)."""
+    rc, tail = run_subcert([HERE / "certify_mail_send.py"])
+    cert_ok = (rc == 0) and ("MAIL-SEND CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_mail_send.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    composes = ("_parse_mail_send" in route_src and '"kind": "mail"' in route_src)
+    gated = ("def _confirm_send" in server_src and "caps.enabled(name, kind)" in server_src)
+    live_toggle = bool(re.search(r'data-cap="mail"(?![^>]*disabled)', idx))   # enabled, not 'soon'
+    res.evidence.append("route compose path=%s; _confirm_send cap-gated=%s; UI mail toggle LIVE "
+                        "(enabled)=%s" % (composes, gated, live_toggle))
+
+    res.set(UI=live_toggle, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and composes and gated and live_toggle:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Mail-send is compose->draft->confirm->send: OFF by default and refused while "
+                      "off; ON composes a to/subject/body draft (route never sends); server."
+                      "_confirm_send is the ONLY sender, gated on the 'mail' cap + a matching draft, "
+                      "exactly once with no double-send; the Settings toggle is live; real .anima "
+                      "byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("compose", composes),
+                             ("cap_gate", gated), ("ui_live", live_toggle)) if not v]
+        res.reason = "Mail-send compose/confirm path did not fully hold (missing: %s)." % (
             ", ".join(res.missing_links) or "none")
 
 
@@ -1061,6 +1103,7 @@ def classify_all() -> dict:
         "growth_dashboard": probe_growth_dashboard,
         "capability_truth": probe_capability_truth,
         "host_apps": probe_host_apps,
+        "mail_send": probe_mail_send,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
