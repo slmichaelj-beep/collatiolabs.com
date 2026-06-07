@@ -797,6 +797,42 @@ def probe_personal_intelligence(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- portable_mind ---------------------------------------------------------------------------
+def probe_portable_mind(res: Result) -> None:
+    """Portable Mind: export -> import round-trips losslessly + freeze-safe. anima.portable
+    --selftest seeds a mind in store A, exports it, imports into a FRESH store B, and proves the
+    identity facts + cognitive objects round-trip (and a Vera-self object is refused on import). We
+    add static facts: the GET /mind/export endpoint exists, export/import live in portable.py, and
+    the 'Export my mind' button is wired."""
+    rc, tail = run_subcert(["-m", "anima.portable", "--selftest"])
+    cert_ok = (rc == 0) and ("PORTABLE MIND SELFTEST: PASS" in tail)
+    res.evidence.append("anima.portable --selftest -> exit %d; %s" % (rc, "PASS" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    portable_src = (ROOT / "anima" / "portable.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    endpoint = "/mind/export" in server_src and "export_mind" in server_src
+    engine = "def export_mind(" in portable_src and "def import_mind(" in portable_src
+    ui = 'id="mindexport"' in idx and "/mind/export" in idx
+    res.evidence.append("GET /mind/export=%s; export/import in portable.py=%s; UI button=%s"
+                        % (endpoint, engine, ui))
+
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and endpoint and engine and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "restart_survival"]
+        res.reason = ("Portable mind round-trips losslessly (export -> import into a fresh store) and "
+                      "is freeze-safe; the 'Export my mind' button -> GET /mind/export -> portable."
+                      "export_mind is wired; real .anima untouched.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("selftest", cert_ok), ("endpoint", endpoint),
+                             ("engine", engine), ("ui", ui)) if not v]
+        res.reason = "Portable-mind live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1150,6 +1186,7 @@ def classify_all() -> dict:
         "host_apps": probe_host_apps,
         "mail_send": probe_mail_send,
         "personal_intelligence": probe_personal_intelligence,
+        "portable_mind": probe_portable_mind,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
