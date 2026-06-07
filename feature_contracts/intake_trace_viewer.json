@@ -1,0 +1,24 @@
+{
+  "feature": "intake_trace_viewer",
+  "claim": "Every document Vera ingests leaves a retrievable, renderable MRI trace — the observable story of one intake (uploaded -> parsed[n chunks] -> classified[type, reason] -> routed[destinations] -> what-failed). A stored intake's trace is fetchable by its trace_id (GET /intake/trace?trace_id=...) AND falls back to the most recent (last_trace) when none is given, and render_trace() turns the stored doc into a readable walkthrough that the 'View trace'/'Details' overlay shows. Embedded instruction-like text in a source is recorded as a what-failed/safety entry — quarantined as DATA, never executed. This is the INTAKE trace viewer, distinct from the whole_system_mri.",
+  "owner": "anima/intake.py (IntakeTrace records uploaded/parsed/classified/routed/extracted stages + failures and commits ONE jsonl line per ingest to .anima/{name}.intake.jsonl; trace(name, id) / last_trace(name) read it back; render_trace(doc) -> the human MRI walkthrough; scan_for_embedded_instructions surfaces injection markers as a failure, DATA-only), anima/server.py (GET /intake/trace?name=&trace_id= -> {ok, trace, render}; trace_id given -> trace(), else last_trace()), anima/web/index.html (#mriOverlay + openMRI(traceId) -> /intake/trace -> renders the steps + d.render; the 'View trace'/'Details' [data-tid] buttons trigger it)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval"
+  ],
+  "killer_test": {
+    "name": "stored_intake_trace_is_retrievable_and_renders_offline",
+    "setup": "Hermetic temp store (intake.STORE redirected) + OFFLINE (ANIMA_INTAKE_OFFLINE=1, no socket). Seed an intake offline: write a text source to the temp dir and intake.ingest(path, name=N) -> a real IntakeResult with a trace_id; the trace is committed to {name}.intake.jsonl. Then prove retrieval: trace(N, trace_id) returns the stored doc with that exact trace_id and the four pipeline stages (uploaded/parsed/classified/routed) present; last_trace(N) returns the SAME doc when no id is given (the viewer's default); a bogus id returns None (honest miss). render_trace(doc) produces the readable walkthrough ('INTAKE MRI', the numbered uploaded/parsed/classified/routed lines, a what-failed section). Safety: a source carrying an embedded-instruction marker records a what-failed/safety entry and render_trace shows it treated as DATA ONLY, never executed. The server handler shape (GET /intake/trace given id -> trace, else last_trace) is statically confirmed. Real .anima byte-identical before/after. scripts/certify_intake_trace_viewer.py is the executable form.",
+    "prompt": "show me the trace for that upload",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Wave 1 ingest produces the PLAN + the trace and never commits durable knowledge (render_trace says 'committed durable storage: NO'); the trace VIEWER path (store -> retrieve -> render -> overlay) is fully live and is what this certifies. Heavy parsers (PDF/URL/etc.) honestly return needs_dependency under Wave 1 — recorded as a what-failed entry, which is honest, not a stub; the trace of a plain-text source is the deterministic offline path proven here."
+  ],
+  "status": "UNKNOWN"
+}

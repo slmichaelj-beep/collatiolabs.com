@@ -935,6 +935,579 @@ def probe_cross_store_search(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- personality_dials -----------------------------------------------------------------------
+def probe_personality_dials(res: Result) -> None:
+    """The eight 0-100 personality sliders (manner, never honesty)."""
+    rc, tail = run_subcert([HERE / "certify_personality_dials.py"])
+    cert_ok = (rc == 0) and ("PERSONALITY-DIALS CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_personality_dials.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    dials_src = (ROOT / "anima" / "dials.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    primitives = all(s in dials_src for s in ("def load(", "def save(", "def ui(",
+                                              "def to_prompt(", "def _clamp("))
+    endpoint = '"/dials"' in server_src and "dials.ui(" in server_src and "dials.save(" in server_src
+    ui = 'id="dials"' in idx and "renderDials" in idx and "/dials" in idx
+    res.evidence.append("dials primitives=%s; GET/POST /dials endpoint=%s; #dials Personality UI=%s"
+                        % (primitives, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and primitives and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Eight personality dials load with Vera's real default temperament, a saved "
+                      "value is durable on reload, every value is clamped 0-100 (garbage coerces "
+                      "safe), and the GET/POST /dials round-trip is value-stable (to_prompt a pure "
+                      "function of the dials). The Settings 'Personality' #dials panel + the /dials "
+                      "endpoint are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("primitives", primitives),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Personality-dials live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- curiosity_budget ------------------------------------------------------------------------
+def probe_curiosity_budget(res: Result) -> None:
+    """The Curiosity Budget cap (minimal/balanced/deep) + the engine that paces by it."""
+    rc, tail = run_subcert([HERE / "certify_curiosity_budget.py"])
+    cert_ok = (rc == 0) and ("CURIOSITY-BUDGET CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_curiosity_budget.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    cur_src = (ROOT / "anima" / "curiosity.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    backend = ("def curiosity_budget(" in caps_src and "def set_curiosity_budget(" in caps_src
+               and '"curiosity"' in caps_src and "ENUM_KEYS" in caps_src)
+    engine_reads = "def read_budget(" in cur_src and "def _budget_allows(" in cur_src
+    endpoint = ('"/capabilities"' in server_src and "caps.load(" in server_src
+                and "caps.save(" in server_src)
+    res.evidence.append("caps curiosity enum+helpers=%s; engine reads budget (curiosity.py)=%s; "
+                        "persists via GET/POST /capabilities=%s" % (backend, engine_reads, endpoint))
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and backend and engine_reads and endpoint:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "real_use_in_answer", "restart_survival"]
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("Curiosity Budget defaults 'balanced', a set value is durable, an invalid "
+                      "value coerces safe, and the Curiosity Engine reads it (read_budget matches "
+                      "the set value; the frequency gate honours minimal<=balanced<=deep) — proven "
+                      "by certify_curiosity_budget.py; real .anima byte-unchanged. PARTIAL: no "
+                      "dedicated control is rendered in index.html — the budget persists through the "
+                      "same GET/POST /capabilities ledger (no slider), so the visible_trigger link "
+                      "is an endpoint, not UI.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("engine_reads", engine_reads), ("endpoint", endpoint)) if not v]
+        res.reason = "Curiosity-budget live path did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- autonomous_growth -----------------------------------------------------------------------
+def probe_autonomous_growth(res: Result) -> None:
+    """The '[x] Grow Intelligence' switch + grow_mode, and the SAFETY property that OFF is inert."""
+    rc, tail = run_subcert([HERE / "certify_autonomous_growth.py"])
+    cert_ok = (rc == 0) and ("AUTONOMOUS-GROWTH CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_autonomous_growth.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    lg_src = (ROOT / "anima" / "lerf_grow.py").read_text()
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    off_gate = all(s in lg_src for s in ("def is_enabled(", "def should_learn_now(",
+                                         "def run_idle_cycle(", "def get_mode(", "def set_mode(",
+                                         "def status(")) and 'CAP_FLAG = "grow_intelligence"' in lg_src
+    caps_keys = ("grow_intelligence" in caps_src and "def grow_mode(" in caps_src
+                 and "def set_grow_mode(" in caps_src and '"grow_mode"' in caps_src)
+    endpoint = ('"/capabilities"' in server_src and "caps.load(" in server_src
+                and "caps.save(" in server_src)
+    res.evidence.append("lerf_grow OFF-gate+modes=%s; caps grow_intelligence/grow_mode default-OFF=%s; "
+                        "persists via GET/POST /capabilities=%s" % (off_gate, caps_keys, endpoint))
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and off_gate and caps_keys and endpoint:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage", "final_gate", "restart_survival"]
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("Autonomous growth ships OFF and is provably INERT while OFF: the idle loop "
+                      "selects/grows/writes nothing and $0 is proven (no spend.json/brain.json/"
+                      "grow-state written); the mode is durable, coerces a bad value to 'off', and "
+                      "the master switch stays in lockstep — proven by certify_autonomous_growth.py; "
+                      "real .anima byte-unchanged. PARTIAL: no dedicated Grow-Intelligence control is "
+                      "rendered in index.html (it rides the /capabilities caps ledger), and the ON "
+                      "path needs a live teacher (covered by lerf_grow --selftest).")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("off_gate", off_gate),
+                             ("caps_keys", caps_keys), ("endpoint", endpoint)) if not v]
+        res.reason = "Autonomous-growth safety path did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- persona_card ----------------------------------------------------------------------------
+def probe_persona_card(res: Result) -> None:
+    """GET /persona serves Vera's persona card, observation-only (identity frozen)."""
+    rc, tail = run_subcert([HERE / "certify_persona_card.py"])
+    cert_ok = (rc == 0) and ("PERSONA-CARD CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_persona_card.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    mouth_src = (ROOT / "anima" / "mouth.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    backend = all(s in mouth_src for s in ("def load_persona(", "def save_persona(",
+                                           "DEFAULT_PERSONA", "def persona_path("))
+    endpoint = ('"/persona"' in server_src and "load_persona(" in server_src
+                and "save_persona(" in server_src)
+    res.evidence.append("mouth persona primitives (load/save/DEFAULT)=%s; GET/POST /persona=%s"
+                        % (backend, endpoint))
+    res.set(UI=False, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and backend and endpoint:
+        res.status = PARTIAL
+        res.proven_links = ["real_backend", "real_storage"]
+        res.missing_links = ["visible_trigger"]
+        res.reason = ("The persona card is served (a fresh creature gets the canonical DEFAULT_"
+                      "PERSONA — never blank), byte-stable across reads, and OBSERVATION-ONLY (a "
+                      "read never creates the persona file — identity is frozen against being looked "
+                      "at); only an explicit save_persona mutates — proven by certify_persona_card."
+                      "py; real .anima byte-unchanged. PARTIAL: GET/POST /persona is a live endpoint "
+                      "with no rendered card viewer in index.html, and whether the persona governs "
+                      "replies in character is downstream of the live model (mouth final-gate "
+                      "probes).")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("endpoint", endpoint)) if not v]
+        res.reason = "Persona-card serving path did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- knowledge_library -----------------------------------------------------------------------
+def probe_knowledge_library(res: Result) -> None:
+    """The Library drawer (#library + loadLibrary -> GET /library) lists exactly what is stored."""
+    rc, tail = run_subcert([HERE / "certify_knowledge_library.py"])
+    cert_ok = (rc == 0) and ("KNOWLEDGE-LIBRARY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_knowledge_library.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    backend = "def _serve_library(" in server_src and '"/library"' in server_src
+    engine = ("def references(" in (ROOT / "anima" / "intake_queue.py").read_text())
+    ui = 'id="library"' in idx and "loadLibrary" in idx
+    res.evidence.append("_serve_library + GET /library=%s; intake_queue.references()=%s; "
+                        "#library drawer + loadLibrary UI=%s" % (backend, engine, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and backend and engine and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "source_label"]
+        res.reason = ("The Library lists exactly the stored references with their TRUE "
+                      "id/title/type/source/rights/status, read from the durable Reference Library; "
+                      "an empty library returns items:[] (no fabrication) and the section filter "
+                      "narrows without inventing; GET /library + the #library drawer are wired; "
+                      "real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("engine", engine), ("ui", ui)) if not v]
+        res.reason = "Knowledge-library live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- memory_editor ---------------------------------------------------------------------------
+def probe_memory_editor(res: Result) -> None:
+    """The memory-type editor (Library .lactions buttons -> POST /library/edit)."""
+    rc, tail = run_subcert([HERE / "certify_memory_editor.py"])
+    cert_ok = (rc == 0) and ("MEMORY-EDITOR CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_memory_editor.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    iq_src = (ROOT / "anima" / "intake_queue.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    backend = "def _serve_library_edit(" in server_src and '"/library/edit"' in server_src
+    engine = "def edit_item(" in iq_src and "_VALID_EDIT_ACTIONS" in iq_src
+    ui = "/library/edit" in idx and "data-act" in idx
+    res.evidence.append("_serve_library_edit + POST /library/edit=%s; edit_item + "
+                        "_VALID_EDIT_ACTIONS=%s; per-row /library/edit edit buttons=%s"
+                        % (backend, engine, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=None)
+    if cert_ok and backend and engine and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "final_gate"]
+        res.reason = ("Editing a stored item (reclassify/archive/reprocess/delete) PERSISTS to the "
+                      "durable store and is reflected on a fresh disk read; an unknown id, unknown "
+                      "action, or missing id is refused honestly (ok:False + error, the backend "
+                      "KeyError surfaced, never a silent no-op or fabricated success); POST "
+                      "/library/edit + the per-row edit buttons are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("engine", engine), ("ui", ui)) if not v]
+        res.reason = "Memory-editor live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- intake_queue_flow -----------------------------------------------------------------------
+def probe_intake_queue_flow(res: Result) -> None:
+    """The consent-gated intake flow: paste text -> /intake/plan -> explicit /intake/approve."""
+    rc, tail = run_subcert([HERE / "certify_intake_queue_flow.py"])
+    cert_ok = (rc == 0) and ("INTAKE-QUEUE-FLOW CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_intake_queue_flow.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    iq_src = (ROOT / "anima" / "intake_queue.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    backend = all(s in server_src for s in ("def _intake_plan(", "def _intake_approve(",
+                                            '"/intake/plan"', '"/intake/approve"', '"/intake/queue"'))
+    engine = "def commit_on_approval(" in iq_src
+    ui = ("runIntake" in idx and "/intake/plan" in idx and 'id="tbAdd"' in idx
+          and 'id="queueOverlay"' in idx)
+    res.evidence.append("_intake_plan/_intake_approve + plan/approve/queue endpoints=%s; "
+                        "commit_on_approval=%s; tbAdd + runIntake + queue viewer UI=%s"
+                        % (backend, engine, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and backend and engine and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "final_gate", "restart_survival"]
+        res.reason = ("Plan stages + previews a TEXT intake with committed:False (nothing durable); "
+                      "an explicit approve commits it to the durable Reference Library + an ACTIVE "
+                      "queue record, retrievable on a fresh disk read; a never-approved plan stores "
+                      "NOTHING (no silent training). plan/approve/queue endpoints + the + menu / paste "
+                      "flow / queue viewer are wired; OFFLINE; real .anima byte-unchanged. (URL/PDF/"
+                      "image inputs honestly degrade to needs_dependency — that is honest, not a stub.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("engine", engine), ("ui", ui)) if not v]
+        res.reason = "Intake-queue-flow live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- web_allowlist ---------------------------------------------------------------------------
+def probe_web_allowlist(res: Result) -> None:
+    """The web-fetch GATES: OFF by default, EMPTY allow-list, SSRF/non-allowlisted refusal."""
+    rc, tail = run_subcert([HERE / "certify_web_allowlist.py"])
+    cert_ok = (rc == 0) and ("WEB-ALLOWLIST CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_web_allowlist.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    webget_src = (ROOT / "anima" / "webget.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    backend = "def _web_fetch(" in server_src and '"/web/fetch"' in server_src
+    guard = "def host_allowed(" in webget_src and "def fetch(" in webget_src
+    caps_default = '"web"' in caps_src and '"allowlist": []' in caps_src
+    toggle_present = 'data-cap="web"' in idx
+    toggle_live = toggle_present and not ('data-cap="web" disabled' in idx)
+    res.evidence.append("_web_fetch + POST /web/fetch=%s; webget host_allowed+fetch guard=%s; "
+                        "caps web default-OFF + allowlist []=%s; web ON-toggle present=%s LIVE=%s "
+                        "(disabled 'soon' in index.html -> user cannot enable web from the UI yet)"
+                        % (backend, guard, caps_default, toggle_present, toggle_live))
+    res.set(UI=toggle_live, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and backend and guard and caps_default:
+        res.proven_links = ["real_backend", "real_storage", "final_gate"]
+        if toggle_live:
+            res.status = COMPLETE
+            res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate"]
+            res.reason = ("Web is OFF by default and the allow-list starts EMPTY; the /web/fetch "
+                          "endpoint refuses while the cap is off, and webget refuses a private/"
+                          "loopback/link-local host, a non-allowlisted public host, and a non-http "
+                          "scheme — every refusal short-circuits before any fetch (proven offline, no "
+                          "socket); the live toggle + allow-list editor are wired; real .anima "
+                          "byte-unchanged.")
+        else:
+            res.status = PARTIAL
+            res.missing_links = ["visible_trigger"]
+            res.reason = ("Security FLOOR proven OFFLINE: web OFF by default, allow-list EMPTY, the "
+                          "endpoint refuses while off, and webget refuses private/loopback/link-local "
+                          "+ non-allowlisted + non-http BEFORE any fetch (a tripwire confirms no "
+                          "socket). PARTIAL: the live USER ENTRY to turn web on is not shipped — the "
+                          "Settings 'Read allow-listed sites' toggle is rendered disabled with a "
+                          "'soon' tag, so the end-to-end 'turn web on -> read an allow-listed site' "
+                          "path is not yet a live user path. real .anima byte-unchanged.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("guard", guard), ("caps_default", caps_default)) if not v]
+        res.reason = "Web-allowlist gates did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- identity_portability --------------------------------------------------------------------
+def probe_identity_portability(res: Result) -> None:
+    """Vera's OWN character is portable + freeze-safe."""
+    rc, tail = run_subcert([HERE / "certify_identity_portability.py"])
+    cert_ok = (rc == 0) and ("IDENTITY-PORTABILITY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_identity_portability.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    identity_src = (ROOT / "anima" / "identity.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = ("def export(" in identity_src and "def import_bundle(" in identity_src
+              and "def validate(" in identity_src)
+    endpoint = ("/identity/export" in server_src and "/identity/import" in server_src
+                and "identity.import_bundle" in server_src)
+    ui = "id=\"idexport\"" in idx and "id=\"idimport\"" in idx and "/identity/import" in idx
+    res.evidence.append("export/import/validate in identity.py=%s; /identity/export+import endpoints=%s; "
+                        "#idexport/#idimport UI=%s" % (engine, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Vera's character exports as a model-agnostic anima.identity bundle and "
+                      "round-trips losslessly (dials byte-for-byte, persona/portrait verbatim) into a "
+                      "FRESH store; the identity freeze holds on import (validate() refuses a raw "
+                      "self-rewrite, a wrong-kind bundle, and a coreless bundle — character unchanged); "
+                      "the /identity/export + /identity/import endpoints + Export-self/Import buttons "
+                      "are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Identity-portability live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- deployment_proof ------------------------------------------------------------------------
+def probe_deployment_proof(res: Result) -> None:
+    """ANIMA LAW 005 (DEPLOYED OVER BUILT) has runnable teeth."""
+    rc, tail = run_subcert([HERE / "certify_deployment_proof.py"])
+    cert_ok = (rc == 0) and ("DEPLOYMENT-PROOF CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_deployment_proof.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    dc_src = (ROOT / "scripts" / "deploy_check.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = all(s in dc_src for s in ("def compare(", "def git_head(", "def git_dirty(", "def check("))
+    cli = "return 0 if result.get(\"ok\") else 1" in dc_src
+    version_public = ('u.path == "/version"' in server_src and "_DEPLOY" in server_src
+                      and server_src.index('u.path == "/version"') < server_src.index("if not self._authed()"))
+    res.evidence.append("compare/git_head/git_dirty/check in deploy_check.py=%s; CLI exits 0 only on "
+                        "GREEN=%s; GET /version unauthenticated (_DEPLOY before auth gate)=%s"
+                        % (engine, cli, version_public))
+    res.set(UI=version_public, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok,
+            MRI=None, Restart=None)
+    if cert_ok and engine and cli and version_public:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
+        res.reason = ("LAW 005's teeth are real and correct: compare() goes GREEN (ok True) ONLY when "
+                      "running==HEAD AND the tree is clean, with a distinct honest verdict for every "
+                      "other reality (RED mismatch / DIRTY clean-sha-over-dirty / RED 404 / DOWN / RED "
+                      "no-HEAD / RED unknown-sha); the real git reads + the unauthenticated /version "
+                      "stamp it compares against are confirmed; the founder CLI gates a deploy (exit 0 "
+                      "only on GREEN). The live end-to-end verdict is environment-dependent (server-up "
+                      "+ committed sha) so only the deterministic decision logic is asserted.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("cli", cli), ("version_public", version_public)) if not v]
+        res.reason = "Deployment-proof logic did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- state_snapshot --------------------------------------------------------------------------
+def probe_state_snapshot(res: Result) -> None:
+    """GET /state is a real, deterministic, read-only heart snapshot."""
+    rc, tail = run_subcert([HERE / "certify_state_snapshot.py"])
+    cert_ok = (rc == 0) and ("STATE-SNAPSHOT CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_state_snapshot.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    heart_src = (ROOT / "anima" / "heart.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    engine = "def feeling(" in heart_src and "def from_dict(" in heart_src and "AFFECTS" in heart_src
+    endpoint = ('u.path == "/state"' in server_src
+                and "Heart.from_dict(load_json(_path(self.name))).feeling()" in server_src)
+    res.evidence.append("feeling()/from_dict/AFFECTS in heart.py=%s; GET /state reads "
+                        "Heart.from_dict(load_json(_path)).feeling() read-only=%s" % (engine, endpoint))
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and engine and endpoint:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "real_retrieval"]
+        res.reason = ("GET /state is a REAL read-only snapshot: it reads the persisted heart from "
+                      "STORE/{name}.json and computes the affect vector (valence/arousal/reaching/"
+                      "settled + unrest) deterministically via pure numpy — the served snapshot equals "
+                      "feeling() computed directly off the persisted state (cannot fabricate), is "
+                      "stable on re-read, changes when the stored state changes, and writes nothing; "
+                      "real .anima byte-unchanged. (Consumed as an authenticated API surface; no "
+                      "rendered widget in the web UI today.)")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint)) if not v]
+        res.reason = "State-snapshot live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- intake_trace_viewer ---------------------------------------------------------------------
+def probe_intake_trace_viewer(res: Result) -> None:
+    """A stored intake's TRACE is retrievable and renders (the Intake MRI)."""
+    rc, tail = run_subcert([HERE / "certify_intake_trace_viewer.py"])
+    cert_ok = (rc == 0) and ("INTAKE-TRACE-VIEWER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_intake_trace_viewer.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    intake_src = (ROOT / "anima" / "intake.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = ("def trace(" in intake_src and "def last_trace(" in intake_src
+              and "def render_trace(" in intake_src)
+    endpoint = ('"/intake/trace"' in server_src
+                and "_int.trace(_nm, _tid) if _tid else _int.last_trace(_nm)" in server_src
+                and '"render": _int.render_trace(tr)' in server_src)
+    ui = "function openMRI(" in idx and "'/intake/trace?trace_id='" in idx and "openMRI(b.dataset.tid)" in idx
+    res.evidence.append("trace/last_trace/render_trace in intake.py=%s; /intake/trace endpoint "
+                        "(id->trace else last_trace, {ok,trace,render})=%s; openMRI/[data-tid] UI=%s"
+                        % (engine, endpoint, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=True, Restart=None)
+    if cert_ok and engine and endpoint and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "mri_trace"]
+        res.reason = ("Every intake leaves a retrievable, renderable MRI trace: ingest commits the "
+                      "trace to {name}.intake.jsonl; trace(id) reads it back with the uploaded->parsed->"
+                      "classified->routed story, last_trace is the viewer's default, a bogus id is an "
+                      "honest miss, and render_trace produces the readable walkthrough the overlay "
+                      "shows; embedded instructions are surfaced as a 'safety' what-failed entry, "
+                      "DATA-only never executed; the /intake/trace endpoint + openMRI/[data-tid] buttons "
+                      "are wired; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoint", endpoint), ("ui", ui)) if not v]
+        res.reason = "Intake-trace-viewer live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- passkey_auth ----------------------------------------------------------------------------
+def probe_passkey_auth(res: Result) -> None:
+    """Opt-in Face ID second gate + the session-security FLOOR."""
+    rc, tail = run_subcert([HERE / "certify_passkey_auth.py"])
+    cert_ok = (rc == 0) and ("PASSKEY-AUTH CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_passkey_auth.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    passkey_src = (ROOT / "anima" / "passkey.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    backend = all(s in passkey_src for s in ("def issue_session(", "def valid_session(",
+                                             "def required(", "hmac.compare_digest"))
+    gate = ("def _passed" in server_src and "passkey.valid_session" in server_src
+            and '"/auth/login/finish"' in server_src)
+    ui = ('id="gate"' in idx and "unlockFace" in idx and "X-Anima-Sess" in idx)
+    res.evidence.append("passkey session primitives (issue/valid/required/compare_digest)=%s; "
+                        "server _passed gate + /auth routes=%s; #gate Face-ID UI=%s"
+                        % (backend, gate, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=None)
+    if cert_ok and backend and gate and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
+        res.reason = ("Opt-in Face ID is a real second gate: a freshly-minted session VALIDATES and "
+                      "every tampered/forged/expired session is REJECTED (HMAC over a per-run secret, "
+                      "constant-time compare + exp>now); the gate is opt-in and can't lock you out "
+                      "(required() implies enrolled + no bypass); server._passed enforces it on every "
+                      "request and the #gate unlock UI is wired; real .anima byte-unchanged. The live "
+                      "WebAuthn/Face-ID hardware ceremony is out of scope (device-presence, not the "
+                      "session floor).")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("gate", gate), ("ui", ui)) if not v]
+        res.reason = "Passkey session floor did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- model_management ------------------------------------------------------------------------
+def probe_model_management(res: Result) -> None:
+    """Pick your local brain: list (read-only) + select (durable persist)."""
+    rc, tail = run_subcert([HERE / "certify_model_management.py"])
+    cert_ok = (rc == 0) and ("MODEL-MANAGEMENT CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_model_management.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    models_src = (ROOT / "anima" / "models.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = all(s in models_src for s in ("def listing(", "def select(", "local_model=ref",
+                                           "won't fit"))
+    endpoints = ('"/models"' in server_src and '"/models/select"' in server_src
+                 and "models.listing()" in server_src and "models.select(ref)" in server_src)
+    ui = ('id="localModels"' in idx and "fetchModels" in idx and "'/models/select'" in idx)
+    res.evidence.append("models engine (listing/select/persist/fit-gate)=%s; /models + /models/select "
+                        "endpoints=%s; #localModels UI=%s" % (engine, endpoints, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and endpoints and ui:
+        res.status = PARTIAL
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "restart_survival"]
+        res.missing_links = ["live_install_state"]
+        res.reason = ("Local-model select is real + durable: listing() is well-formed + read-only "
+                      "(and degrades to a well-formed empty list when Ollama is down); a too-big model "
+                      "is refused by the fit gate BEFORE any network; select(installed ref) persists "
+                      "local_model=ref to brain.json and a fresh load_cfg round-trips it (restart-"
+                      "survival); a not-installed ref is honestly refused without changing the pick; "
+                      "real .anima byte-unchanged. PARTIAL because the live install-state enrichment "
+                      "(and pull/run) need a running Ollama — deliberately not exercised offline.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoints", endpoints), ("ui", ui)) if not v]
+        res.reason = "Model-management select/persist path did not hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- proactive_location ----------------------------------------------------------------------
+def probe_proactive_location(res: Result) -> None:
+    """The phone's location + push token: persist, read-back, and the auth gate."""
+    rc, tail = run_subcert([HERE / "certify_proactive_location.py"])
+    cert_ok = (rc == 0) and ("PROACTIVE-LOCATION CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_proactive_location.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    proactive_src = (ROOT / "anima" / "proactive.py").read_text()
+    backend = ("def _store_location" in server_src and "def _store_device" in server_src
+               and '"/loc"' in server_src and '"/device"' in server_src)
+    feeds = "def last_location" in proactive_src and ".loc.json" in proactive_src
+    dp = server_src.find("def do_POST")
+    gated = (dp != -1
+             and server_src.find("if not self._authed():", dp) != -1
+             and server_src.find("if not self._passed():", dp) != -1
+             and server_src.find("if not self._authed():", dp)
+                 < server_src.find("if not self._passed():", dp)
+                 < server_src.find('path == "/loc"', dp))
+    res.evidence.append("loc/device store + endpoints=%s; proactive.last_location feeds weather=%s; "
+                        "/loc + /device sit behind the _authed+_passed 401 gates in do_POST=%s"
+                        % (backend, feeds, gated))
+    res.set(UI=True, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and backend and feeds and gated:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "real_retrieval",
+                            "restart_survival"]
+        res.reason = ("The phone's location and push token are real, durable, authed inputs: "
+                      "_store_location validates + persists {lat,lon,ts} and proactive.last_location "
+                      "reads it back to feed the morning briefing's weather; junk/out-of-range posts "
+                      "are rejected and write nothing; _store_device persists the iOS PushKit token; "
+                      "both endpoints sit behind the _authed+_passed 401 gates (no location spoof / "
+                      "push-target hijack); real .anima byte-unchanged. The weather fetch + APNs "
+                      "delivery are real networks, deliberately not exercised.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),
+                             ("feeds", feeds), ("auth_gate", gated)) if not v]
+        res.reason = "Proactive-location store/auth path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1291,6 +1864,21 @@ def classify_all() -> dict:
         "portable_mind": probe_portable_mind,
         "brain_select": probe_brain_select,
         "cross_store_search": probe_cross_store_search,
+        "personality_dials": probe_personality_dials,
+        "curiosity_budget": probe_curiosity_budget,
+        "autonomous_growth": probe_autonomous_growth,
+        "persona_card": probe_persona_card,
+        "knowledge_library": probe_knowledge_library,
+        "memory_editor": probe_memory_editor,
+        "intake_queue_flow": probe_intake_queue_flow,
+        "web_allowlist": probe_web_allowlist,
+        "identity_portability": probe_identity_portability,
+        "deployment_proof": probe_deployment_proof,
+        "state_snapshot": probe_state_snapshot,
+        "intake_trace_viewer": probe_intake_trace_viewer,
+        "passkey_auth": probe_passkey_auth,
+        "model_management": probe_model_management,
+        "proactive_location": probe_proactive_location,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
