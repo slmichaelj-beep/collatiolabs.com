@@ -4655,6 +4655,103 @@ def render_md(results: dict, sha_before: str, sha_after: str, counts: dict) -> s
     return "\n".join(lines)
 
 
+# --- intake_heavy_parsers --------------------------------------------------------------------
+def probe_intake_heavy_parsers(res: Result) -> None:
+    """Intake Wave 4 heavy parsers (OCR / STT / YouTube transcript). The executable cert
+    (scripts/certify_intake_heavy.py, fakes injected for the heavy libs) proves the seam tells the
+    truth in every direction: OPT-IN default-off (no activation/network without
+    ANIMA_INTAKE_ACTIVATE_HEAVY=1), real activation when the flag is set + the lib imports, NEVER
+    fabricate (empty -> ok+note), NEVER crash (raise -> needs_dependency), content-is-DATA + OCR is
+    local-file-only. We add static facts: the opt-in gate + the three activation seams exist."""
+    rc, tail = run_subcert([HERE / "certify_intake_heavy.py"])
+    cert_ok = (rc == 0) and ("INTAKE-HEAVY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_intake_heavy.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    src = (ROOT / "anima" / "intake_parsers.py").read_text()
+    gate = ("_heavy_on" in src and "ANIMA_INTAKE_ACTIVATE_HEAVY" in src)
+    activations = all(s in src for s in ("_activate_ocr", "_activate_stt", "_activate_youtube"))
+    res.evidence.append("opt-in gate present (_heavy_on/ANIMA_INTAKE_ACTIVATE_HEAVY)=%s; "
+                        "three activation seams wired (ocr/stt/youtube)=%s" % (gate, activations))
+    res.set(UI=True, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=None)
+    if cert_ok and gate and activations:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
+        res.reason = ("Heavy parsers activate opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1) iff the lib "
+                      "imports; default-off is the honest needs_dependency seam (no network); "
+                      "activation never fabricates (empty -> ok+note) and never crashes (raise -> "
+                      "needs_dependency); parsed text is DATA; real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("optin_gate", gate),
+                             ("activations", activations)) if not v]
+        res.reason = "Heavy-parser activation cert/seam did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- intake_background_worker ----------------------------------------------------------------
+def probe_intake_background_worker(res: Result) -> None:
+    """Intake Wave 4 background worker. The hermetic module selftest proves it drains the slow ingest
+    off-thread and STOPS at the approval gate. The load-bearing static fact: the worker source NEVER
+    calls the durable writer commit_on_approval( — it cannot cross the approval gate — and its durable
+    step is enqueue() (which lands at `classified`)."""
+    rc, tail = run_subcert(["-m", "anima.intake_worker", "--selftest"])
+    cert_ok = (rc == 0) and ("INTAKE-WORKER: ALL PASS" in tail)
+    res.evidence.append("anima.intake_worker --selftest -> exit %d; %s"
+                        % (rc, "ALL PASS" if cert_ok else "FAIL"))
+    src = (ROOT / "anima" / "intake_worker.py").read_text()
+    never_commits = "commit_on_approval(" not in src      # no CALL to the durable writer, anywhere
+    enqueue_only = "enqueue(" in src
+    res.evidence.append("worker never CALLS commit_on_approval (approval gate cannot be crossed)=%s; "
+                        "durable step is enqueue()=%s" % (never_commits, enqueue_only))
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and never_commits and enqueue_only:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "restart_survival", "final_gate"]
+        res.reason = ("The worker drains detect->parse->classify->route off the request thread and "
+                      "enqueues at `classified` — the approval gate — then STOPS; it never calls "
+                      "commit_on_approval, so it parallelizes throughput, never consent. Append-only "
+                      "job log (crash-safe, requeue_stale recovers stranded jobs); byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("never_commits", never_commits),
+                             ("enqueue_only", enqueue_only)) if not v]
+        res.reason = "Background-worker cert/invariant did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
+# --- intake_storage_tiers --------------------------------------------------------------------
+def probe_intake_storage_tiers(res: Result) -> None:
+    """Intake Wave 4 storage tiers. The hermetic module selftest proves hot/warm/cold tiering with
+    real gzip compression and a BYTE-EXACT cold restore (Compressed > Forgotten), additive over the
+    read-only reference store. Static facts: restore_cold + gzip exist (the lossless cold path) and
+    the module reads references read-only (additive)."""
+    rc, tail = run_subcert(["-m", "anima.intake_tiers", "--selftest"])
+    cert_ok = (rc == 0) and ("INTAKE-TIERS: ALL PASS" in tail)
+    res.evidence.append("anima.intake_tiers --selftest -> exit %d; %s"
+                        % (rc, "ALL PASS" if cert_ok else "FAIL"))
+    src = (ROOT / "anima" / "intake_tiers.py").read_text()
+    lossless = ("restore_cold" in src and "gzip" in src)
+    additive = ("references(" in src or "Q.references" in src)
+    res.evidence.append("lossless cold path (restore_cold+gzip)=%s; reads references read-only "
+                        "(additive)=%s" % (lossless, additive))
+    res.set(UI=None, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and lossless and additive:
+        res.status = COMPLETE
+        res.proven_links = ["real_backend", "real_storage", "restart_survival", "final_gate"]
+        res.reason = ("References tier hot/warm/cold by age + citation; COLD gzip-compresses and "
+                      "restore_cold round-trips BYTE-EXACT (Compressed > Forgotten); savings() is a "
+                      "real ratio>1; the tier layer is additive (references untouched); byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("lossless", lossless),
+                             ("additive", additive)) if not v]
+        res.reason = "Storage-tiers cert/invariant did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # =============================================================================================
 # MAIN
 # =============================================================================================
@@ -4674,6 +4771,9 @@ def classify_all() -> dict:
         "capability_truth": probe_capability_truth,
         "host_apps": probe_host_apps,
         "mail_send": probe_mail_send,
+        "intake_heavy_parsers": probe_intake_heavy_parsers,
+        "intake_background_worker": probe_intake_background_worker,
+        "intake_storage_tiers": probe_intake_storage_tiers,
         "personal_intelligence": probe_personal_intelligence,
         "portable_mind": probe_portable_mind,
         "brain_select": probe_brain_select,
