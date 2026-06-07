@@ -717,6 +717,31 @@ def _turn(name, text, voice=False):
                          note="model-free #1-rule final gate + output integrity (shared)")
         except Exception:
             _host_reply = None
+        # REFERENCE RECALL seam — deterministic answer FROM an uploaded reference when the user
+        # explicitly asks what they uploaded/saved about a topic. The *use* half of source-aware
+        # answering (attribution already labels WHICH source; this answers FROM it). Like the host
+        # seam: fixed text drawn from the stored reference (no LLM, no verifier/aside) routed through
+        # the SAME #1-rule final_output_gate. None on a normal turn -> the pipeline runs unchanged;
+        # None when nothing is stored about it -> the model answers honestly. Reference = external
+        # user material, never personal memory (LIRF), never Vera's self. Guarded.
+        _reference_reply = None
+        try:
+            if not _host_reply:
+                from . import source_aware as _sa_live
+                from .mouth import final_output_gate as _final_gate2
+                if _sa_live.classify_recall(text):
+                    _stg("reference_recall_match", in_shape={"text_chars": len(text or "")},
+                         out={"matched": True}, note="reference-recall question detected")
+                    _raw_ref = _sa_live.recall(name, text, cloud_safe=_cloud_on)
+                    if _raw_ref:
+                        _stg("deterministic_reference_reply", out={"chars": len(_raw_ref)},
+                             note="fixed text FROM the stored reference — no LLM, no verifier/aside")
+                        _reference_reply = _final_gate2(_raw_ref)   # SAME #1-rule final gate
+                        _stg("final_gate", out={"changed": _reference_reply != _raw_ref,
+                                                "chars": len(_reference_reply or "")},
+                             note="model-free #1-rule final gate + output integrity (shared)")
+        except Exception:
+            _reference_reply = None
         _lerf_solved = False
         _lerf_reply = None
         _lerf_rec = None
@@ -741,6 +766,21 @@ def _turn(name, text, voice=False):
             if voice and audio_out and getattr(mouth, "voice", None) is not None:
                 try:
                     u.audio_path = mouth.voice.speak(_host_reply, _hh, audio_out)
+                except Exception:
+                    u.audio_path = None
+        elif _reference_reply:
+            # deterministic reference-recall answer (fixed text FROM the stored reference) — no LLM.
+            from .mouth import Utterance as _UttR
+            try:
+                from .mouth import delivery as _delivR
+                _rh = _delivR(heart.feeling(), 0)
+            except Exception:
+                _rh = {"register": "plain", "rate": 1.0}
+            u = _UttR(text=_reference_reply, delivery=_rh, backend="reference:recall",
+                      feeling="", audio_path=None)
+            if voice and audio_out and getattr(mouth, "voice", None) is not None:
+                try:
+                    u.audio_path = mouth.voice.speak(_reference_reply, _rh, audio_out)
                 except Exception:
                     u.audio_path = None
         elif _lerf_solved:
@@ -813,7 +853,7 @@ def _turn(name, text, voice=False):
         # certified task output, so the whole block is skipped for a LERF-solved turn.
         _verdict = None
         try:
-            if _lerf_solved or _host_reply:        # certified task / deterministic host answer
+            if _lerf_solved or _host_reply or _reference_reply:   # certified task / deterministic host or reference answer
                 raise _SkipConvVerifier()
             from .organs.verifier import verify
             from .memory_lirf import Facts as _VF, SELF as _VSELF
@@ -980,6 +1020,7 @@ def _turn(name, text, voice=False):
                             and not _fact_block and not cap_note
                             and not _lerf_solved    # a certified task answer is not a casual turn
                             and not _host_reply     # nor is a deterministic host-awareness answer
+                            and not _reference_reply  # nor is a deterministic reference-recall answer
                             and not (_verdict is not None and getattr(_verdict, "override", False)))
             if _aside_gated:                        # answered, no capability, no verifier override; cloud-off (PII)
                 _aside = None
@@ -1223,6 +1264,8 @@ def _turn(name, text, voice=False):
                 _mem_used = bool(_fact_block) or bool(locals().get("_bound"))
                 if _host_reply:
                     _wk_input, _wk_route = "host_question", "argus"
+                elif _reference_reply:
+                    _wk_input, _wk_route = "source", "source"
                 elif _lerf_solved:
                     _wk_input, _wk_route = "task", "lerf"
                 else:

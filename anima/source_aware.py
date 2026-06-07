@@ -23,7 +23,7 @@ Returned shape (each item):
 from __future__ import annotations
 
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 _STOP = {
     "the", "a", "an", "and", "or", "but", "if", "of", "to", "in", "on", "for", "with", "is",
@@ -112,6 +112,107 @@ def relevant_sources(name: str, text: str, *, limit: int = 3,
     return scored[:max(1, int(limit))]
 
 
+# ============================================================================================
+# Deterministic reference RECALL — the *use* half of source-aware answering.
+#
+# attribution (relevant_sources) only LABELS which source is relevant. RECALL actually ANSWERS
+# FROM the stored reference when the user explicitly asks what they uploaded/saved about a topic,
+# and labels it as their uploaded reference. It is DETERMINISTIC (no model) and the seam in
+# server._turn ships it through the SAME #1-rule final_output_gate as every reply — the proven
+# host-awareness-seam pattern. recall() returns None unless (a) the phrasing is an explicit
+# upload/reference question AND (b) a stored reference actually matches; otherwise the normal
+# pipeline answers honestly ("you haven't uploaded anything about that"). Reference content is
+# external user material, never personal memory (LIRF) and never Vera's self.
+# ============================================================================================
+
+_UPLOAD_VERBS = (r"(?:upload(?:ed)?|add(?:ed)?|sav(?:e|ed)|stor(?:e|ed)|put|gave|give|sent|send|"
+                 r"shared|share)")
+_REF_NOUNS = r"(?:referenc\w*|librar\w*|upload\w*|document\w*|docs?|files?|notes?|knowledge)"
+
+
+def classify_recall(text: str) -> bool:
+    """True iff `text` is an explicit 'what did I upload / save / put in my reference about X'
+    question. Tight on purpose — a normal conversational turn must NOT be hijacked into a
+    reference dump. The seam still only fires if a stored reference also matches (see recall())."""
+    t = (text or "").strip().lower()
+    if not t or len(t) > 600:
+        return False
+    # "what did i upload/save/store/... <about X>"  — the canonical phrasing.
+    if re.search(r"\bwhat\b.*\bi\b\s+(?:" + _UPLOAD_VERBS + r")\b", t):
+        return True
+    # "what ... in/from/about my|the reference|library|docs|uploads|notes|knowledge"
+    if re.search(r"\bwhat\b.*\b(?:in|from|about|on)\b\s+(?:my|the)\s+" + _REF_NOUNS, t):
+        return True
+    # "from/in my|the uploaded|reference|saved|knowledge ..."
+    if re.search(r"\b(?:from|in)\s+(?:my|the)\s+(?:uploaded|reference|saved|knowledge)\b", t):
+        return True
+    return False
+
+
+def _friendly_title(title: str) -> str:
+    """A title worth quoting, or '' for a generic auto-id (so we don't say 'reference src abc123')."""
+    t = (title or "").strip()
+    if (not t or t == "(untitled source)" or t.lower().startswith("src ")
+            or re.fullmatch(r"[0-9a-f]{6,}", t) or t.lower().startswith("http")):
+        return ""
+    return t
+
+
+def _recall_body(name: str, source_id, q: set, max_chars: int) -> str:
+    """The most-relevant chunk text(s) of ONE reference, concatenated up to max_chars."""
+    try:
+        from . import intake_queue as _iq
+        items = _iq.references(name) or []
+    except Exception:
+        return ""
+    item = next((it for it in items if isinstance(it, dict)
+                 and (it.get("id") == source_id or it.get("source_id") == source_id)), None)
+    if not item:
+        return ""
+    scored = []
+    for ch in item.get("chunks") or []:
+        txt = (ch.get("text") if isinstance(ch, dict) else str(ch)) or ""
+        ov = q & _tokens(txt)
+        if ov:
+            scored.append((len(ov), txt.strip()))
+    scored.sort(key=lambda s: s[0], reverse=True)
+    out, total = [], 0
+    for _, txt in scored:
+        out.append(txt)
+        total += len(txt)
+        if total >= max_chars:
+            break
+    body = " ".join(out).replace("\n", " ").strip()
+    if len(body) > max_chars:
+        body = body[:max_chars - 1].rstrip() + "…"
+    return body
+
+
+def recall(name: str, text: str, *, cloud_safe: bool = False, max_chars: int = 600) -> Optional[str]:
+    """A labeled answer built FROM the best-matching uploaded reference, or None.
+
+    Returns text only when classify_recall(text) is True AND a reference actually matches.
+    The returned string explicitly labels the content as the user's uploaded reference; the
+    server seam routes it through final_output_gate before shipping. Fully guarded: never raises.
+    """
+    try:
+        if not classify_recall(text):
+            return None
+        hits = relevant_sources(name, text, limit=2)
+        if not hits:
+            return None
+        top = hits[0]
+        q = _tokens(text)
+        body = _recall_body(name, top.get("source_id"), q, max_chars) or str(top.get("snippet") or "").strip()
+        if not body:
+            return None
+        ft = _friendly_title(top.get("title") or "")
+        lead = (f'From your uploaded reference "{ft}": ' if ft else "From the reference you uploaded: ")
+        return lead + body
+    except Exception:
+        return None
+
+
 # --------------------------------------------------------------------------------------------
 def _selftest() -> int:
     """Hermetic selftest — redirect the store, seed a reference, assert attribution + isolation."""
@@ -149,6 +250,24 @@ def _selftest() -> int:
         # isolation: a corrupt/missing store must never raise
         bad = relevant_sources("NoSuchCreature", "anything at all")
         ok("missing creature -> [] (guarded, never raises)", bad == [])
+        # ---- reference RECALL (the *use* half of source-aware answering) ----------------
+        ok("classify_recall: 'what did I upload about X' -> True",
+           classify_recall("what did I upload about the service agreement?"))
+        ok("classify_recall: 'what's in my reference about uptime' -> True",
+           classify_recall("what's in my reference about uptime?"))
+        ok("classify_recall: normal chat -> False",
+           not classify_recall("how are you feeling today?"))
+        ans = recall(name, "what did I upload about a service level agreement?")
+        ok("recall answers FROM the reference (uses stored content)",
+           bool(ans) and "service level agreement" in (ans or "").lower())
+        ok("recall labels it as the user's uploaded reference",
+           bool(ans) and "uploaded" in (ans or "").lower() and "reference" in (ans or "").lower())
+        ok("recall on a non-recall question -> None (no hijack)",
+           recall(name, "how are you today?") is None)
+        ok("recall with NO matching source -> None (honest fall-through)",
+           recall(name, "what did I upload about quantum chromodynamics zzz?") is None)
+        ok("recall on a missing creature -> None (guarded)",
+           recall("NoSuchCreature", "what did I upload about anything?") is None)
     finally:
         _int.STORE = old_intake
         if hasattr(iq, "STORE") and old_iq is not None:

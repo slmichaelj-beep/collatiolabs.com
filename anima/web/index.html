@@ -63,6 +63,16 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .tbtn:hover{color:#c4c4c8;background:rgba(255,255,255,.06)}
 .tbtn:active{color:#2f7fff;background:rgba(47,127,255,.14)}
 .tbtn.active{color:#2f7fff}
+/* "+ Add Knowledge" — a LABELED pill so it's unmistakably the knowledge base, not a chat attachment */
+.tpill{display:inline-flex;align-items:center;gap:5px;flex:none;background:rgba(47,127,255,.12);
+  border:1px solid rgba(47,127,255,.34);color:#9cc2ff;height:32px;padding:0 11px 0 9px;margin-right:3px;
+  border-radius:16px;font:inherit;font-size:12.5px;font-weight:400;white-space:nowrap;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s}
+.tpill:hover{background:rgba(47,127,255,.2);color:#c2d9ff;border-color:rgba(47,127,255,.5)}
+.tpill:active{background:rgba(47,127,255,.3)}
+.tpill svg{flex:none}
+/* keep the label from crowding a very narrow phone: the icon stays, the text hides under ~360px */
+@media (max-width:360px){.tpill-label{display:none}.tpill{padding:0 9px}}
 #mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
   flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 #mic:active,#send:active{background:#232323}
@@ -361,10 +371,11 @@ form{padding:10px 12px;border-top:1px solid #141414;
     <div id="toolbar">
       <!-- + Add Knowledge — opens a menu: upload file / paste a link / paste text / view queue -->
       <div style="position:relative">
-        <button type="button" class="tbtn" id="tbAdd" aria-label="Add knowledge" title="Add Knowledge">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="tpill" id="tbAdd" aria-label="Add knowledge to the knowledge base" title="Add Knowledge — upload a file, paste a link, or paste text into the knowledge base (not this chat)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
+          <span class="tpill-label">Add Knowledge</span>
         </button>
         <div id="addMenu">
           <div class="emitem" id="amUpload">
