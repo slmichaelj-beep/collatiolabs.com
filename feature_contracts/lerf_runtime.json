@@ -26,7 +26,7 @@
     ]
   },
   "known_gaps": [
-    "UPGRADED (2026-06-07) UNKNOWN -> PARTIAL: the LERF-FIRST seam is wired and DETERMINISTIC retrieval is proven hermetically (a unique-trigger active skill is stored and surfaced by keyword/domain match, no model/embeddings). The remaining link — rendering the matched skill into the answer via the small local model in _lerf_task_first — genuinely needs --live (Ollama) to certify and is NOT faked. Honest gap: model-render, not wiring."
+    "UPGRADED (2026-06-07) UNKNOWN -> PARTIAL: the LERF-FIRST seam is wired and DETERMINISTIC retrieval is proven hermetically (a unique-trigger active skill is stored and surfaced by keyword/domain match, no model/embeddings). The remaining link — rendering the matched skill into the answer via the small local model in _lerf_task_first — genuinely needs --live (Ollama) to certify and is NOT faked. Honest gap: model-render, not wiring. --LIVE finding (2026-06-07): an attempted real-model render of a seeded task escalated to the LLM on every attempt — the GROUNDED CONTRACT (lerf.verify_rendered_output) correctly WITHHELD renders that didn't meet the skill contract (backend ollama:*, not lerf:*). So the grounded contract is live-proven, but a guaranteed LERF-solve is task/model-dependent; the USED-in-answer link stays honestly PARTIAL (not faked)."
   ],
   "status": "PARTIAL"
 }
