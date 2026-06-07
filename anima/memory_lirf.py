@@ -349,7 +349,7 @@ _RULES = [
     (re.compile(r"\bi'?m\s+(?:currently\s+)?in\s+(?P<v>[A-Z][\w'-]+(?:,\s*[A-Z]{2})?)\b(?!\s+(?:a|an|the|trouble|love|charge|the\s+middle)\b)", re.I),
      "lives", lambda m: _clean(m.group("v"))),
     # employer / occupation
-    (re.compile(r"\bi work\s+at\s+(?P<v>[A-Z][\w'&.-]+(?:\s+[A-Z][\w'&.-]+){0,3})", re.I),
+    (re.compile(r"\bi work\s+at\s+(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+(?:(?:of|&|de|la|von|van)\s+)?(?-i:[A-Z])[\w'&.-]+){0,3})", re.I),
      "employer", lambda m: _clean(m.group("v"))),
     (re.compile(r"\bi work\s+(?:as\s+(?:an?\s+)?|in\s+)(?P<v>[a-z][\w'-]+(?:\s+[\w'-]+){0,2})", re.I),
      "occupation", lambda m: _clean(m.group("v"))),
@@ -488,7 +488,7 @@ _RULES = [
     # work — clear job titles only, and a business owned/founded (capital-guarded so "I run errands" can't match)
     (re.compile(r"\bi'?m\s+(?:the|a|an)\s+(?P<v>(?:senior\s+|lead\s+|principal\s+|chief\s+|head\s+|junior\s+|staff\s+)?(?:founder|co-?founder|ceo|cto|cfo|coo|president|vp|director|manager|engineer|developer|designer|scientist|analyst|consultant|architect|researcher|professor|owner|partner))\b", re.I),
      "role", lambda m: _clean(m.group("v"))),
-    (re.compile(r"\b(?:i\s+(?:run|own|founded|started)|my\s+(?:company|business|startup)\s+is(?:\s+called)?)\s+(?:an?\s+)?(?:(?:company|business|startup)\s+(?:called\s+)?)?(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+[\w'&.-]+){0,3})", re.I),
+    (re.compile(r"\b(?:i\s+(?:run|own|founded|started)|my\s+(?:company|business|startup)\s+is(?:\s+called)?)\s+(?:an?\s+)?(?:(?:company|business|startup)\s+(?:called\s+)?)?(?P<v>(?-i:[A-Z])[\w'&.-]+(?:\s+(?:(?:of|&|de|la|von|van)\s+)?(?-i:[A-Z])[\w'&.-]+){0,3})", re.I),
      "business", lambda m: _clean(m.group("v"))),
     # health — diet + medical condition
     (re.compile(r"\bi'?m\s+(?:a\s+)?(?P<v>vegetarian|vegan|pescatarian|pescetarian|gluten-?free|dairy-?free|lactose intolerant|keto|paleo|kosher|halal)\b", re.I),
