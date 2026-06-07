@@ -98,6 +98,19 @@ LADDER_Q = "what did I upload about the blue copper ladder 92817?"
 # Hermetic fingerprint of the REAL .anima (excluding rotating backups/), copied to match the
 # gate's own _footprint so "byte-identical" means the same thing here as in the live gate.
 # ---------------------------------------------------------------------------------------------
+# Append-only logs/event-streams the LIVE server writes continuously (NOT feature config/state).
+# The audit runs for minutes alongside a live product, so these change under us and would otherwise
+# flag a FALSE "leak". We exclude them so the byte-check means what it should: did a CERT write a
+# real STATE file (Vera.json, *.caps.json, *.facts, a lerf object, …)? Those stay in the hash, so a
+# genuine contamination is still caught — only the server's own telemetry/log churn is ignored.
+_VOLATILE_SUFFIXES = (".log", ".mri.jsonl", ".telemetry.jsonl", ".lerf_routes.jsonl", ".chat.jsonl")
+
+
+def _is_volatile_log(rel: Path) -> bool:
+    n = rel.name
+    return any(n.endswith(suf) for suf in _VOLATILE_SUFFIXES)
+
+
 def real_anima_sha() -> str:
     root = REAL_ANIMA
     if not root.is_dir():
@@ -105,6 +118,7 @@ def real_anima_sha() -> str:
     files = sorted(
         q for q in root.rglob("*")
         if q.is_file() and "backups" not in q.relative_to(root).parts
+        and not _is_volatile_log(q.relative_to(root))
     )
     h = hashlib.sha256()
     for q in files:
@@ -1311,6 +1325,10 @@ def main(argv=None) -> int:
             "real_anima_sha_before": sha_before,
             "real_anima_sha_after": sha_after,
             "byte_identical": sha_before == sha_after,
+            "note": ("state/config files only; the live server's append-only logs "
+                     "(%s) are excluded so its own telemetry churn can't flag a false leak — "
+                     "a cert writing a real STATE file would still be caught."
+                     % ", ".join(_VOLATILE_SUFFIXES)),
         },
         "counts": counts,
         "features": [results[k].to_dict() for k in sorted(results.keys())],
