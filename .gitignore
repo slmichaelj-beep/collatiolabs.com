@@ -14,3 +14,6 @@ venv/
 # never source. Tracking them dirties the tree on every run (breaks deploy_check's RUNNING==
 # COMMITTED check) and risks a stale committed snapshot lying about the live audit state.
 reports/
+
+# Claude Code local session data (not product code)
+.claude/

@@ -36,8 +36,18 @@ KEYS = ("imessage", "mail", "web")
 # the data never leaves the Mac, and it is blanked under a cloud brain like any private fact.
 # This FIRST integration wave is READ-ONLY: there is NO host-action capability (no pause/block).
 # A future wave may add a separate, confirm-gated action capability — intentionally absent here.
+# calendar_read / reminders_read / notes_read — READ-ONLY access to the host Mac's Calendar.app /
+# Reminders.app / Notes.app via anima/host_access.py (EventKit-preferred, AppleScript fallback). OFF
+# until the user turns it on; while OFF the route returns the honest "off" message and NEVER calls the
+# backend (a provable no-op — the host apps are never scripted). notes_read returns note TITLES only,
+# never bodies. calendar / reminders / notes — the matching CREATE/WRITE capabilities (add an event,
+# add or complete a reminder, create or append to a note). Exactly like imessage/mail (send): the bare
+# key is the write switch AND every write is additionally guarded by the draft→confirm gate in route.py
+# — nothing is ever written to the Mac without a second human confirmation. All six default-OFF and
+# local-first: their contents never leave the Mac and are paused under a cloud brain like any private fact.
 BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_agency",
-             "grow_intelligence", "host_awareness")
+             "grow_intelligence", "host_awareness",
+             "calendar_read", "calendar", "reminders_read", "reminders", "notes_read", "notes")
 
 # Enum (multi-value) settings, persisted alongside the booleans. Each maps a key to
 # (allowed_values, default); load()/save() read this map so a new enum stays in lockstep

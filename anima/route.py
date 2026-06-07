@@ -136,27 +136,44 @@ def route(name: str, text: str):
             return {"note": _failed("your email", res.get("error"))}
         return {"note": _items("emails", list(res.get("items") or []))}
     # --- READ: host apps (Calendar / Reminders / Notes — REAL data, mouth narrates) ---
-    # Their contents are personal, so the cloud privacy guard pauses them, same as inbox.
+    # Two guards, in order: (1) the cloud privacy guard pauses them (their contents are
+    # personal, same as the inbox); (2) each is OFF until its read switch is on — the
+    # host-app mirror of the Messages/Mail read gate, so nothing is read by default.
     if any(r.search(text) for r in _READ_CAL):
         if cloud_on:
             return {"note": _cloud_paused("calendar")}
+        if not caps.enabled(name, "calendar_read"):
+            return {"note": _off("your calendar", "Calendar — read")}
         return {"note": _host_read("calendar", text)}
     if any(r.search(text) for r in _READ_REM):
         if cloud_on:
             return {"note": _cloud_paused("reminders")}
+        if not caps.enabled(name, "reminders_read"):
+            return {"note": _off("your reminders", "Reminders — read")}
         return {"note": _host_read("reminders", text)}
     nq = _note_query(text)
     if nq is not None:
         if cloud_on:
             return {"note": _cloud_paused("notes")}
+        if not caps.enabled(name, "notes_read"):
+            return {"note": _off("your notes", "Notes — read")}
         return {"note": _host_read("note", text, nq)}
     if any(r.search(text) for r in _LIST_NOTES):
         if cloud_on:
             return {"note": _cloud_paused("notes")}
+        if not caps.enabled(name, "notes_read"):
+            return {"note": _off("your notes", "Notes — read")}
         return {"note": _host_read("notes", text)}
     # --- WRITE: host apps (prepare a CONFIRM-GATED draft; executes NOTHING now) ---
+    # The write switch (default-OFF) gates DRAFTING; the draft→confirm gate above is then
+    # the second, non-bypassable human action — exactly the Messages send model: a power
+    # that's OFF can't even draft, and a power that's ON still never writes without a 'yes'.
     w = _parse_host_write(text)
     if w is not None:
+        _wcap = _WRITE_CAP.get(w["action"], "")
+        if _wcap and not caps.enabled(name, _wcap):
+            return {"note": _off_write(_HOST_WHAT.get(w["action"], "your Mac"),
+                                       _HOST_TOGGLE.get(w["action"], "host-app writing"))}
         return {"note": _host_prepare(name, w)}
     # --- SEND: a text (draft → confirm; never auto-sends) ---
     s = _parse_send(text)
@@ -212,6 +229,14 @@ def _off(what: str, toggle: str) -> str:
             f"is off. In ONE honest, friendly sentence tell the user you're not set up to "
             f"do that yet and they can switch it on in settings. Don't over-apologize. "
             f"Invent nothing — no sender, message, count, or time.]")
+
+
+def _off_write(what: str, toggle: str) -> str:
+    """The write-side mirror of _off: the host-app WRITE switch is off, so we don't even draft."""
+    return (f"[capability — NOT CONNECTED: you cannot add to {what}; the '{toggle}' setting "
+            f"is off. In ONE honest, friendly sentence tell the user you're not set up to do "
+            f"that yet and they can switch it on in settings. Don't over-apologize. Create, "
+            f"write, and draft NOTHING — and do NOT ask them to confirm anything.]")
 
 
 def _failed(what: str, error) -> str:
@@ -470,6 +495,25 @@ _ACTION_LABEL = {
     "create_note": "a new note",
     "append_to_note": "an addition to a note",
     "complete_reminder": "marking a reminder done",
+}
+
+# Each host-WRITE action → the default-OFF capability that must be ON to even DRAFT it,
+# plus the human phrasing for the honest "it's off" reply. Calendar/Reminders/Notes each
+# gate independently, so turning on "add a reminder" never silently enables note-writing.
+_WRITE_CAP = {
+    "create_reminder": "reminders", "complete_reminder": "reminders",
+    "create_event": "calendar",
+    "create_note": "notes", "append_to_note": "notes",
+}
+_HOST_WHAT = {
+    "create_reminder": "your reminders", "complete_reminder": "your reminders",
+    "create_event": "your calendar",
+    "create_note": "your notes", "append_to_note": "your notes",
+}
+_HOST_TOGGLE = {
+    "create_reminder": "Reminders — add", "complete_reminder": "Reminders — add",
+    "create_event": "Calendar — add",
+    "create_note": "Notes — add", "append_to_note": "Notes — add",
 }
 
 

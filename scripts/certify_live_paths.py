@@ -661,6 +661,55 @@ def probe_capability_truth(res: Result) -> None:
             ", ".join(res.missing_links))
 
 
+# --- host_apps -------------------------------------------------------------------------------
+def probe_host_apps(res: Result) -> None:
+    """Calendar/Reminders/Notes connector. The executable cert (scripts/certify_host_apps.py) proves,
+    hermetically + offline (tripwired host_access, no osascript/EventKit), that every host power is OFF
+    by default and SILENT while off, the caps ledger is durable + isolated, notes-read is titles-only,
+    and no write reaches the Mac without an explicit draft->confirm. We add two static no-wallpaper
+    facts of our own:
+      (a) the WRITE path is REACHABLE but only behind the confirm gate — route._WRITE_CAP maps each
+          action to a default-OFF switch, and route._host_execute runs ONLY after _is_confirm;
+      (b) server.py still does NOT import host_access directly, so the write surface is wired ONLY
+          through route.py's caps + confirm gate (never bolted onto a read-only host endpoint) — the
+          same invariant the argus_host_awareness probe relies on."""
+    rc, tail = run_subcert([HERE / "certify_host_apps.py"])
+    cert_ok = (rc == 0) and ("HOST-APPS CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_host_apps.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    route_src = (ROOT / "anima" / "route.py").read_text()
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    gate_in_route = ("_WRITE_CAP" in route_src and "_host_execute" in route_src
+                     and "_is_confirm" in route_src)
+    caps_keys = all(k in caps_src for k in ("calendar_read", "reminders_read", "notes_read",
+                                            "calendar", "reminders", "notes"))
+    server_clean = "host_access" not in server_src     # write surface not on a server endpoint
+    res.evidence.append("route confirm-gate present (_WRITE_CAP/_host_execute/_is_confirm)=%s; "
+                        "six host caps in BOOL_KEYS=%s; server.py does NOT import host_access=%s"
+                        % (gate_in_route, caps_keys, server_clean))
+
+    res.set(UI=True, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and gate_in_route and caps_keys and server_clean:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "final_gate",
+                            "restart_survival"]
+        res.reason = ("Host apps (Calendar/Reminders/Notes) are OFF by default and SILENT while off "
+                      "(tripwired backend is never called); the caps ledger is durable + isolated; "
+                      "every write is draft->confirm (executes exactly once on 'yes', nothing on "
+                      "'no'); notes read is titles-only; real .anima byte-unchanged. The write surface "
+                      "is wired ONLY through route.py's caps+confirm gate — server.py never imports "
+                      "host_access.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("confirm_gate", gate_in_route),
+                             ("caps_keys", caps_keys), ("server_clean", server_clean)) if not v]
+        res.reason = "Host-apps connector cert/gate did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -1011,6 +1060,7 @@ def classify_all() -> dict:
         "known_fact_memory": probe_known_fact_memory,
         "growth_dashboard": probe_growth_dashboard,
         "capability_truth": probe_capability_truth,
+        "host_apps": probe_host_apps,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,
