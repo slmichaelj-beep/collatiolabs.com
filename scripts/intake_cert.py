@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -46,6 +47,10 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
+
+# This cert is OFFLINE + HERMETIC by contract: force the intake web-fetch seam offline so a URL
+# ingest NEVER opens a socket (it degrades to needs_dependency, exactly as before the Wave-4 fetch).
+os.environ.setdefault("ANIMA_INTAKE_OFFLINE", "1")
 
 # Synthetic-only sentinel prefix — nothing here can collide with a real creature.
 SYNTH = "st_intake_cert"

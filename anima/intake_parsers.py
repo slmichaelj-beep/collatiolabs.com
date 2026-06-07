@@ -822,11 +822,76 @@ def parse_video(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
     return _result(status="needs_dependency", need="stt+ffmpeg (whisper)", meta=meta)
 
 
-def parse_url(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
-    """A URL -> readable article text via a network FETCH (Wave 4), then through the SAME
-    html extractor. YouTube URLs are split out to the transcript parser. In Wave 1 we do
-    NOT open a socket (the spine is offline + hermetic): we detect the seam and return
-    needs_dependency, naming youtube-transcript vs web-fetch. Never fabricates a page."""
+# --- safe web fetch (Wave 4) — stdlib urllib, SSRF-guarded, size + time capped ---------------
+def _host_is_safe(host: str) -> bool:
+    """True iff `host` resolves ONLY to public, routable addresses. Blocks private / loopback /
+    link-local / reserved / multicast / unspecified — the SSRF guard for a user-pasted URL."""
+    import ipaddress
+    import socket
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except Exception:
+        return False
+    seen = False
+    for info in infos:
+        try:
+            addr = ipaddress.ip_address(info[4][0].split("%")[0])
+        except ValueError:
+            continue
+        seen = True
+        if (addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
+                or addr.is_multicast or addr.is_unspecified):
+            return False
+    return seen
+
+
+def web_fetch(url: str, *, timeout: float = 10.0, max_bytes: int = 3_000_000) -> tuple:
+    """Fetch a public http(s) URL -> (html_text, content_type, error). SSRF-guarded (public hosts
+    only; refuses a redirect to a private address), size + time capped, body treated as DATA.
+    Returns (None, '', reason) on refusal/failure — the caller degrades to needs_dependency, never
+    fabricates a page. ANIMA_INTAKE_OFFLINE=1 forces the offline seam (no socket) for hermetic
+    tests / the gate."""
+    if os.environ.get("ANIMA_INTAKE_OFFLINE") == "1":
+        return None, "", "offline (ANIMA_INTAKE_OFFLINE=1): no fetch"
+    import urllib.request
+    from urllib.parse import urlparse
+    p = urlparse(url)
+    if p.scheme not in ("http", "https"):
+        return None, "", "only http/https URLs are fetched"
+    if not p.hostname or not _host_is_safe(p.hostname):
+        return None, "", "refused: host is private/loopback/unresolvable (SSRF guard)"
+
+    class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            q = urlparse(newurl)
+            if q.scheme not in ("http", "https") or not q.hostname or not _host_is_safe(q.hostname):
+                return None                       # refuse a redirect to a non-web / private target
+            return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Vera-intake/1.0 (+local knowledge intake)",
+        "Accept": "text/html,application/xhtml+xml,text/plain,*/*"})
+    try:
+        with urllib.request.build_opener(_SafeRedirect()).open(req, timeout=timeout) as r:
+            ctype = r.headers.get("Content-Type", "") or ""
+            raw = r.read(max_bytes + 1)
+            charset = r.headers.get_content_charset() or "utf-8"
+    except Exception as e:
+        return None, "", ("fetch failed: %r" % (e,))[:180]
+    try:
+        text = raw[:max_bytes].decode(charset, errors="replace")
+    except Exception:
+        text = raw[:max_bytes].decode("utf-8", errors="replace")
+    return text, ctype, None
+
+
+def parse_url(path_or_url: str, *, fmt: Optional[str] = None, _raw_html: Optional[str] = None) -> dict:
+    """A URL -> readable article text via a network FETCH (Wave 4), then through the SAME hardened
+    html extractor. YouTube URLs split out to the (still-pluggable) transcript parser. `_raw_html`
+    lets a caller / hermetic test inject already-downloaded markup and skip the socket. The fetch is
+    SSRF-guarded (public hosts only), size + time capped, and the page is treated as DATA — a line
+    like 'ignore previous instructions' inside it is extracted, never obeyed. A YouTube link, a
+    refused / failed fetch, or no markup returns needs_dependency — never a fabricated page."""
     s = str(path_or_url)
     meta = {"format": fmt or "url", "source_ref": s, "title_hint": s}
     if _is_youtube(s):
@@ -835,8 +900,20 @@ def parse_url(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
             else "youtube-transcript (activation pending Wave 4)"
         return _result(status="needs_dependency", need=need, meta=meta)
     meta["subkind"] = "web_page"
-    # web fetch is a Wave-4 capability; the seam is proven here.
-    return _result(status="needs_dependency", need="web-fetch (urllib/requests, Wave 4)", meta=meta)
+    html = _raw_html
+    if html is None:
+        html, ctype, err = web_fetch(s)
+        if html is None:
+            return _result(status="needs_dependency", need="web-fetch", meta={**meta, "fetch_error": err})
+        meta["content_type"] = ctype
+        meta["fetched_bytes"] = len(html)
+    # route the markup through the SAME hardened HTML extractor (prompt-injection safe).
+    parsed = parse_html(s, fmt="html", _raw_html=html)
+    if isinstance(parsed, dict) and isinstance(parsed.get("meta"), dict):
+        parsed["meta"].update({"source_ref": s, "subkind": "web_page", "from_url": True})
+        if meta.get("content_type"):
+            parsed["meta"]["content_type"] = meta["content_type"]
+    return parsed
 
 
 def parse_archive(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
