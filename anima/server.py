@@ -2069,6 +2069,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif u.path == "/mind/export":
+                # the PORTABLE MIND — what Vera has grounded about the PERSON (facts + how-you-think),
+                # as a model-agnostic bundle they can carry app-to-app. Distinct from /identity/export
+                # (which is Vera's OWN character). Read-only; no store is mutated.
+                from . import portable
+                body = json.dumps(portable.export_mind(self.name), ensure_ascii=False).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Disposition",
+                                 f'attachment; filename="{self.name}.mind.json"')
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             elif u.path == "/capabilities":
                 from . import caps
                 self._send(200, "application/json", json.dumps(caps.load(self.name)).encode())
