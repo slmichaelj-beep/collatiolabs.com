@@ -586,6 +586,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
     model-agnostic file you can carry to any app or model. This is <i>your</i> mind, not her character.</p>
   <div class="row" style="gap:10px;justify-content:flex-start">
     <button type="button" id="mindexport" class="mbtn">Export my mind</button>
+    <button type="button" id="fullexport" class="mbtn">Carry everything</button>
   </div>
   <div id="mindnote" class="hint" style="margin-top:8px"></div>
   </div></details>
@@ -1761,6 +1762,16 @@ document.getElementById('learnRefresh').onclick=loadLearn;
 document.getElementById('learnDistill').onclick=async()=>{
   const b=document.getElementById('learnlist'); if(b)b.textContent='Distilling from your history…';
   await apiFetch('/personal/learn',{method:'POST'}); loadLearn();
+};
+document.getElementById('fullexport').onclick=async()=>{
+  try{ const r=await fetch('/platform/export',{headers:HDR});
+    let n=null; try{ n=JSON.parse(await r.clone().text()).manifest.counts; }catch(_){}
+    const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='my-full-mind.json'; a.click(); URL.revokeObjectURL(a.href);
+    mindnote.textContent=n?('Exported your WHOLE mind — '+(n.vault_objects||0)+' cognitive objects'
+      +(n.theories?(' incl. '+n.theories+' theories'):'')+'. Carry it to any app or model.')
+      :'Exported your full portable mind.';
+  }catch(e){ mindnote.textContent='Full export failed.'; }
 };
 document.getElementById('mindexport').onclick=async()=>{
   try{ const r=await fetch('/mind/export',{headers:HDR});

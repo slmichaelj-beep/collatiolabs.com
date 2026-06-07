@@ -4284,6 +4284,44 @@ def probe_organ_freeze(res: Result) -> None:
             ", ".join(res.missing_links) or "none")
 
 
+# --- platform_portability --------------------------------------------------------------------
+def probe_platform_portability(res: Result) -> None:
+    """Platformization (Phase E): the FULL portable-mind bundle round-trips into a fresh creature,
+    freeze-safe. certify_platform.py proves it hermetically (the module --selftest round-trip + freeze
+    + endpoint shape); we add static facts: export_full/import_full in platform.py, the /platform/export
+    + /platform/import endpoints, and the 'Carry everything' button."""
+    rc, tail = run_subcert([HERE / "certify_platform.py"])
+    cert_ok = (rc == 0) and ("PLATFORM CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_platform.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    plat_src = (ROOT / "anima" / "platform.py").read_text()
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    idx = (ROOT / "anima" / "web" / "index.html").read_text()
+    engine = "def export_full(" in plat_src and "def import_full(" in plat_src
+    endpoints = ('"/platform/export"' in server_src and '"/platform/import"' in server_src
+                 and "_serve_platform_export" in server_src and "_serve_platform_import" in server_src)
+    ui = 'id="fullexport"' in idx and "/platform/export" in idx
+    res.evidence.append("platform export_full/import_full=%s; /platform/export+import endpoints=%s; "
+                        "'Carry everything' UI=%s" % (engine, endpoints, ui))
+    res.set(UI=ui, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=None, MRI=None,
+            Restart=cert_ok)
+    if cert_ok and engine and endpoints and ui:
+        res.status = COMPLETE
+        res.proven_links = ["visible_trigger", "real_backend", "real_storage", "restart_survival"]
+        res.reason = ("The whole grounded mind is portable: export_full bundles identity + the entire "
+                      "lerf cognitive vault (incl. the wisdom theories) and import_full round-trips it "
+                      "losslessly into a FRESH creature, freeze-safe (a Vera-self object is refused on "
+                      "import); an empty mind yields an empty bundle (no fabrication); the /platform/"
+                      "export + /platform/import endpoints + the 'Carry everything' button are wired; "
+                      "real .anima byte-unchanged.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("engine", engine),
+                             ("endpoints", endpoints), ("ui", ui)) if not v]
+        res.reason = "Platform-portability live path did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- lerf_runtime ----------------------------------------------------------------------------
 def probe_lerf_runtime(res: Result) -> None:
     """Prove the DETERMINISTIC half of the LERF runtime hermetically — the part that does NOT need a
@@ -4699,6 +4737,7 @@ def classify_all() -> dict:
         "eval_honesty": probe_eval_honesty,
         "sysinfo_fit": probe_sysinfo_fit,
         "organ_freeze": probe_organ_freeze,
+        "platform_portability": probe_platform_portability,
         "lerf_runtime": probe_lerf_runtime,
         "conversation_repair": probe_conversation_repair,
         "identity_sandbox": probe_identity_sandbox,

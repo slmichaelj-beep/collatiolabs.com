@@ -1582,6 +1582,26 @@ def _serve_theory(name):
         return json.dumps({"ok": False, "error": str(exc)})
 
 
+def _serve_platform_export(name):
+    """GET /platform/export -> the FULL portable-mind bundle (identity + the entire grounded
+    cognitive vault incl. theories) as a model-agnostic file to carry to any app or model."""
+    from . import platform as _plat
+    try:
+        return json.dumps(_plat.export_full(name), ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"manifest": {"schema": "vera.full-mind"}, "error": str(exc)})
+
+
+def _serve_platform_import(name, data):
+    """POST /platform/import {bundle} -> restore a full-mind bundle into this creature (freeze-safe:
+    a Vera-self object in the bundle is refused, never written)."""
+    from . import platform as _plat
+    b = (data or {}).get("bundle")
+    if not isinstance(b, dict):
+        return json.dumps({"ok": False, "error": "need a 'bundle' object"})
+    return json.dumps(_plat.import_full(b, name))
+
+
 # --- proactive: serve a rendered briefing/reminder audio file ---------------
 # proactive.render_audio writes .anima/<Name>.briefing.wav (Kokoro) or .aiff (`say`);
 # a reminder escalation renders similarly. Caddy fronts vera.guruu.ai -> :8765, so a
@@ -2190,6 +2210,9 @@ class Handler(BaseHTTPRequestHandler):
             elif u.path == "/theory":
                 # GET /theory -> the Wisdom engine's grounded theories + long-horizon lessons.
                 self._send(200, "application/json", _serve_theory(self.name).encode())
+            elif u.path == "/platform/export":
+                # GET /platform/export -> the FULL portable-mind bundle (carry her whole mind).
+                self._send(200, "application/json", _serve_platform_export(self.name).encode())
             elif u.path == "/host/awareness":
                 # GET /host/awareness -> the human-level host picture (Argus). Cloud-redacted.
                 try:
@@ -2348,6 +2371,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/personal/edit":
                 data = json.loads(self._read_body() or b"{}")
                 self._send(200, "application/json", _serve_personal_edit(self.name, data).encode())
+            elif path == "/platform/import":
+                data = json.loads(self._read_body() or b"{}")
+                self._send(200, "application/json", _serve_platform_import(self.name, data).encode())
             elif path == "/loc":
                 # iPhone posts {lat, lon, ts}; stored for the proactive briefing's weather.
                 # AUTHED (above) — must be, or the tailnet could spoof your location.
