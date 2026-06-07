@@ -58,8 +58,9 @@ def main(argv=None) -> int:
     c = m["counts"]
     print(f"exported {args.name!r}'s portable mind -> {out}")
     print(f"  schema {m['schema']} v{m['version']}")
-    print(f"  identity facts : {c['identity_facts']}")
-    print(f"  how you think  : {c['personal_items']} items (known={c['personal_known']})")
+    print(f"  identity facts    : {c['identity_facts']}   (round-trip core)")
+    print(f"  cognitive objects : {c.get('cognitive_objects', 0)}   (how-you-think — round-trip core)")
+    print(f"  how you think     : {c['personal_items']} profiled items (known={c['personal_known']})")
     print(f"  trajectory     : {c['has_trajectory']}   what-matters: {c['has_meaning']}   "
           f"world: {c['has_world']}")
     print(f"  -> plain JSON, model-agnostic; re-import the identity core with "

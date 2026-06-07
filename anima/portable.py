@@ -77,6 +77,21 @@ def _personal(name: str) -> Dict[str, Any]:
     return _safe(go, {"known": False, "counts": {}})
 
 
+def _cognitive_objects(name: str) -> List[Dict[str, Any]]:
+    """The RAW 'how you think' objects (VALUE / PREFERENCE / DECISION_PATTERN / HEURISTIC) — the
+    person-model cognitive layer, exported whole (with ids) so they reconstruct faithfully. These
+    are about the PERSON, never Vera's self (the freeze guard refuses a self-referential one)."""
+    def go():
+        from . import lerf
+        types = {lerf.VALUE, lerf.PREFERENCE, lerf.DECISION_PATTERN, lerf.HEURISTIC}
+        out = []
+        for o in (lerf._load_objects(name) or []):
+            if isinstance(o, dict) and o.get("type") in types and o.get("state", "active") == "active":
+                out.append(o)
+        return out
+    return _safe(go, [])
+
+
 def _snapshot(modname: str, fn: str, name: str) -> Any:
     def go():
         mod = __import__("anima." + modname, fromlist=["_"])
@@ -89,11 +104,13 @@ def export_mind(name: str = "Vera") -> Dict[str, Any]:
     """Compose the portable, self-describing mind bundle for `name` (read-only)."""
     identity = _identity(name)
     personal = _personal(name)
+    cognitive = _cognitive_objects(name)
     trajectory = _snapshot("trajectory", "snapshot_trajectory", name)
     meaning = _snapshot("meaning", "snapshot", name)
     world = _safe(lambda: (__import__("anima.world_state", fromlist=["_"]).render(name) or ""), "")
     counts = {
         "identity_facts": len(identity),
+        "cognitive_objects": len(cognitive),
         "personal_known": bool(personal.get("known")),
         "personal_items": int(sum((personal.get("counts") or {}).values())),
         "has_trajectory": bool(trajectory),
@@ -106,11 +123,16 @@ def export_mind(name: str = "Vera") -> Dict[str, Any]:
             "version": BUNDLE_VERSION,
             "person": name,
             "counts": counts,
+            "round_trip_layers": ["identity", "cognitive_objects"],
+            "read_only_layers": ["trajectory", "what_matters", "world_summary"],
             "note": ("A portable, model-agnostic export of a person's grounded personal intelligence. "
-                     "The identity facts are the round-trip CORE (import_mind reconstructs them); the "
-                     "facets are portable, provenance-carrying data for any consumer to read."),
+                     "The identity facts AND the cognitive objects (how-you-think: values, preferences, "
+                     "decision patterns, heuristics) are the round-trip CORE (import_mind reconstructs "
+                     "them). The derived facets (trajectory/meaning regenerate from the core; world is "
+                     "a summary) travel as portable, provenance-carrying data for any consumer to read."),
         },
         "identity": identity,
+        "cognitive_objects": cognitive,
         "personal_intelligence": personal,
         "trajectory": trajectory,
         "what_matters": meaning,
@@ -140,7 +162,25 @@ def import_mind(bundle: Dict[str, Any], target: str) -> Dict[str, Any]:
         imported += 1
     if imported:
         f.save(target)
-    return {"imported": imported, "traits": sorted({x.get("trait") for x in facts if x.get("trait")})}
+
+    # the COGNITIVE layer (how-you-think): re-store each object through the normal lerf write path
+    # (idempotent on id; the freeze guard re-refuses any self-referential object — never imported).
+    obj_imported = 0
+    try:
+        from . import lerf
+        for o in ((bundle or {}).get("cognitive_objects") or []):
+            if not isinstance(o, dict):
+                continue
+            try:
+                lerf.store_object(dict(o), name=target)
+                obj_imported += 1
+            except Exception:
+                continue            # skip a freeze-refused / malformed object, honestly
+    except Exception:
+        pass
+
+    return {"imported": imported, "objects_imported": obj_imported,
+            "traits": sorted({x.get("trait") for x in facts if x.get("trait")})}
 
 
 def save_bundle(bundle: Dict[str, Any], path: Path) -> Path:
@@ -179,14 +219,28 @@ def _selftest() -> int:
         ck("empty mind exports 0 identity facts (honest)", empty["manifest"]["counts"]["identity_facts"] == 0)
         ck("empty bundle serialises to plain JSON", isinstance(json.dumps(empty), str))
 
-        # seed a real mind in store A.
+        # seed a real mind in store A — identity facts AND cognitive (how-you-think) objects.
+        from anima import lerf
         a = "PortableA"
         for fact in ("my name is Lamar", "my birthday is March 4, 1991",
                      "I work at Collatio", "my dog's name is Biscuit", "I live in Portland"):
             ml.capture(a, fact)
+        _v = lerf.make_value("craftsmanship", domain="user",
+                             evidence=["Lamar repeatedly chooses the rigorous path over the quick one"])
+        _v["state"] = "active"
+        lerf.store_object(_v, name=a)
+        _p = lerf.make_preference("terse, concrete writing", domain="user",
+                                  evidence=["prefers short concrete prose to flourish"])
+        _p["state"] = "active"
+        lerf.store_object(_p, name=a)
         bundle = export_mind(a)
         ck("export captures the seeded identity facts (>=5)",
            bundle["manifest"]["counts"]["identity_facts"] >= 5)
+        ck("export captures the cognitive 'how you think' objects (>=2)",
+           bundle["manifest"]["counts"]["cognitive_objects"] >= 2)
+        ck("manifest declares both round-trip layers (identity + cognitive_objects)",
+           "identity" in bundle["manifest"]["round_trip_layers"]
+           and "cognitive_objects" in bundle["manifest"]["round_trip_layers"])
         ck("bundle is self-describing (manifest schema + version + person)",
            bundle["manifest"]["schema"] == "vera.portable-mind"
            and bundle["manifest"]["version"] == BUNDLE_VERSION
@@ -201,6 +255,8 @@ def _selftest() -> int:
         ck("target B starts empty (clean re-import target)", len(before_b) == 0)
         res = import_mind(wire, b)
         ck("import reports the facts it reconstructed (>=5)", res["imported"] >= 5)
+        ck("import reports the cognitive objects it reconstructed (>=2)",
+           res["objects_imported"] >= 2)
 
         # ROUND-TRIP FIDELITY: B now holds the same traits with the same values as A.
         fa = {r["trait"]: ml._fmt_value(r["value"]) for r in ml.Facts.load(a).about(ml.SELF)}
@@ -210,6 +266,15 @@ def _selftest() -> int:
            all(fb.get(t) == v for t, v in fa.items()))
         ck("round-trip: the birthday survived verbatim (March 4, 1991)",
            "March 4, 1991" in (fb.get("birthday") or ""))
+
+        # ROUND-TRIP the COGNITIVE layer: B holds the same how-you-think objects (by id + subject).
+        ca = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
+              for o in _cognitive_objects(a)}
+        cb = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
+              for o in _cognitive_objects(b)}
+        ck("round-trip: B has every cognitive object A had (same ids)", set(ca).issubset(set(cb)))
+        ck("round-trip: cognitive object type+subject match exactly (how-you-think carried)",
+           all(cb.get(i) == v for i, v in ca.items()))
 
         # save round-trips to disk
         import tempfile
