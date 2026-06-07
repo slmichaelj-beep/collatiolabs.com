@@ -1,0 +1,74 @@
+{
+  "phase": "5 — Pattern Observatory",
+  "schema": "pattern -> evidence -> root cause -> recommended fix -> required cert",
+  "meta": {
+    "name": "vera",
+    "trace_name": "vera",
+    "n_traces": 9,
+    "audit_loaded": true
+  },
+  "counts": {
+    "P0": 1,
+    "P1": 1,
+    "P2": 0,
+    "total": 2
+  },
+  "patterns": [
+    {
+      "pattern_id": "conversation_repair",
+      "title": "Correction lost — memory known but not superseded",
+      "frequency": 1,
+      "severity": "P0",
+      "evidence": [
+        "feature:conversation_repair",
+        "status:WALLPAPER",
+        "correction 'sorry, scratch that — not Rex, his name is Atlas' -> dog_name active='Rex' [LINGERS->Rex]",
+        "correction 'that transcription was wrong, I said Atlas' -> dog_name active='Rex' [LINGERS->Rex]",
+        "correction 'not Rex, his name is Atlas' -> dog_name active='Rex' [LINGERS->Rex]",
+        "correction \"actually, my dog's name is Atlas\" -> dog_name active='Atlas' [SUPERSEDED->Atlas]",
+        "missing_links:real_use_in_answer,real_backend (supersede-the-last-turn)"
+      ],
+      "root_cause": "WALLPAPER: the correction path looks wired (per-turn capture + merge newest-wins) but on the contract's own killer phrasing — 'scratch that — not Rex, his name is Atlas' — extract() captures NOTHING: the bad value 'Rex' stays the ACTIVE fact and the corrected 'Atlas' is LOST. There is no supersede-the-last-turn primitive; only a full re-statement ('my dog's name is Atlas') supersedes. A follow-up 'what's my dog's name?' would answer Rex. (memory_lirf.py extract() dog_name rule line 361; _RETRACT_CUE line 534.)",
+      "recommended_fix": "Add a deterministic conversation-repair seam: a supersede-the-last-turn primitive. Extend _RETRACT_CUE with 'scratch that' / 'not X, Y' / 'I said Y', and on a retract cue rebind the most-recent same-slot fact to the corrected value (old -> history, new -> active) even when no fresh 'my dog ... <Name>' anchor is present.",
+      "cert_required": [
+        "conversation_repair killer test",
+        "certify_repair.py"
+      ],
+      "expected_improvement": {
+        "behavior": "correction supersedes the prior fact within the same turn",
+        "killer_phrase": "scratch that — not Rex, his name is Atlas",
+        "from": "LINGERS->Rex (correction lost)",
+        "to": "SUPERSEDED->Atlas (correction wins)"
+      },
+      "source": "audit:conversation_repair"
+    },
+    {
+      "pattern_id": "source_use",
+      "title": "Source retrieved but not used",
+      "frequency": 1,
+      "severity": "P1",
+      "evidence": [
+        {
+          "turn_id": "turn_2026_06_07_050912_I1rT48",
+          "route": "llm",
+          "source_labeled": true,
+          "source_used": null,
+          "backend": "ollama:hf.co/bartowski/L3-8B-Stheno-v3.2-GGUF"
+        }
+      ],
+      "root_cause": "A source/reference was retrieved and labeled for the turn, but the shipped answer did not route through it (route != reference:recall / quality.source_used false). The reference-recall seam that grounds the reply in the stored source was bypassed, so the user got a model answer while a labeled source sat unused.",
+      "recommended_fix": "Re-assert the reference-recall seam: when relevant_sources() returns a labeled match, recall() FROM that source must own the turn (backend reference:recall) before the LLM path is eligible. Guard it so a retrieved-but-unused source is impossible, not merely unlikely.",
+      "cert_required": [
+        "scripts/certify_no_stubs.py --gate",
+        "python3 -m anima.source_aware --selftest"
+      ],
+      "expected_improvement": {
+        "source_grounding": "retrieved source is USED, not bypassed",
+        "metric": "source_used_rate",
+        "from": "regressed (<1.0 on source-eligible turns)",
+        "to": 1.0
+      },
+      "source": "traces"
+    }
+  ]
+}
