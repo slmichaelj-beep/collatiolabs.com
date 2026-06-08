@@ -1732,6 +1732,19 @@ def _staging_dir(name: str) -> Path:
     return STORE / f"{name}.intake_staging"
 
 
+def _free_bytes(path):
+    """Free bytes on the volume holding `path` (walks up to the nearest existing parent), or None if it
+    can't be determined — callers treat None as 'unknown, don't block'."""
+    import shutil as _sh
+    p = Path(path)
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        return _sh.disk_usage(str(p)).free
+    except Exception:
+        return None
+
+
 def _write_staging(name: str, source_id: str, kind: str, data: dict) -> Path:
     """Write raw bytes/text to the staging path and return the path. The staging path
     is .anima/{name}.intake_staging/{source_id}.* — one file per ingest attempt."""
@@ -1780,6 +1793,16 @@ def _intake_plan(name: str, data: dict) -> dict:
     from . import intake as _int
     kind = str(data.get("kind") or "text")
     source_id = _int._new_id("src")
+    # DISK PRE-FLIGHT: a base64 file is decoded straight to the staging dir; on a near-full disk that
+    # ENOSPCs mid-write and can corrupt. Refuse HONESTLY before writing, with an actionable message.
+    if kind == "file":
+        b64 = data.get("bytes_b64") or ""
+        need = (len(b64) * 3) // 4 + (128 * 1024 * 1024)   # decoded size + 128 MB headroom (parse/temp)
+        free = _free_bytes(_staging_dir(name))
+        if free is not None and need > free:
+            return {"ok": False, "source_id": source_id,
+                    "error": ("not enough disk space to ingest this file: need ~%d MB, only %d MB free. "
+                              "Free up space and try again." % (need // (1024 * 1024), free // (1024 * 1024)))}
     try:
         stage_path = _write_staging(name, source_id, kind, data)
     except Exception as e:

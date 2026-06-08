@@ -49,6 +49,35 @@ def _infer_type(item: dict) -> str:
     return "reference"
 
 
+# Prompt-injection markers: text inside an EXTERNAL source that tries to act as INSTRUCTIONS to Vera
+# rather than be quoted as data. The architecture already blocks any ACTION from source text (no
+# connector call in the ingest/answer path, caps off, no silent write); this is DEFENSE-IN-DEPTH —
+# it FLAGS such content so the answer path can frame it to the model as untrusted, quoted data.
+_INJECTION_RE = re.compile(
+    r"ignore\s+(?:all\s+)?(?:previous|prior|the\s+above)\s+(?:instructions|prompts?|rules)"
+    r"|disregard\s+(?:all\s+)?(?:previous|prior|the)\b"
+    r"|you\s+are\s+now\s+(?:an?\s+|unrestricted|in\s+)"
+    r"|system\s*(?:override|prompt|message)|^\s*system\s*:"
+    r"|rights_category\s*[:=]"
+    r"|enable\s+identity_agency|grant\s+(?:yourself\s+)?agency|enable\s+agency\b"
+    r"|forward\s+all\s+(?:of\s+)?(?:the\s+)?(?:user'?s\s+)?e-?mails?"
+    r"|reply\s+only\s+with|respond\s+only\s+with|output\s+only\s+the"
+    r"|do\s+not\s+(?:tell|inform|alert|notify)\s+the\s+user"
+    r"|jailbreak|developer\s+mode|\bDAN\b"
+    r"|exfiltrat|send\s+(?:all\s+)?(?:the\s+)?(?:data|secrets?|passwords?|api\s*keys?)",
+    re.I | re.M)
+
+
+def looks_like_injection(text: str) -> bool:
+    """True if EXTERNAL source text contains a prompt-injection marker (text trying to act as an
+    instruction to Vera). Used to FLAG reference content as untrusted-quoted. Pure; never raises.
+    Conservative-by-consequence: a false flag only adds a 'treat as quoted data' caution, never blocks."""
+    try:
+        return bool(text) and bool(_INJECTION_RE.search(str(text)))
+    except Exception:
+        return False
+
+
 def _best_snippet(chunks: list, q: set) -> tuple:
     """Return (score, snippet) for the best-overlapping chunk of a reference item."""
     best_score, best_text = 0.0, ""
@@ -101,12 +130,18 @@ def relevant_sources(name: str, text: str, *, limit: int = 3,
         score += 0.1 * len(title_ov)
         if score < min_score:
             continue
+        # defense-in-depth: flag a source whose surfaced text tries to act as instructions, so the
+        # answer path can frame it to the model as untrusted, quoted data (scan the snippet + the
+        # first chunks, bounded). The architecture already blocks any ACTION from source text.
+        flagged = looks_like_injection(snippet) or any(
+            looks_like_injection(c.get("text") if isinstance(c, dict) else "") for c in chunks[:12])
         scored.append({
             "source_id": item.get("id") or item.get("source_id") or "",
             "title": title or "(untitled source)",
             "type": _infer_type(item),
             "snippet": snippet,
             "score": round(float(score), 3),
+            "untrusted_injection": bool(flagged),
         })
     scored.sort(key=lambda s: s["score"], reverse=True)
     return scored[:max(1, int(limit))]

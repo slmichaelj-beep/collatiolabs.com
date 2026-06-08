@@ -73,6 +73,25 @@ def main() -> int:
     ck("C3: the reply token floor is sane (>=256 — not the old 48/160 that cut sentences off)",
        floor >= 256)
 
+    # ---- (D) DISK PRE-FLIGHT (hermetic — always runs) ----------------------------------------
+    # A base64 file decodes straight to the staging dir; on a near-full disk that ENOSPCs mid-write.
+    # _intake_plan must refuse HONESTLY before writing. Prove the block path + that nothing is staged.
+    import base64 as _b64
+    from anima import server as _srv
+    _orig_free = _srv._free_bytes
+    try:
+        real_free = _orig_free(_srv._staging_dir("Vera"))
+        ck("D1: _free_bytes reports real volume free space (>0)", isinstance(real_free, int) and real_free > 0)
+        _srv._free_bytes = lambda p: 5 * 1024 * 1024            # pretend only 5 MB free
+        r = _srv._intake_plan("Vera", {"kind": "file", "filename": "x.txt",
+                                       "bytes_b64": _b64.b64encode(b"x" * 2048).decode()})
+        ck("D2: a file upload on a near-full disk is REFUSED honestly (not an ENOSPC mid-write)",
+           (not r.get("ok")) and "disk space" in (r.get("error") or "").lower())
+        ck("D2: nothing is staged when the disk guard refuses",
+           not (_srv._staging_dir("Vera") / (str(r.get("source_id", "")) + ".txt")).exists())
+    finally:
+        _srv._free_bytes = _orig_free
+
     # ---- (A)/(B) LIVE HTTP (skip-not-fail) ---------------------------------------------------
     if not _up():
         print("  --   A/B live upload SKIPPED (server not running on :8765) — reply-completion proven above")

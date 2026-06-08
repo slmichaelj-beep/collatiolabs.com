@@ -4837,6 +4837,41 @@ def probe_call_auth(res: Result) -> None:
         res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- ai_security -----------------------------------------------------------------------------
+def probe_ai_security(res: Result) -> None:
+    """Phase 4 AI Security red team — SOURCE TEXT IS DATA, NEVER POLICY. The executable cert
+    (scripts/certify_ai_security.py) proves at the ARCHITECTURE level (deterministic): an injection
+    source requires confirmation + is never auto-committed; it can't self-elevate to trusted/system;
+    caps.identity_agency stays OFF (no agency/identity mutation from a source); the ingest+answer path
+    makes no connector send/create/delete call (source can't act); the reference path reads only the
+    cite-only Reference Library; and injection content is DETECTED + flagged untrusted (defense-in-
+    depth). The small-model echo of injected prose is reported as an explicit ADVISORY (a documented
+    known gap, mitigated structurally — never faked green)."""
+    rc, tail = run_subcert([HERE / "certify_ai_security.py"])
+    cert_ok = (rc == 0) and ("AI-SECURITY CERT: CERTIFIED" in tail)
+    advisory = next((ln.split("MODEL-ECHO ADVISORY:", 1)[1].strip()
+                     for ln in tail.splitlines() if "MODEL-ECHO ADVISORY:" in ln), "?")
+    src = (ROOT / "anima" / "source_aware.py").read_text()
+    detector = ("def looks_like_injection" in src and "untrusted_injection" in src)
+    res.evidence.append("scripts/certify_ai_security.py -> exit %d; %s; model-echo advisory=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", advisory[:60]))
+    res.evidence.append("source_aware injection detector + untrusted flag present=%s" % detector)
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and detector:
+        res.status = COMPLETE
+        res.proven_links = ["injection_is_data", "no_self_elevation", "no_agency_from_source",
+                            "no_silent_actions", "rag_separation", "injection_detected"]
+        res.reason = ("Source text is DATA, never policy — proven deterministically: injection requires "
+                      "confirmation + is never auto-committed, can't self-elevate, can't enable agency/"
+                      "mutate identity, can't trigger a connector action, reads only the cite-only "
+                      "Reference Library, and is detected + flagged untrusted. Small-model prose-echo is a "
+                      "documented known gap (mitigated structurally), reported as an explicit advisory.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("detector", detector)) if not v]
+        res.reason = "AI-security doctrine did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
 # --- live_ux ---------------------------------------------------------------------------------
 def probe_live_ux(res: Result) -> None:
     """The real browser-facing UX paths the hermetic certs missed — the two live failures the gate
@@ -4857,7 +4892,8 @@ def probe_live_ux(res: Result) -> None:
     srv = (ROOT / "anima" / "server.py").read_text()
     mou = (ROOT / "anima" / "mouth.py").read_text()
     body_fix = ("_BodyTooLarge" in srv and "while len(buf) < n" in srv
-                and "self._send(413" in srv)
+                and "self._send(413" in srv and "_free_bytes" in srv
+                and "not enough disk space" in srv)
     reply_fix = ("_finish_on_sentence" in mou and "self.brain.max_tokens = max(256" in mou)
     res.evidence.append("server full-body read + 413 guard=%s; mouth sentence-guard + token floor>=256=%s"
                         % (body_fix, reply_fix))
@@ -4996,6 +5032,7 @@ def classify_all() -> dict:
         "intake_queue_flow": probe_intake_queue_flow,
         "audiobook_intake": probe_audiobook_intake,
         "live_ux": probe_live_ux,
+        "ai_security": probe_ai_security,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
         "deployment_proof": probe_deployment_proof,
