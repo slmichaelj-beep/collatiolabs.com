@@ -212,8 +212,13 @@ def render(rows: list, real_total) -> str:
     if real_total:
         avg = sum(r["estimated_tokens"] for r in rows) / max(1, len(rows))
         out.append("\nGROUND TRUTH (model prompt_eval_count, latest live turn): %d tok" % real_total)
-        out.append("  offline estimate avg: %d tok · chat-template/role-marker overhead ≈ %d tok"
-                   % (int(avg), max(0, int(real_total - avg))))
+        if real_total >= avg:
+            out.append("  offline estimate avg (normal samples): %d tok · template/role-marker overhead "
+                       "+ estimator gap vs the latest live turn ≈ %d tok" % (int(avg), int(real_total - avg)))
+        else:
+            out.append("  offline estimate avg (normal samples): %d tok · NOTE: the latest live turn was a "
+                       "shorter/other route, so it isn't directly comparable to the normal samples above"
+                       % int(avg))
     out.append("\nNote: tokens are the offline estimate (lerf.count_tokens = max(words, chars/4)); the")
     out.append("model total above is the real prompt_eval_count. Sources are NOT here — they ride a")
     out.append("separate deterministic recall seam, not the model prompt. No prompt/behavior changed.")
