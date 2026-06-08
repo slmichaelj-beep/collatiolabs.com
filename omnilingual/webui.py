@@ -194,7 +194,9 @@ def run_job(job_id):
             res = pipeline.transcribe(part, lang=[lang] * len(part), batch_size=len(part))
             texts.extend(as_text(r) for r in res)
             done = min(i + BATCH, total)
-            job_set(job_id, done=done, progress=int(5 + 90 * done / total))
+            recent = " ".join(t.strip() for t in texts[-4:] if t.strip())
+            job_set(job_id, done=done, progress=int(5 + 90 * done / total),
+                    preview=recent[:400] or "(no speech detected yet…)")
 
         outdir = os.path.expanduser(job["outdir"])
         os.makedirs(outdir, exist_ok=True)
@@ -508,6 +510,7 @@ function render(d){
     if(done) meta=`<div class="meta"><span>Saved: ${esc(j.output)}</span>`+
        `<button class="link" onclick="fetch('/reveal?job=${j.id}')">Open in Finder</button></div>`+
        (j.preview?`<div class="pre">${esc(j.preview)}</div>`:'');
+    else if(j.preview) meta=`<div class="pre">${esc(j.preview)}</div>`;
     if(err) meta=`<div class="meta err">${esc(j.error)}</div>`;
     return `<div class="job"><div class="top"><span class="nm">${esc(j.name)}</span>`+
       `<span class="st">${esc(right)}</span></div>`+
