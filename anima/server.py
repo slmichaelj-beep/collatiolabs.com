@@ -2402,6 +2402,36 @@ def _security_data(name: str) -> dict:
     return out
 
 
+def _consent_data(name: str) -> dict:
+    """Consent & Boundaries (Layer 2) — the consent posture: per sensitive domain, the status of the
+    durable-state scopes + pacing, plus the sensitive memory candidates HELD for the user's decision.
+    Read-only; never raises."""
+    try:
+        from .consent import policy
+        return policy.settings(name)
+    except Exception as e:
+        return {"name": name, "domains": [], "pending": [], "empty": True, "error": str(e)}
+
+
+def _consent_action(name: str, data: dict) -> dict:
+    """Change consent (grant / deny / ask-each-time / revoke) or resolve a held sensitive memory
+    (approve -> write, reject -> discard). Persisted + audited. The user calls the shot."""
+    action = str(data.get("action") or "")
+    try:
+        from .consent import policy, schema
+        if action in ("grant", "deny", "ask", "revoke"):
+            scope, domain = str(data.get("scope") or ""), str(data.get("domain") or "")
+            if action == "revoke":
+                return policy.revoke(name, scope, domain)
+            st = {"grant": "granted", "deny": "denied", "ask": "ask_each_time"}[action]
+            return policy.set_consent(name, scope, domain, st, data.get("pacing"))
+        if action in ("approve", "reject"):
+            return policy.resolve_pending(name, str(data.get("pending_id") or ""), action)
+        return {"ok": False, "error": "action must be grant|deny|ask|revoke|approve|reject"}
+    except Exception as e:
+        return {"ok": False, "error": "consent action failed: %s" % e}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2539,6 +2569,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       sec.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"security console not built")
+            if u.path in ("/consent", "/consent.html", "/privacy/consent"):
+                # Consent & Boundaries page SHELL — public like the others (data is token-gated).
+                cn = (WEB / "consent.html")
+                if cn.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      cn.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"consent surface not built")
             if u.path in ("/founder/living-map", "/living-map", "/living_map.html"):
                 # Living Map page SHELL (Founder Console -> Living Map) — public like the others; the
                 # data route /founder/living-map/state below is token-gated. The operational digital twin.
@@ -2579,6 +2616,10 @@ class Handler(BaseHTTPRequestHandler):
                 # quarantine catches, the SOC trail, caps posture. Token-gated. Read-only; honest.
                 return self._send(200, "application/json",
                                   json.dumps(_security_data(self.name)).encode())
+            if u.path in ("/consent.json", "/privacy/consent.json"):
+                # Consent & Boundaries data — per-domain consent + held sensitive memories. Token-gated.
+                return self._send(200, "application/json",
+                                  json.dumps(_consent_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.
@@ -2752,6 +2793,12 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self._read_body() or b"{}")
                 return self._send(200, "application/json",
                                   json.dumps(_security_action(self.name, data)).encode())
+            if path == "/consent/decide":
+                # Consent & Boundaries — grant/deny/ask/revoke a consent, or approve/reject a held
+                # sensitive memory. Persisted + audited. Token + Face-ID gated like every POST control.
+                data = json.loads(self._read_body() or b"{}")
+                return self._send(200, "application/json",
+                                  json.dumps(_consent_action(self.name, data)).encode())
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input

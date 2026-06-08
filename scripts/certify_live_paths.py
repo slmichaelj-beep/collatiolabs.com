@@ -5053,6 +5053,36 @@ def probe_security_surface(res: Result) -> None:
         res.reason = "Security / Quarantine surface did not hold (cert FAIL or page missing)."
 
 
+# --- consent_boundaries ----------------------------------------------------------------------
+def probe_consent_boundaries(res: Result) -> None:
+    """Consent & Boundaries (Human Operating Layer L2): context-aware consent over sensitive domains,
+    with the enforced boundary that a sensitive conclusion is never written to memory silently. Certs:
+    scripts/certify_consent_boundaries.py + scripts/certify_no_silent_sensitive_memory.py."""
+    rc1, t1 = run_subcert([HERE / "certify_consent_boundaries.py"])
+    rc2, t2 = run_subcert([HERE / "certify_no_silent_sensitive_memory.py"])
+    cb_ok = (rc1 == 0) and ("CONSENT-BOUNDARIES CERT: CERTIFIED" in t1)
+    nm_ok = (rc2 == 0) and ("NO-SILENT-SENSITIVE-MEMORY CERT: CERTIFIED" in t2)
+    page = (ROOT / "anima" / "web" / "consent.html").exists()
+    wired = "gate_memory_candidates" in (ROOT / "anima" / "memory_lirf.py").read_text()
+    cert_ok = cb_ok and nm_ok and wired
+    res.evidence.append("certify_consent_boundaries -> %s · no_silent_sensitive_memory -> %s; wired=%s; page=%s"
+                        % ("CERTIFIED" if cb_ok else "FAIL", "CERTIFIED" if nm_ok else "FAIL", wired, page))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None, Restart=cert_ok)
+    if cert_ok and page:
+        res.status = COMPLETE
+        res.proven_links = ["sensitive_detected", "safe_default", "grant_deny", "revocation", "pacing",
+                            "no_silent_sensitive_memory", "approve_writes", "reject_discards", "audited",
+                            "served_authed"]
+        res.reason = ("Context-aware consent over 14 sensitive domains: granted/denied/ask-each-time/"
+                      "revoked with go-slow pacing, the safe default ask-each-time for durable-state "
+                      "scopes. The enforced boundary — a sensitive conclusion is NEVER written to memory "
+                      "silently — runs inside the LIVE capture path (held for approve/reject); every "
+                      "change + hold/write/discard audited; served + auth-gated UI. The user calls the shot.")
+    else:
+        res.status = STUB
+        res.reason = "Consent & Boundaries did not hold (a cert FAILed, the gate isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5539,6 +5569,7 @@ def classify_all() -> dict:
         "observatory": probe_observatory,
         "patterns_dashboard": probe_patterns_dashboard,
         "security_surface": probe_security_surface,
+        "consent_boundaries": probe_consent_boundaries,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Consent &amp; Boundaries</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:660px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:14px 0 6px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink)}
+  .pill{display:inline-flex;align-items:center;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .ttl{font-weight:640}
+  .mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:8px;padding:8px 9px;white-space:pre-wrap}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-top:1px solid var(--line)}
+  .row:first-child{border-top:0}
+  .dom{min-width:150px;font-weight:600;font-size:13px;text-transform:capitalize}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{font-size:11.5px;padding:5px 10px;background:#0d1422;color:var(--dim);border:0;cursor:pointer;border-left:1px solid var(--line)}
+  .seg button:first-child{border-left:0}
+  .seg button.on{color:var(--ink)}
+  .seg button.on.granted{background:var(--good-d);color:#9bf0cf}
+  .seg button.on.ask_each_time{background:var(--warn-d);color:#f4d79b}
+  .seg button.on.denied,.seg button.on.revoked{background:var(--bad-d);color:#f6b3bf}
+  .btn{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);cursor:pointer;background:#0d1422;color:var(--ink)}
+  .btn.approve{border-color:var(--good-d);background:var(--good-d);color:#9bf0cf}
+  .btn.reject{border-color:var(--bad-d);background:var(--bad-d);color:#f6b3bf}
+  .btn.revoke{border-color:var(--bad-d);color:#f6b3bf}
+  .scope{font-size:10.5px;color:var(--faint);min-width:96px}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · PRIVACY</div>
+      <h1>Consent &amp; Boundaries</h1>
+      <div class="sub">Permissions ask <b>CAN</b> Vera access this. Consent asks the harder question:
+        <b>SHOULD</b> Vera proceed — at this speed, with this sensitivity, in this context. Sensitive
+        material is never remembered, learned, or reused silently. You call the shot, and you can
+        revoke at any time.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/security">Security →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="view"><div class="na">Loading…</div></div>
+
+  <footer>Read-only review of consent · changes are persisted &amp; audited · nothing leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  var DATA=null, BUSY=false;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var SCOPES=[['memory_write','remember'],['identity_learning','shape who you are'],['source_use','reuse as a source']];
+
+  function pendingView(d){
+    var p=d.pending||[];
+    var h='<div class="card"><div class="ttl">Held for your decision · sensitive memories</div>'+
+      '<div class="why"><b>What this is:</b> Vera noticed something sensitive and did <b>not</b> write it '+
+      'to memory. Approve to remember it, or reject to forget it entirely.</div>';
+    if(!p.length){ h+='<div class="na">Nothing held — no sensitive memory is waiting on you. (Honest empty state.)</div>'; }
+    else { h+=p.map(function(x){
+      return '<div class="row"><span class="pill" style="text-transform:capitalize">'+esc(x.domain)+'</span>'+
+        '<span style="flex:1;min-width:200px">'+esc(x.preview||'')+'</span>'+
+        '<button class="btn approve" data-act="approve" data-id="'+esc(x.pending_id)+'">Remember</button>'+
+        '<button class="btn reject" data-act="reject" data-id="'+esc(x.pending_id)+'">Forget</button></div>';
+    }).join(''); }
+    return h+'</div>';
+  }
+
+  function matrixView(d){
+    var doms=d.domains||[];
+    var h='<div class="card"><div class="ttl">Sensitive domains</div>'+
+      '<div class="why"><b>What to do:</b> for each sensitive area, choose whether Vera may <b>remember</b>, '+
+      'let it <b>shape who she is</b>, or <b>reuse it as a source</b> later — <i>allow</i>, <i>ask each time</i> '+
+      '(the safe default), or <i>never</i>. Revoke a standing consent any time.</div>'+
+      '<div class="lab">Domain · pacing</div>';
+    if(!doms.length){ return h+'<div class="na">No domains.</div></div>'; }
+    h+=doms.map(function(r){
+      var segs=SCOPES.map(function(sc){
+        var st=r[sc[0]]||'ask_each_time';
+        function b(val,lab){ return '<button class="'+(st===val?('on '+st):'')+'" data-scope="'+sc[0]+'" data-domain="'+esc(r.domain)+'" data-status="'+val+'">'+lab+'</button>'; }
+        return '<div class="row" style="border-top:0;padding:4px 0"><span class="scope">'+sc[1]+'</span>'+
+          '<span class="seg">'+b('granted','allow')+b('ask_each_time','ask')+b('denied','never')+'</span>'+
+          (st==='granted'||st==='ask_each_time'?'<button class="btn revoke" data-scope="'+sc[0]+'" data-domain="'+esc(r.domain)+'" data-status="revoke">revoke</button>':'')+'</div>';
+      }).join('');
+      return '<div class="row" style="align-items:flex-start"><div class="dom">'+esc(r.domain.replace(/_/g," "))+
+        '<div class="pill" style="margin-top:4px">'+esc(r.pacing)+'</div></div><div style="flex:1">'+segs+'</div></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function render(){
+    var d=DATA; if(!d) return;
+    document.getElementById('view').innerHTML = pendingView(d) + matrixView(d) +
+      '<div class="why">'+esc(d.doctrine||'')+'</div>';
+    document.querySelectorAll('[data-act]').forEach(function(b){ b.onclick=function(){ post({action:b.dataset.act, pending_id:b.dataset.id}); }; });
+    document.querySelectorAll('[data-status]').forEach(function(b){ b.onclick=function(){
+      var act={granted:'grant',ask_each_time:'ask',denied:'deny',revoke:'revoke'}[b.dataset.status];
+      post({action:act, scope:b.dataset.scope, domain:b.dataset.domain});
+    }; });
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+  function post(body){
+    if(BUSY) return; BUSY=true;
+    fetch('/consent/decide',{method:'POST',headers:HDR,body:JSON.stringify(body)})
+      .then(function(r){return r.json();}).then(function(){BUSY=false;load();}).catch(function(){BUSY=false;});
+  }
+  function load(){
+    fetch('/consent.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; DATA=j; render(); }).catch(function(){
+      document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>';
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

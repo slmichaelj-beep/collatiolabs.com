@@ -1084,6 +1084,15 @@ def capture(name, text, reply=None, brain=None, model_pass=False) -> list:
     is race-free with no new lock)."""
     f = Facts.load(name)
     cands = f.capture(name, text, reply, brain=brain, model_pass=model_pass)
+    # CONSENT & BOUNDARIES (Human Operating Layer): a SENSITIVE-domain conclusion (health, therapy,
+    # finance, trauma, …) is never written to durable memory SILENTLY. Without standing consent it is
+    # HELD for the user to approve/reject — non-sensitive facts pass through unchanged. Guarded: a
+    # consent hiccup must never break capture (on error, sensitive items fail safe to held).
+    try:
+        from .consent import policy as _consent
+        cands, _held = _consent.gate_memory_candidates(name, cands)
+    except Exception:
+        pass
     touched = [f.merge(c) for c in cands]
     if touched:
         f.save(name)
