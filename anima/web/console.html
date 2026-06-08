@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Founder Console — Patterns &amp; Improvements</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f;--p0:#e0556b;--p1:#d6a13a;--p2:#6aa6ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:620px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
+  .tab{font-size:13px;color:var(--dim);padding:7px 14px;border:1px solid var(--line);border-radius:10px;background:#0d1422;cursor:pointer}
+  .tab.on{color:var(--ink);border-color:var(--accent-d);background:var(--accent-d)}
+  .tab .n{opacity:.6;font-size:11px;margin-left:5px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ph{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .sev-P0{color:#f6b3bf;border-color:var(--bad-d);background:var(--bad-d)} .sev-P1{color:#f4d79b;border-color:var(--warn-d);background:var(--warn-d)}
+  .sev-P2,.sev-P3{color:#bcd4ff;border-color:var(--accent-d);background:var(--accent-d)}
+  .ttl{font-weight:640;font-size:15px}
+  .freq{color:var(--warn);font-weight:600;font-size:12.5px}
+  .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:9px}
+  .val{font-size:13px;color:var(--dim);margin-top:1px}
+  .ev{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .ev code{font-size:11px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .cert{font-size:11.5px;color:#9bf0cf}
+  .acts{display:flex;gap:8px;margin-top:12px;align-items:center}
+  .btn{font-size:13px;padding:7px 14px;border-radius:9px;border:1px solid var(--line);cursor:pointer;background:#0d1422;color:var(--ink)}
+  .btn.approve{border-color:var(--good-d);background:var(--good-d);color:#9bf0cf}
+  .btn.reject{border-color:var(--bad-d);background:var(--bad-d);color:#f6b3bf}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .stat{font-size:12px;color:var(--dim);margin-left:4px}
+  .feed{font-size:13px}
+  .feed .row{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .feed .row:first-child{border-top:0}
+  .feed .t{color:var(--faint);font-size:11.5px;white-space:nowrap;min-width:64px}
+  .feed .k{font-size:11px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:6px;padding:1px 7px;white-space:nowrap;height:fit-content}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+  .counts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · FOUNDER CONSOLE</div>
+      <h1>Patterns &amp; Improvements</h1>
+      <div class="sub">What Vera is noticing, what's repeating, what she recommends, and whether her
+        fixes worked — the visible face of her self-improvement loop. Real data, honest gaps.</div>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/observatory">Observatory →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+  <div id="view"><div class="na">loading…</div></div>
+
+  <footer>Read-only feed · approve/reject is persisted &amp; audited · nothing here leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  var DATA=null, TAB='patterns';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function certList(c){ if(!c) return ''; if(Array.isArray(c)) return c.map(esc).join(' · '); return esc(String(c)); }
+
+  function patternsView(d){
+    if(!d.patterns.length) return '<div class="na">No repeating issues detected — the live-path audit is clean. (Honest empty state.)</div>';
+    return d.patterns.map(function(p){
+      var ev=(p.evidence||[]).map(function(e){return '<code>'+esc(e)+'</code>';}).join('');
+      return '<div class="card"><div class="ph"><span class="pill sev-'+esc(p.severity)+'">'+esc(p.severity)+'</span>'+
+        '<span class="ttl">'+esc(p.title)+'</span><span class="freq">×'+esc(p.frequency)+'</span></div>'+
+        '<div class="lab">Root cause (hypothesis)</div><div class="val">'+esc(p.root_cause)+'</div>'+
+        '<div class="lab">Recommended fix</div><div class="val">'+esc(p.recommended_fix)+'</div>'+
+        '<div class="lab">Required cert</div><div class="val cert">'+certList(p.cert_required)+'</div>'+
+        (ev?'<div class="lab">Evidence</div><div class="ev">'+ev+'</div>':'')+'</div>';
+    }).join('');
+  }
+  function impView(d){
+    if(!d.improvements.length) return '<div class="na">No improvement suggestions yet.</div>';
+    return d.improvements.map(function(i){
+      var st=i.approval_status, decided=(st!=='pending');
+      var stPill='<span class="pill '+(st==='approved'?'sev-P2':st==='rejected'?'sev-P0':'')+'">'+esc(st)+'</span>';
+      return '<div class="card"><div class="ph"><span class="pill sev-'+esc(i.severity||'P2')+'">'+esc(i.severity||'')+'</span>'+
+        '<span class="ttl">'+esc(i.title)+'</span>'+stPill+'</div>'+
+        '<div class="lab">Recommendation</div><div class="val">'+esc(i.recommendation)+'</div>'+
+        '<div class="lab">Expected benefit · risk</div><div class="val">'+esc(typeof i.expected_benefit==="object"?JSON.stringify(i.expected_benefit):i.expected_benefit)+' · risk '+esc(i.risk)+'</div>'+
+        '<div class="lab">Required cert</div><div class="val cert">'+certList(i.required_cert)+'</div>'+
+        '<div class="acts">'+
+          '<button class="btn approve" '+(decided?'disabled':'')+' data-id="'+esc(i.improvement_id)+'" data-a="approve">Approve</button>'+
+          '<button class="btn reject" '+(decided?'disabled':'')+' data-id="'+esc(i.improvement_id)+'" data-a="reject">Reject</button>'+
+          '<span class="stat">build / verify happen in a dev session (honestly not one-click yet)</span>'+
+        '</div></div>';
+    }).join('');
+  }
+  function loopView(d){
+    if(!d.learning_loop.length) return '<div class="na">No improvements have entered the loop yet — approve one to start. (pattern → propose → approve → build → cert → observe.)</div>';
+    return d.learning_loop.map(function(l){
+      return '<div class="card"><div class="ttl">'+esc(l.improvement)+'</div>'+
+        '<div class="lab">Before</div><div class="val">'+esc(l.before)+'</div>'+
+        '<div class="lab">Change</div><div class="val">'+esc(l.change)+'</div>'+
+        '<div class="lab">Decision · outcome</div><div class="val">'+esc(l.decision)+' · '+esc(l.outcome||'observing')+'</div></div>';
+    }).join('');
+  }
+  function feedView(d){
+    if(!d.feed.length) return '<div class="na">No recent observations.</div>';
+    return '<div class="card feed">'+d.feed.map(function(f){
+      return '<div class="row"><span class="t">'+esc((f.at||'').replace('T',' ').slice(0,19)||'—')+'</span>'+
+        '<span class="k">'+esc(f.kind)+'</span><span>'+esc(f.summary)+'</span></div>';
+    }).join('')+'</div>';
+  }
+  function render(){
+    var d=DATA; if(!d) return;
+    document.getElementById('counts').innerHTML=
+      '<span class="pill sev-P0">'+d.counts.p0+' P0</span><span class="pill">'+d.counts.patterns+' patterns</span>'+
+      '<span class="pill">'+d.counts.pending+' pending</span><span class="pill">'+d.counts.feed+' events</span>';
+    var tabs=[['patterns','Live Patterns',d.counts.patterns],['improvements','Improvements',d.counts.improvements],
+      ['loop','Learning Loop',d.learning_loop.length],['feed','Live Feed',d.counts.feed]];
+    document.getElementById('tabs').innerHTML=tabs.map(function(t){
+      return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'<span class="n">'+t[2]+'</span></span>';}).join('');
+    var v=TAB==='patterns'?patternsView(d):TAB==='improvements'?impView(d):TAB==='loop'?loopView(d):feedView(d);
+    document.getElementById('view').innerHTML=v;
+    document.querySelectorAll('.tab').forEach(function(el){el.onclick=function(){TAB=el.dataset.tab;render();};});
+    document.querySelectorAll('.btn[data-a]').forEach(function(b){b.onclick=function(){
+      b.disabled=true;
+      fetch('/console/decide',{method:'POST',headers:HDR,body:JSON.stringify({improvement_id:b.dataset.id,action:b.dataset.a})})
+        .then(function(r){return r.json();}).then(function(){load();}).catch(function(){b.disabled=false;});
+    };});
+    document.getElementById('stamp').textContent='· '+new Date().toLocaleTimeString();
+  }
+  function load(){
+    fetch('/console.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Open with your ?k=… link (same key as the chat).</div>';return null;}
+      return r.json();
+    }).then(function(d){if(d){DATA=d;render();}}).catch(function(){
+      document.getElementById('view').innerHTML='<div class="na">Couldn\'t reach Vera — is the server running?</div>';});
+  }
+  load(); setInterval(load, 20000);
+})();
+</script>
+</body>
+</html>

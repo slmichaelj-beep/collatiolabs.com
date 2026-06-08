@@ -2173,6 +2173,129 @@ def _observatory_data(name: str) -> dict:
     return out
 
 
+def _console_decisions_path(name):
+    return STORE / ("%s.console_decisions.json" % name)
+
+
+def _console_data(name: str) -> dict:
+    """The Founder Console — Patterns & Improvements: Vera's self-improvement loop, from REAL stores.
+    Patterns (reports/patterns.json, the Pattern Observatory), improvements (reports/improvement_backlog
+    .json, the Improvement Engine), learning loop (which suggestions were acted on), and a live feed
+    (security events + Rover findings). Read-only; honest empty state; never invents 'good news'."""
+    reports = Path("reports")
+    _RISK = {"P0": "high", "P1": "medium", "P2": "low", "P3": "low"}
+    out = {"name": name, "patterns": [], "improvements": [], "learning_loop": [], "feed": [],
+           "counts": {}, "empty": True}
+
+    # decisions (founder approve/reject, persisted)
+    try:
+        decisions = json.loads(_console_decisions_path(name).read_text())
+    except Exception:
+        decisions = {}
+
+    # 1. PATTERNS — real, from the Pattern Observatory
+    try:
+        p = json.loads((reports / "patterns.json").read_text())
+        for x in (p.get("patterns") or []):
+            ev = x.get("evidence") or []
+            evlinks = [(e.get("turn_id") or e.get("trace_id") or e.get("source_id") or str(e)[:24])
+                       for e in ev[:5]] if isinstance(ev, list) else []
+            out["patterns"].append({
+                "pattern_id": x.get("pattern_id"), "title": x.get("title"),
+                "severity": x.get("severity"), "frequency": x.get("frequency"),
+                "root_cause": x.get("root_cause"), "recommended_fix": x.get("recommended_fix"),
+                "cert_required": x.get("cert_required"),
+                "expected_improvement": x.get("expected_improvement"),
+                "evidence": evlinks, "status": "open"})
+    except Exception:
+        pass
+
+    # 2. IMPROVEMENTS — real, from the Improvement Engine backlog (+ founder decisions)
+    try:
+        b = json.loads((reports / "improvement_backlog.json").read_text())
+        for it in (b.get("items") or []):
+            pid = it.get("pattern_id") or it.get("improvement_id") or it.get("title")
+            d = decisions.get(pid, {})
+            out["improvements"].append({
+                "improvement_id": pid, "title": it.get("title"),
+                "recommendation": it.get("recommended_fix"),
+                "expected_benefit": it.get("expected_improvement"),
+                "risk": it.get("risk") or _RISK.get(it.get("severity"), "low"),
+                "required_cert": it.get("cert_required"),
+                "approval_status": d.get("approval_status", "pending"),
+                "implementation_status": str(it.get("status", "open")).lower(),
+                "outcome": d.get("outcome"),
+                "severity": it.get("severity"), "frequency": it.get("frequency")})
+    except Exception:
+        pass
+
+    # 3. LEARNING LOOP — improvements that have been ACTED ON (decision recorded)
+    out["learning_loop"] = [{
+        "improvement": i["title"], "before": "observed %s time(s)" % i.get("frequency"),
+        "change": (i.get("recommendation") or "")[:90], "decision": i["approval_status"],
+        "outcome": i.get("outcome")} for i in out["improvements"] if i["approval_status"] != "pending"]
+
+    # 4. LIVE FEED — security events + Rover findings (newest first)
+    feed = []
+    try:
+        from . import incident
+        for e in incident.recent_events(30):
+            feed.append({"at": e.get("at"), "kind": e.get("kind"),
+                         "summary": e.get("detail") or e.get("kind")})
+    except Exception:
+        pass
+    try:
+        rr = json.loads((reports / "rover_report.json").read_text())
+        for f in (rr.get("findings") or []):
+            feed.append({"at": None, "kind": "rover:" + ("ok" if f.get("passed") else f.get("severity", "?")),
+                         "summary": "%s — %s" % (f.get("journey"), f.get("detail", ""))})
+    except Exception:
+        pass
+    out["feed"] = list(reversed(feed))[:40]
+
+    out["counts"] = {
+        "patterns": len(out["patterns"]),
+        "p0": sum(1 for p in out["patterns"] if p.get("severity") == "P0"),
+        "improvements": len(out["improvements"]),
+        "pending": sum(1 for i in out["improvements"] if i["approval_status"] == "pending"),
+        "feed": len(out["feed"])}
+    out["empty"] = not (out["patterns"] or out["improvements"])
+    return out
+
+
+def _console_decide(name: str, data: dict) -> dict:
+    """Persist a founder decision on an improvement (approve / reject). Honest + auditable."""
+    iid = str(data.get("improvement_id") or "")
+    action = str(data.get("action") or "")
+    if action not in ("approve", "reject") or not iid:
+        return {"ok": False, "error": "need improvement_id + action in {approve,reject}"}
+    try:
+        d = json.loads(_console_decisions_path(name).read_text())
+    except Exception:
+        d = {}
+    d[iid] = {"approval_status": "approved" if action == "approve" else "rejected",
+              "by": "founder", "at": _now_iso_safe()}
+    try:
+        STORE.mkdir(exist_ok=True)
+        _console_decisions_path(name).write_text(json.dumps(d, indent=2))
+    except Exception:
+        pass
+    try:
+        from . import incident
+        incident.security_event("improvement_%s" % action, "founder %sed improvement" % action, improvement_id=iid)
+    except Exception:
+        pass
+    return {"ok": True, "improvement_id": iid, "approval_status": d[iid]["approval_status"]}
+
+
+def _now_iso_safe():
+    try:
+        import datetime
+        return datetime.datetime.now().isoformat(timespec="seconds")
+    except Exception:
+        return ""
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -2256,6 +2379,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       obs.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"observatory not built")
+            if u.path in ("/console", "/console.html"):
+                # Founder Console — Patterns & Improvements page SHELL (public; data is token-gated).
+                con = (WEB / "console.html")
+                if con.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      con.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"console not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2278,6 +2408,11 @@ class Handler(BaseHTTPRequestHandler):
                 # and trust/security. Personal -> token-gated. Read-only; never raises.
                 return self._send(200, "application/json",
                                   json.dumps(_observatory_data(self.name)).encode())
+            if u.path == "/console.json":
+                # Founder Console data — patterns / improvements / learning-loop / live-feed, from the
+                # REAL pattern + improvement stores. Token-gated. Read-only; honest empty state.
+                return self._send(200, "application/json",
+                                  json.dumps(_console_data(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
@@ -2430,6 +2565,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", out.encode())
             if not self._passed():
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if path == "/console/decide":
+                # Founder Console — approve / reject an improvement suggestion. Persisted + audited.
+                data = json.loads(self._read_body() or b"{}")
+                return self._send(200, "application/json",
+                                  json.dumps(_console_decide(self.name, data)).encode())
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input

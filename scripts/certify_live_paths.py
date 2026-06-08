@@ -4949,6 +4949,32 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- patterns_dashboard ----------------------------------------------------------------------
+def probe_patterns_dashboard(res: Result) -> None:
+    """The Founder Console (Patterns & Improvements) — real self-improvement data from the pattern +
+    improvement stores, approve/reject that persists, honest empty state. Cert:
+    scripts/certify_patterns_dashboard.py."""
+    rc, tail = run_subcert([HERE / "certify_patterns_dashboard.py"])
+    cert_ok = (rc == 0) and ("PATTERNS-DASHBOARD CERT: CERTIFIED" in tail)
+    page = (ROOT / "anima" / "web" / "console.html").exists()
+    res.evidence.append("scripts/certify_patterns_dashboard.py -> exit %d; %s; page=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", page))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=cert_ok)
+    if cert_ok and page:
+        res.status = COMPLETE
+        res.proven_links = ["page_served", "data_authed", "real_patterns", "evidence_links",
+                            "real_improvements", "approve_reject_works", "live_feed", "not_hardcoded",
+                            "honest_empty"]
+        res.reason = ("A served Founder Console fed by REAL stores: live patterns (with severity / "
+                      "frequency / root-cause / evidence trace IDs) EQUAL the Pattern Observatory store; "
+                      "improvements EQUAL the Improvement Engine backlog; approve/reject persists + "
+                      "audits; the live feed renders; honest empty state — never hardcoded good-news.")
+    else:
+        res.status = STUB
+        res.reason = "Patterns & Improvements console did not hold (cert FAIL or page missing)."
+
+
 # --- observatory -----------------------------------------------------------------------------
 def probe_observatory(res: Result) -> None:
     """The served, no-jargon Observatory dashboard (/observatory + /observatory.json) — real audit /
@@ -5400,6 +5426,7 @@ def classify_all() -> dict:
         "permissions": probe_permissions,
         "privacy": probe_privacy,
         "observatory": probe_observatory,
+        "patterns_dashboard": probe_patterns_dashboard,
         "context_immune": probe_context_immune,
         "vera_rover": probe_vera_rover,
         "injection_loop": probe_injection_loop,
