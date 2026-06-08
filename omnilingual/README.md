@@ -26,30 +26,19 @@ cd collatiolabs.com/omnilingual
 Installs `libsndfile` + `ffmpeg` (via Homebrew) and the `omnilingual-asr`
 package into a local environment.
 
-## Run — web UI (drag & drop)
+## Run — drop files in a folder (easiest)
 
-```sh
-./run-ui.sh
-```
+**Double-click `Transcriber.command`** in Finder (or run `./Transcriber.command`).
+It asks where you want PDFs saved, opens your **Inbox** folder, and watches it.
 
-Opens a local page in your browser. Pick a **language** and an **output folder**,
-then **drag files in** (or click to choose). You get a live progress bar per file,
-the saved path, an **Open in Finder** button, and a short preview when each finishes.
-Files are queued and transcribed one at a time, all locally on your Mac.
-Leave the terminal window open while it runs; Ctrl-C stops it.
+- Drop any audio/video file into `~/Transcribe/Inbox`.
+- A **PDF** (and `.txt`) appears in the output folder you chose.
+- Live progress shows in the window; finished files move to `~/Transcribe/Done`.
+- It does **not** touch your sound settings.
 
 > First file triggers a one-time model download (~6 GB) before progress starts.
-> DRM-protected Audible `.aax` files won't work — they can't be decoded.
-
-## Run — terminal
-
-```sh
-./run.sh
-```
-
-Drag your audio file in when asked, then choose the language (Enter = Balinese).
-The transcript prints and is saved next to your audio as
-`YOURFILE.omni_ban_Latn.txt`.
+> DRM-protected Audible `.aax` files can't be read — they're moved to
+> `~/Transcribe/Skipped` with a short note explaining why.
 
 ## Record & transcribe (accessibility)
 
