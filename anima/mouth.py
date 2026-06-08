@@ -81,6 +81,21 @@ _HISTORY_TO_MODEL = 8
 _NUM_CTX = 4096
 
 
+def _count_tokens(text) -> int:
+    """Deterministic, offline token estimate for prompt-budget instrumentation. Reuses the SAME
+    counter the LERF compression work uses (lerf.count_tokens: max of word-count and chars/4), so
+    the per-section breakdown is consistent across the app. Guarded + cheap (regex + len); falls back
+    to chars/4 if lerf is unavailable. Never raises into prompt assembly."""
+    try:
+        from .lerf import count_tokens as _ct
+        return int(_ct(text or ""))
+    except Exception:
+        try:
+            return (len(text or "") + 3) // 4
+        except Exception:
+            return 0
+
+
 def _quarantine_history(history):
     """Strip hostile-control content from PRIOR turns before they re-enter the model context, so a
     once-emitted injection can never re-poison later turns (the self-reinforcing loop that made
@@ -522,9 +537,10 @@ def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
     frags: list = []
 
     def _frag(source: str, text: str) -> None:
-        # record one fragment's provenance + size; never let bookkeeping break assembly.
+        # record one fragment's provenance + size (chars AND estimated tokens); never let bookkeeping
+        # break assembly. tokens make the per-section prompt BUDGET visible (perf instrumentation).
         try:
-            frags.append({"source": source, "chars": len(text or "")})
+            frags.append({"source": source, "chars": len(text or ""), "tokens": _count_tokens(text)})
         except Exception:
             pass
 
@@ -1041,12 +1057,25 @@ class Mouth:
             from . import telemetry as _telem_pr
             if _telem_pr.current_trace() is not None:
                 _total = len(_sys_prompt or "")
-                _frag_sorted = sorted(_prompt_frags, key=lambda d: -int(d.get("chars", 0)))
+                _frag_sorted = sorted(_prompt_frags, key=lambda d: -int(d.get("tokens", 0)))
+                _sys_tok = sum(int(fr.get("tokens") or 0) for fr in _prompt_frags)
+                _hist_tok = 0
+                try:
+                    for _u, _a in (history or [])[-_HISTORY_TO_MODEL:]:
+                        _hist_tok += _count_tokens(_u) + _count_tokens(_a)
+                except Exception:
+                    pass
+                _umsg_tok = _count_tokens(prompt)
                 _telem_pr.record_stage(
                     "prompt",
                     t_ms=0.0,
                     in_shape={"history_turns": len(history or []), "hard_bind": bool(hard_bind)},
                     out={"system_prompt_chars": _total,
+                         # PROMPT BUDGET (perf): per-section tokens — what the model has to read.
+                         "system_prompt_tokens": _sys_tok,
+                         "user_message_tokens": _umsg_tok,
+                         "history_tokens_capped": _hist_tok,
+                         "prompt_budget_tokens": _sys_tok + _umsg_tok + _hist_tok,
                          "fragment_count": len(_prompt_frags),
                          "fragments": _frag_sorted,
                          "user_message_chars": len(prompt or ""),
@@ -1054,8 +1083,8 @@ class Mouth:
                          "memory_bundle_chars": len(mem or ""),
                          "situation_in_memory": bool(_sit_block)},
                     dropped=[], confidence=None,
-                    note=("full system-prompt assembly: %d fragments, %d chars"
-                          % (len(_prompt_frags), _total)))
+                    note=("full system-prompt assembly: %d fragments, %d chars, ~%d sys tokens"
+                          % (len(_prompt_frags), _total, _sys_tok)))
         except Exception:
             pass
         # Tell a CLOUD brain which creature this turn belongs to, so its egress scrub can
