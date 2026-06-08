@@ -4887,6 +4887,28 @@ def probe_permissions(res: Result) -> None:
         res.reason = "Permission model did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- privacy ---------------------------------------------------------------------------------
+def probe_privacy(res: Result) -> None:
+    """Phase 5 privacy — delete a source, forget a memory, no cloud PII leak, export/import Mind
+    Bundle, reference != personal. The cert (scripts/certify_privacy.py) proves each behaviorally on
+    the real stores."""
+    rc, tail = run_subcert([HERE / "certify_privacy.py"])
+    cert_ok = (rc == 0) and ("PRIVACY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_privacy.py -> exit %d; %s" % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["delete_source", "forget_memory", "no_cloud_pii", "export_bundle",
+                            "import_roundtrip", "reference_not_personal"]
+        res.reason = ("Real ownership proven: a deleted source is purged + audited + never surfaced "
+                      "again; a LIRF belief retracts (excluded from recall, kept for audit); PII "
+                      "(email/phone/SSN/card + known names) is scrubbed before cloud egress; the user "
+                      "can export/import a portable Mind Bundle; reference and personal memory never blur.")
+    else:
+        res.status = STUB
+        res.reason = "Privacy guarantees did not fully hold (cert FAIL)."
+
+
 # --- host_pressure ---------------------------------------------------------------------------
 def probe_host_pressure(res: Result) -> None:
     """Vera defers HEAVY work under host memory/swap/disk pressure, honestly. The executable cert
@@ -5122,6 +5144,7 @@ def classify_all() -> dict:
         "ai_security": probe_ai_security,
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
+        "privacy": probe_privacy,
         "host_pressure": probe_host_pressure,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
