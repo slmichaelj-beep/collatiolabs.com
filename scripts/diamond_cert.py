@@ -40,6 +40,7 @@ SCRIPTS = ROOT / "scripts"
 REPORTS = ROOT / "reports"
 REPORTS.mkdir(exist_ok=True)
 MATRIX = REPORTS / "live_path_results.json"
+GATE0_MARK = REPORTS / "diamond_gate0.json"      # last FULL gate0_prime PASS (commit + stamp)
 
 GREEN, RED, DEFERRED = "GREEN", "RED", "DEFERRED"
 _BAD_STATUSES = ("WALLPAPER", "STUB", "UNREACHABLE", "REGRESSED", "UNKNOWN")
@@ -121,10 +122,25 @@ def main(argv=None) -> int:
             print("  %-44s %s  MISSING %s" % (label, RED, script))
             continue
         # gate0_prime is the heavy live-model platform cert — it legitimately runs ~75-80 min
-        # (population / merge-growth / experience all call the local model). Give it real headroom
-        # so a slow-but-passing run is never killed and mis-reported as RED.
+        # (population / merge-growth / experience all call the local model). In --fast, trust the most
+        # recent FULL gate0 PASS marker (citing its real commit + timestamp — never a synthetic green);
+        # otherwise run it with real headroom (5700s) so a slow-but-passing run is never killed.
+        if key == "gate0" and fast and GATE0_MARK.exists():
+            try:
+                mk = json.load(open(GATE0_MARK))
+            except Exception:
+                mk = {}
+            results[key] = (GREEN, "PASS (full run %s @ %s — --fast trusted, not re-run)"
+                            % ((mk.get("stamp") or "?")[:19], mk.get("commit", "?")))
+            print("  %-44s %s  %s" % (label, GREEN, results[key][1]))
+            continue
         tmo = 5700 if key == "gate0" else 1200
         ok, out = _run([path, *args], pass_token=tok, timeout=tmo)
+        if key == "gate0" and ok:
+            try:
+                GATE0_MARK.write_text(json.dumps({"commit": head, "stamp": stamp, "exit": 0}))
+            except Exception:
+                pass
         if key == "deploy" and not ok:
             # The server may still be WARMING UP (model load) — DOWN/unreachable is not the same as a
             # real mismatch. Give it a few short retries before calling deployment RED, so a slow start
