@@ -584,12 +584,32 @@ class OllamaBrain:
         except Exception:
             return False
 
+    def _eff_keep_alive(self):
+        """HOST-PRESSURE-AWARE keep_alive. On a strained host (red memory/swap), unload the model
+        IMMEDIATELY after the turn (keep_alive='0') so Vera frees its ~GBs of GPU/RAM instead of
+        pinning a large model for 30 min and deepening the pressure. With headroom, keep it warm for
+        snappy turns. This is Vera being a good citizen on the user's own Mac."""
+        try:
+            from . import host_pressure as _hp
+            if _hp.read_pressure().get("level") == "red":
+                return "0"
+        except Exception:
+            pass
+        return self.keep_alive
+
     def warm(self):
         """Preload the model so the FIRST real turn doesn't pay the cold-load. Cheap:
-        one token, then it stays resident for keep_alive. Safe to call in a thread."""
+        one token, then it stays resident for keep_alive. Safe to call in a thread.
+        SKIPPED under red host pressure — never proactively load a large model on a strained host."""
+        try:
+            from . import host_pressure as _hp
+            if _hp.read_pressure().get("level") == "red":
+                return                    # don't preload a model when the host is red
+        except Exception:
+            pass
         try:
             body = json.dumps({"model": self.model, "prompt": "", "stream": False,
-                               "keep_alive": self.keep_alive,
+                               "keep_alive": self._eff_keep_alive(),
                                "options": {"num_predict": 1}}).encode()
             req = urllib.request.Request(self.host + "/api/generate", body,
                                          {"Content-Type": "application/json"})
@@ -603,7 +623,7 @@ class OllamaBrain:
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
         msgs.append({"role": "user", "content": user})
         body = json.dumps({"model": self.model, "messages": msgs, "stream": False,
-                           "keep_alive": self.keep_alive,
+                           "keep_alive": self._eff_keep_alive(),
                            "options": {"temperature": self.temperature,
                                        "num_predict": self.max_tokens}}).encode()
         req = urllib.request.Request(self.host + "/api/chat", body,

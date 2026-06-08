@@ -114,6 +114,48 @@ def status_line(p: dict = None) -> str:
             "headroom." % p["reason"])
 
 
+def gpu_wired_limit_mb():
+    """The iogpu.wired_limit_mb ceiling (0 = macOS-managed). A high fixed ceiling reserves RAM for
+    the GPU and starves the rest of the system into swap — the real driver of a memory-bound Mac.
+    Read-only observation; None if unavailable."""
+    try:
+        out = subprocess.run(["sysctl", "-n", "iogpu.wired_limit_mb"],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(out) if out.lstrip("-").isdigit() else None
+    except Exception:
+        return None
+
+
+def ollama_loaded():
+    """What Ollama currently holds resident (read-only, via /api/ps): {models:[{name,size_mb}],
+    total_mb}. Empty if Ollama is down. Lets Vera SEE its own (and others') model footprint on the
+    shared host — the basis for not pinning a large model under pressure."""
+    out = {"models": [], "total_mb": 0}
+    try:
+        import json
+        import os
+        import urllib.request
+        host = os.environ.get("ANIMA_OLLAMA_HOST", "http://localhost:11434")
+        with urllib.request.urlopen(host + "/api/ps", timeout=3) as r:
+            data = json.loads(r.read())
+        out["models"] = [{"name": m.get("name"), "size_mb": round((m.get("size") or 0) / (1024 ** 2))}
+                         for m in (data.get("models") or [])]
+        out["total_mb"] = sum(m["size_mb"] for m in out["models"])
+    except Exception:
+        pass
+    return out
+
+
+def snapshot() -> dict:
+    """The full host-observation picture for Vera: pressure (read_pressure) PLUS the GPU wired
+    ceiling and Ollama's resident footprint — the real drivers behind a memory-bound verdict. Richer
+    than read_pressure() (the cheap per-turn gate); use for status / reporting, not the hot path."""
+    p = read_pressure()
+    p["gpu_wired_limit_mb"] = gpu_wired_limit_mb()
+    p["ollama"] = ollama_loaded()
+    return p
+
+
 def _selftest() -> int:
     fails = []
 

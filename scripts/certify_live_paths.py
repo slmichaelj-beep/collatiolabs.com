@@ -4847,22 +4847,27 @@ def probe_host_pressure(res: Result) -> None:
     route (caps max_tokens); and the deferral is RECOVERABLE (GREEN lifts it automatically)."""
     rc, tail = run_subcert([HERE / "certify_host_pressure.py"])
     cert_ok = (rc == 0) and ("HOST-PRESSURE CERT: CERTIFIED" in tail)
-    src = (ROOT / "anima" / "host_pressure.py")
-    wired = (src.exists() and "def read_pressure" in src.read_text()
+    hp_src = (ROOT / "anima" / "host_pressure.py").read_text()
+    mo_src = (ROOT / "anima" / "mouth.py").read_text()
+    wired = ("def read_pressure" in hp_src and "def snapshot" in hp_src
+             and "def gpu_wired_limit_mb" in hp_src and "def ollama_loaded" in hp_src
              and "deferred_host_pressure" in (ROOT / "anima" / "intake.py").read_text()
-             and "prefer_deterministic()" in (ROOT / "anima" / "mouth.py").read_text())
+             and "prefer_deterministic()" in mo_src and "_eff_keep_alive" in mo_src
+             and "don't preload a model when the host is red" in mo_src)
     res.evidence.append("scripts/certify_host_pressure.py -> exit %d; %s" % (rc, "CERTIFIED" if cert_ok else "FAIL"))
-    res.evidence.append("host_pressure module + intake deferral + mouth model-route bound wired=%s" % wired)
+    res.evidence.append("host_pressure observe(GPU/Ollama) + intake defer + mouth bound-route + "
+                        "pressure-aware keep_alive wired=%s" % wired)
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=cert_ok, Restart=None)
     if cert_ok and wired:
         res.status = COMPLETE
         res.proven_links = ["signal", "no_enospc", "heavy_defers", "light_proceeds",
-                            "no_large_model", "recoverable"]
-        res.reason = ("Vera reads live host memory/swap/disk pressure and defers heavy work honestly: "
-                      "under RED, OCR/transcription intake defers with a clear recoverable status (not "
-                      "committed) while light formats still parse; the disk guard prevents ENOSPC "
-                      "mid-write; the turn prefers deterministic/LERF + bounds generation; GREEN lifts "
-                      "the deferral automatically.")
+                            "no_large_model", "no_model_pin", "observes_drivers", "recoverable"]
+        res.reason = ("Vera observes the host (memory/swap/disk pressure + GPU wired ceiling + Ollama "
+                      "footprint) and behaves safely: under RED, OCR/transcription intake defers with a "
+                      "clear recoverable status (not committed) while light formats still parse; the disk "
+                      "guard prevents ENOSPC; the turn prefers deterministic/LERF + bounds generation; and "
+                      "Vera unloads its own model immediately (keep_alive=0) instead of pinning it — so it "
+                      "stops contributing to the pressure. GREEN lifts everything automatically.")
     else:
         res.status = PARTIAL if cert_ok else STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("wired", wired)) if not v]

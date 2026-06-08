@@ -109,6 +109,25 @@ def main() -> int:
            ri2.detected_type != "deferred_host_pressure")
         ck("6. the degraded-mode status is a clear, user-facing line",
            "memory pressure" in hp.status_line(_RED).lower() and "headroom" in hp.status_line(_RED).lower())
+
+        # ---- 7. VERA DOES NOT PIN A MODEL UNDER PRESSURE (host-pressure-aware keep_alive) ---
+        from anima import mouth as _mouth
+        brain = _mouth.OllamaBrain()
+        hp.read_pressure = lambda: dict(_RED)
+        ck("7. under RED, Vera unloads its model immediately (keep_alive='0', not a 30-min pin)",
+           brain._eff_keep_alive() == "0")
+        hp.read_pressure = lambda: dict(_GREEN)
+        ck("7. with headroom, Vera keeps the model warm for snappy turns",
+           brain._eff_keep_alive() == brain.keep_alive)
+        msrc = (ROOT / "anima" / "mouth.py").read_text()
+        ck("7. warm() refuses to PRELOAD a model under red host pressure (no proactive large load)",
+           "_eff_keep_alive" in msrc and "don't preload a model when the host is red" in msrc)
+
+        # ---- 8. VERA OBSERVES THE REAL DRIVERS (GPU wired ceiling + Ollama footprint) -------
+        snap = hp.snapshot()
+        ck("8. Vera OBSERVES the host's GPU wired ceiling + Ollama footprint (the memory-bound drivers)",
+           "gpu_wired_limit_mb" in snap and isinstance(snap.get("ollama"), dict)
+           and "total_mb" in snap["ollama"])
     finally:
         hp.read_pressure = orig_read
         shutil.rmtree(d, ignore_errors=True)
