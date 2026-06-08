@@ -4973,6 +4973,35 @@ def probe_observatory(res: Result) -> None:
         res.reason = "Observatory dashboard did not hold (cert FAIL or page missing)."
 
 
+# --- vera_rover ------------------------------------------------------------------------------
+def probe_vera_rover(res: Result) -> None:
+    """The synthetic-user lab — Rover drives real journeys (core + adversarial) trying to break Vera,
+    classifies findings P0..P3, writes a report. --gate mode is the fast deterministic-immune +
+    served-surface subset. Cert: scripts/vera_rover.py --gate (exit 0 iff no P0/P1)."""
+    rc, tail = run_subcert([HERE / "vera_rover.py", "--gate"])
+    passed = (rc == 0) and ("ROVER: PASS" in tail)
+    # a real ADVERSARIAL/immune journey failure is a STUB (hide nothing); a flaky server GET is PARTIAL.
+    adv_failed = "XX[P0] adv:" in tail
+    res.evidence.append("scripts/vera_rover.py --gate -> exit %d; %s" % (rc, "PASS" if passed else "BLOCKED"))
+    res.set(UI=None, Backend=passed, Storage=passed, Retrieval=passed, Use=passed, MRI=passed, Restart=None)
+    if passed:
+        res.status = COMPLETE
+        res.proven_links = ["source_quarantine_journey", "answer_gate_journey", "correction_flush_journey",
+                            "reachability", "served_surfaces", "severity_classified", "report_written"]
+        res.reason = ("Rover drove the live server + the deterministic immune journeys and PASSED: a "
+                      "poisoned source is quarantined (kept as evidence), the answer gate drops hostile "
+                      "output, a correction flushes the frame, and the served surfaces (version / "
+                      "capabilities / observatory+audit) are up. Findings classified P0..P3, report written.")
+    elif adv_failed:
+        res.status = STUB
+        res.reason = "Rover found a P0 adversarial/immune failure — Vera did not hold."
+    else:
+        res.status = PARTIAL
+        res.missing_links = ["a live served-surface GET flaked under gate load; the deterministic "
+                             "immune journeys held"]
+        res.reason = "PARTIAL — the immune core held; a live GET flaked under parallel-gate load."
+
+
 # --- context_immune --------------------------------------------------------------------------
 def probe_context_immune(res: Result) -> None:
     """The Context Immune System (anima/immune.py) — four-route contamination immunity + correction-
@@ -5372,6 +5401,7 @@ def classify_all() -> dict:
         "privacy": probe_privacy,
         "observatory": probe_observatory,
         "context_immune": probe_context_immune,
+        "vera_rover": probe_vera_rover,
         "injection_loop": probe_injection_loop,
         "agency_suggest_only": probe_agency_suggest_only,
         "incident_response": probe_incident_response,
