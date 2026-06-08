@@ -2412,6 +2412,16 @@ def _living_map_data(name: str) -> dict:
         return {"name": name, "nodes": [], "edges": [], "summary": {"error": str(e)}}
 
 
+def _living_map_events(name: str) -> dict:
+    """Living Map — Milestone 2: REAL recent events (MRI turns + security catches) mapped to edges, for
+    the Live-Flow animation. Every pulse is evidence-backed; honest empty when idle. Read-only."""
+    try:
+        from .living_map import events
+        return events.events_payload(name, 60)
+    except Exception as e:
+        return {"name": name, "events": [], "count": 0, "empty": True, "error": str(e)}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2574,6 +2584,11 @@ class Handler(BaseHTTPRequestHandler):
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.
                 return self._send(200, "application/json",
                                   json.dumps(_living_map_data(self.name)).encode())
+            if u.path in ("/founder/living-map/events", "/living-map/events"):
+                # Living Map Milestone 2 — REAL recent events (MRI turns + security catches) for the
+                # Live-Flow animation, evidence-backed. Token-gated. Read-only; honest empty when idle.
+                return self._send(200, "application/json",
+                                  json.dumps(_living_map_events(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"

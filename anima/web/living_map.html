@@ -24,9 +24,10 @@
   .mode.on{color:var(--ink);border-color:var(--accent-d);background:var(--accent-d)}
   .mode.soon{opacity:.5;cursor:not-allowed}
   .stage{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
-  .mapbox{position:relative;background:linear-gradient(180deg,#0d1320,#0b0f18);border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:560px}
+  .mapbox{position:relative;background:linear-gradient(180deg,#0d1320,#0b0f18);border:1px solid var(--line);border-radius:14px;overflow:auto;min-height:560px}
+  #canvas{position:relative}
   #edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-  .node{position:absolute;transform:translate(-50%,-50%);width:140px;padding:8px 9px;border-radius:10px;border:1px solid var(--line);background:#0e1626;cursor:pointer;transition:.12s;z-index:2}
+  .node{position:absolute;transform:translate(-50%,-50%);width:118px;padding:7px 8px;border-radius:10px;border:1px solid var(--line);background:#0e1626;cursor:pointer;transition:.12s;z-index:2}
   .node:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
   .node.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
   .node .nl{font-size:11.5px;font-weight:620;line-height:1.2;display:flex;align-items:center;gap:6px}
@@ -82,7 +83,7 @@
   </div>
 
   <div class="stage">
-    <div class="mapbox" id="mapbox"><svg id="edges"></svg></div>
+    <div class="mapbox" id="mapbox"><div id="canvas"><svg id="edges"></svg></div></div>
     <div class="side" id="side"><div class="na">Loading the map…</div></div>
   </div>
 
@@ -103,8 +104,37 @@
   var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
   if(TOKEN) localStorage.setItem('anima_token',TOKEN);
   var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
-  var DATA=null, SEL=null, MODE='live';
+  var DATA=null, SEL=null, MODE='live', EVENTS=[], _raf=null, _t0=null;
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  // Milestone 2: animate REAL recent events as pulses travelling along their real edges. A pulse only
+  // exists because an event (a turn in the MRI, or a security catch) actually happened. No event -> no pulse.
+  function startPulses(){
+    if(_raf) cancelAnimationFrame(_raf);
+    function frame(ts){
+      if(_t0==null)_t0=ts;
+      var g=document.getElementById('pulses');
+      if(g && MODE==='live' && EVENTS.length){
+        var el=(ts-_t0)/1000, html='', N=Math.min(14,EVENTS.length);
+        for(var i=0;i<N;i++){
+          var ev=EVENTS[i], path=document.getElementById('edge-'+ev.edge_id);
+          if(!path||!path.getTotalLength)continue;
+          var L=path.getTotalLength(), frac=((el-i*0.16)/2.2)%1; if(frac<0)frac+=1;
+          var pt=path.getPointAtLength(frac*L);
+          var col=(ev.event_type==='quarantined'||ev.event_type==='lockdown')?'#e0556b':ev.event_type==='exited'?'#2fb380':'#6aa6ff';
+          html+='<circle cx="'+pt.x.toFixed(1)+'" cy="'+pt.y.toFixed(1)+'" r="3.4" fill="'+col+'" opacity="'+(0.85*(1-Math.abs(0.5-frac)*0.7)).toFixed(2)+'"/>';
+        }
+        g.innerHTML=html;
+      } else if(g){ g.innerHTML=''; }
+      _raf=requestAnimationFrame(frame);
+    }
+    _raf=requestAnimationFrame(frame);
+  }
+  function loadEvents(){
+    fetch('/founder/living-map/events',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(j&&j.events){ EVENTS=j.events; if(SEL==null) sideSummary(); }
+    }).catch(function(){});
+  }
 
   // deterministic left->right lanes (the flow), assigned by node id
   var LANES=[
@@ -135,9 +165,9 @@
 
   function render(){
     var d=DATA; if(!d||!d.nodes){return;}
-    var box=document.getElementById('mapbox'), svg=document.getElementById('edges');
-    var W=box.clientWidth||1000, H=Math.max(560, 70+ Math.max.apply(null,LANES.map(function(l){return l.length;}))*86);
-    box.style.height=H+'px';
+    var view=document.getElementById('mapbox'), box=document.getElementById('canvas'), svg=document.getElementById('edges');
+    var W=Math.max((view.clientWidth||1000)-4, 1340), H=Math.max(560, 70+ Math.max.apply(null,LANES.map(function(l){return l.length;}))*86);
+    box.style.width=W+'px'; box.style.height=H+'px';
     // counts
     var bs=(d.summary&&d.summary.by_status)||{};
     document.getElementById('counts').innerHTML=
@@ -155,10 +185,10 @@
       var col = e.status==='blocked'?'var(--bad)':e.status==='degraded'?'var(--warn)':e.status==='active'?'var(--flow)':'#26324a';
       var w = e.status==='active'?2:e.status==='blocked'?2:1;
       var dash = e.type==='telemetry_flow'?'4 4':e.type==='host_flow'?'2 4':e.type==='safety_flow'?'':'';
-      return '<path d="M'+a.x+','+a.y+' C'+mx+','+a.y+' '+mx+','+b.y+' '+b.x+','+b.y+'" fill="none" '+
+      return '<path id="edge-'+e.edge_id+'" d="M'+a.x+','+a.y+' C'+mx+','+a.y+' '+mx+','+b.y+' '+b.x+','+b.y+'" fill="none" '+
              'stroke="'+col+'" stroke-width="'+w+'" stroke-dasharray="'+dash+'" opacity="'+(e.status==='idle'?0.35:0.8)+'"/>';
     }).join('');
-    svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.innerHTML=paths;
+    svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.innerHTML=paths+'<g id="pulses"></g>';
     // lane labels
     var laneHtml=LANE_NAMES.map(function(nm,i){ var x=60+i*((W-120)/(LANES.length-1)); return '<div class="lane-label" style="left:'+x+'px">'+esc(nm)+'</div>'; }).join('');
     // nodes
@@ -182,9 +212,22 @@
   function sideSummary(){
     var d=DATA, s=d.summary||{};
     var bn=(s.bottlenecks||[]).map(function(b){ return '<div class="bottle"><b>'+esc(b.label)+'</b> ('+esc(b.status)+') — '+esc(b.why)+'</div>'; }).join('') || '<div class="na">No bottlenecks — all live paths nominal.</div>';
+    var act;
+    if(MODE==='live' && EVENTS.length){
+      act='<div class="lab">Live activity ('+EVENTS.length+' real events)</div>'+
+        EVENTS.slice(0,7).map(function(e){
+          var c=(e.event_type==='quarantined'||e.event_type==='lockdown')?'red':e.event_type==='exited'?'green':'blue';
+          var ev=Object.keys(e.evidence||{})[0]||'';
+          return '<div class="bottle"><span class="dot '+c+'" style="display:inline-block;vertical-align:middle"></span> '+
+            esc(e.summary)+' <span style="opacity:.55">· '+esc(ev)+'</span></div>';
+        }).join('');
+    }else if(MODE==='live'){
+      act='<div class="lab">Live activity</div><div class="na">No recent activity to animate — idle. (Honest: no pulses without a real event.)</div>';
+    }else{ act=''; }
     document.getElementById('side').innerHTML=
       '<h3>System at a glance</h3>'+
       '<div class="val">Click any node to see what it does, its live status, and the real source behind that status.</div>'+
+      act+
       '<div class="lab">Bottlenecks (real, surfaced)</div>'+bn+
       '<div class="lab">Doctrine</div><div class="val">'+esc(s.doctrine||'')+'</div>';
   }
@@ -212,14 +255,34 @@
     if(SEL) side();
   };
 
+  // never let the map silently blank: an overlay message in the map area on loading / error / retry.
+  function mapMsg(html){
+    var box=document.getElementById('mapbox'); if(!box) return;
+    var ov=document.getElementById('mapmsg');
+    if(!ov){ ov=document.createElement('div'); ov.id='mapmsg';
+      ov.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:28px;color:var(--dim);font-size:13.5px;z-index:5'; box.appendChild(ov); }
+    ov.innerHTML='<div>'+html+'</div>';
+  }
+  function clearMapMsg(){ var ov=document.getElementById('mapmsg'); if(ov) ov.remove(); }
+  var _retry=0;
   function load(){
+    if(!DATA) mapMsg('Loading the Living Map…');
     fetch('/founder/living-map/state',{headers:HDR}).then(function(r){
-      if(r.status===401){document.getElementById('side').innerHTML='<div class="na">Locked — open from the app (it remembers your key) or add ?k=YOUR_TOKEN.</div>';return null;}
+      if(r.status===401){ mapMsg('Locked — open this from the Vera app (it remembers your key), or add <b>?k=YOUR_TOKEN</b> to the URL.'); return null; }
+      if(!r.ok) throw new Error('http '+r.status);
       return r.json();
-    }).then(function(j){ if(!j)return; DATA=j; SEL=null; render(); }).catch(function(){
-      document.getElementById('side').innerHTML='<div class="na">Could not reach Vera.</div>';
+    }).then(function(j){
+      if(!j) return;
+      if(!j.nodes||!j.nodes.length){ mapMsg('No map data yet'+(j.summary&&j.summary.error?(' ('+esc(j.summary.error)+')'):'')+' — retrying…'); setTimeout(load,3000); return; }
+      _retry=0; clearMapMsg(); DATA=j; SEL=null; render(); loadEvents(); startPulses();
+    }).catch(function(){
+      _retry++;
+      mapMsg('Couldn’t reach Vera — the server may be restarting. Retrying… <span style="opacity:.6">['+_retry+']</span>');
+      setTimeout(load, Math.min(8000, 1500*_retry));
     });
   }
+  // refresh events when loaded; SELF-HEAL the state if it never loaded (e.g. loaded during a restart).
+  setInterval(function(){ if(DATA){ loadEvents(); } else { load(); } }, 9000);
   window.addEventListener('resize', function(){ if(DATA) render(); });
   load();
 })();

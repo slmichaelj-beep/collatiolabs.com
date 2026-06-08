@@ -5062,21 +5062,25 @@ def probe_living_map(res: Result) -> None:
     rc1, t1 = run_subcert([HERE / "certify_living_map.py"])
     rc2, t2 = run_subcert([HERE / "certify_living_map_no_wallpaper.py"])
     static_ok = (rc1 == 0) and ("LIVING MAP STATIC: GREEN" in t1)
+    live_ok = (rc1 == 0) and ("LIVING MAP LIVE: GREEN" in t1)
     nowall_ok = (rc2 == 0) and ("LIVING MAP NO-WALLPAPER: GREEN" in t2)
     page = (ROOT / "anima" / "web" / "living_map.html").exists()
-    cert_ok = static_ok and nowall_ok
-    res.evidence.append("scripts/certify_living_map.py -> exit %d; %s · no_wallpaper -> exit %d; %s; page=%s"
-                        % (rc1, "GREEN" if static_ok else "FAIL", rc2, "GREEN" if nowall_ok else "FAIL", page))
+    cert_ok = static_ok and live_ok and nowall_ok
+    res.evidence.append("certify_living_map.py -> STATIC=%s LIVE=%s · no_wallpaper -> %s; page=%s"
+                        % ("GREEN" if static_ok else "FAIL", "GREEN" if live_ok else "FAIL",
+                           "GREEN" if nowall_ok else "FAIL", page))
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=cert_ok)
     if cert_ok and page:
         res.status = COMPLETE
         res.proven_links = ["page_served", "state_authed", "real_nodes", "real_edges", "real_status",
-                            "honest_unknown", "status_derived", "no_drift", "read_only", "no_wallpaper"]
+                            "honest_unknown", "status_derived", "no_drift", "read_only", "no_wallpaper",
+                            "live_pulses", "evidence_refs"]
         res.reason = ("A served, auth-gated, READ-ONLY operational digital twin: ~27 real subsystem "
                       "nodes + ~36 flows whose every status is backed by a real source (host pressure / "
-                      "audit matrix / caps / security / MRI) and honestly 'unknown' where not "
-                      "instrumented. NO WALLPAPER: status is derived (patching host pressure flips the "
-                      "Argus + Model nodes) and cannot drift (node metric == the real store).")
+                      "audit matrix / caps / security / MRI), honestly 'unknown' where not instrumented. "
+                      "M2 LIVE: real recent events (MRI turns + security catches) animate as evidence-"
+                      "backed pulses along real edges; idle == no pulses. NO WALLPAPER: status is derived "
+                      "(patching host pressure flips Argus + Model) and cannot drift (metric == store).")
     else:
         res.status = STUB
         res.reason = "Living Map did not hold (a Milestone-1 cert FAILed or the page is missing)."

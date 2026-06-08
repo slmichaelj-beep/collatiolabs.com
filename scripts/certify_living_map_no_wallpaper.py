@@ -106,6 +106,20 @@ def main() -> int:
     ck("7. the page has no fabricated 'green' node literals (status comes from the fetch)",
        "status:'green'" not in html.replace(" ", "") and "\"status\":\"green\"" not in html)
 
+    # ---- 8 EVERY ANIMATION MAPS TO A REAL EVENT (Milestone 2 no-wallpaper) ------------------
+    from anima.living_map import events as _events
+    payload = _events.events_payload("Vera", 60)
+    evs = payload.get("events") or []
+    eids = {e["edge_id"] for e in g["edges"]}
+    ck("8. every animated pulse is a REAL event mapped to a real edge (no synthetic motion)",
+       all(e.get("edge_id") in eids for e in evs))
+    ck("8. every event carries an evidence reference back to its source trace",
+       all(e.get("evidence") and any(k in e["evidence"] for k in ("mri_ref", "security_event_ref")) for e in evs))
+    ck("8. the page renders pulses ONLY from the fetched event list (no baked-in pulse loop data)",
+       "EVENTS.length" in html and "EVENTS[i]" in html and "id=\"pulses\"" in html)
+    ck("8. idle is honest — no events means no pulses (the doctrine says so)",
+       "no synthetic" in (payload.get("doctrine") or "").lower() or "idle == no pulses" in (payload.get("doctrine") or "").lower())
+
     print("\nLIVING MAP NO-WALLPAPER: " + ("GREEN" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1
 

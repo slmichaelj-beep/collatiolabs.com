@@ -95,9 +95,45 @@ def main() -> int:
     ck("8. the page surfaces each node's source of truth (evidence), not just colours",
        "source_of_truth" in html and "Source of truth" in html and "What it does" in html)
 
-    ok = not fails
-    print("\nLIVING MAP STATIC: " + ("GREEN" if ok else f"FAIL ({len(fails)})"))
-    return 0 if ok else 1
+    static_ok = not fails
+    print("\nLIVING MAP STATIC: " + ("GREEN" if static_ok else f"FAIL ({len(fails)})"))
+
+    # ===== MILESTONE 2 — LIVE EVENT PULSES (animate only what happened) =====================
+    print("\nLIVING MAP — LIVE EVENT PULSES (Milestone 2)")
+    print("=" * 92)
+    live_fails = []
+
+    def lk(label, cond):
+        print(("  ok   " if cond else "  XX   ") + label)
+        if not cond:
+            live_fails.append(label)
+
+    lk("L1. /founder/living-map/events is wired BEHIND the auth wall (operator data token-gated)",
+       '"/founder/living-map/events"' in srv
+       and srv.find("if not self._authed():") < srv.find('"/founder/living-map/events"'))
+
+    ev = server._living_map_events("Vera")
+    evs = ev.get("events") or []
+    eids = {e["edge_id"] for e in edges}
+    nids = set(by_id.keys())
+    lk("L2. events come from REAL traces (>=1 turn/security event) OR an honest empty state",
+       isinstance(evs, list) and (len(evs) >= 1 or ev.get("empty") is True))
+    lk("L3. EVERY event maps to a real edge AND a real node (no invented motion)",
+       all(e.get("edge_id") in eids and e.get("node_id") in nids for e in evs))
+    lk("L4. EVERY event carries an evidence reference (mri_ref or security_event_ref)",
+       all((e.get("evidence") and any(k in e["evidence"] for k in ("mri_ref", "security_event_ref"))) for e in evs))
+    lk("L5. events are time-ordered (newest first)",
+       all((evs[i].get("timestamp") or 0) >= (evs[i + 1].get("timestamp") or 0) for i in range(len(evs) - 1)))
+    lk("L6. the page ANIMATES real events (pulse layer fed by the events fetch), not static pulses",
+       'id="pulses"' in html and "loadEvents" in html and "/founder/living-map/events" in html
+       and "getPointAtLength" in html)
+    lk("L7. honest empty: the page shows 'no recent activity' rather than a fake heartbeat",
+       "No recent activity to animate" in html)
+
+    live_ok = not live_fails
+    print("\nLIVING MAP LIVE: " + ("GREEN" if live_ok else f"FAIL ({len(live_fails)})"))
+
+    return 0 if (static_ok and live_ok) else 1
 
 
 def _fingerprint():

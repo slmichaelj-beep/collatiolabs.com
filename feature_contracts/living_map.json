@@ -14,7 +14,9 @@
     "status_derived",
     "no_drift",
     "read_only",
-    "no_wallpaper"
+    "no_wallpaper",
+    "live_pulses",
+    "evidence_refs"
   ],
   "killer_test": {
     "name": "static_real_map_served_authed_real_status_honest_unknown_no_wallpaper_read_only",
