@@ -294,6 +294,9 @@ _STORE_MODULES = (
     "whole_mri",                        # Whole-System MRI recorder (append-only trace store)
     "models",                           # model-usage ledger (models.touch writes model-usage.json)
     "intake",                           # intake + reference stores (intake_queue reads intake.STORE)
+    "incident",                         # security lockdown marker + SOC event trail
+    "agency_approval_queue",            # Wave 2 Alpha approval queue (per-creature)
+    "agency_intent_ledger",             # Wave 2 Alpha intent ledger (per-creature)
 )
 
 

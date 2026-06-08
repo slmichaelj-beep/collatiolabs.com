@@ -102,10 +102,10 @@ def main() -> int:
            "agency_suggestion" in kinds and "agency_approve" in kinds and "agency_reject" in kinds)
 
         # ---- 8. DURABLE --------------------------------------------------------------------
-        import importlib
-        importlib.reload(Q)            # drop any in-memory state; force a fresh read from disk
+        # Q.get() reads the queue FRESH from disk on every call (no in-memory cache), so this proves
+        # on-disk persistence directly — without reload(), which would reset the test-isolated STORE.
         again = Q.get(name, s["intent_id"])
-        ck("8. the queue + decisions persist across a reload (approved item still approved)",
+        ck("8. the queue + decisions persist on disk (approved item still approved on a fresh read)",
            again is not None and again["status"] == "approved" and again["execution_allowed"] is False)
 
     print("\nAGENCY-SUGGEST-ONLY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
