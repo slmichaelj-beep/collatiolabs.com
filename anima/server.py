@@ -2565,6 +2565,37 @@ def _living_map_overlay(name: str) -> dict:
         return {"name": name, "by_node": {}, "patterns_total": 0, "unmapped": [], "empty": True, "error": str(e)}
 
 
+def _total_reality_data(name: str) -> dict:
+    """Total Reality Control Room — Coverage panel (Level 0): the real product inventory + the finite
+    scenario matrix, with the hard-rule coverage. Read-only; computed live from the real product."""
+    try:
+        from .scenarios import inventory, generator
+        inv = inventory.full_inventory()
+        m = generator.generate(inv)
+        c, mc = inv["counts"], m["counts"]
+        ctrl_ids = {x["control_id"] for v in inv["controls"].values() for x in v}
+        scen_ctrl = {s["control_id"] for s in m["scenarios"] if s.get("control_id")}
+        return {
+            "name": name,
+            "inventory": c,
+            "matrix": {"total": mc["total"], "by_level": mc["by_level"], "by_kind": mc["by_kind"],
+                       "by_family": mc["by_family"], "critical": mc["critical"], "adversarial": mc["adversarial"]},
+            "hard_rules": {
+                "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
+                "surfaces_served": [c["surfaces_served"], c["surfaces"]],
+                "fully_classified": [mc["fully_classified"], mc["total"]],
+            },
+            "phase": "Phase 1 — Level 0 (inventory + scenario matrix) + Level 1 (critical journeys). "
+                     "Levels 2-9 (full surface / permission / data / state / pairwise / renegade / soak / "
+                     "fuzz) are the next phases.",
+            "law": "Every visible control has a scenario; every claim maps to a scenario; every scenario is "
+                   "fully classified. Infinite phrasing reduced to finite behaviour classes. No invented "
+                   "surfaces, no invented controls — discovered from the real product.",
+        }
+    except Exception as e:
+        return {"name": name, "inventory": {}, "matrix": {}, "empty": True, "error": str(e)}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2737,6 +2768,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       ih.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"identity health not built")
+            if u.path in ("/reality", "/reality.html", "/founder/reality"):
+                # Total Reality Control Room (Coverage panel) page SHELL — public; data is token-gated.
+                rl = (WEB / "reality.html")
+                if rl.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      rl.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"total reality control room not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2798,6 +2836,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Token-gated. Read-only; mutation frozen.
                 return self._send(200, "application/json",
                                   json.dumps(_identity_health_data(self.name)).encode())
+            if u.path in ("/reality.json", "/founder/reality.json"):
+                # Total Reality Control Room data — the real product inventory + scenario-matrix coverage
+                # + the hard-rule status. Token-gated. Read-only; computed live from the real product.
+                return self._send(200, "application/json",
+                                  json.dumps(_total_reality_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

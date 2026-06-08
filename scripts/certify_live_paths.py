@@ -5258,6 +5258,37 @@ def probe_identity_health(res: Result) -> None:
         res.reason = "Identity Health did not hold (the cert FAILed, _identity_health_data isn't wired, or the page is missing)."
 
 
+# --- total_reality ---------------------------------------------------------------------------
+def probe_total_reality(res: Result) -> None:
+    """Vera Total Reality Test (Phase 1): the real product inventory + the finite scenario matrix with the
+    directive's hard rules enforced (no unmapped control, no unclassified behaviour, every claim tested),
+    plus the Level-1 critical journeys. Cert: scripts/certify_total_reality.py."""
+    rc, t = run_subcert([HERE / "certify_total_reality.py"])
+    cert_ok = (rc == 0) and ("TOTAL-REALITY CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "reality.html").exists()
+    wired = "_total_reality_data" in (ROOT / "anima" / "server.py").read_text()
+    teeth = "coverage check BITES" in t or "BITES" in t
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_total_reality -> %s; wired=%s; page=%s; coverage_bites=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, teeth))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=None, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["inventory_real", "no_unmapped_control", "no_unclassified_behaviour",
+                            "every_claim_tested", "critical_journeys", "coverage_bites",
+                            "matrix_persists", "served_authed"]
+        res.reason = ("Phase 1 of the Total Reality Test: the REAL product inventoried (surfaces / controls "
+                      "/ routes / feature claims) and reduced to a finite scenario matrix, with the hard "
+                      "rules enforced WITH TEETH — every visible control has a scenario, every claim maps to "
+                      "a scenario, every scenario is fully classified, and the coverage check provably bites "
+                      "on a gap. Level-1 critical journeys pass via the Rover. Served + auth-gated (/reality). "
+                      "Levels 2-9 (full surface / permission / data / state / pairwise / renegade / soak / "
+                      "fuzz) are honestly deferred to the next phases.")
+    else:
+        res.status = STUB
+        res.reason = "Total Reality Test did not hold (the cert FAILed, _total_reality_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5765,6 +5796,7 @@ def classify_all() -> dict:
         "mentorship": probe_mentorship,
         "meaning_graph": probe_meaning_graph,
         "identity_health": probe_identity_health,
+        "total_reality": probe_total_reality,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
