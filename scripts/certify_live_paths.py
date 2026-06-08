@@ -4949,6 +4949,29 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- agency_suggest_only ---------------------------------------------------------------------
+def probe_agency_suggest_only(res: Result) -> None:
+    """Wave 2 Alpha — Vera suggests, never executes; approval records a decision but never grants
+    execution; everything audited + durable. Cert: scripts/certify_agency_suggest_only.py."""
+    rc, tail = run_subcert([HERE / "certify_agency_suggest_only.py"])
+    cert_ok = (rc == 0) and ("AGENCY-SUGGEST-ONLY CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_agency_suggest_only.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["schema_suggest_only", "intent_logged", "no_execution", "approval_gated",
+                            "approve_not_execute", "rejection_blocks", "audited", "durable"]
+        res.reason = ("Vera proposes (full intent schema, born non-executable), the intent is logged + "
+                      "queued, nothing is executable at any stage, approval records the decision but "
+                      "NEVER flips execution_allowed (execution is Wave 2B), rejection blocks, every "
+                      "transition is audited to the SOC trail, and the queue persists across restart.")
+    else:
+        res.status = STUB
+        res.reason = "Agency suggest-only safety invariant did not fully hold (cert FAIL)."
+
+
 # --- incident_response -----------------------------------------------------------------------
 def probe_incident_response(res: Result) -> None:
     """Incident response — a one-call lockdown forces every outward capability OFF (enforced at the
@@ -5266,6 +5289,7 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "agency_suggest_only": probe_agency_suggest_only,
         "incident_response": probe_incident_response,
         "performance": probe_performance,
         "product_polish": probe_product_polish,
