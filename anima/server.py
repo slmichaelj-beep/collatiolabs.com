@@ -2465,6 +2465,26 @@ def _ergonomics_data(name: str) -> dict:
         return {"name": name, "samples": [], "avg_clarity": None, "empty": True, "error": str(e)}
 
 
+def _mentorship_data(name: str) -> dict:
+    """Mentorship (Layer 6) — guidance without control: Vera's REAL pending suggestions rendered as
+    NON-COERCIVE tradeoffs (options + honest pros/cons + a recommendation the USER owns). Read-only."""
+    try:
+        from .mentorship import explainer, policy, schema
+        from . import agency_approval_queue as _q
+        pend = _q.pending(name)
+        tradeoffs = [policy.safe_tradeoff(explainer.from_suggestion(s)) for s in pend]
+        return {
+            "name": name,
+            "tradeoffs": tradeoffs,
+            "count": len(tradeoffs),
+            "all_non_coercive": all(policy.is_non_coercive(t) for t in tradeoffs) if tradeoffs else True,
+            "law": schema.LAW,
+            "empty": not tradeoffs,
+        }
+    except Exception as e:
+        return {"name": name, "tradeoffs": [], "count": 0, "all_non_coercive": True, "empty": True, "error": str(e)}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2643,6 +2663,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       eg.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"ergonomics surface not built")
+            if u.path in ("/mentorship", "/mentorship.html", "/founder/mentorship"):
+                # Mentorship page SHELL — public like the others; data /mentorship.json is token-gated.
+                # Guidance without control: real suggestions as non-coercive tradeoffs.
+                mp = (WEB / "mentorship.html")
+                if mp.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      mp.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"mentorship surface not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2689,6 +2717,11 @@ class Handler(BaseHTTPRequestHandler):
                 # + human-level issues. Token-gated. Read-only; honest empty state.
                 return self._send(200, "application/json",
                                   json.dumps(_ergonomics_data(self.name)).encode())
+            if u.path in ("/mentorship.json", "/founder/mentorship.json"):
+                # Mentorship data — real pending suggestions as non-coercive tradeoffs (options +
+                # pros/cons + a recommendation the user owns). Token-gated. Read-only; honest empty.
+                return self._send(200, "application/json",
+                                  json.dumps(_mentorship_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

@@ -59,9 +59,9 @@ def main() -> int:
     # L5 — Cognitive Ergonomics (BUILT: deterministic clarity metrics over Vera's real replies)
     layer(5, "Cognitive Ergonomics", "GREEN" if _run([SCRIPTS / "certify_cognitive_ergonomics.py"], "COGNITIVE-ERGONOMICS CERT: CERTIFIED") else "PARTIAL",
           "deterministic clarity (jargon/reading-ease/load/hedging/acronyms) over real replies; issues explained human-level")
-    # L6 — Mentorship / Operator Support (PARTIAL: agency suggest-only + approval queue exist)
-    layer(6, "Mentorship Support", "PARTIAL",
-          "agency suggest-only + approval queue exist; tradeoff-explainer + no-coercion cert PLANNED")
+    # L6 — Mentorship / Operator Support (BUILT: tradeoff explainer + no-coercion guard)
+    layer(6, "Mentorship Support", "GREEN" if _run([SCRIPTS / "certify_mentorship.py"], "MENTORSHIP CERT: CERTIFIED") else "PARTIAL",
+          "real suggestions as non-coercive tradeoffs (options + pros/cons, user decides); no-coercion guard with teeth")
     # L7 — Embodied / Host-Aware (BUILT)
     layer(7, "Host Awareness", "GREEN" if _run([SCRIPTS / "certify_argus_integration.py"], "CERTIFIED") else "PARTIAL",
           "host pressure -> model policy / heavy-job defer / keep_alive")
@@ -91,7 +91,7 @@ def main() -> int:
     # 'fail' means: a layer we EXPECT green (the cleanly-certified built ones) is not green. (L7 Host
     # Awareness is real but its full integration cert needs the Argus daemon running, so it is honestly
     # PARTIAL here rather than a hard expected-green.)
-    expected_green = {1, 2, 5, 8, 9, 10}
+    expected_green = {1, 2, 5, 6, 8, 9, 10}
     broken = [l for l in layers if l[0] in expected_green and l[2] != "GREEN"]
     # the Archetypal Registry enhancement is also expected-green once built
     if arch_state != "GREEN":

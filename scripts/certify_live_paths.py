@@ -5174,6 +5174,34 @@ def probe_cognitive_ergonomics(res: Result) -> None:
         res.reason = "Cognitive Ergonomics did not hold (the cert FAILed, _ergonomics_data isn't wired, or the page is missing)."
 
 
+# --- mentorship ------------------------------------------------------------------------------
+def probe_mentorship(res: Result) -> None:
+    """Mentorship Support (Human Operating Layer L6): guidance without control — real suggestions as
+    NON-COERCIVE tradeoffs (options + pros/cons + a recommendation the user owns), with the keystone
+    that the output provably cannot coerce. Cert: scripts/certify_mentorship.py."""
+    rc, t = run_subcert([HERE / "certify_mentorship.py"])
+    cert_ok = (rc == 0) and ("MENTORSHIP CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "mentorship.html").exists()
+    wired = "_mentorship_data" in (ROOT / "anima" / "server.py").read_text()
+    teeth = "guard REJECTS" in t   # the cert exercised the no-coercion keystone
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_mentorship -> %s; wired=%s; page=%s; no_coercion_keystone=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, teeth))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=None, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["tradeoff_shape", "alternatives_kept", "non_coercive", "guard_bites",
+                            "real_suggestions", "suggest_only", "served_authed"]
+        res.reason = ("Guidance without control: Vera's real pending suggestions rendered as NON-COERCIVE "
+                      "tradeoffs — >=2 options each with honest pros/cons, a recommendation the USER owns, "
+                      "suggest-only (nothing executes). The keystone holds: the guard rejects any coercive "
+                      "tradeoff (single option / decision taken from the user / executable / pressure "
+                      "language) and the fail-safe neutralises it. Served + auth-gated (GET /mentorship).")
+    else:
+        res.status = STUB
+        res.reason = "Mentorship did not hold (the cert FAILed, _mentorship_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5669,6 +5697,7 @@ def classify_all() -> dict:
         "archetypal_pattern_registry": probe_archetypal_pattern_registry,
         "trust_ledger": probe_trust_ledger,
         "cognitive_ergonomics": probe_cognitive_ergonomics,
+        "mentorship": probe_mentorship,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
