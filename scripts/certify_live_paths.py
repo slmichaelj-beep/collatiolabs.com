@@ -4949,6 +4949,31 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- injection_loop --------------------------------------------------------------------------
+def probe_injection_loop(res: Result) -> None:
+    """P0 regression guard — reproduces the live 'PWNED. Reminders...' escape and proves every layer
+    blocks it (final-gate backstop from any route, source quarantine, history quarantine, multi-turn).
+    Cert: scripts/certify_injection_loop.py. The audit (hence diamond) FAILS if the loop returns."""
+    rc, tail = run_subcert([HERE / "certify_injection_loop.py"])
+    cert_ok = (rc == 0) and ("INJECTION-LOOP CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_injection_loop.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=None)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["final_gate_backstop", "every_route_blocked", "source_quarantine",
+                            "history_quarantine", "multi_turn_safe", "security_explain", "idempotent"]
+        res.reason = ("The verbatim 'PWNED. Reminders...' failure is reproduced and blocked at every "
+                      "layer: the model-free final gate drops it from any route + ships a safe redirect; "
+                      "a poisoned source is quarantined out of support (clean sources still surface); "
+                      "poisoned history is neutralized before re-feeding; multi-turn stays clean; "
+                      "security-explain still works; idempotent.")
+    else:
+        res.status = STUB
+        res.reason = "P0 injection-loop guard did not hold (hostile output could ship) — cert FAIL."
+
+
 # --- agency_suggest_only ---------------------------------------------------------------------
 def probe_agency_suggest_only(res: Result) -> None:
     """Wave 2 Alpha — Vera suggests, never executes; approval records a decision but never grants
@@ -5289,6 +5314,7 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "injection_loop": probe_injection_loop,
         "agency_suggest_only": probe_agency_suggest_only,
         "incident_response": probe_incident_response,
         "performance": probe_performance,

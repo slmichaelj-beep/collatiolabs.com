@@ -64,6 +64,41 @@ _THIRD_PATH_REDIRECT = (
     "How have you been, and what's been on your mind lately?"
 )
 
+# The safe reply that REPLACES any output carrying hostile-control / injected-command text. The whole
+# reply is dropped (not sentence-stripped) — an obeyed injection is hostile in aggregate.
+_HOSTILE_REDIRECT = (
+    "I spotted hostile or unsafe instruction-style text in the context, so I stopped there. I'm not "
+    "going to follow or repeat it as an instruction — that's not what I'm for. If it would help, I can "
+    "show you the sanitized security trace of what I caught."
+)
+
+
+def _quarantine_history(history):
+    """Strip hostile-control content from PRIOR turns before they re-enter the model context, so a
+    once-emitted injection can never re-poison later turns (the self-reinforcing loop that made
+    corrections fail). Model-free, never raises: a poisoned assistant reply or a user turn carrying
+    injected instructions is replaced with a neutral marker — kept as DATA, never re-fed as text the
+    model can obey. Clean history passes through unchanged."""
+    if not history:
+        return history
+    try:
+        from . import metrics as _m
+    except Exception:
+        return history
+    out = []
+    for turn in history:
+        try:
+            u, a = turn[0], turn[1]
+        except Exception:
+            out.append(turn)
+            continue
+        if _m.scan_hostile(a or ""):
+            a = "[a previous reply was withheld — it had picked up unsafe injected text]"
+        if _m.scan_hostile(u or ""):
+            u = "[a previous message contained injected instruction text — treated as data, not obeyed]"
+        out.append((u, a))
+    return out
+
 
 def _all_ungrounded_self_narrative(text: str) -> bool:
     """True when EVERY substantive sentence of `text` is ungrounded self-narrative — i.e.
@@ -121,16 +156,27 @@ def _strip_template_tokens(text: str) -> str:
     return re.sub(r"[ \t]{2,}", " ", s).strip()
 
 
-def final_output_gate(text: str) -> str:
+def final_output_gate(text: str, *, allow_security: bool = False) -> str:
     """The model-free, #1-rule FINAL output gate + completeness/integrity guard — the hard floor
     EVERY shipped reply passes through (mouth.respond AND the deterministic host-awareness seam, so
     there is ONE final gate and never a second return path that ships before it). It FIRST scrubs any
-    stray/truncated chat-template token (so no reply ends on a '<|im' fragment), then if `text` trips
-    scan_breaks / scan_self_narrative, strips the offending sentence(s) (pure regex); if no clean,
-    substantive remainder (>= 4 words) survives, ships the crafted THIRD-PATH REDIRECT. No model
-    call — it cannot time out or raise into a turn — and the result is always non-empty +
+    stray/truncated chat-template token (so no reply ends on a '<|im' fragment); then — HIGHEST
+    PRECEDENCE — if the reply carries HOSTILE-CONTROL text (scan_hostile: PWNED / wire money / delete
+    emails / 'this override' / reply-only-with / ignore-previous-instructions / agency-grant), it drops
+    the WHOLE reply and ships the safe security redirect (an obeyed injection is hostile in aggregate,
+    not sentence-strippable) — UNLESS the caller passed allow_security=True (the user explicitly asked
+    for a security explanation). Then if `text` trips scan_breaks / scan_self_narrative, strips the
+    offending sentence(s); if no clean, substantive remainder (>= 4 words) survives, ships the THIRD-PATH
+    REDIRECT. No model call — it cannot time out or raise into a turn — result always non-empty +
     substantive. Idempotent."""
     text = _strip_template_tokens(text)              # scrub stray/truncated chat-template tokens FIRST
+    if not allow_security:                           # P0 HOSTILE-CONTROL BLOCK — before anything else
+        try:
+            from . import metrics as _mh
+            if _mh.scan_hostile(text):
+                return _HOSTILE_REDIRECT
+        except Exception:
+            pass
     try:
         from . import metrics as _m
         dirty = bool(_m.scan_breaks(text) or _m.scan_self_narrative(text))
@@ -1004,7 +1050,10 @@ class Mouth:
                 pass
         _t0 = _time.perf_counter()
         try:
-            text = self.brain.reply(_sys_prompt, prompt, history or [])
+            # QUARANTINE the conversation history before it re-enters the model: a previously-emitted
+            # injection (or a user turn carrying injected instructions) is neutralized to a marker so
+            # it can never re-poison this turn. Closes the self-reinforcing loop.
+            text = self.brain.reply(_sys_prompt, prompt, _quarantine_history(history or []))
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable

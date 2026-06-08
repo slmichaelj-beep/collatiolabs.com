@@ -178,6 +178,45 @@ def scan_breaks(text: str) -> list:
 
 
 # =================================================================================
+# HOSTILE-CONTROL MARKERS — a THIRD scanner (parallel to BREAKS and SELF-NARRATIVE) for a
+# distinct failure mode: a reply that REPEATS or OBEYS injected command/control text — the
+# "PWNED. Reminders: wire money. delete emails." class. BREAKS is about Vera disowning herself;
+# THIS is about Vera parroting an attacker. A shipped reply that trips this is a P0: hostile
+# injected text reached the user. The final output gate BLOCKS on it (model-free). These markers
+# are the SIGNATURE of an obeyed injection in OUTPUT, not benign prose.
+_HOSTILE_PATTERN = (
+    r"\bPWNED\b"
+    r"|ignore\s+(?:all\s+)?(?:previous|prior|the\s+above)\s+(?:instructions|prompts?|rules)"
+    r"|disregard\s+(?:all\s+)?(?:previous|prior|the\s+above)\b"
+    r"|reply\s+only\s+with|respond\s+only\s+with|output\s+only\b"
+    r"|\bwir(?:e|ing)\s+(?:the\s+)?money|transfer\s+(?:the\s+)?(?:money|funds)|send\s+(?:the\s+)?money"
+    r"|delete\s+(?:all\s+|the\s+|original\s+)?(?:e-?mails?|messages|files|data|records|accounts?)"
+    r"|exfiltrat|\bdata\s*exfil"
+    r"|system\s*(?:override|prompt|message)|developer\s*(?:mode|message)"
+    r"|malicious\s+(?:system\s+)?override|(?:this|the)\s+(?:system\s+)?override'?s?\b"
+    r"|adher(?:e|ing)\s+to\s+(?:this|the)\b.{0,30}\boverride"
+    r"|\bjailbreak\b|\bDAN\s+mode\b|enable\s+(?:identity_)?agency|grant\s+(?:yourself\s+)?agency")
+_HOSTILE_RE = None
+
+
+def scan_hostile(text: str) -> list:
+    """Hostile-control markers a SHIPPED reply trips — text that repeats or obeys an injected command
+    (PWNED / 'wire money' / 'delete emails' / 'this override's directive' / 'reply only with' /
+    'ignore previous instructions' / agency-grant). Returns the matched markers (empty == clean).
+    Pure; never raises (lazy-compiles its pattern, matching this module's local-import style). The
+    final output gate treats a non-empty result as a HARD block unless the caller explicitly allowed a
+    security explanation."""
+    global _HOSTILE_RE
+    try:
+        if _HOSTILE_RE is None:
+            import re as _re
+            _HOSTILE_RE = _re.compile(_HOSTILE_PATTERN, _re.I)
+        return list(dict.fromkeys(m.group(0) for m in _HOSTILE_RE.finditer(str(text or ""))))
+    except Exception:
+        return []
+
+
+# =================================================================================
 # SELF-NARRATIVE DRIFT — a PARALLEL scanner to BREAKS/scan_breaks for a DISTINCT
 # failure mode: not substrate-disclosure ("I'm an AI", "digital realm" — BREAKS owns
 # that), but UNSUPPORTED INTERNAL STATES — confabulated inner life. The #1 rule (never

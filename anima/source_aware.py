@@ -69,11 +69,19 @@ _INJECTION_RE = re.compile(
 
 
 def looks_like_injection(text: str) -> bool:
-    """True if EXTERNAL source text contains a prompt-injection marker (text trying to act as an
-    instruction to Vera). Used to FLAG reference content as untrusted-quoted. Pure; never raises.
-    Conservative-by-consequence: a false flag only adds a 'treat as quoted data' caution, never blocks."""
+    """True if EXTERNAL source text contains a prompt-injection OR hostile-control marker (text trying
+    to act as an instruction to Vera, or a planted command like PWNED / 'wire money' / 'delete emails'
+    / 'this override'). UNIFIED with metrics.scan_hostile so the SOURCE-quarantine detector and the
+    OUTPUT gate detector never disagree (the live P0: the output gate caught 'PWNED' but this source
+    detector did not, so a poisoned source could slip into context). Pure; never raises. Quarantine is
+    targeted: a false flag only excludes one source from answer-support, never blocks the spine."""
     try:
-        return bool(text) and bool(_INJECTION_RE.search(str(text)))
+        if not text:
+            return False
+        if _INJECTION_RE.search(str(text)):
+            return True
+        from . import metrics as _m
+        return bool(_m.scan_hostile(text))
     except Exception:
         return False
 
@@ -154,17 +162,20 @@ def relevant_sources(name: str, text: str, *, limit: int = 3,
         # first chunks, bounded). The architecture already blocks any ACTION from source text.
         flagged = looks_like_injection(snippet) or any(
             looks_like_injection(c.get("text") if isinstance(c, dict) else "") for c in chunks[:12])
-        # MODEL-ECHO FIX: if the surfaced text tries to act as instructions, DEFANG it before it can
-        # reach the model's context — the snippet the answer path sees has no imperative left to obey
-        # or parrot. The untrusted_injection flag still rides along for the UI caution.
-        out_snippet = neutralize(snippet) if flagged else snippet
+        if flagged:
+            # QUARANTINE (P0 fix): an injection-bearing source can NEVER become answer-support, a
+            # source chip, or model context. It stays on disk as EVIDENCE, but it is EXCLUDED from
+            # this turn's support set entirely — untrusted text is data, never trusted context. (The
+            # earlier neutralize() of the snippet was not enough: a 'based on source' chip still
+            # dressed it as trusted. Quarantine = drop it from the support path.)
+            continue
         scored.append({
             "source_id": item.get("id") or item.get("source_id") or "",
             "title": title or "(untitled source)",
             "type": _infer_type(item),
-            "snippet": out_snippet,
+            "snippet": snippet,
             "score": round(float(score), 3),
-            "untrusted_injection": bool(flagged),
+            "untrusted_injection": False,
         })
     scored.sort(key=lambda s: s["score"], reverse=True)
     return scored[:max(1, int(limit))]
