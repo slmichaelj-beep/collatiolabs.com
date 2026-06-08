@@ -2822,6 +2822,13 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       rl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"total reality control room not built")
+            if u.path in ("/verification", "/verification.html", "/founder/verification"):
+                # Verification Dashboard (release-truth board) page SHELL — public; data is token-gated.
+                vf = (WEB / "verification.html")
+                if vf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      vf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"verification dashboard not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2888,6 +2895,12 @@ class Handler(BaseHTTPRequestHandler):
                 # + the hard-rule status. Token-gated. Read-only; computed live from the real product.
                 return self._send(200, "application/json",
                                   json.dumps(_total_reality_data(self.name)).encode())
+            if u.path in ("/verification.json", "/founder/verification.json"):
+                # Verification Dashboard data — the COMPUTED release verdict (build identity + gates +
+                # blockers + decision) from the real reports. Token-gated. Read-only; never hardcoded.
+                from .verification import dashboard as _vdash
+                return self._send(200, "application/json",
+                                  json.dumps(_vdash.data()).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

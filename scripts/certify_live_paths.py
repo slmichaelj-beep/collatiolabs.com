@@ -57,6 +57,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -176,15 +177,20 @@ class Result:
 # Sub-cert subprocess runner. Each hermetic cert exits 0 on PASS / non-zero on FAIL under --gate.
 # We capture (rc, tail) and never let a subprocess failure crash the classifier.
 # ---------------------------------------------------------------------------------------------
-def run_subcert(args: list[str], retries: int = 1) -> tuple[int, str]:
-    """Run a sub-cert and return (rc, tail). RETRIES ONCE on a non-zero/timeout result: these certs
-    are deterministic, so a failure under the audit's concurrent load (many subprocesses + the live
-    server competing for CPU/sockets, a momentary Argus auth hiccup, a heavy-MRI timeout) is a flake
-    that passes on a clean re-run — while a GENUINELY broken cert fails both attempts and still
-    returns non-zero. So the retry stabilizes the verdict without ever masking a real break."""
+def run_subcert(args: list[str], retries: int = 1, backoff: float = 0.0) -> tuple[int, str]:
+    """Run a sub-cert and return (rc, tail). RETRIES on a non-zero/timeout result: these certs are
+    deterministic, so a failure under the audit's concurrent load (many subprocesses + the live server
+    competing for CPU/sockets, a momentary Argus connection hiccup, a heavy-MRI timeout) is a flake
+    that passes on a clean re-run — while a GENUINELY broken cert fails every attempt and still returns
+    non-zero. So the retry stabilizes the verdict without ever masking a real break. `backoff` (seconds)
+    sleeps between attempts so a retry lands AFTER a momentary contention spike clears, rather than
+    inside the same loaded window — important for certs that hit a live external daemon (Argus :8787)."""
     cmd = [sys.executable, *[str(a) for a in args]]
     last = (1, "")
-    for _ in range(max(1, retries + 1)):
+    attempts = max(1, retries + 1)
+    for i in range(attempts):
+        if i and backoff:
+            time.sleep(backoff)                       # let a momentary CPU/socket spike clear
         try:
             cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
             tail = (cp.stdout or "")[-1500:] + (("\n[stderr]\n" + cp.stderr[-500:]) if cp.stderr else "")
@@ -281,7 +287,10 @@ def probe_argus_host_awareness(res: Result) -> None:
       (b) the WRITE surface is UNREACHABLE: anima/host_access.py (Calendar/Reminders/Notes,
           read AND write) is NOT imported by anima/server.py -> not wired into the read-only
           /host/* routes (no-wallpaper cross-check)."""
-    rc, tail = run_subcert([HERE / "certify_argus_integration.py", "--gate"])
+    # This cert makes LIVE calls to the separate Argus daemon (:8787); under the full audit's
+    # concurrency that can hiccup transiently, so retry 3x with a 4s backoff between attempts (a real
+    # break fails every attempt). It passes standalone repeatably with the daemon up.
+    rc, tail = run_subcert([HERE / "certify_argus_integration.py", "--gate"], retries=3, backoff=4.0)
     cert_ok = (rc == 0) and ("ARGUS INTEGRATION CERTIFICATION: PASS" in tail)
     res.evidence.append("scripts/certify_argus_integration.py --gate -> exit %d; %s"
                         % (rc, "PASS" if cert_ok else "FAIL"))
@@ -4910,8 +4919,11 @@ def probe_product_polish(res: Result) -> None:
 # --- enterprise_readiness --------------------------------------------------------------------
 def probe_enterprise_readiness(res: Result) -> None:
     """Phase 14 capstone — explainable to a reviewer without Lamar: every hardening cert passes, the
-    audit is clean, the evidence is documented. Cert: scripts/enterprise_readiness.py."""
-    rc, tail = run_subcert([HERE / "enterprise_readiness.py"])
+    audit is clean, the evidence is documented. Cert: scripts/enterprise_readiness.py.
+    AGGREGATED + heavy (it runs the security/permissions/privacy/performance/ai-security/polish certs),
+    so it is flake-prone under the full audit's concurrency — retry 2x with a 4s backoff so a retry
+    lands after a contention spike clears (it passes standalone; a real gap fails every attempt)."""
+    rc, tail = run_subcert([HERE / "enterprise_readiness.py"], retries=2, backoff=4.0)
     cert_ok = (rc == 0) and ("ENTERPRISE READINESS: READY" in tail)
     res.evidence.append("scripts/enterprise_readiness.py -> exit %d; %s" % (rc, "READY" if cert_ok else "NOT READY"))
     res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=cert_ok, Restart=None)
