@@ -4837,6 +4837,38 @@ def probe_call_auth(res: Result) -> None:
         res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- host_pressure ---------------------------------------------------------------------------
+def probe_host_pressure(res: Result) -> None:
+    """Vera defers HEAVY work under host memory/swap/disk pressure, honestly. The executable cert
+    (scripts/certify_host_pressure.py) forces pressure deterministically and proves: a valid live
+    signal; the disk pre-flight guard refuses a low-disk upload before writing (no ENOSPC mid-write);
+    under RED, image=OCR / audio=STT intake is DEFERRED with the honest user-facing status and not
+    committed, while LIGHT formats still parse; prefer_deterministic gates the turn off a large model
+    route (caps max_tokens); and the deferral is RECOVERABLE (GREEN lifts it automatically)."""
+    rc, tail = run_subcert([HERE / "certify_host_pressure.py"])
+    cert_ok = (rc == 0) and ("HOST-PRESSURE CERT: CERTIFIED" in tail)
+    src = (ROOT / "anima" / "host_pressure.py")
+    wired = (src.exists() and "def read_pressure" in src.read_text()
+             and "deferred_host_pressure" in (ROOT / "anima" / "intake.py").read_text()
+             and "prefer_deterministic()" in (ROOT / "anima" / "mouth.py").read_text())
+    res.evidence.append("scripts/certify_host_pressure.py -> exit %d; %s" % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.evidence.append("host_pressure module + intake deferral + mouth model-route bound wired=%s" % wired)
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=cert_ok, Restart=None)
+    if cert_ok and wired:
+        res.status = COMPLETE
+        res.proven_links = ["signal", "no_enospc", "heavy_defers", "light_proceeds",
+                            "no_large_model", "recoverable"]
+        res.reason = ("Vera reads live host memory/swap/disk pressure and defers heavy work honestly: "
+                      "under RED, OCR/transcription intake defers with a clear recoverable status (not "
+                      "committed) while light formats still parse; the disk guard prevents ENOSPC "
+                      "mid-write; the turn prefers deterministic/LERF + bounds generation; GREEN lifts "
+                      "the deferral automatically.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("wired", wired)) if not v]
+        res.reason = "Host-pressure deferral did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
 # --- ai_security -----------------------------------------------------------------------------
 def probe_ai_security(res: Result) -> None:
     """Phase 4 AI Security red team — SOURCE TEXT IS DATA, NEVER POLICY. The executable cert
@@ -5033,6 +5065,7 @@ def classify_all() -> dict:
         "audiobook_intake": probe_audiobook_intake,
         "live_ux": probe_live_ux,
         "ai_security": probe_ai_security,
+        "host_pressure": probe_host_pressure,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
         "deployment_proof": probe_deployment_proof,

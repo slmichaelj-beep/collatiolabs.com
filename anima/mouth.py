@@ -929,6 +929,15 @@ class Mouth:
                 self.brain.max_tokens = max(256, int(192 + vb * 4))   # v35→332, v100→592
         except Exception:
             pass
+        # Under host memory/swap pressure, avoid a large model route: bound generation to the floor
+        # (don't scale length up) and lean on the deterministic / LERF paths, so a strained host isn't
+        # tipped further into swapping. Headroom returns -> normal lengths resume automatically.
+        try:
+            from . import host_pressure as _hp
+            if _hp.prefer_deterministic() and hasattr(self.brain, "max_tokens"):
+                self.brain.max_tokens = min(int(self.brain.max_tokens), 256)
+        except Exception:
+            pass
         import time as _time, sys as _sys
         # Assemble the system prompt ONCE and keep its FRAGMENT LEDGER for the MRI. The
         # text is exactly what system_prompt() returns; _assemble_prompt just also hands

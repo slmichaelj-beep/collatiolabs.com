@@ -281,6 +281,13 @@ def classify_source(parsed: dict, *, name_hint: str = "", source_ref: str = "") 
     chunks = parsed.get("chunks") or []
     ref = source_ref or meta.get("source_ref") or ""
 
+    # ---- deferred under host pressure: surface the honest status as the user-facing reason ----
+    if meta.get("deferred_host_pressure"):
+        return {"detected_type": "deferred_host_pressure", "suggested_use": [DEST_REFERENCE],
+                "confidence": 0.5, "requires_user_confirmation": True,
+                "reason": parsed.get("need") or ("Host is under memory pressure; I'll defer this heavy "
+                                                 "intake until the system has headroom.")}
+
     # ---- format-anchored base classification --------------------------------
     detected = "reference"
     suggested: list[str] = []
@@ -1011,8 +1018,27 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
     title = P._title_from_path(input) if not input.lower().startswith(("http://", "https://", "www.")) else input
     tr.stage("uploaded", out={"detected_format": fmt, "title": title, "input_ref": input})
 
-    # 2) parse.
-    parsed = P.parse(input, fmt=fmt)
+    # 2) parse. Under RED host memory/swap pressure, DEFER the memory-heavy parsers (OCR for
+    #    images/scanned PDFs, speech-to-text for audio/audiobook/video) rather than tip an already
+    #    strained host further into swapping. Honest needs_dependency with a user-facing status line;
+    #    resumes automatically when the host has headroom. Light formats always parse.
+    _PRESSURE_HEAVY = {"image", "audio", "audiobook", "video"}
+    _deferred = False
+    if fmt in _PRESSURE_HEAVY:
+        try:
+            from . import host_pressure as _hp
+            _ok, _why = _hp.heavy_ok()
+        except Exception:
+            _ok, _why = True, ""
+        if not _ok:
+            _deferred = True
+            parsed = {"status": "needs_dependency", "text": "", "chunks": [], "figures": [],
+                      "tables": [], "need": _hp.status_line(),
+                      "meta": {"format": fmt, "subkind": fmt, "deferred_host_pressure": True,
+                               "title_hint": title}}
+            tr.stage("parse", out={"deferred": "host_pressure", "reason": _why, "format": fmt})
+    if not _deferred:
+        parsed = P.parse(input, fmt=fmt)
     status = parsed.get("status", "ok")
     n_chunks = len(parsed.get("chunks") or [])
     tr.stage("parsed", out={"status": status, "chunks": n_chunks,
