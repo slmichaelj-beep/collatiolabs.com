@@ -2554,6 +2554,17 @@ def _living_map_simulate(name: str, lever: str) -> dict:
         return {"name": name, "ok": False, "levers": [], "empty": True, "error": str(e)}
 
 
+def _living_map_overlay(name: str) -> dict:
+    """Living Map — Milestone 5: PATTERN OVERLAY. The Pattern Observatory's real recurring patterns mapped
+    onto the map nodes they concern (count + worst severity per node); un-mappable patterns shown honestly
+    as 'unmapped', never forced onto a node. Read-only."""
+    try:
+        from .living_map import overlay
+        return overlay.overlay(name)
+    except Exception as e:
+        return {"name": name, "by_node": {}, "patterns_total": 0, "unmapped": [], "empty": True, "error": str(e)}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2808,6 +2819,11 @@ class Handler(BaseHTTPRequestHandler):
                 _lever = (parse_qs(u.query).get("lever", [""])[0] or "").strip()
                 return self._send(200, "application/json",
                                   json.dumps(_living_map_simulate(self.name, _lever)).encode())
+            if u.path in ("/founder/living-map/overlay", "/living-map/overlay"):
+                # Living Map Milestone 5 — PATTERN OVERLAY: the real recurring patterns mapped onto the
+                # nodes they concern (count + worst severity); un-mappable -> 'unmapped'. Token-gated.
+                return self._send(200, "application/json",
+                                  json.dumps(_living_map_overlay(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"

@@ -5267,35 +5267,39 @@ def probe_living_map(res: Result) -> None:
     rc1, t1 = run_subcert([HERE / "certify_living_map.py"])
     rc2, t2 = run_subcert([HERE / "certify_living_map_no_wallpaper.py"])
     rc3, t3 = run_subcert([HERE / "certify_living_map_simulation.py"])
+    rc4, t4 = run_subcert([HERE / "certify_living_map_overlay.py"])
     # the cert prints a consolidated final line ("LIVING MAP MILESTONES — STATIC:.. LIVE:.. REPLAY:..")
     # that always survives run_subcert's tail truncation; fall back to the per-section lines.
     static_ok = (rc1 == 0) and ("STATIC:GREEN" in t1 or "LIVING MAP STATIC: GREEN" in t1)
     live_ok = (rc1 == 0) and ("LIVE:GREEN" in t1 or "LIVING MAP LIVE: GREEN" in t1)
     replay_ok = (rc1 == 0) and ("REPLAY:GREEN" in t1 or "LIVING MAP REPLAY: GREEN" in t1)
     sim_ok = (rc3 == 0) and ("LIVING MAP SIMULATION: GREEN" in t3)
+    overlay_ok = (rc4 == 0) and ("LIVING MAP OVERLAY: GREEN" in t4)
     nowall_ok = (rc2 == 0) and ("LIVING MAP NO-WALLPAPER: GREEN" in t2)
     page = (ROOT / "anima" / "web" / "living_map.html").exists()
-    cert_ok = static_ok and live_ok and replay_ok and sim_ok and nowall_ok
-    res.evidence.append("certify_living_map.py -> STATIC=%s LIVE=%s REPLAY=%s SIM=%s · no_wallpaper -> %s; page=%s"
+    cert_ok = static_ok and live_ok and replay_ok and sim_ok and overlay_ok and nowall_ok
+    res.evidence.append("certify_living_map.py -> STATIC=%s LIVE=%s REPLAY=%s SIM=%s OVERLAY=%s · no_wallpaper -> %s; page=%s"
                         % ("GREEN" if static_ok else "FAIL", "GREEN" if live_ok else "FAIL",
                            "GREEN" if replay_ok else "FAIL", "GREEN" if sim_ok else "FAIL",
-                           "GREEN" if nowall_ok else "FAIL", page))
+                           "GREEN" if overlay_ok else "FAIL", "GREEN" if nowall_ok else "FAIL", page))
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=cert_ok)
     if cert_ok and page:
         res.status = COMPLETE
         res.proven_links = ["page_served", "state_authed", "real_nodes", "real_edges", "real_status",
                             "honest_unknown", "status_derived", "no_drift", "read_only", "no_wallpaper",
                             "live_pulses", "evidence_refs", "replay_chronological", "replay_deterministic",
-                            "simulation_derived", "simulation_sandboxed"]
+                            "simulation_derived", "simulation_sandboxed", "overlay_real_patterns",
+                            "overlay_no_invented_hotspots"]
         res.reason = ("A served, auth-gated, READ-ONLY operational digital twin: ~27 real subsystem "
                       "nodes + ~36 flows whose every status is backed by a real source (host pressure / "
                       "audit matrix / caps / security / MRI), honestly 'unknown' where not instrumented. "
                       "M2 LIVE: real recent events animate as evidence-backed pulses; idle == no pulses. "
                       "M3 REPLAY: the same real trace, chronological + seekable with DETERMINISTIC seek. "
                       "M4 SIMULATION: pull a lever -> predicted impact, DERIVED by re-running the real "
-                      "resolvers under a hypothetical, SANDBOXED (the source is restored), with assumptions "
-                      "+ confidence + the gating cert. NO WALLPAPER: status is derived (patching host "
-                      "pressure flips Argus + Model) and cannot drift (metric == store).")
+                      "resolvers under a hypothetical, SANDBOXED. M5 PATTERN OVERLAY: the real recurring "
+                      "patterns mapped onto the nodes they concern (count + worst severity), un-mappable "
+                      "ones shown honestly as 'unmapped' — no invented hotspots. NO WALLPAPER: status is "
+                      "derived (patching host pressure flips Argus + Model) and cannot drift.")
     else:
         res.status = STUB
         res.reason = "Living Map did not hold (a Milestone-1 cert FAILed or the page is missing)."

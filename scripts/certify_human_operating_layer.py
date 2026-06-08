@@ -68,11 +68,12 @@ def main() -> int:
     # L8 — Trust Ledger (BUILT: unified spine over the real trust events + falsifiable invariants)
     layer(8, "Trust Ledger", "GREEN" if _run([SCRIPTS / "certify_trust_ledger.py"], "TRUST-LEDGER CERT: CERTIFIED") else "PARTIAL",
           "unified spine over SOC trail + ROI; 4 falsifiable invariants (append-only / suggest-only / no-silent-memory / reversible)")
-    # L9 — Living Map (BUILT M1+M2+M3+M4)
+    # L9 — Living Map (BUILT M1-M5: the full 5-milestone moonshot)
     _lm = _run([SCRIPTS / "certify_living_map.py"], "LIVING MAP REPLAY: GREEN")
     _lm_sim = _run([SCRIPTS / "certify_living_map_simulation.py"], "LIVING MAP SIMULATION: GREEN")
-    layer(9, "Living Map", "GREEN" if (_lm and _lm_sim) else "PARTIAL",
-          "operational digital twin: static + live pulses + REPLAY + SIMULATION (derived, sandboxed), no wallpaper")
+    _lm_ov = _run([SCRIPTS / "certify_living_map_overlay.py"], "LIVING MAP OVERLAY: GREEN")
+    layer(9, "Living Map", "GREEN" if (_lm and _lm_sim and _lm_ov) else "PARTIAL",
+          "operational digital twin — all 5 milestones: static + live pulses + REPLAY + SIMULATION + PATTERN OVERLAY, no wallpaper")
     # L10 — Pattern -> Improvement Loop (BUILT)
     layer(10, "Pattern->Improvement", "GREEN" if _run([SCRIPTS / "certify_patterns_dashboard.py"], "PATTERNS-DASHBOARD CERT: CERTIFIED") else "PARTIAL",
           "Pattern Observatory + Improvement Engine + ROI after-measurement")

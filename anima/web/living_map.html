@@ -34,6 +34,8 @@
   .lever{font-size:11.5px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1626;color:var(--dim);cursor:pointer}
   .lever.on{color:var(--ink);border-color:var(--warn-d);background:var(--warn-d)}
   .siminfo{flex:1;min-width:240px;font-size:11.5px;color:var(--dim)}
+  .patbadge{position:absolute;top:-7px;right:-7px;min-width:16px;height:16px;border-radius:999px;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 4px;border:1px solid #0b0f17;z-index:4;color:#0b0f17}
+  .patbadge.P0{background:#e0556b} .patbadge.P1{background:#d6a13a} .patbadge.P2,.patbadge.P3{background:#6aa6ff}
   .stage{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
   .mapbox{position:relative;background:linear-gradient(180deg,#0d1320,#0b0f18);border:1px solid var(--line);border-radius:14px;overflow:auto;min-height:560px}
   #canvas{position:relative}
@@ -213,6 +215,27 @@
     }).catch(function(){});
   }
 
+  // Milestone 5: PATTERN OVERLAY. Surface the REAL recurring patterns on the nodes they concern.
+  var OVERLAY=null;
+  function overlayView(){
+    if(!OVERLAY||!OVERLAY.by_node) return;
+    document.querySelectorAll('.patbadge').forEach(function(b){b.remove();});
+    Object.keys(OVERLAY.by_node).forEach(function(nid){
+      var b=OVERLAY.by_node[nid], el=document.querySelector('.node[data-id="'+nid+'"]');
+      if(!el) return;
+      var span=document.createElement('span');
+      span.className='patbadge '+(b.worst_severity||'P2');
+      span.textContent=b.count;
+      span.title=(b.patterns||[]).map(function(p){return p.severity+': '+p.title;}).join(' · ');
+      el.appendChild(span);
+    });
+  }
+  function loadOverlay(){
+    fetch('/founder/living-map/overlay',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; OVERLAY=j; overlayView();
+    }).catch(function(){});
+  }
+
   // deterministic left->right lanes (the flow), assigned by node id
   var LANES=[
     ['user','chat_ui'],
@@ -282,6 +305,7 @@
     Array.prototype.slice.call(box.querySelectorAll('.node,.lane-label')).forEach(function(el){el.remove();});
     box.insertAdjacentHTML('beforeend', laneHtml+nodeHtml);
     box.querySelectorAll('.node').forEach(function(el){ el.onclick=function(){ SEL=el.dataset.id; render(); side(); }; });
+    overlayView();   // re-apply the pattern badges after the nodes are rebuilt
     document.getElementById('stamp').textContent='updated '+esc((d.generated_at||'').replace('T',' ').slice(0,19));
     if(!SEL) sideSummary(); else side();
   }
@@ -357,7 +381,7 @@
     }).then(function(j){
       if(!j) return;
       if(!j.nodes||!j.nodes.length){ mapMsg('No map data yet'+(j.summary&&j.summary.error?(' ('+esc(j.summary.error)+')'):'')+' — retrying…'); setTimeout(load,3000); return; }
-      _retry=0; clearMapMsg(); DATA=j; SEL=null; render(); loadEvents(); startPulses();
+      _retry=0; clearMapMsg(); DATA=j; SEL=null; render(); loadEvents(); startPulses(); loadOverlay();
     }).catch(function(){
       _retry++;
       mapMsg('Couldn’t reach Vera — the server may be restarting. Retrying… <span style="opacity:.6">['+_retry+']</span>');
@@ -365,7 +389,7 @@
     });
   }
   // refresh events when loaded; SELF-HEAL the state if it never loaded (e.g. loaded during a restart).
-  setInterval(function(){ if(DATA){ loadEvents(); } else { load(); } }, 9000);
+  setInterval(function(){ if(DATA){ loadEvents(); loadOverlay(); } else { load(); } }, 9000);
   window.addEventListener('resize', function(){ if(DATA) render(); });
   load();
 })();
