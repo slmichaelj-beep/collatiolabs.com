@@ -66,7 +66,7 @@ def _git(*a):
 BASELINE = [
     ("deploy",   "DEPLOYMENT  (running == committed)",          "deploy_check.py",      [],         "GREEN"),
     ("reality",  "PRODUCT REALITY  (live-path / no-wallpaper)", "certify_live_paths.py", ["--gate"], None),
-    ("gate0",    "GATE 0 PRIME  (platform trust + stress)",     "gate0_prime.py",       ["--gate"], "GATE 0 PRIME: PASS"),
+    ("gate0",    "GATE 0 PRIME  (platform trust + stress)",     "gate0_prime.py",       [],         "GATE 0 PRIME: PASS"),
     ("selftest", "SELFTESTS  (LAW invariants)",                 "selftest.py",          [],         "ALL SELFTESTS PASS"),
 ]
 FUTURE = [
