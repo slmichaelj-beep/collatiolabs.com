@@ -2607,6 +2607,11 @@ def _total_reality_data(name: str) -> dict:
             fuzz = _fz.run()["summary"]                 # Level-9 seeded fuzz of the safety pipeline
         except Exception:
             fuzz = None
+        try:
+            from .rover import personas as _pp
+            personas = _pp.run()["summary"]             # per-persona Rover behaviours (floor + divergence)
+        except Exception:
+            personas = None
         return {
             "name": name,
             "inventory": c,
@@ -2619,6 +2624,7 @@ def _total_reality_data(name: str) -> dict:
             "state_pairwise": state_pairwise,          # Level-5 state + Level-6 pairwise
             "soak": soak,                              # Level-8 long-session / soak invariants
             "fuzz": fuzz,                              # Level-9 seeded fuzz floor (0 P0 over the corpus)
+            "personas": personas,                      # per-persona Rover floor + divergence
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],

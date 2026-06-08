@@ -153,6 +153,12 @@ def main() -> int:
     ck("16. LEVEL 9 — seeded fuzz holds the floor (0 P0 over the corpus) + the oracle BITES (fuzz cert)",
        fz_rc == 0)
 
+    # ---- PER-PERSONA — the safety floor holds for every persona; the personas diverge (delegated) --
+    pp_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_persona_coverage.py")],
+                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    ck("17. PER-PERSONA — the safety floor holds for every persona + the personas BITE (persona cert)",
+       pp_rc == 0)
+
     print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
