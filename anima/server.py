@@ -2253,13 +2253,29 @@ def _console_data(name: str) -> dict:
         pass
     out["feed"] = list(reversed(feed))[:40]
 
+    # 5. ROI / COMPLETED — the historical record of shipped, VERIFIED improvements + what each did for
+    # us. Self-verifying (cert-backed); prefer the freshly-built ledger so the verification is live.
+    out["roi"] = []
+    try:
+        import importlib.util as _il
+        _sp = _il.spec_from_file_location("_roi_ledger", "scripts/roi_ledger.py")
+        _rm = _il.module_from_spec(_sp)
+        _sp.loader.exec_module(_rm)
+        out["roi"] = _rm.build()
+    except Exception:
+        try:
+            out["roi"] = (json.loads((reports / "roi_ledger.json").read_text()) or {}).get("entries") or []
+        except Exception:
+            out["roi"] = []
+
     out["counts"] = {
         "patterns": len(out["patterns"]),
         "p0": sum(1 for p in out["patterns"] if p.get("severity") == "P0"),
         "improvements": len(out["improvements"]),
         "pending": sum(1 for i in out["improvements"] if i["approval_status"] == "pending"),
-        "feed": len(out["feed"])}
-    out["empty"] = not (out["patterns"] or out["improvements"])
+        "feed": len(out["feed"]),
+        "roi_verified": sum(1 for r in out["roi"] if r.get("status") == "verified")}
+    out["empty"] = not (out["patterns"] or out["improvements"] or out["roi"])
     return out
 
 

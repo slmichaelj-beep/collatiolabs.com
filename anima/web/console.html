@@ -126,16 +126,32 @@
         '<span class="k">'+esc(f.kind)+'</span><span>'+esc(f.summary)+'</span></div>';
     }).join('')+'</div>';
   }
+  function roiView(d){
+    var roi=d.roi||[];
+    if(!roi.length) return '<div class="na">No completed improvements recorded yet.</div>';
+    return roi.map(function(r){
+      var ok=(r.status==='verified');
+      var badge=ok?'<span class="pill" style="color:#9bf0cf;border-color:var(--good-d);background:var(--good-d)">✓ verified</span>'
+                  :'<span class="pill" style="color:#f4d79b;border-color:var(--warn-d);background:var(--warn-d)">unverified</span>';
+      return '<div class="card"><div class="ph">'+badge+'<span class="ttl">'+esc(r.title)+'</span>'+
+        (r.tag?'<span class="pill">'+esc(r.tag)+'</span>':'')+'</div>'+
+        '<div class="lab">Before → after</div><div class="val"><b>'+esc(r.before)+'</b> → <b style="color:#9bf0cf">'+esc(r.after)+'</b> <span style="opacity:.6">('+esc(r.metric)+')</span></div>'+
+        '<div class="lab">What it did for us</div><div class="val">'+esc(r.benefit)+'</div>'+
+        '<div class="lab">Problem it solved</div><div class="val">'+esc(r.problem)+'</div>'+
+        '<div class="lab">Proof</div><div class="val cert">'+esc(r.cert)+(r.contract_status?' · contract '+esc(r.contract_status):'')+'</div></div>';
+    }).join('');
+  }
   function render(){
     var d=DATA; if(!d) return;
     document.getElementById('counts').innerHTML=
       '<span class="pill sev-P0">'+d.counts.p0+' P0</span><span class="pill">'+d.counts.patterns+' patterns</span>'+
       '<span class="pill">'+d.counts.pending+' pending</span><span class="pill">'+d.counts.feed+' events</span>';
     var tabs=[['patterns','Live Patterns',d.counts.patterns],['improvements','Improvements',d.counts.improvements],
+      ['roi','Completed · ROI',(d.counts.roi_verified||0)],
       ['loop','Learning Loop',d.learning_loop.length],['feed','Live Feed',d.counts.feed]];
     document.getElementById('tabs').innerHTML=tabs.map(function(t){
       return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'<span class="n">'+t[2]+'</span></span>';}).join('');
-    var v=TAB==='patterns'?patternsView(d):TAB==='improvements'?impView(d):TAB==='loop'?loopView(d):feedView(d);
+    var v=TAB==='patterns'?patternsView(d):TAB==='improvements'?impView(d):TAB==='roi'?roiView(d):TAB==='loop'?loopView(d):feedView(d);
     document.getElementById('view').innerHTML=v;
     document.querySelectorAll('.tab').forEach(function(el){el.onclick=function(){TAB=el.dataset.tab;render();};});
     document.querySelectorAll('.btn[data-a]').forEach(function(b){b.onclick=function(){

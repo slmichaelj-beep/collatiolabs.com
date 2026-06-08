@@ -104,6 +104,18 @@ def main() -> int:
     except Exception:
         ck("10. the improvements EQUAL the real Improvement Engine backlog", False)
 
+    # ---- 11 ROI — completed work is CERT-BACKED, not invented good-news ---------------------
+    roi = d.get("roi") or []
+    verified = [r for r in roi if r.get("status") == "verified"]
+    ck("11. the Completed/ROI view shows real shipped work with before->after",
+       len(roi) >= 1 and all(r.get("before") and r.get("after") for r in roi))
+    ck("11. EVERY verified ROI entry is gated by an EXISTING cert file (benefit proven, not claimed)",
+       len(verified) >= 1 and all((ROOT / r.get("cert", "x")).exists() for r in verified))
+    ck("11. every verified ROI entry maps to a COMPLETE contract (no fake good-news)",
+       all(r.get("contract_status") in (None, "COMPLETE") for r in verified))
+    ck("11. the page renders the Completed/ROI tab (before->after + what it did for us)",
+       "Completed · ROI" in html and "roiView" in html and "What it did for us" in html)
+
     # ---- 9 HONEST EMPTY STATE --------------------------------------------------------------
     ck("9. the page has an HONEST empty state (no fake 'all good' when there's nothing)",
        "Honest empty state" in html and "No repeating issues" in html

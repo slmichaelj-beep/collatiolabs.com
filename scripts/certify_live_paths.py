@@ -4991,11 +4991,13 @@ def probe_patterns_dashboard(res: Result) -> None:
         res.status = COMPLETE
         res.proven_links = ["page_served", "data_authed", "real_patterns", "evidence_links",
                             "real_improvements", "approve_reject_works", "live_feed", "not_hardcoded",
-                            "honest_empty"]
+                            "completed_roi", "honest_empty"]
         res.reason = ("A served Founder Console fed by REAL stores: live patterns (with severity / "
                       "frequency / root-cause / evidence trace IDs) EQUAL the Pattern Observatory store; "
                       "improvements EQUAL the Improvement Engine backlog; approve/reject persists + "
-                      "audits; the live feed renders; honest empty state — never hardcoded good-news.")
+                      "audits; the live feed renders; the Completed · ROI view shows shipped work with "
+                      "before->after where EVERY verified win is gated by an existing cert + a COMPLETE "
+                      "contract; honest empty state — never hardcoded good-news.")
     else:
         res.status = STUB
         res.reason = "Patterns & Improvements console did not hold (cert FAIL or page missing)."
