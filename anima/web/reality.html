@@ -71,6 +71,14 @@
       '<div class="stat"><div class="n">'+(m.critical||0)+'</div><div class="k">critical (L1)</div></div>'+
       '<div class="stat"><div class="n">'+(m.adversarial||0)+'</div><div class="k">adversarial (L7)</div></div>'+
       '</div><div class="why">By level: '+esc(JSON.stringify(m.by_level||{}))+'</div></div>'+
+      (function(){ var e=d.execution; if(!e) return '';
+        return '<div class="card"><div class="ttl">Level-2 Rover execution (real backing paths)</div><div class="strip">'+
+        '<div class="stat"><div class="n">'+(e.pass||0)+'</div><div class="k">executed · pass</div></div>'+
+        '<div class="stat"><div class="n">'+(e.fail||0)+'</div><div class="k">fail</div></div>'+
+        '<div class="stat"><div class="n">'+(e.blocked||0)+'</div><div class="k">delegated (gate/rover)</div></div>'+
+        '<div class="stat"><div class="n">'+(e.deferred||0)+'</div><div class="k">deferred (L3-9)</div></div>'+
+        '</div><div class="row"><span class="l">P0 / P1 open</span>'+
+        '<span class="pill'+((e.p0||e.p1)?' bad':'')+'">'+(e.p0||0)+' / '+(e.p1||0)+'</span></div></div>'; })()+
       '<div class="card"><div class="ttl">Hard rules</div>'+
       '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
       '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+

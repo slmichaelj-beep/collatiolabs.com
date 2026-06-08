@@ -2570,24 +2570,27 @@ def _total_reality_data(name: str) -> dict:
     scenario matrix, with the hard-rule coverage. Read-only; computed live from the real product."""
     try:
         from .scenarios import inventory, generator
+        from .rover import runner
         inv = inventory.full_inventory()
         m = generator.generate(inv)
         c, mc = inv["counts"], m["counts"]
         ctrl_ids = {x["control_id"] for v in inv["controls"].values() for x in v}
         scen_ctrl = {s["control_id"] for s in m["scenarios"] if s.get("control_id")}
+        run = runner.run(m, persona="founder")        # Level-2 execution against the real backing paths
         return {
             "name": name,
             "inventory": c,
             "matrix": {"total": mc["total"], "by_level": mc["by_level"], "by_kind": mc["by_kind"],
                        "by_family": mc["by_family"], "critical": mc["critical"], "adversarial": mc["adversarial"]},
+            "execution": run["summary"],               # Level-2 pass/fail/blocked/deferred + P0/P1
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],
                 "fully_classified": [mc["fully_classified"], mc["total"]],
             },
-            "phase": "Phase 1 — Level 0 (inventory + scenario matrix) + Level 1 (critical journeys). "
-                     "Levels 2-9 (full surface / permission / data / state / pairwise / renegade / soak / "
-                     "fuzz) are the next phases.",
+            "phase": "Phase 1+2 — Level 0 (inventory + matrix) + Level 1 (critical) + Level 2 (Rover "
+                     "executes every surface/control against the real backing path, evidence bundled). "
+                     "Levels 3-9 (permission / data / state / pairwise / renegade / soak / fuzz) are next.",
             "law": "Every visible control has a scenario; every claim maps to a scenario; every scenario is "
                    "fully classified. Infinite phrasing reduced to finite behaviour classes. No invented "
                    "surfaces, no invented controls — discovered from the real product.",

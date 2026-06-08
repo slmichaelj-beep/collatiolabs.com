@@ -109,7 +109,17 @@ def main() -> int:
        isinstance(d.get("inventory"), dict) and "/reality" in srv and "reality.json" in srv
        and "Total Reality" in html and "realityView" in html)
 
-    print("\nTOTAL-REALITY (Phase 1): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
+    # ---- PHASE 2 — Level-2 Rover execution + Observation Harness (delegated certs) --------------
+    re_rc, re_t = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_rover_execution.py")],
+                                 capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode, ""
+    ob_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_observation_bundle_complete.py")],
+                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    ck("9. PHASE 2 — the Rover EXECUTES the Level-2 matrix against real backing paths (rover-execution cert)",
+       re_rc == 0)
+    ck("10. PHASE 2 — every executed scenario has an evidence record correlated by run_id (bundle cert)",
+       ob_rc == 0)
+
+    print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1
