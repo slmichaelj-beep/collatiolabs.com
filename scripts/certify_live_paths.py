@@ -4887,6 +4887,68 @@ def probe_permissions(res: Result) -> None:
         res.reason = "Permission model did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- product_polish --------------------------------------------------------------------------
+def probe_product_polish(res: Result) -> None:
+    """Phase 12 product polish — no mid-sentence, env indicator, no dead controls, honest composer,
+    capability-truth, never breaks character. Cert: scripts/certify_product_polish.py."""
+    rc, tail = run_subcert([HERE / "certify_product_polish.py"])
+    cert_ok = (rc == 0) and ("PRODUCT-POLISH CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_product_polish.py -> exit %d; %s" % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["no_mid_sentence", "env_indicator", "no_dead_controls",
+                            "honest_composer", "capability_truth", "never_breaks_character"]
+        res.reason = ("Clean + honest: replies never end mid-sentence; the dashboard shows the env; no "
+                      "dead controls + the upload advertises formats; a plain-language composer; honest "
+                      "WHY-I-can't denials; and the #1-rule character gate holds.")
+    else:
+        res.status = STUB
+        res.reason = "Product polish did not fully hold (cert FAIL)."
+
+
+# --- enterprise_readiness --------------------------------------------------------------------
+def probe_enterprise_readiness(res: Result) -> None:
+    """Phase 14 capstone — explainable to a reviewer without Lamar: every hardening cert passes, the
+    audit is clean, the evidence is documented. Cert: scripts/enterprise_readiness.py."""
+    rc, tail = run_subcert([HERE / "enterprise_readiness.py"])
+    cert_ok = (rc == 0) and ("ENTERPRISE READINESS: READY" in tail)
+    res.evidence.append("scripts/enterprise_readiness.py -> exit %d; %s" % (rc, "READY" if cert_ok else "NOT READY"))
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=cert_ok, Restart=None)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["all_hardening_certified", "audit_clean", "evidence_documented",
+                            "posture_readable"]
+        res.reason = ("READY: every hardening cert (security/permissions/privacy/performance/ai-security/"
+                      "polish) passes, the audit matrix is clean (0 wallpaper, partials external-blocked "
+                      "only), the security evidence is documented, and the diamond baseline reports exist "
+                      "— the posture is readable cold.")
+    else:
+        res.status = PARTIAL if "NOT READY" in tail else STUB
+        res.reason = "Enterprise readiness not yet met (an aggregated cert or evidence is missing)."
+
+
+# --- performance -----------------------------------------------------------------------------
+def probe_performance(res: Result) -> None:
+    """Phase 11 performance/efficiency — cheap deterministic path first, heavy work opt-in + off the
+    hot path, bounded generation, backs off under host pressure. Cert: scripts/certify_performance.py."""
+    rc, tail = run_subcert([HERE / "certify_performance.py"])
+    cert_ok = (rc == 0) and ("PERFORMANCE CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_performance.py -> exit %d; %s" % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=None)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["heavy_opt_in", "lerf_deterministic_first", "bounded_generation",
+                            "hot_path_light", "backs_off", "diagnosable"]
+        res.reason = ("Heavy intake is opt-in (no auto model-spin); task turns route LERF-FIRST and "
+                      "reference recall is model-free; generation is token-bounded + capped under "
+                      "pressure; the hot path runs no OCR/STT/decode; the turn defers + unloads under "
+                      "pressure; per-stage timing is instrumented.")
+    else:
+        res.status = STUB
+        res.reason = "Efficiency posture did not fully hold (cert FAIL)."
+
+
 # --- privacy ---------------------------------------------------------------------------------
 def probe_privacy(res: Result) -> None:
     """Phase 5 privacy — delete a source, forget a memory, no cloud PII leak, export/import Mind
@@ -5145,6 +5207,9 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "performance": probe_performance,
+        "product_polish": probe_product_polish,
+        "enterprise_readiness": probe_enterprise_readiness,
         "host_pressure": probe_host_pressure,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
