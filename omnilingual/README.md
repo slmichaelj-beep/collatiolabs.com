@@ -26,7 +26,22 @@ cd collatiolabs.com/omnilingual
 Installs `libsndfile` + `ffmpeg` (via Homebrew) and the `omnilingual-asr`
 package into a local environment.
 
-## Run
+## Run — web UI (drag & drop)
+
+```sh
+./run-ui.sh
+```
+
+Opens a local page in your browser. Pick a **language** and an **output folder**,
+then **drag files in** (or click to choose). You get a live progress bar per file,
+the saved path, an **Open in Finder** button, and a short preview when each finishes.
+Files are queued and transcribed one at a time, all locally on your Mac.
+Leave the terminal window open while it runs; Ctrl-C stops it.
+
+> First file triggers a one-time model download (~1.3 GB) before progress starts.
+> DRM-protected Audible `.aax` files won't work — they can't be decoded.
+
+## Run — terminal
 
 ```sh
 ./run.sh
