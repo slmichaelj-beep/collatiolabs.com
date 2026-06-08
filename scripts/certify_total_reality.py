@@ -159,6 +159,12 @@ def main() -> int:
     ck("17. PER-PERSONA — the safety floor holds for every persona + the personas BITE (persona cert)",
        pp_rc == 0)
 
+    # ---- DEEP OBSERVATION STREAMS — per-scenario deep record + per-run host snapshot (delegated) ---
+    do_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_deep_observation_streams.py")],
+                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    ck("18. DEEP OBSERVATION STREAMS — every obs carries a deep record + host snapshot; deep BITES (deep cert)",
+       do_rc == 0)
+
     print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))

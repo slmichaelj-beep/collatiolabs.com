@@ -5280,7 +5280,7 @@ def probe_total_reality(res: Result) -> None:
                             "observation_bundle_complete", "renegade_chains",
                             "permission_consent_coverage", "data_type_coverage",
                             "state_pairwise_coverage", "soak_coverage", "fuzz_coverage",
-                            "persona_coverage"]
+                            "persona_coverage", "deep_observation_streams"]
         res.reason = ("The Total Reality Test: the REAL product inventoried (surfaces / controls / routes / "
                       "feature claims) and reduced to a finite scenario matrix, with the hard rules enforced "
                       "WITH TEETH — every visible control has a scenario, every claim maps to a scenario, "
@@ -5289,9 +5289,12 @@ def probe_total_reality(res: Result) -> None:
                       "numbered Levels 0-9 are built + certified via delegated certs (Rover surface/control "
                       "execution + evidence bundle, permission/consent matrix, data-class, state + pairwise, "
                       "Renegade stress chains, long-session soak, seeded fuzz) plus per-persona Rover "
-                      "behaviours (the safety floor holds for every persona; the personas diverge) — each "
-                      "runs inside the master cert with teeth. Only browser-level DOM clicks (Chrome MCP) + "
-                      "per-scenario deep observation streams are honestly deferred to the next phase.")
+                      "behaviours (the floor holds for every persona; the personas diverge) and per-scenario "
+                      "deep observation streams (per-run host snapshot + per-observation deep record, deep "
+                      "completeness bites) — each runs inside the master cert with teeth. The /reality "
+                      "Control Room was also live-verified rendering in a real browser via Chrome MCP. Only "
+                      "AUTOMATED browser-DOM clicking in CI is honestly deferred (the offline gate can't "
+                      "drive a live browser).")
     else:
         res.status = STUB
         res.reason = "Total Reality Test did not hold (the cert FAILed, _total_reality_data isn't wired, or the page is missing)."

@@ -28,17 +28,36 @@ def write_bundle(run_id: str, run_result: dict, matrix: dict, at: str = "") -> P
         for r in results:
             f.write(json.dumps({**r, "run_id": run_id}, ensure_ascii=False) + "\n")
 
-    # observations (the evidence stream) — one per scenario, correlated by run_id + scenario_id
+    # DEEP OBSERVATION STREAMS (directive section 13) — capture ONE real host snapshot for the run
+    # (the host context every scenario executed under) and write it as a correlated artifact.
+    try:
+        from anima import host_pressure
+        host_snap = host_pressure.snapshot()
+    except Exception:
+        try:
+            from anima import host_pressure
+            host_snap = host_pressure.read_pressure()
+        except Exception:
+            host_snap = {"level": "unknown"}
+    (d / "host_snapshot.json").write_text(json.dumps({"run_id": run_id, "at": at, "host": host_snap}, indent=2))
+
+    # observations (the evidence stream) — one per scenario, correlated by run_id + scenario_id, each
+    # now carrying a `deep` record (kind/level/status/severity — the per-scenario MRI-grade detail) and
+    # a `host_ref` pointing at the run's host snapshot, so every observation is joinable to its context.
     with (d / "observations.jsonl").open("w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps({"run_id": run_id, "scenario_id": r["scenario_id"], "surface": r["surface"],
                                 "outcome": r["outcome"], "latency_ms": r["latency_ms"],
-                                "detail": r["detail"]}, ensure_ascii=False) + "\n")
+                                "detail": r["detail"], "host_ref": "host_snapshot.json",
+                                "deep": {"kind": r.get("kind"), "level": r.get("level"),
+                                         "status": r.get("status"), "severity": r.get("severity")}},
+                               ensure_ascii=False) + "\n")
 
     summ = run_result.get("summary", {})
     (d / "summary.json").write_text(json.dumps({
         "run_id": run_id, "at": at, "persona": run_result.get("persona"),
         "summary": summ, "scenario_total": matrix.get("counts", {}).get("total"),
+        "host_snapshot": "host_snapshot.json", "deep_observations": True,
     }, indent=2))
 
     md = ["# Total Reality run %s\n" % run_id, "Persona: %s · at: %s\n" % (run_result.get("persona"), at),
@@ -71,6 +90,38 @@ def verify_bundle(run_id: str, matrix: dict) -> dict:
         "total": len(want), "recorded": len(recorded),
         "missing": missing[:10], "orphan": orphan[:10],
         "run_id_consistent": run_ids == {run_id},
+    }
+
+
+def verify_deep_observations(run_id: str) -> dict:
+    """Deep-stream completeness (teeth): every observation carries its `deep` record (kind/level/status/
+    severity) + a host_ref, AND the run's host_snapshot.json exists with a real reading. Returns
+    {deep_complete, total, with_deep, with_host_ref, host_snapshot_present, host_level}."""
+    d = bundle_dir(run_id)
+    total = with_deep = with_host_ref = 0
+    try:
+        for ln in (d / "observations.jsonl").read_text().splitlines():
+            o = json.loads(ln)
+            total += 1
+            dd = o.get("deep")
+            if isinstance(dd, dict) and ("status" in dd) and ("kind" in dd) and ("level" in dd):
+                with_deep += 1
+            if o.get("host_ref"):
+                with_host_ref += 1
+    except Exception:
+        pass
+    host_present, host_level = False, None
+    try:
+        hs = json.loads((d / "host_snapshot.json").read_text())
+        host = hs.get("host") or {}
+        host_present = isinstance(host, dict) and bool(host)
+        host_level = host.get("level")
+    except Exception:
+        pass
+    return {
+        "deep_complete": total > 0 and with_deep == total and with_host_ref == total and host_present,
+        "total": total, "with_deep": with_deep, "with_host_ref": with_host_ref,
+        "host_snapshot_present": host_present, "host_level": host_level,
     }
 
 
