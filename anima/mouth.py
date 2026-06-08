@@ -73,6 +73,14 @@ _HOSTILE_REDIRECT = (
 )
 
 
+# PERFORMANCE (measured: prompt-eval of a large prompt is the live-turn bottleneck — the model itself
+# is fast). Cap the raw history sent to the model (durable memory already rides the system prompt) and
+# the KV-cache window. _NUM_CTX is generous enough that the system prompt (identity + #1 rule) is NEVER
+# truncated — under-sizing it would silently drop Vera's character from the front of the prompt.
+_HISTORY_TO_MODEL = 8
+_NUM_CTX = 4096
+
+
 def _quarantine_history(history):
     """Strip hostile-control content from PRIOR turns before they re-enter the model context, so a
     once-emitted injection can never re-poison later turns (the self-reinforcing loop that made
@@ -665,13 +673,20 @@ class OllamaBrain:
 
     def reply(self, system: str, user: str, history) -> str:
         msgs = [{"role": "system", "content": system}]
-        for u, a in history:
+        # PERFORMANCE (measured: prompt-eval of a large prompt is the bottleneck, not the model): cap
+        # the conversation history sent to the model to the most recent turns. The durable memory block
+        # is already in the system prompt, so older raw turns add prompt-eval cost without adding recall.
+        for u, a in (history or [])[-_HISTORY_TO_MODEL:]:
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
         msgs.append({"role": "user", "content": user})
+        # num_ctx caps the KV-cache window: enough for the system prompt + capped history + reply, but
+        # smaller than the model's 8K default -> less GPU/RAM -> less swap under host pressure -> faster
+        # prompt-eval. Sized so the system prompt (which carries identity + the #1 rule) is never truncated.
         body = json.dumps({"model": self.model, "messages": msgs, "stream": False,
                            "keep_alive": self._eff_keep_alive(),
                            "options": {"temperature": self.temperature,
-                                       "num_predict": self.max_tokens}}).encode()
+                                       "num_predict": self.max_tokens,
+                                       "num_ctx": _NUM_CTX}}).encode()
         req = urllib.request.Request(self.host + "/api/chat", body,
                                      {"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=120) as r:
@@ -1222,7 +1237,9 @@ class Mouth:
         # per-stage timing so a slow turn is diagnosable (which stage ate the time)
         tok = getattr(self.brain, "last_tok_s", None)
         tps = f" · {tok:.0f} tok/s" if tok else ""
-        print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}",
+        _ptok = getattr(self.brain, "last_prompt_tokens", None)
+        _pp = f" · prompt {_ptok} tok" if _ptok else ""
+        print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}{_pp}",
               file=_sys.stderr)
         try:                                  # contamination gauge — diagnostic ONLY; never edits/blocks text.
             from . import metrics            # records the RAW first output (raw_text), NOT the backstopped
