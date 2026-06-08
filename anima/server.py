@@ -2312,6 +2312,98 @@ def _now_iso_safe():
         return ""
 
 
+def _security_data(name: str) -> dict:
+    """The Security / Quarantine surface — Vera's operable safety posture, from REAL stores.
+
+    LOCKDOWN: is the panic button engaged? (incident.is_locked) — with the reason/when, so the operator
+    can see + lift it. IMMUNE POSTURE: the Context Immune System status (doctrine + the four routes it
+    covers + which defenses are live) from anima.immune. QUARANTINED SOURCES: the reference sources that
+    are CURRENTLY injection-flagged and excluded from answer-support — computed live from the source
+    store (always accurate), redacted to markers + a defanged preview. QUARANTINE EVENTS: the discrete
+    moments the immune system CAUGHT hostile text (the answer gate dropped a hostile reply), from the SOC
+    trail. SOC TRAIL: the full local, append-only security event log, newest first. CAPS: which outward
+    capabilities are on/off right now. Read-only; honest empty state; never invents alarm OR calm."""
+    out = {"name": name, "locked": False, "lockdown": {}, "immune": {}, "quarantined_sources": [],
+           "quarantine_events": [], "events": [], "caps": {"on": [], "off": []},
+           "running_sha": _DEPLOY.get("sha"), "counts": {}, "empty": True}
+
+    # 1. LOCKDOWN posture (the panic button)
+    try:
+        from . import incident
+        st = incident.status()
+        out["locked"] = bool(st.get("locked"))
+        out["lockdown"] = st.get("lockdown") or {}
+    except Exception:
+        pass
+
+    # 2. IMMUNE POSTURE — the Context Immune System (doctrine + routes + live defenses)
+    try:
+        from . import immune
+        out["immune"] = immune.status()
+    except Exception:
+        out["immune"] = {}
+
+    # 3. QUARANTINED SOURCES — live, always-accurate (not a log): which stored references are excluded
+    try:
+        from . import source_aware
+        out["quarantined_sources"] = source_aware.quarantined_sources(name)
+    except Exception:
+        out["quarantined_sources"] = []
+
+    # 4. QUARANTINE EVENTS — the discrete catches (answer-gate hostile blocks etc.), newest first
+    try:
+        from . import incident
+        out["quarantine_events"] = incident.quarantines(40)
+    except Exception:
+        out["quarantine_events"] = []
+
+    # 5. SOC TRAIL — the full local security event log, newest first
+    try:
+        from . import incident
+        out["events"] = list(reversed(incident.recent_events(60)))
+    except Exception:
+        out["events"] = []
+
+    # 6. CAPS posture — what outward capabilities are on/off right now
+    try:
+        from . import caps
+        cp = caps.load(name)
+        out["caps"] = {"on": sorted(k for k, v in cp.items() if v is True),
+                       "off": sorted(k for k, v in cp.items() if v is False)}
+    except Exception:
+        out["caps"] = {"on": [], "off": []}
+
+    out["counts"] = {
+        "quarantined_sources": len(out["quarantined_sources"]),
+        "quarantine_events": len(out["quarantine_events"]),
+        "events": len(out["events"]),
+        "locked": 1 if out["locked"] else 0,
+        "caps_off": len(out["caps"]["off"])}
+    # honest: "clean" iff no source is currently quarantined AND no hostile catch is on record. The page
+    # still shows the lockdown control + immune posture when clean — empty means "no threat", not "blank".
+    out["empty"] = not (out["quarantined_sources"] or out["quarantine_events"])
+    return out
+
+
+def _security_action(name: str, data: dict) -> dict:
+    """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
+    writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
+    regardless of stored grants; restore returns the user's stored settings untouched. Local-only."""
+    action = str(data.get("action") or "")
+    if action not in ("lockdown", "restore"):
+        return {"ok": False, "error": "need action in {lockdown,restore}"}
+    try:
+        from . import incident
+        if action == "lockdown":
+            reason = str(data.get("reason") or "manual (Security console)")[:200]
+            rec = incident.lockdown(reason, by="founder")
+            return {"ok": True, "locked": True, "lockdown": rec}
+        lifted = incident.restore(by="founder")
+        return {"ok": True, "locked": False, "lifted": bool(lifted)}
+    except Exception as e:
+        return {"ok": False, "error": "security action failed: %s" % e}
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -2402,6 +2494,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       con.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"console not built")
+            if u.path in ("/security", "/security.html"):
+                # Security / Quarantine page SHELL — public like the others (it holds no secrets; the
+                # data route /security.json and the POST /security/action below are token-gated).
+                sec = (WEB / "security.html")
+                if sec.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      sec.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"security console not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2429,6 +2529,11 @@ class Handler(BaseHTTPRequestHandler):
                 # REAL pattern + improvement stores. Token-gated. Read-only; honest empty state.
                 return self._send(200, "application/json",
                                   json.dumps(_console_data(self.name)).encode())
+            if u.path == "/security.json":
+                # Security / Quarantine data — lockdown posture, immune status, live quarantined sources,
+                # quarantine catches, the SOC trail, caps posture. Token-gated. Read-only; honest.
+                return self._send(200, "application/json",
+                                  json.dumps(_security_data(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
@@ -2586,6 +2691,12 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self._read_body() or b"{}")
                 return self._send(200, "application/json",
                                   json.dumps(_console_decide(self.name, data)).encode())
+            if path == "/security/action":
+                # Security console — engage / lift a lockdown (the visible panic button). Reversible +
+                # audited. Token-gated + Face-ID-gated (above), like every other POST control.
+                data = json.loads(self._read_body() or b"{}")
+                return self._send(200, "application/json",
+                                  json.dumps(_security_action(self.name, data)).encode())
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input

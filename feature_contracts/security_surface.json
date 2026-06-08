@@ -1,0 +1,31 @@
+{
+  "feature": "security_surface",
+  "claim": "The Security / Quarantine console (GET /security page + GET /security.json token-gated data + POST /security/action token+FaceID-gated) — Vera's operable safety posture, made visible and actionable, fed by REAL stores. PANIC BUTTON: a visible lockdown control that forces every outward capability OFF at the caps gate regardless of stored grants, reversible (restore returns stored settings untouched) and AUDITED (both lockdown and restore write a security event). QUARANTINE — CAUGHT: the discrete moments the Context Immune System dropped a hostile reply at the final answer gate, recorded as redacted evidence (markers + a <=120-char preview) and surfaced, never re-fed to the model. QUARANTINE — SOURCES: the reference-library sources currently injection-flagged and excluded from answer-support, computed LIVE from the source store (always accurate, not a log), redacted. IMMUNE POSTURE: the Context Immune System status — doctrine (hostile text may be stored as evidence, never become trusted context/memory/source/answer) + the four contamination routes + the live defenses. CAPS POSTURE: which outward capabilities are on/off right now. SOC TRAIL: the full local, append-only security event log, newest first. Every panel is explained human-level (what it means / what to do); honest empty state (no fake all-clear, no fake alarm). Local-only; nothing leaves the Mac.",
+  "owner": "anima/server.py (_security_data aggregator + _security_action + GET /security + GET /security.json + POST /security/action), anima/web/security.html, anima/incident.py (lockdown/restore/security_event + quarantine/quarantines), anima/mouth.py (final_output_gate records the output-block), anima/source_aware.py (quarantined_sources live scan), anima/immune.py (Context Immune System status), anima/caps.py (capability posture), scripts/certify_security_surface.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "page_served",
+    "data_authed",
+    "action_authed",
+    "lockdown_works",
+    "restore_works",
+    "block_recorded",
+    "source_quarantine_live",
+    "evidence_redacted",
+    "immune_posture",
+    "caps_posture",
+    "honest_empty"
+  ],
+  "killer_test": {
+    "name": "panic_button_works_quarantine_is_real_and_redacted_immune_posture_honest_empty",
+    "setup": "scripts/certify_security_surface.py proves: /security serves the page shell and /security.json + POST /security/action are behind the auth wall (action also behind Face-ID); lockdown engages and restore lifts it, both audited; a hostile reply driven through the final answer gate is BLOCKED and RECORDED as a quarantine event (route=output) with redacted markers + a <=120-char preview; an injection-bearing reference source is flagged + excluded while a clean source is not; the surface carries the Context Immune System doctrine + 4 routes + live defenses; it shows the caps on/off posture; and the page wires the lockdown/restore control, renders quarantine evidence, explains every panel human-level, and has honest empty states.",
+    "prompt": "open /security — engage lockdown, then lift it; review what was quarantined",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Quarantine recording fires on the highest-signal, naturally one-shot route: the final answer gate dropping a hostile reply (output route). Steady-state history/context shielding runs on every turn and is intentionally NOT logged per-turn (it would be noise) — its status is shown as a live defense in the immune posture, and the source-quarantine list is computed live rather than logged. Pulling richer per-route catch analytics (context/conversation/attribution counts over time) into the surface is the next enrichment."
+  ],
+  "status": "UNKNOWN"
+}

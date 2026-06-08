@@ -68,6 +68,31 @@ def recent_events(n: int = 20) -> list:
     return out
 
 
+def quarantine(route: str, markers=None, preview: str = "", **extra) -> dict:
+    """Record a CONTEXT-IMMUNE quarantine: hostile / injected text was CAUGHT and held as evidence —
+    never obeyed. `route` is where it was caught: 'output' (the final answer gate dropped a hostile
+    reply), 'source' (an injection-bearing reference source was excluded from support), 'context' /
+    'conversation' (a poisoned prior turn was neutralized before re-entering the model).
+
+    DOCTRINE: hostile text MAY be stored as evidence; it may NEVER become trusted context/memory/
+    source/answer. So this records ONLY redacted evidence — the markers that tripped + a short, single-
+    line preview clamped to 120 chars — for the security review surface. It is shown there, labeled as
+    quarantined evidence, and is never re-fed to the model. Append-only; never raises (a logging
+    failure must never break the spine)."""
+    mk = [str(m) for m in (markers or [])][:8]
+    pv = (str(preview or "")[:120]).replace("\n", " ").replace("\r", " ")
+    return security_event("quarantine",
+                          "hostile/injected text held as evidence, not obeyed (route: %s)" % route,
+                          route=str(route), markers=mk, preview=pv, **extra)
+
+
+def quarantines(n: int = 50) -> list:
+    """The recent QUARANTINE events only (newest first) — the discrete moments the immune system caught
+    hostile/injected text. A subset of the SOC trail. Never raises."""
+    evs = [e for e in recent_events(max(n * 4, 80)) if e.get("kind") == "quarantine"]
+    return list(reversed(evs))[:int(max(1, n))]
+
+
 # --- the panic button --------------------------------------------------------------------------
 def is_locked() -> bool:
     """True iff a security lockdown is active. Pure; never raises."""

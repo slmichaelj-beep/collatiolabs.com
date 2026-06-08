@@ -181,6 +181,58 @@ def relevant_sources(name: str, text: str, *, limit: int = 3,
     return scored[:max(1, int(limit))]
 
 
+def quarantined_sources(name: str, *, limit: int = 50) -> List[Dict]:
+    """The Reference-Library sources that are CURRENTLY injection-flagged and therefore EXCLUDED from
+    answer-support — computed live from the source store (not a log), so it always reflects reality.
+
+    This is the visible face of the source-quarantine defense: a source whose stored text tries to act
+    as instructions can never become answer-support / a source chip / model context (relevant_sources
+    drops it). Here we surface WHICH sources are in that state, with REDACTED evidence only (the markers
+    that tripped + a short, defanged preview) — held as evidence, never re-fed to the model. Fully
+    guarded: returns [] on anything unexpected. Excludes deleted/forgotten sources."""
+    out: List[Dict] = []
+    try:
+        from . import intake_queue as _iq
+        from . import metrics as _m
+    except Exception:
+        return out
+    try:
+        items = _iq.references(name) or []
+    except Exception:
+        return out
+    for item in items:
+        if not isinstance(item, dict) or item.get("deleted"):
+            continue
+        chunks = item.get("chunks") or []
+        # scan the title + a bounded slice of chunk text for injection / hostile-control markers
+        texts = [str(item.get("title") or "")]
+        for c in chunks[:12]:
+            texts.append(c.get("text") if isinstance(c, dict) else "")
+        flagged_txt = ""
+        markers: List[str] = []
+        for t in texts:
+            if t and looks_like_injection(t):
+                flagged_txt = t
+                try:
+                    markers = _m.scan_hostile(t) or ["injection-pattern"]
+                except Exception:
+                    markers = ["injection-pattern"]
+                break
+        if not flagged_txt:
+            continue
+        out.append({
+            "source_id": item.get("id") or item.get("source_id") or "",
+            "title": (str(item.get("title") or "(untitled source)"))[:120],
+            "type": _infer_type(item),
+            "markers": [str(m) for m in markers][:8],
+            "preview": neutralize(flagged_txt[:160]).replace("\n", " ").replace("\r", " ")[:160],
+            "excluded": True,
+        })
+        if len(out) >= int(max(1, limit)):
+            break
+    return out
+
+
 # ============================================================================================
 # Deterministic reference RECALL — the *use* half of source-aware answering.
 #

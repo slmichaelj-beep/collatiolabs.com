@@ -181,7 +181,13 @@ def final_output_gate(text: str, *, allow_security: bool = False) -> str:
     if not allow_security:                           # P0 HOSTILE-CONTROL BLOCK — before anything else
         try:
             from . import metrics as _mh
-            if _mh.scan_hostile(text):
+            _hits = _mh.scan_hostile(text)
+            if _hits:
+                try:                                 # record the block as redacted evidence (visible in
+                    from . import incident as _inc   # /security) — held as evidence, never obeyed
+                    _inc.quarantine("output", markers=_hits, preview=text)
+                except Exception:
+                    pass
                 return _HOSTILE_REDIRECT
         except Exception:
             pass

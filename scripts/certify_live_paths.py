@@ -5003,6 +5003,36 @@ def probe_patterns_dashboard(res: Result) -> None:
         res.reason = "Patterns & Improvements console did not hold (cert FAIL or page missing)."
 
 
+# --- security_surface ------------------------------------------------------------------------
+def probe_security_surface(res: Result) -> None:
+    """The Security / Quarantine console (/security + /security.json + POST /security/action) — the
+    visible panic button (lockdown/restore, reversible + audited), the Context Immune System's catches
+    (a hostile reply blocked at the answer gate, recorded as redacted evidence), the live list of
+    injection-quarantined sources, the immune + caps posture, and the SOC trail. Cert:
+    scripts/certify_security_surface.py."""
+    rc, tail = run_subcert([HERE / "certify_security_surface.py"])
+    cert_ok = (rc == 0) and ("SECURITY-SURFACE CERT: CERTIFIED" in tail)
+    page = (ROOT / "anima" / "web" / "security.html").exists()
+    res.evidence.append("scripts/certify_security_surface.py -> exit %d; %s; page=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", page))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=cert_ok)
+    if cert_ok and page:
+        res.status = COMPLETE
+        res.proven_links = ["page_served", "data_authed", "action_authed", "lockdown_works",
+                            "restore_works", "block_recorded", "source_quarantine_live",
+                            "evidence_redacted", "immune_posture", "caps_posture", "honest_empty"]
+        res.reason = ("A served Security / Quarantine console: a visible lockdown panic button (engages "
+                      "+ lifts, reversible + audited); the answer gate blocking a hostile reply is "
+                      "RECORDED as redacted quarantine evidence and surfaced; injection-bearing sources "
+                      "are listed as excluded (live scan, clean sources spared); the Context Immune "
+                      "doctrine + 4 routes + live defenses and the caps posture render; every panel is "
+                      "explained human-level; honest empty state — never a fake all-clear or alarm.")
+    else:
+        res.status = STUB
+        res.reason = "Security / Quarantine surface did not hold (cert FAIL or page missing)."
+
+
 # --- observatory -----------------------------------------------------------------------------
 def probe_observatory(res: Result) -> None:
     """The served, no-jargon Observatory dashboard (/observatory + /observatory.json) — real audit /
@@ -5455,6 +5485,7 @@ def classify_all() -> dict:
         "privacy": probe_privacy,
         "observatory": probe_observatory,
         "patterns_dashboard": probe_patterns_dashboard,
+        "security_surface": probe_security_surface,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
         "vera_rover": probe_vera_rover,
