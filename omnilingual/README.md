@@ -43,7 +43,8 @@ source .venv/bin/activate
 python transcribe_omni.py "/path/to/recording.m4a"                 # Balinese
 python transcribe_omni.py "/path/to/recording.m4a" --lang ind_Latn # Indonesian
 python transcribe_omni.py --list-langs                             # region codes
-python transcribe_omni.py "file.m4a" --model omniASR_LLM_1B_v2     # bigger model
+python transcribe_omni.py --list-models                            # model card names
+python transcribe_omni.py "file.m4a" --model omniASR_LLM_1B        # bigger model
 ```
 
 ## Troubleshooting

@@ -24,8 +24,25 @@ import glob
 import tempfile
 
 SAMPLE_RATE = 16000
-DEFAULT_MODEL = "omniASR_LLM_300M_v2"
+DEFAULT_MODEL = "omniASR_LLM_300M"
 REGION_CODES = {"ban", "ind", "jav", "sun", "min", "bug", "mad", "ace", "eng"}
+
+
+def available_models():
+    """Read the model card names bundled with the installed package."""
+    import re
+    import omnilingual_asr
+    base = os.path.dirname(omnilingual_asr.__file__)
+    names = set()
+    for root, _dirs, files in os.walk(os.path.join(base, "cards")):
+        for fn in files:
+            if fn.endswith((".yaml", ".yml")):
+                with open(os.path.join(root, fn), encoding="utf-8") as f:
+                    for line in f:
+                        m = re.match(r"\s*name:\s*([A-Za-z0-9_./-]+)", line)
+                        if m and m.group(1).startswith("omniASR"):
+                            names.add(m.group(1))
+    return sorted(names)
 
 
 def as_text(x):
@@ -71,7 +88,14 @@ def main():
     ap.add_argument("--batch", type=int, default=4, help="chunks per batch")
     ap.add_argument("--out", help="output .txt path")
     ap.add_argument("--list-langs", action="store_true", help="list region languages and exit")
+    ap.add_argument("--list-models", action="store_true", help="list available model cards and exit")
     args = ap.parse_args()
+
+    if args.list_models:
+        print("Available model cards (pass with --model):")
+        for m in available_models():
+            print(f"  {m}")
+        return
 
     if args.chunk >= 40:
         sys.exit("--chunk must be under 40 seconds (Omnilingual's limit).")
@@ -98,7 +122,18 @@ def main():
 
     from omnilingual_asr.models.inference.pipeline import ASRInferencePipeline
     print(f"Loading model {args.model} (first run downloads from Hugging Face)…", flush=True)
-    pipeline = ASRInferencePipeline(model_card=args.model)
+    try:
+        pipeline = ASRInferencePipeline(model_card=args.model)
+    except Exception as e:
+        if "NotKnown" in type(e).__name__ or "not" in str(e).lower():
+            models = available_models()
+            listing = "\n  ".join(models) if models else "(none found)"
+            sys.exit(
+                f"Model '{args.model}' isn't registered in your install.\n"
+                f"Available models:\n  {listing}\n"
+                f"Re-run with, e.g.:  --model omniASR_LLM_300M"
+            )
+        raise
 
     with tempfile.TemporaryDirectory() as tmp:
         print("Splitting audio into chunks…", flush=True)
