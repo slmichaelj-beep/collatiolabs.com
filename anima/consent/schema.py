@@ -5,6 +5,7 @@ from __future__ import annotations
 SENSITIVE_DOMAINS = (
     "health", "mental_health", "sex", "relationships", "trauma", "therapy", "finance", "legal",
     "family", "location", "religion_politics", "identity", "workplace_conflict", "private_messages",
+    "credential",          # passwords / API keys / secrets / tokens — never silently stored
 )
 DOMAINS = SENSITIVE_DOMAINS + ("general",)
 
@@ -32,7 +33,7 @@ DECISIONS = ("allow", "ask", "block")
 # trauma, sexual, legal, identity, private content). These default to ask-each-time for the durable-
 # state scopes: nothing here is remembered/learned/reused without an explicit per-instance decision.
 HIGH_HARM_DOMAINS = ("health", "mental_health", "sex", "trauma", "therapy", "finance", "legal",
-                     "identity", "private_messages")
+                     "identity", "private_messages", "credential")
 # CONTEXTUAL-sensitive domains (family, relationships, location, religion/politics, workplace) are
 # flagged + paced go-slow, but a benign fact (a sister's name, a hometown) writes by default — the user
 # can tighten any of them to ask-each-time. Identity LEARNING from ANY sensitive domain always stays

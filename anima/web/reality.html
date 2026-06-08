@@ -88,6 +88,10 @@
         return '<div class="card"><div class="ttl">Level-3 permission / consent matrix</div>'+
         '<div class="row"><span class="l">decisions correct (scope × domain × state)</span>'+
         '<span class="pill'+(p.all_pass?'':' bad')+'">'+(p.pass||0)+' / '+(p.total||0)+'</span></div></div>'; })()+
+      (function(){ var dc=d.data_classes; if(!dc) return '';
+        return '<div class="card"><div class="ttl">Level-4 data-class coverage</div>'+
+        '<div class="row"><span class="l">data classes handled correctly</span>'+
+        '<span class="pill'+(dc.all_pass?'':' bad')+'">'+(dc.pass||0)+' / '+(dc.total||0)+'</span></div></div>'; })()+
       '<div class="card"><div class="ttl">Hard rules</div>'+
       '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
       '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+

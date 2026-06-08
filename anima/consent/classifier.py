@@ -40,6 +40,9 @@ _MARKERS = {
     "workplace_conflict": r"\b(my (boss|manager|coworker|colleague)|fired|laid off|harass\w+|"
                           r"workplace|HR complaint|hostile work|quit my job)\b",
     "private_messages": r"\b(private message|DM|text from|email from|journal|diary|personal note)\b",
+    "credential": r"(\b(password|passcode|passphrase|api[\s-]?key|secret[\s-]?key|access[\s-]?token|"
+                  r"auth[\s-]?token|private[\s-]?key|seed[\s-]?phrase|recovery[\s-]?phrase|credentials?|"
+                  r"2fa|otp\b|pin\s*(code|number)|ssn|social security)|\bsk-[a-z0-9-]{6,}|\bghp_[a-z0-9]{6,})",
 }
 _COMPILED = None
 

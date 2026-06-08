@@ -130,6 +130,11 @@ def main() -> int:
     ck("12. LEVEL 3 — the permission/consent matrix is executed + discriminates (perm-consent cert)",
        pc_rc == 0)
 
+    # ---- LEVEL 4 — data-type / class coverage (delegated cert) ----------------------------------
+    dt_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_data_type_coverage.py")],
+                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    ck("13. LEVEL 4 — every data class is classified + handled correctly (data-type cert)", dt_rc == 0)
+
     print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
