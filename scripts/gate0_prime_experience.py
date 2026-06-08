@@ -298,6 +298,7 @@ _STORE_MODULES = (
     "agency_approval_queue",            # Wave 2 Alpha approval queue (per-creature)
     "agency_intent_ledger",             # Wave 2 Alpha intent ledger (per-creature)
     "consent.policy",                   # Consent & Boundaries store + held sensitive-memory candidates
+    "cognitive_ergonomics.analyzer",    # Cognitive Ergonomics reads {name}.mri.jsonl for recent replies
 )
 
 

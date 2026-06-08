@@ -5146,6 +5146,34 @@ def probe_trust_ledger(res: Result) -> None:
         res.reason = "Trust Ledger did not hold (the cert FAILed, _trust_data isn't wired, or the page is missing)."
 
 
+# --- cognitive_ergonomics --------------------------------------------------------------------
+def probe_cognitive_ergonomics(res: Result) -> None:
+    """Cognitive Ergonomics (Human Operating Layer L5): a deterministic, model-free clarity engine over
+    Vera's real recent replies, every issue explained human-level. Cert:
+    scripts/certify_cognitive_ergonomics.py."""
+    rc, t = run_subcert([HERE / "certify_cognitive_ergonomics.py"])
+    cert_ok = (rc == 0) and ("COGNITIVE-ERGONOMICS CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "ergonomics.html").exists()
+    wired = "_ergonomics_data" in (ROOT / "anima" / "server.py").read_text()
+    discriminates = "discriminates" in t   # the cert exercised the discrimination keystone
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_cognitive_ergonomics -> %s; wired=%s; page=%s; discrimination_tested=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, discriminates))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=ok, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["deterministic", "discriminates", "human_level_issues", "real_replies",
+                            "honest_empty", "served_authed"]
+        res.reason = ("A deterministic, model-free clarity engine (jargon / Flesch reading-ease / sentence "
+                      "load / hedging / unexplained acronyms) scoring Vera's REAL recent replies. The score "
+                      "discriminates — a jargon-dense, long-winded reply scores meaningfully lower than a "
+                      "plain one — and every issue is explained human-level (what it means -> what to do) "
+                      "with the real offending terms. Served + auth-gated (GET /ergonomics).")
+    else:
+        res.status = STUB
+        res.reason = "Cognitive Ergonomics did not hold (the cert FAILed, _ergonomics_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5635,6 +5663,7 @@ def classify_all() -> dict:
         "consent_boundaries": probe_consent_boundaries,
         "archetypal_pattern_registry": probe_archetypal_pattern_registry,
         "trust_ledger": probe_trust_ledger,
+        "cognitive_ergonomics": probe_cognitive_ergonomics,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,

@@ -1,0 +1,26 @@
+{
+  "feature": "cognitive_ergonomics",
+  "claim": "Cognitive Ergonomics (Human Operating Layer, Layer 5) — a deterministic, model-free clarity engine that measures how easy Vera is to follow, scored over her REAL recent replies from the MRI trail (.anima/{name}.mri.jsonl). Five reproducible scorers (anima/cognitive_ergonomics/metrics.py): jargon density (against a curated specialist-term lexicon), Flesch reading-ease (a computed proxy: 206.835 - 1.015*words/sentence - 84.6*syllables/word), sentence load (longest sentence + clause density), hedging (non-committal phrasing), and unexplained acronyms (ALL-CAPS tokens not common and not expanded). The analyzer (analyzer.py) combines them into a 0-100 clarity score that DISCRIMINATES — a jargon-dense, long-winded, acronym-laden reply scores meaningfully lower than a plain, direct one — and explains every issue HUMAN-LEVEL: each carries a plain-English 'what it means' AND a 'what to do' suggested action plus the real offending evidence (never a bare number). analyze_recent scores Vera's actual recent replies, reports the average clarity, the recurring issue types, and the lowest-clarity turns, with an honest empty state when there is nothing to score. Served + auth-gated: GET /ergonomics serves the page shell, GET /ergonomics.json rides behind the Face ID seam. Read-only; no model in the loop; never mutates Vera state.",
+  "owner": "anima/cognitive_ergonomics/ (lexicon.py jargon/hedge/acronym lists, metrics.py deterministic scorers, analyzer.py clarity_report + analyze_recent over the MRI trail), anima/server.py (_ergonomics_data + GET /ergonomics + GET /ergonomics.json), anima/web/ergonomics.html (ergoView: gauge + recurring issues + worst turns + scored samples), scripts/certify_cognitive_ergonomics.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "deterministic",
+    "discriminates",
+    "human_level_issues",
+    "real_replies",
+    "honest_empty",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "deterministic_clarity_that_discriminates_and_explains_human_level",
+    "setup": "scripts/certify_cognitive_ergonomics.py proves the scorer is deterministic (the same text yields the identical score twice), DISCRIMINATES (a jargon-dense, long-winded reply scores >=25 points lower than a plain one; the metrics are computed jargon density + Flesch reading-ease, not guessed), explains every issue human-level (each flagged issue carries a 'what it means' + a 'what to do' action + the real offending terms), scores Vera's actual replies from the MRI trail (seeded MRI -> the jargon-heavy turn surfaces as a worst-clarity sample), reports an honest empty state with no replies, and rides through _ergonomics_data + GET /ergonomics with the dashboard page.",
+    "prompt": "open /ergonomics — Vera's recent replies are scored for clarity, and any jargon/long-sentence/acronym issue is named with what it means and what to do",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: a deterministic clarity OBSERVATORY over Vera's recent replies (jargon / reading-ease / load / hedging / acronyms), each issue explained human-level. The next enrichment is scoring each reply LIVE at turn time and filming the clarity score into the MRI frame (kept out of the first cut to protect the slimmed turn latency), plus a user-tunable target reading level and a personal jargon allow-list (terms the user is fluent in)."
+  ],
+  "status": "UNKNOWN"
+}

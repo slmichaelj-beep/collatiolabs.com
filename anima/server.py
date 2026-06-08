@@ -2455,6 +2455,16 @@ def _trust_data(name: str) -> dict:
                 "categories": {}, "empty": True, "error": str(e)}
 
 
+def _ergonomics_data(name: str) -> dict:
+    """Cognitive Ergonomics (Layer 5) — deterministic clarity scoring of Vera's real recent replies
+    (jargon / readability / load / hedging / acronyms), every issue explained human-level. Read-only."""
+    try:
+        from .cognitive_ergonomics import analyzer
+        return analyzer.analyze_recent(name, 30)
+    except Exception as e:
+        return {"name": name, "samples": [], "avg_clarity": None, "empty": True, "error": str(e)}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2615,6 +2625,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       tl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"trust ledger not built")
+            if u.path in ("/ergonomics", "/ergonomics.html", "/founder/ergonomics"):
+                # Cognitive Ergonomics page SHELL — public like the others; data /ergonomics.json is
+                # token-gated. How easy Vera is to follow, scored deterministically over her real replies.
+                eg = (WEB / "ergonomics.html")
+                if eg.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      eg.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"ergonomics surface not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2656,6 +2674,11 @@ class Handler(BaseHTTPRequestHandler):
                 # invariants (each falsifiable). Token-gated. Read-only; honest empty state.
                 return self._send(200, "application/json",
                                   json.dumps(_trust_data(self.name)).encode())
+            if u.path in ("/ergonomics.json", "/founder/ergonomics.json"):
+                # Cognitive Ergonomics data — deterministic clarity scores of Vera's real recent replies
+                # + human-level issues. Token-gated. Read-only; honest empty state.
+                return self._send(200, "application/json",
+                                  json.dumps(_ergonomics_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.
