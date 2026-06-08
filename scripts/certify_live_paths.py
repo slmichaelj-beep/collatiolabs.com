@@ -4837,6 +4837,56 @@ def probe_call_auth(res: Result) -> None:
         res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- security_baseline -----------------------------------------------------------------------
+def probe_security_baseline(res: Result) -> None:
+    """Phase 3 security baseline — default-deny caps, constant-time token auth wall + Face-ID, no
+    secret logging, source != policy, read-only host telemetry, connector actions caps-gated. The cert
+    (scripts/certify_security_baseline.py) proves these behaviorally + structurally on the real code."""
+    rc, tail = run_subcert([HERE / "certify_security_baseline.py"])
+    cert_ok = (rc == 0) and ("SECURITY-BASELINE CERT: CERTIFIED" in tail)
+    doc = (ROOT / "docs" / "security_architecture.md").exists() and (ROOT / "docs" / "threat_model.md").exists()
+    res.evidence.append("scripts/certify_security_baseline.py -> exit %d; %s; docs=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", doc))
+    res.set(UI=None, Backend=cert_ok, Storage=None, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and doc:
+        res.status = COMPLETE
+        res.proven_links = ["default_deny", "auth_wall", "face_gate", "no_secret_log",
+                            "source_not_policy", "read_only_telemetry"]
+        res.reason = ("Default-deny caps + a constant-time ANIMA_TOKEN wall (401 before dispatch) + a "
+                      "Face-ID layer; the token value is never logged; an ingested source can't flip a "
+                      "capability; host telemetry is read-only and connector actions are caps-gated. "
+                      "Trust zones + threat model documented.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("docs", doc)) if not v]
+        res.reason = "Security baseline did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
+# --- permissions -----------------------------------------------------------------------------
+def probe_permissions(res: Result) -> None:
+    """Phase 3 permission model — default-deny, read != act, grant round-trip, fail-safe enum
+    coercion, identity_agency frozen, connector actions caps-gated, documented. The cert
+    (scripts/certify_permissions.py) proves it behaviorally against real caps persistence."""
+    rc, tail = run_subcert([HERE / "certify_permissions.py"])
+    cert_ok = (rc == 0) and ("PERMISSIONS CERT: CERTIFIED" in tail)
+    doc = (ROOT / "docs" / "permission_model.md").exists()
+    res.evidence.append("scripts/certify_permissions.py -> exit %d; %s; doc=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", doc))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=None, Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and doc:
+        res.status = COMPLETE
+        res.proven_links = ["default_deny", "read_not_act", "grant_roundtrip", "failsafe_enum",
+                            "identity_frozen", "action_gated"]
+        res.reason = ("Default-deny permission model proven behaviorally: read != act (mail_read can't "
+                      "escalate to mail), grants round-trip, a corrupt enum coerces to the safe default, "
+                      "identity_agency is OFF + frozen, and every connector action is caps-gated. "
+                      "Documented in docs/permission_model.md.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("doc", doc)) if not v]
+        res.reason = "Permission model did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
 # --- host_pressure ---------------------------------------------------------------------------
 def probe_host_pressure(res: Result) -> None:
     """Vera defers HEAVY work under host memory/swap/disk pressure, honestly. The executable cert
@@ -5070,6 +5120,8 @@ def classify_all() -> dict:
         "audiobook_intake": probe_audiobook_intake,
         "live_ux": probe_live_ux,
         "ai_security": probe_ai_security,
+        "security_baseline": probe_security_baseline,
+        "permissions": probe_permissions,
         "host_pressure": probe_host_pressure,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
