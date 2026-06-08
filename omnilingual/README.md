@@ -51,6 +51,26 @@ Drag your audio file in when asked, then choose the language (Enter = Balinese).
 The transcript prints and is saved next to your audio as
 `YOURFILE.omni_ban_Latn.txt`.
 
+## Record & transcribe (accessibility)
+
+For reading content you own and can legally play but cannot hear, you can
+record normal playback and transcribe it. This records the audio output — it
+does **not** decrypt or unlock any protected file.
+
+One-time setup:
+1. `brew install blackhole-2ch`
+2. **System Settings → Sound → Output → "BlackHole 2ch"** (audio now routes
+   silently into the recorder).
+3. Play the audiobook in the **Audible app**.
+
+Then:
+```sh
+./record_and_transcribe.sh
+```
+Pick the BlackHole input, start playback, and stop with `q` when the book ends —
+it transcribes automatically. Note: capture is real-time (a 5-hour book takes
+5 hours), and ASR narration transcripts are rough compared to an ebook's text.
+
 ### Direct usage
 
 ```sh
