@@ -5083,6 +5083,41 @@ def probe_consent_boundaries(res: Result) -> None:
         res.reason = "Consent & Boundaries did not hold (a cert FAILed, the gate isn't wired, or the page is missing)."
 
 
+# --- archetypal_pattern_registry -------------------------------------------------------------
+def probe_archetypal_pattern_registry(res: Result) -> None:
+    """Archetypal Pattern Registry (Human Operating Layer — Archetypal enhancement to L10 Pattern->
+    Improvement): a SYSTEM pattern language (Jung applied
+    to the product, never the person) over real telemetry, evidence-thresholded, with the anti-overreach
+    law that it NEVER diagnoses the user. Certs: scripts/certify_archetypal_pattern_registry.py +
+    scripts/certify_archetype_no_user_diagnosis.py (the keystone)."""
+    rc1, t1 = run_subcert([HERE / "certify_archetypal_pattern_registry.py"])
+    rc2, t2 = run_subcert([HERE / "certify_archetype_no_user_diagnosis.py"])
+    reg_ok = (rc1 == 0) and ("ARCHETYPAL-REGISTRY CERT: CERTIFIED" in t1)
+    key_ok = (rc2 == 0) and ("ARCHETYPE-NO-USER-DIAGNOSIS CERT: CERTIFIED" in t2)
+    page = (ROOT / "anima" / "web" / "console.html").read_text()
+    ui_ok = ("archView" in page) and ("Archetypal Patterns" in page) and ("system, not you" in page)
+    wired = 'out["archetypes"]' in (ROOT / "anima" / "server.py").read_text()
+    cert_ok = reg_ok and key_ok and ui_ok and wired
+    res.evidence.append("certify_archetypal_pattern_registry -> %s · no_user_diagnosis(keystone) -> %s; "
+                        "wired=%s; ui=%s"
+                        % ("CERTIFIED" if reg_ok else "FAIL", "CERTIFIED" if key_ok else "FAIL", wired, ui_ok))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=None, Restart=cert_ok)
+    if cert_ok:
+        res.status = COMPLETE
+        res.proven_links = ["six_archetypes", "real_evidence", "evidence_threshold", "to_improvement",
+                            "system_scoped", "no_user_diagnosis", "guard_rejects", "served_authed"]
+        res.reason = ("Six SYSTEM archetypes (shadow/trickster/persona/self/mentor/threshold) over REAL "
+                      "telemetry, promoted from 'watching' to a 'hypothesis' only at/above the evidence "
+                      "threshold, each promotion mapping to an improvement SUGGESTION — never a user claim. "
+                      "The anti-overreach law holds: every pattern is scope='system'/is_about_user=False, "
+                      "the guard rejects any forced user-diagnosis, safe_registry fails safe. Served + "
+                      "auth-gated under the Founder Console. Vera names patterns in herself, never in you.")
+    else:
+        res.status = STUB
+        res.reason = ("Archetypal Pattern Registry did not hold (a cert FAILed, the keystone didn't certify, "
+                      "the registry isn't wired into _console_data, or the page is missing).")
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5570,6 +5605,7 @@ def classify_all() -> dict:
         "patterns_dashboard": probe_patterns_dashboard,
         "security_surface": probe_security_surface,
         "consent_boundaries": probe_consent_boundaries,
+        "archetypal_pattern_registry": probe_archetypal_pattern_registry,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,

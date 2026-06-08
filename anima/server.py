@@ -2285,13 +2285,22 @@ def _console_data(name: str) -> dict:
         except Exception:
             out["roi"] = []
 
+    # 6. ARCHETYPAL PATTERNS — Jung's pattern language applied to SYSTEM behaviour (never the user).
+    out["archetypes"] = []
+    try:
+        from .archetypal_patterns import policy as _arch
+        out["archetypes"] = _arch.safe_registry(name)
+    except Exception:
+        out["archetypes"] = {}
+
     out["counts"] = {
         "patterns": len(out["patterns"]),
         "p0": sum(1 for p in out["patterns"] if p.get("severity") == "P0"),
         "improvements": len(out["improvements"]),
         "pending": sum(1 for i in out["improvements"] if i["approval_status"] == "pending"),
         "feed": len(out["feed"]),
-        "roi_verified": sum(1 for r in out["roi"] if r.get("status") == "verified")}
+        "roi_verified": sum(1 for r in out["roi"] if r.get("status") == "verified"),
+        "archetypes": (out["archetypes"] or {}).get("hypotheses", 0)}
     out["empty"] = not (out["patterns"] or out["improvements"] or out["roi"])
     return out
 

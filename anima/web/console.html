@@ -143,6 +143,24 @@
         '<div class="lab">Proof</div><div class="val cert">'+esc(r.cert)+(r.contract_status?' · contract '+esc(r.contract_status):'')+'</div></div>';
     }).join('');
   }
+  function archView(d){
+    var a=d.archetypes||{}; var pats=a.patterns||[];
+    var head='<div class="card"><div class="ttl">Archetypal patterns · system, not you</div>'+
+      '<div class="val">'+esc(a.law||'')+'</div></div>';
+    if(!pats.length) return head+'<div class="na">No system patterns yet.</div>';
+    return head+pats.map(function(p){
+      var on=(p.status==='hypothesis');
+      var badge=on?'<span class="pill sev-P2">hypothesis</span>':'<span class="pill">watching '+p.evidence_count+'/3</span>';
+      var ev=(p.evidence||[]).slice(0,5).map(function(e){return '<code>'+esc(e.kind||e.ref||'')+'</code>';}).join('');
+      return '<div class="card"><div class="ph"><span class="ttl">'+esc(p.label)+'</span>'+badge+
+        '<span class="pill">conf '+esc(p.confidence)+'</span></div>'+
+        '<div class="lab">What it means (for the system)</div><div class="val">'+esc(p.meaning)+'</div>'+
+        '<div class="lab">Hypothesis</div><div class="val">'+esc(p.hypothesis)+'</div>'+
+        (ev?'<div class="lab">Evidence ('+p.evidence_count+')</div><div class="ev">'+ev+'</div>':'')+
+        '<div class="lab">Recommended action</div><div class="val">'+esc(p.recommended_action)+'</div>'+
+        '<div class="lab" style="color:var(--faint)">'+esc(p.disclaimer)+'</div></div>';
+    }).join('');
+  }
   function render(){
     var d=DATA; if(!d) return;
     document.getElementById('counts').innerHTML=
@@ -150,10 +168,11 @@
       '<span class="pill">'+d.counts.pending+' pending</span><span class="pill">'+d.counts.feed+' events</span>';
     var tabs=[['patterns','Live Patterns',d.counts.patterns],['improvements','Improvements',d.counts.improvements],
       ['roi','Completed · ROI',(d.counts.roi_verified||0)],
+      ['arch','Archetypal Patterns',(d.counts.archetypes||0)],
       ['loop','Learning Loop',d.learning_loop.length],['feed','Live Feed',d.counts.feed]];
     document.getElementById('tabs').innerHTML=tabs.map(function(t){
       return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'<span class="n">'+t[2]+'</span></span>';}).join('');
-    var v=TAB==='patterns'?patternsView(d):TAB==='improvements'?impView(d):TAB==='roi'?roiView(d):TAB==='loop'?loopView(d):feedView(d);
+    var v=TAB==='patterns'?patternsView(d):TAB==='improvements'?impView(d):TAB==='roi'?roiView(d):TAB==='arch'?archView(d):TAB==='loop'?loopView(d):feedView(d);
     document.getElementById('view').innerHTML=v;
     document.querySelectorAll('.tab').forEach(function(el){el.onclick=function(){TAB=el.dataset.tab;render();};});
     document.querySelectorAll('.btn[data-a]').forEach(function(b){b.onclick=function(){

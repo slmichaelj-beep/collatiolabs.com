@@ -74,6 +74,15 @@ def main() -> int:
     layer(10, "Pattern->Improvement", "GREEN" if _run([SCRIPTS / "certify_patterns_dashboard.py"], "PATTERNS-DASHBOARD CERT: CERTIFIED") else "PARTIAL",
           "Pattern Observatory + Improvement Engine + ROI after-measurement")
 
+    # L10+ enhancement — Archetypal Pattern Registry (a SYSTEM pattern language feeding the Improvement
+    # Engine; the keystone proves it NEVER diagnoses the user). Reported as an enhancement to L10, gated.
+    ar = _run([SCRIPTS / "certify_archetypal_pattern_registry.py"], "ARCHETYPAL-REGISTRY CERT: CERTIFIED")
+    ak = _run([SCRIPTS / "certify_archetype_no_user_diagnosis.py"], "ARCHETYPE-NO-USER-DIAGNOSIS CERT: CERTIFIED")
+    arch_state = "GREEN" if (ar and ak) else "PARTIAL"
+    arch_glyph = {"GREEN": "●", "PARTIAL": "◐", "PLANNED": "○"}.get(arch_state, "?")
+    print("  %s  L10+ %-25s %-8s %s" % (arch_glyph, "Archetypal Registry", arch_state,
+          "six SYSTEM archetypes over real telemetry; keystone: never diagnoses the user"))
+
     greens = [l for l in layers if l[2] == "GREEN"]
     partial = [l for l in layers if l[2] == "PARTIAL"]
     planned = [l for l in layers if l[2] == "PLANNED"]
@@ -83,18 +92,23 @@ def main() -> int:
     # PARTIAL here rather than a hard expected-green.)
     expected_green = {1, 2, 9, 10}
     broken = [l for l in layers if l[0] in expected_green and l[2] != "GREEN"]
+    # the Archetypal Registry enhancement is also expected-green once built
+    if arch_state != "GREEN":
+        broken.append((10.5, "Archetypal Registry", arch_state, ""))
 
     print("-" * 100)
-    print("  layers GREEN (built + certified): %d   PARTIAL (real subsystem, layer pending): %d   PLANNED: %d"
-          % (len(greens), len(partial), len(planned)))
+    print("  layers GREEN (built + certified): %d   PARTIAL (real subsystem, layer pending): %d   PLANNED: %d   (+ Archetypal Registry enhancement: %s)"
+          % (len(greens), len(partial), len(planned), arch_state))
     for n, label, _, _2 in greens:
         print("    %s: GREEN" % label.upper())
+    if arch_state == "GREEN":
+        print("    ARCHETYPAL REGISTRY (L10 enhancement): GREEN")
     verdict = "GREEN" if not broken else "FAIL"
-    print("\nHUMAN OPERATING LAYER: %s   (%d/10 layers green; %d partial, %d planned — honestly labelled)"
-          % (verdict, len(greens), len(partial), len(planned)))
+    print("\nHUMAN OPERATING LAYER: %s   (%d/10 layers green + Archetypal Registry %s; %d partial, %d planned — honestly labelled)"
+          % (verdict, len(greens), arch_state, len(partial), len(planned)))
     if broken:
         for n, label, st, _ in broken:
-            print("  broken: L%d %s expected GREEN but is %s" % (n, label, st))
+            print("  broken: L%s %s expected GREEN but is %s" % (n, label, st))
     if gate:
         return 1 if broken else 0
     return 0
