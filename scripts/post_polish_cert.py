@@ -69,6 +69,11 @@ def main() -> int:
     lane("TRUST DASHBOARD",
          "GREEN" if _run([SCRIPTS / "certify_observatory.py"], "OBSERVATORY CERT: CERTIFIED") else "PARTIAL",
          False, "read-only Observatory GREEN; Trust Dashboard 2.0 (quarantine/connector panels) PENDING")
+    lm_static = _run([SCRIPTS / "certify_living_map.py"], "LIVING MAP STATIC: GREEN")
+    lm_nowall = _run([SCRIPTS / "certify_living_map_no_wallpaper.py"], "LIVING MAP NO-WALLPAPER: GREEN")
+    lane("LIVING MAP", "GREEN" if (lm_static and lm_nowall) else "PARTIAL", False,
+         "M1 static real map GREEN (nodes/edges/status backed by real telemetry, no wallpaper); "
+         "M2 live pulses + M3 replay + M4 simulation + M5 pattern overlay PENDING")
     lane("UX BOW", "DEFERRED", False, "product_polish GREEN; the full Diamond UX bow not yet a distinct cert")
     lane("DEMO READINESS", "DEFERRED", False, "demo script + one-click demo data not built")
     lane("PRIVATE ALPHA READINESS", "DEFERRED", False, "non-builder core-loop walkthrough not certified")

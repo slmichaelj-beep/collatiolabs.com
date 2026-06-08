@@ -2402,6 +2402,16 @@ def _security_data(name: str) -> dict:
     return out
 
 
+def _living_map_data(name: str) -> dict:
+    """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
+    backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
+    try:
+        from .living_map import graph
+        return graph.build_graph(name)
+    except Exception as e:
+        return {"name": name, "nodes": [], "edges": [], "summary": {"error": str(e)}}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2519,6 +2529,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       sec.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"security console not built")
+            if u.path in ("/founder/living-map", "/living-map", "/living_map.html"):
+                # Living Map page SHELL (Founder Console -> Living Map) — public like the others; the
+                # data route /founder/living-map/state below is token-gated. The operational digital twin.
+                lm = (WEB / "living_map.html")
+                if lm.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      lm.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"living map not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2551,6 +2569,11 @@ class Handler(BaseHTTPRequestHandler):
                 # quarantine catches, the SOC trail, caps posture. Token-gated. Read-only; honest.
                 return self._send(200, "application/json",
                                   json.dumps(_security_data(self.name)).encode())
+            if u.path in ("/founder/living-map/state", "/living-map/state"):
+                # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
+                # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.
+                return self._send(200, "application/json",
+                                  json.dumps(_living_map_data(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
