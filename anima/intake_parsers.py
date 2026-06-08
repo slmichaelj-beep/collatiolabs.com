@@ -766,7 +766,18 @@ def parse_pdf(path_or_url: str, *, fmt: Optional[str] = None) -> dict:
         # honest scan detection: pages exist but almost no extractable text.
         if pages and len(text.strip()) < max(20, 5 * len(pages)):
             meta["likely_scanned"] = True
-            meta["note"] = "native-text extraction found little text; likely a scanned PDF — OCR (Wave 4) recommended"
+            meta["note"] = "native-text extraction found little text; likely a scanned PDF — OCR fallback"
+            # NATIVE-FIRST: OCR runs ONLY now (native found ~nothing) + opt-in + local file. If OCR
+            # gets text, return it source-labeled; if it can't (deps/pressure), surface honestly.
+            if _heavy_on() and not str(path_or_url).startswith(("http://", "https://")):
+                from . import intake_ocr
+                ocr = intake_ocr.ocr_pdf(str(path_or_url))
+                if ocr["status"] == "ok" and (ocr.get("text") or "").strip():
+                    return _result(text=ocr["text"], chunks=ocr["chunks"],
+                                   meta={**meta, **ocr.get("meta", {})})
+                if ocr["status"] == "needs_dependency":
+                    return _result(status="needs_dependency", need=ocr.get("need", ""),
+                                   meta={**meta, **ocr.get("meta", {})})
         return _result(text=text, chunks=chunks, meta=meta)
     except Exception as e:
         # a real parse failure degrades to needs_dependency for the OCR seam, never a crash.
@@ -822,26 +833,29 @@ def _activate_ocr(path_or_url: str, meta: dict) -> Optional[dict]:
     tesseract BINARY is missing / the image is unreadable), or None (libs absent -> Wave-1 seam)."""
     if not _heavy_on():
         return None
-    try:
-        from PIL import Image          # noqa: F401  (Pillow)
-        import pytesseract
-    except Exception:
-        return None
     p = str(path_or_url)
     if p.startswith(("http://", "https://")):
         return None                    # OCR runs on a local image, not a URL
+    # prefer pytesseract if importable; otherwise fall back to the tesseract BINARY (intake_ocr) so
+    # OCR works without the pip wrapper. Both are source-labeled (extraction_method=ocr).
     try:
+        from PIL import Image          # noqa: F401  (Pillow)
+        import pytesseract
         with Image.open(p) as im:
             text = (pytesseract.image_to_string(im) or "").strip()
-    except Exception as e:             # tesseract binary missing, or an unreadable image
-        return _result(status="needs_dependency", need="ocr (tesseract binary not found)",
+        chunks = [{"page": None, "section": "ocr", "text": text}] if text else []
+        return _result(status="ok", text=text, chunks=chunks,
                        figures=[{"kind": "image", "ref": p}],
-                       meta={**meta, "ocr_error": ("%r" % (e,))[:160]})
-    chunks = [{"page": None, "section": "ocr", "text": text}] if text else []
-    return _result(status="ok", text=text, chunks=chunks,
-                   figures=[{"kind": "image", "ref": p}],
-                   meta={**meta, "ocr": "pytesseract", "ocr_chars": len(text),
-                         "note": "" if text else "OCR ran but found no text in the image"})
+                       meta={**meta, "ocr": "pytesseract", "extraction_method": "ocr",
+                             "source_type": "image", "ocr_chars": len(text),
+                             "note": "" if text else "OCR ran but found no text in the image"})
+    except Exception:
+        pass
+    from . import intake_ocr
+    r = intake_ocr.ocr_image(p)
+    return _result(status=r["status"], text=r.get("text", ""), chunks=r.get("chunks", []),
+                   figures=[{"kind": "image", "ref": p}], need=r.get("need", ""),
+                   meta={**meta, **r.get("meta", {})})
 
 
 def _activate_stt(path_or_url: str, meta: dict, *, need_extra: str = "") -> Optional[dict]:

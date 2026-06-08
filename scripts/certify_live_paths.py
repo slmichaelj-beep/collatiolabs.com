@@ -5092,6 +5092,39 @@ def probe_live_ux(res: Result) -> None:
                       % (", ".join(res.missing_links) or "none"))
 
 
+# --- ocr_intake ------------------------------------------------------------------------------
+def probe_ocr_intake(res: Result) -> None:
+    """OCR fallback for scanned PDFs / images, native-first + sandboxed + source-labeled + honest. The
+    cert (scripts/certify_ocr_intake.py) builds real fixtures and proves native-first, scanned/image->
+    OCR with text recovered, stored+answered, source labels, hostile=data, opt-in honesty. COMPLETE iff
+    CERTIFIED + END-TO-END REAL; PARTIAL if the OCR binaries/fixtures are absent (SKIPPED)."""
+    rc, tail = run_subcert([HERE / "certify_ocr_intake.py"])
+    cert_ok = (rc == 0) and ("OCR-INTAKE CERT: CERTIFIED" in tail)
+    real = "END-TO-END: REAL" in tail
+    src = (ROOT / "anima" / "intake_parsers.py").read_text()
+    wired = ("intake_ocr.ocr_pdf" in src and (ROOT / "anima" / "intake_ocr.py").exists())
+    res.evidence.append("scripts/certify_ocr_intake.py -> exit %d; %s; end-to-end=%s; wired=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", "REAL" if real else "SKIPPED", wired))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=real or None, Retrieval=real or None,
+            Use=cert_ok, MRI=None, Restart=None)
+    if cert_ok and wired and real:
+        res.status = COMPLETE
+        res.proven_links = ["native_first", "scanned_to_ocr", "image_to_ocr", "stored_answered",
+                            "source_labeled", "hostile_is_data"]
+        res.reason = ("OCR is the honest fallback: a text PDF uses native; a scanned PDF / image triggers "
+                      "sandboxed OCR (tesseract+pdftoppm) and recovers the text, source-labeled + stored "
+                      "+ answered; injection text is flagged as data; opt-in + needs_dependency-honest. "
+                      "END-TO-END: REAL.")
+    elif cert_ok and wired:
+        res.status = PARTIAL
+        res.missing_links = ["scanned_to_ocr (tesseract/pdftoppm or PIL/fpdf absent on this host — "
+                             "native-first + opt-in honesty proven; real OCR e2e SKIPPED)"]
+        res.reason = "PARTIAL — native-first + opt-in honesty proven; real OCR needs the local binaries."
+    else:
+        res.status = STUB
+        res.reason = "OCR intake did not hold (cert FAIL or not wired)."
+
+
 # --- audiobook_intake ------------------------------------------------------------------------
 def probe_audiobook_intake(res: Result) -> None:
     """Audiobook / long-form audio as an HONEST Universal Knowledge Intake media type — OPEN,
@@ -5202,6 +5235,7 @@ def classify_all() -> dict:
         "memory_editor": probe_memory_editor,
         "intake_queue_flow": probe_intake_queue_flow,
         "audiobook_intake": probe_audiobook_intake,
+        "ocr_intake": probe_ocr_intake,
         "live_ux": probe_live_ux,
         "ai_security": probe_ai_security,
         "security_baseline": probe_security_baseline,
