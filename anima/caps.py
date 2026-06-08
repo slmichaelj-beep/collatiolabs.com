@@ -133,6 +133,15 @@ def save(name, caps) -> dict:
 
 
 def enabled(name, key) -> bool:
+    # SECURITY LOCKDOWN (incident response): when a lockdown is active, EVERY outward capability is
+    # forced OFF — full safe mode, regardless of stored grants. Reversible via incident.restore().
+    # Lazy import keeps caps free of an import cycle; any failure fails OPEN to the normal gate.
+    try:
+        from . import incident
+        if incident.is_locked():
+            return False
+    except Exception:
+        pass
     return bool(load(name).get(key, False))
 
 

@@ -4949,6 +4949,31 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- incident_response -----------------------------------------------------------------------
+def probe_incident_response(res: Result) -> None:
+    """Incident response — a one-call lockdown forces every outward capability OFF (enforced at the
+    caps gate), audited + reversible, with a local SOC event trail. Cert:
+    scripts/certify_incident_response.py."""
+    rc, tail = run_subcert([HERE / "certify_incident_response.py"])
+    cert_ok = (rc == 0) and ("INCIDENT-RESPONSE CERT: CERTIFIED" in tail)
+    doc = (ROOT / "docs" / "incident_response.md").exists()
+    res.evidence.append("scripts/certify_incident_response.py -> exit %d; %s; runbook=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", doc))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=None, Restart=cert_ok)
+    if cert_ok and doc:
+        res.status = COMPLETE
+        res.proven_links = ["lockdown_forces_safe_state", "audited", "reversible_settings_intact",
+                            "idempotent", "soc_trail", "caps_gate_honors_lockdown"]
+        res.reason = ("One lockdown() forces every outward capability OFF at the caps gate (even enabled "
+                      "ones), audited to the security trail, and reversible — restore hands the user's "
+                      "stored settings back intact. Append-only timestamped SOC trail. CLI + runbook.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("runbook", doc)) if not v]
+        res.reason = "Incident response did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
+
+
 # --- privacy ---------------------------------------------------------------------------------
 def probe_privacy(res: Result) -> None:
     """Phase 5 privacy — delete a source, forget a memory, no cloud PII leak, export/import Mind
@@ -5241,6 +5266,7 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "incident_response": probe_incident_response,
         "performance": probe_performance,
         "product_polish": probe_product_polish,
         "enterprise_readiness": probe_enterprise_readiness,
