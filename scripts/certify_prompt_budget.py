@@ -62,7 +62,8 @@ def main() -> int:
        sum(d["tokens"] for d in secs.values()) == r["estimated_tokens"] and r["estimated_tokens"] > 0)
 
     # ---- 2 REAL ASSEMBLY (same path as the live turn) --------------------------------------
-    text, frags = mouth._assemble_prompt("Vera", _pb._feeling("Vera"), "", memory=_pb._memory_bundle("Vera", q))
+    text, frags = mouth._assemble_prompt("Vera", _pb._feeling("Vera"), "",
+                                         memory=_pb._memory_bundle("Vera", q), user_text=q)
     ck("2. the breakdown comes from mouth._assemble_prompt (the live fragment ledger)",
        bool(frags) and bool(r.get("fragments")) and r["system_prompt_chars"] == len(text))
 

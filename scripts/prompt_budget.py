@@ -132,13 +132,13 @@ def _history(name: str, user_text: str):
             hist.append((item[0], item[1]))
         except Exception:
             pass
-    capped = hist[-mouth._HISTORY_TO_MODEL:]
     try:
         from anima import immune
-        capped = immune.clean_history(capped, user_text)
+        hist = immune.clean_history(hist, user_text)
     except Exception:
         pass
-    return capped
+    # the SAME budgeted selection the live model call uses (token budget, not just turn count)
+    return mouth._history_for_model(hist)
 
 
 def _real_prompt_tokens() -> int | None:
@@ -163,7 +163,8 @@ def build(name: str, user_text: str) -> dict:
     except Exception:
         guidance = ""
     mem = _memory_bundle(name, user_text)
-    _text, frags = mouth._assemble_prompt(name, f, guidance, memory=mem)
+    # pass user_text so the breakdown reflects the ROUTE-GATED hardening (full only when challenged)
+    _text, frags = mouth._assemble_prompt(name, f, guidance, memory=mem, user_text=user_text)
 
     # roll fragments up into sections (tokens)
     sections: dict = {}
