@@ -92,6 +92,12 @@
         return '<div class="card"><div class="ttl">Level-4 data-class coverage</div>'+
         '<div class="row"><span class="l">data classes handled correctly</span>'+
         '<span class="pill'+(dc.all_pass?'':' bad')+'">'+(dc.pass||0)+' / '+(dc.total||0)+'</span></div></div>'; })()+
+      (function(){ var sp=d.state_pairwise; if(!sp) return ''; var ss=sp.states||{}, pw=sp.pairwise||{};
+        return '<div class="card"><div class="ttl">Levels 5+6 — state &amp; pairwise coverage</div>'+
+        '<div class="row"><span class="l">host/system states reflected (L5)</span>'+
+        '<span class="pill'+(ss.all_pass?'':' bad')+'">'+(ss.pass||0)+' / '+(ss.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">axis pairs hold + discriminate (L6)</span>'+
+        '<span class="pill'+(pw.all_pass?'':' bad')+'">'+(pw.pass||0)+' / '+(pw.total||0)+'</span></div></div>'; })()+
       '<div class="card"><div class="ttl">Hard rules</div>'+
       '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
       '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+

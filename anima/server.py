@@ -2592,6 +2592,11 @@ def _total_reality_data(name: str) -> dict:
             data_classes = _dt.run()["summary"]        # Level-4 data-type coverage
         except Exception:
             data_classes = None
+        try:
+            from .rover import states as _st, pairwise as _pw
+            state_pairwise = {"states": _st.run()["summary"], "pairwise": _pw.run()["summary"]}  # L5+L6
+        except Exception:
+            state_pairwise = None
         return {
             "name": name,
             "inventory": c,
@@ -2601,6 +2606,7 @@ def _total_reality_data(name: str) -> dict:
             "renegade": renegade,                      # Level-7 chains held/total
             "consent_matrix": consent_matrix,          # Level-3 permission/consent matrix pass/total
             "data_classes": data_classes,              # Level-4 data-type coverage pass/total
+            "state_pairwise": state_pairwise,          # Level-5 state + Level-6 pairwise
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],
