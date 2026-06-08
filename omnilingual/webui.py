@@ -10,7 +10,9 @@ Run it with ./run-ui.sh  (which installs Flask if needed and opens your browser)
 """
 
 import os
+import re
 import sys
+import time
 import uuid
 import queue
 import shutil
@@ -38,6 +40,53 @@ work_q = queue.Queue()
 _pipeline = None
 _pipeline_lock = threading.Lock()
 model_state = {"state": "idle"}   # idle | loading | ready | error
+
+recording = {"active": False, "proc": None, "path": None,
+             "started": 0, "lang": "eng_Latn", "outdir": DEFAULT_OUTDIR}
+rec_lock = threading.Lock()
+
+
+def list_input_devices():
+    """Audio input devices on this Mac, via ffmpeg's avfoundation lister."""
+    try:
+        p = subprocess.run(["ffmpeg", "-hide_banner", "-f", "avfoundation",
+                            "-list_devices", "true", "-i", ""],
+                           capture_output=True, text=True, timeout=15)
+        out = p.stderr
+    except Exception:
+        return []
+    devices, in_audio = [], False
+    for line in out.splitlines():
+        if "AVFoundation audio devices" in line:
+            in_audio = True
+            continue
+        if "AVFoundation video devices" in line:
+            in_audio = False
+        if in_audio:
+            m = re.search(r"\]\s*\[(\d+)\]\s+(.+?)\s*$", line)
+            if m:
+                devices.append({"index": int(m.group(1)), "name": m.group(2)})
+    return devices
+
+
+def write_pdf(full_text, path):
+    """Write a simple text PDF. Returns the path, or None if fpdf2 is missing."""
+    try:
+        from fpdf import FPDF
+    except Exception:
+        return None
+    safe = (full_text.replace("’", "'").replace("‘", "'")
+            .replace("“", '"').replace("”", '"').replace("—", "-")
+            .replace("–", "-").replace("…", "..."))
+    safe = safe.encode("latin-1", "replace").decode("latin-1")
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=11)
+    for line in safe.split("\n"):
+        pdf.multi_cell(0, 6, line if line else " ")
+    pdf.output(path)
+    return path
 
 
 def job_set(job_id, **kw):
@@ -107,12 +156,16 @@ def run_job(job_id):
         outdir = os.path.expanduser(job["outdir"])
         os.makedirs(outdir, exist_ok=True)
         base = os.path.splitext(os.path.basename(job["name"]))[0]
-        out_path = os.path.join(outdir, f"{base}.{lang}.txt")
         lines = [f"[{fmt_ts(idx * CHUNK_SEC)}] {t}" for idx, t in enumerate(texts) if t.strip()]
-        with open(out_path, "w", encoding="utf-8") as f:
-            f.write(f"=== {LANG_LABELS.get(lang, lang)} — Omnilingual ASR ===\n\n")
-            f.write("\n".join(lines) + "\n\n=== FULL TEXT ===\n\n")
-            f.write(" ".join(t.strip() for t in texts if t.strip()) + "\n")
+        body = " ".join(t.strip() for t in texts if t.strip())
+        header = f"=== {LANG_LABELS.get(lang, lang)} — Omnilingual ASR ===\n\n"
+        txt_path = os.path.join(outdir, f"{base}.{lang}.txt")
+        with open(txt_path, "w", encoding="utf-8") as f:
+            f.write(header + "\n".join(lines) + "\n\n=== FULL TEXT ===\n\n" + body + "\n")
+
+        # Also write a PDF next to it.
+        pdf_path = os.path.join(outdir, f"{base}.{lang}.pdf")
+        out_path = write_pdf(header + body, pdf_path) or txt_path
 
         job_set(job_id, status="done", progress=100, output=out_path,
                 preview="\n".join(lines[:6]) or "(no speech recognized)")
@@ -120,10 +173,11 @@ def run_job(job_id):
         job_set(job_id, status="error", error=str(e))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-        try:
-            os.remove(job["input_path"])
-        except OSError:
-            pass
+        if not job.get("keep_input"):
+            try:
+                os.remove(job["input_path"])
+            except OSError:
+                pass
 
 
 def worker():
@@ -171,7 +225,11 @@ def status():
     with jobs_lock:
         data = [{k: v for k, v in j.items() if k != "input_path"} for j in jobs.values()]
     data.sort(key=lambda j: j["id"])
-    return jsonify({"model": model_state["state"], "jobs": data})
+    rec = None
+    with rec_lock:
+        if recording["active"]:
+            rec = {"elapsed": int(time.time() - recording["started"])}
+    return jsonify({"model": model_state["state"], "jobs": data, "recording": rec})
 
 
 @app.route("/reveal")
@@ -191,6 +249,70 @@ def clear():
         for jid in [j["id"] for j in jobs.values() if j["status"] in ("done", "error")]:
             jobs.pop(jid, None)
     return ("", 204)
+
+
+@app.route("/devices")
+def devices():
+    return jsonify({"devices": list_input_devices()})
+
+
+@app.route("/record/start", methods=["POST"])
+def record_start():
+    with rec_lock:
+        if recording["active"]:
+            return jsonify({"error": "Already recording."}), 409
+        dev = request.form.get("device", "")
+        if dev == "":
+            return jsonify({"error": "No capture device selected."}), 400
+        lang = request.form.get("lang", "eng_Latn")
+        outdir = os.path.expanduser(request.form.get("outdir") or DEFAULT_OUTDIR)
+        os.makedirs(outdir, exist_ok=True)
+        path = os.path.join(outdir, time.strftime("recording_%Y%m%d_%H%M%S.wav"))
+        try:
+            proc = subprocess.Popen(
+                ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                 "-f", "avfoundation", "-i", f":{dev}",
+                 "-ac", "1", "-ar", "16000", path],
+                stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            return jsonify({"error": f"Could not start recording: {e}"}), 500
+        recording.update(active=True, proc=proc, path=path,
+                         started=time.time(), lang=lang, outdir=outdir)
+    return jsonify({"ok": True})
+
+
+@app.route("/record/stop", methods=["POST"])
+def record_stop():
+    with rec_lock:
+        if not recording["active"]:
+            return jsonify({"error": "Not recording."}), 409
+        proc, path = recording["proc"], recording["path"]
+        lang, outdir = recording["lang"], recording["outdir"]
+        recording["active"] = False
+    try:
+        if proc.stdin:
+            proc.stdin.write(b"q")
+            proc.stdin.flush()
+        proc.wait(timeout=10)
+    except Exception:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+    if not (path and os.path.exists(path) and os.path.getsize(path) > 2000):
+        return jsonify({"error": "No audio captured — is Sound Output set to the "
+                                 "capture device, and was audio playing?"}), 400
+    job_id = uuid.uuid4().hex[:8]
+    with jobs_lock:
+        jobs[job_id] = {
+            "id": job_id, "name": os.path.basename(path), "input_path": path,
+            "lang": lang, "outdir": outdir, "status": "queued",
+            "progress": 0, "total": 0, "done": 0,
+            "output": None, "error": None, "preview": None, "keep_input": True,
+        }
+    work_q.put(job_id)
+    return jsonify({"ok": True, "job": job_id})
 
 
 PAGE = """<!doctype html>
@@ -230,11 +352,19 @@ PAGE = """<!doctype html>
   button.link { background:none; border:none; color:#5b8cff; cursor:pointer; font-size:12px; padding:0; }
   .err { color:#f0a0a0; }
   #clear { float:right; }
+  .rec { background:#12151b; border:1px solid #20242e; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .rec .recrow { display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  #recbtn { background:#2563eb; border:none; color:#fff; border-radius:8px; padding:9px 16px;
+            font-size:14px; cursor:pointer; font-weight:600; }
+  #recbtn.on { background:#dc2626; }
+  #recbtn:disabled { opacity:.6; cursor:default; }
+  #rectime { font-variant-numeric:tabular-nums; color:#f0a0a0; font-size:14px; }
+  .hint { font-size:12px; color:#8b919e; margin-top:8px; }
 </style></head>
 <body><div class="wrap">
   <h1>Audio &amp; Video Transcriber</h1>
-  <div class="sub">Drop files below. They're transcribed locally on this Mac and saved as .txt.
-     DRM-protected Audible (.aax) files won't work.</div>
+  <div class="sub">Drop files below, or record audio playing on this Mac. Transcribed
+     locally and saved as a PDF (and .txt). DRM-protected Audible (.aax) files won't work.</div>
 
   <div id="banner" class="banner"></div>
 
@@ -247,6 +377,18 @@ PAGE = """<!doctype html>
       </select></div>
     <div style="flex:1"><label>Save transcripts to</label>
       <input id="outdir" type="text" value="__OUTDIR__" style="width:100%"></div>
+  </div>
+
+  <div class="rec">
+    <label>Record audio playing on this Mac (for content you own and play yourself)</label>
+    <div class="recrow">
+      <select id="dev"></select>
+      <button id="recbtn">● Start recording</button>
+      <span id="rectime"></span>
+    </div>
+    <div class="hint">Set <b>System Settings → Sound → Output</b> to your capture device
+      (BlackHole), start playback, then click Start. Uses the Language &amp; folder above;
+      saves a PDF when you Stop.</div>
   </div>
 
   <div id="drop">Drag audio/video files here, or <b>click to choose</b>
@@ -272,6 +414,32 @@ function send(files){
 }
 document.getElementById('clear').onclick=()=>fetch('/clear',{method:'POST'}).then(poll);
 
+const recbtn=document.getElementById('recbtn'), devsel=document.getElementById('dev');
+fetch('/devices').then(r=>r.json()).then(d=>{
+  const list=d.devices||[];
+  devsel.innerHTML=list.map(x=>`<option value="${x.index}">[${x.index}] ${esc(x.name)}</option>`).join('')
+    || '<option value="">(no input devices found)</option>';
+  const bh=list.find(x=>/blackhole/i.test(x.name));
+  if(bh) devsel.value=bh.index;
+});
+let isRec=false;
+recbtn.onclick=()=>{
+  if(!isRec){
+    const fd=new FormData();
+    fd.append('device',devsel.value);
+    fd.append('lang',document.getElementById('lang').value);
+    fd.append('outdir',document.getElementById('outdir').value);
+    fetch('/record/start',{method:'POST',body:fd}).then(r=>r.json()).then(d=>{
+      if(d.error) alert(d.error); poll(); });
+  } else {
+    recbtn.textContent='… stopping'; recbtn.disabled=true;
+    fetch('/record/stop',{method:'POST'}).then(r=>r.json()).then(d=>{
+      recbtn.disabled=false; if(d.error) alert(d.error); poll(); });
+  }
+};
+function fmtTime(s){const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;
+  return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0');}
+
 function banner(state){
   const b=document.getElementById('banner');
   if(state==='loading'){b.className='banner show b-load';b.textContent='Loading the speech model… first time downloads ~6 GB, please wait.';}
@@ -282,6 +450,11 @@ function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':
 
 function render(d){
   banner(d.model);
+  const rec=d.recording; isRec=!!rec;
+  if(rec){ recbtn.textContent='■ Stop recording'; recbtn.classList.add('on');
+    document.getElementById('rectime').textContent='● '+fmtTime(rec.elapsed); }
+  else if(!recbtn.disabled){ recbtn.textContent='● Start recording'; recbtn.classList.remove('on');
+    document.getElementById('rectime').textContent=''; }
   const box=document.getElementById('jobs');
   box.innerHTML = d.jobs.map(j=>{
     const done=j.status==='done', err=j.status==='error';
@@ -302,7 +475,7 @@ let timer=null;
 function poll(){ fetch('/status').then(r=>r.json()).then(d=>{
   render(d);
   const busy=d.jobs.some(j=>j.status!=='done'&&j.status!=='error');
-  clearTimeout(timer); if(busy||d.model==='loading') timer=setTimeout(poll,1000);
+  clearTimeout(timer); if(busy||d.model==='loading'||d.recording) timer=setTimeout(poll,1000);
 }); }
 poll();
 </script></body></html>"""
