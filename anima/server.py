@@ -2602,6 +2602,11 @@ def _total_reality_data(name: str) -> dict:
             soak = _sk.run()["summary"]                 # Level-8 long-session / soak
         except Exception:
             soak = None
+        try:
+            from .rover import fuzz as _fz
+            fuzz = _fz.run()["summary"]                 # Level-9 seeded fuzz of the safety pipeline
+        except Exception:
+            fuzz = None
         return {
             "name": name,
             "inventory": c,
@@ -2613,6 +2618,7 @@ def _total_reality_data(name: str) -> dict:
             "data_classes": data_classes,              # Level-4 data-type coverage pass/total
             "state_pairwise": state_pairwise,          # Level-5 state + Level-6 pairwise
             "soak": soak,                              # Level-8 long-session / soak invariants
+            "fuzz": fuzz,                              # Level-9 seeded fuzz floor (0 P0 over the corpus)
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],

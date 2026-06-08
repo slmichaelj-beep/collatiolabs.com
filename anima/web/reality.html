@@ -102,6 +102,12 @@
         return '<div class="card"><div class="ttl">Level 8 — long-session / soak</div>'+
         '<div class="row"><span class="l">soak invariants hold over '+(sk.turns||0)+' turns (history capped at '+(sk.histmax||0)+')</span>'+
         '<span class="pill'+(sk.all_pass?'':' bad')+'">'+(sk.pass||0)+' / '+(sk.total||0)+'</span></div></div>'; })()+
+      (function(){ var fz=d.fuzz; if(!fz) return '';
+        return '<div class="card"><div class="ttl">Level 9 — seeded fuzz of the safety pipeline</div>'+
+        '<div class="row"><span class="l">fuzz invariants hold over '+(fz.n||0)+' seeded inputs (seed '+(fz.seed||0)+')</span>'+
+        '<span class="pill'+(fz.all_pass?'':' bad')+'">'+(fz.pass||0)+' / '+(fz.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">P0 (marker leak / crash / unclassified)</span>'+
+        '<span class="pill'+(fz.p0?' bad':'')+'">'+(fz.p0||0)+'</span></div></div>'; })()+
       '<div class="card"><div class="ttl">Hard rules</div>'+
       '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
       '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+

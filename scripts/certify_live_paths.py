@@ -5279,16 +5279,17 @@ def probe_total_reality(res: Result) -> None:
                             "matrix_persists", "served_authed", "rover_execution",
                             "observation_bundle_complete", "renegade_chains",
                             "permission_consent_coverage", "data_type_coverage",
-                            "state_pairwise_coverage", "soak_coverage"]
+                            "state_pairwise_coverage", "soak_coverage", "fuzz_coverage"]
         res.reason = ("The Total Reality Test: the REAL product inventoried (surfaces / controls / routes / "
                       "feature claims) and reduced to a finite scenario matrix, with the hard rules enforced "
                       "WITH TEETH — every visible control has a scenario, every claim maps to a scenario, "
                       "every scenario is fully classified, and the coverage check provably bites on a gap. "
-                      "Level-1 critical journeys pass via the Rover. Served + auth-gated (/reality). Levels "
-                      "2-8 are built + certified via delegated certs (Rover surface/control execution + "
-                      "evidence bundle, permission/consent matrix, data-class, state + pairwise, Renegade "
-                      "stress chains, long-session soak) — each runs inside the master cert with teeth. "
-                      "Level 9 (fuzz) and browser-level DOM clicks are honestly deferred to the next phases.")
+                      "Level-1 critical journeys pass via the Rover. Served + auth-gated (/reality). ALL "
+                      "numbered Levels 0-9 are built + certified via delegated certs (Rover surface/control "
+                      "execution + evidence bundle, permission/consent matrix, data-class, state + pairwise, "
+                      "Renegade stress chains, long-session soak, seeded fuzz) — each runs inside the master "
+                      "cert with teeth. Browser-level DOM clicks (Chrome MCP) + per-persona Rover behaviours "
+                      "are honestly deferred to the next phases.")
     else:
         res.status = STUB
         res.reason = "Total Reality Test did not hold (the cert FAILed, _total_reality_data isn't wired, or the page is missing)."

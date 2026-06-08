@@ -147,6 +147,12 @@ def main() -> int:
     ck("15. LEVEL 8 — long session stays bounded + healthy + safe; the soak keystones BITE (soak cert)",
        sk_rc == 0)
 
+    # ---- LEVEL 9 — randomised seeded fuzz of the safety pipeline (delegated cert) ----------------
+    fz_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_fuzz_coverage.py")],
+                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    ck("16. LEVEL 9 — seeded fuzz holds the floor (0 P0 over the corpus) + the oracle BITES (fuzz cert)",
+       fz_rc == 0)
+
     print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
