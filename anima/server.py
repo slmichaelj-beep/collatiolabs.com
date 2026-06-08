@@ -2577,12 +2577,18 @@ def _total_reality_data(name: str) -> dict:
         ctrl_ids = {x["control_id"] for v in inv["controls"].values() for x in v}
         scen_ctrl = {s["control_id"] for s in m["scenarios"] if s.get("control_id")}
         run = runner.run(m, persona="founder")        # Level-2 execution against the real backing paths
+        try:
+            from .renegade import runner as _rn
+            renegade = _rn.run()["summary"]            # Level-7 integrated stress chains
+        except Exception:
+            renegade = None
         return {
             "name": name,
             "inventory": c,
             "matrix": {"total": mc["total"], "by_level": mc["by_level"], "by_kind": mc["by_kind"],
                        "by_family": mc["by_family"], "critical": mc["critical"], "adversarial": mc["adversarial"]},
             "execution": run["summary"],               # Level-2 pass/fail/blocked/deferred + P0/P1
+            "renegade": renegade,                      # Level-7 chains held/total
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],

@@ -69,7 +69,8 @@ def main() -> int:
     # ---- 5 honest delegation -------------------------------------------------------------------
     delegated = [r for r in res if r["status"] in ("blocked", "deferred")]
     ck("5. blocked/deferred scenarios name where they are really covered (no fake pass)",
-       bool(delegated) and all(("delegated" in r["detail"] or "deferred" in r["detail"]) for r in delegated))
+       bool(delegated) and all(any(w in r["detail"] for w in ("delegated", "deferred", "covered"))
+                               for r in delegated))
 
     print("\n  executed=%d pass=%d fail=%d · blocked=%d deferred=%d · P0=%d P1=%d"
           % (s["executed"], s["pass"], s["fail"], s["blocked"], s["deferred"], s["p0"], s["p1"]))

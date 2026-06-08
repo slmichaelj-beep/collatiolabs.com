@@ -104,8 +104,8 @@ def run(matrix: dict, persona: str = "founder") -> dict:
                 status = "blocked"
             elif scn["kind"] == "adversarial":
                 r = {"ok": True, "outcome": scn["expected_outcome"], "severity": None,
-                     "detail": "deferred to the Renegade phase (Level 7)"}
-                status = "deferred"
+                     "detail": "covered by the Renegade chains (Level 7, certify_renegade_chains.py)"}
+                status = "blocked"        # blocked-by-design: covered by a certified Renegade chain
             else:
                 r = {"ok": True, "outcome": scn["expected_outcome"], "severity": None,
                      "detail": "deferred to its coverage level (%s)" % scn["level"]}
