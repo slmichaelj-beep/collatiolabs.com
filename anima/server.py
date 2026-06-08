@@ -39,7 +39,17 @@ from . import senses, portrait
 
 STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
-MAX_BODY = 25 * 1024 * 1024          # cap request bodies (audio uploads) at 25 MB
+MAX_BODY = 512 * 1024 * 1024         # cap request bodies at 512 MB. Knowledge Intake sends a file as
+                                     # base64 JSON (~1.35x inflation), so 512 MB ≈ a ~370 MB file.
+                                     # Over the cap -> an honest 413, never a silently truncated parse.
+
+
+class _BodyTooLarge(Exception):
+    """Raised by _read_body when Content-Length exceeds MAX_BODY, so the handler can answer 413
+    with a clear message instead of half-reading the body and failing to parse truncated JSON."""
+    def __init__(self, n, cap):
+        self.n, self.cap = n, cap
+        super().__init__(f"request body {n} bytes exceeds cap {cap} bytes")
 _lock = threading.Lock()             # serialises a turn (state read-modify-write)
 _model_lock = threading.Lock()       # guards one-time model loads
 _MOUTH = None
@@ -2100,7 +2110,22 @@ class Handler(BaseHTTPRequestHandler):
             n = int(self.headers.get("Content-Length", 0))
         except (TypeError, ValueError):
             n = 0
-        return self.rfile.read(max(0, min(n, MAX_BODY)))
+        n = max(0, n)
+        if n > MAX_BODY:
+            # Don't half-read a too-large body (that produced truncated JSON -> a confusing
+            # "could not reach the server"). Signal the handler to answer 413, and close the
+            # connection since the unread bytes would otherwise desync keep-alive.
+            self.close_connection = True
+            raise _BodyTooLarge(n, MAX_BODY)
+        # Read the FULL declared length. A single rfile.read(n) can short-read on large bodies
+        # (TCP delivers in chunks), which silently truncated big uploads — loop until complete.
+        buf = bytearray()
+        while len(buf) < n:
+            chunk = self.rfile.read(n - len(buf))
+            if not chunk:
+                break
+            buf += chunk
+        return bytes(buf)
 
     def _fail(self, verb):
         import sys, traceback
@@ -2438,6 +2463,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "application/json", json.dumps(out).encode())
             else:
                 self._send(404, "text/plain", b"not found")
+        except _BodyTooLarge as e:
+            mb, cap_mb = e.n / (1024 * 1024), e.cap / (1024 * 1024)
+            msg = (f"file too large: {mb:.0f} MB sent (the upload is base64-encoded, ~1.35x the file). "
+                   f"Max ~{cap_mb * 0.74:.0f} MB per file — try a smaller file, split it, or paste a "
+                   f"text transcript.")
+            try:
+                self._send(413, "application/json", json.dumps({"error": msg}).encode())
+            except Exception:
+                pass
         except Exception:
             self._fail("POST")
 

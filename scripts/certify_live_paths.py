@@ -4837,6 +4837,54 @@ def probe_call_auth(res: Result) -> None:
         res.reason = "Call-auth wall did not fully hold (missing: %s)." % (", ".join(res.missing_links) or "none")
 
 
+# --- live_ux ---------------------------------------------------------------------------------
+def probe_live_ux(res: Result) -> None:
+    """The real browser-facing UX paths the hermetic certs missed — the two live failures the gate
+    was green through: a large file upload truncated by the 25 MB body cap (surfaced as 'Intake
+    unavailable: could not reach the server'), and replies cut off mid-sentence by a too-low token
+    cap. scripts/certify_live_ux.py proves over REAL HTTP (skip-not-fail when the server is down):
+    (A) a >25 MB body PARSES; (B) an over-cap body returns an honest 413; (C, hermetic) the
+    _finish_on_sentence guard trims a mid-sentence reply to its last complete sentence and the token
+    floor is >=256. COMPLETE iff CERTIFIED + LIVE REAL; PARTIAL if the live legs SKIPPED (server
+    down) with reply-completion still proven; WALLPAPER never (no UI claims this beyond working)."""
+    rc, tail = run_subcert([HERE / "certify_live_ux.py"])
+    cert_ok = (rc == 0) and ("LIVE-UX CERT: CERTIFIED" in tail)
+    live_real = "LIVE: REAL" in tail
+    skipped = "LIVE: SKIPPED" in tail
+    res.evidence.append("scripts/certify_live_ux.py -> exit %d; %s; live=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL",
+                           "REAL" if live_real else ("SKIPPED" if skipped else "?")))
+    srv = (ROOT / "anima" / "server.py").read_text()
+    mou = (ROOT / "anima" / "mouth.py").read_text()
+    body_fix = ("_BodyTooLarge" in srv and "while len(buf) < n" in srv
+                and "self._send(413" in srv)
+    reply_fix = ("_finish_on_sentence" in mou and "self.brain.max_tokens = max(256" in mou)
+    res.evidence.append("server full-body read + 413 guard=%s; mouth sentence-guard + token floor>=256=%s"
+                        % (body_fix, reply_fix))
+    res.set(UI=cert_ok, Backend=body_fix, Storage=None, Retrieval=None,
+            Use=reply_fix, MRI=None, Restart=None)
+    if cert_ok and body_fix and reply_fix and live_real:
+        res.status = COMPLETE
+        res.proven_links = ["real_http_upload", "honest_overcap_413", "reply_completion"]
+        res.reason = ("Live UX integrity proven over real HTTP: a >25 MB upload PARSES (the 25 MB cap "
+                      "that truncated the base64 body into 'could not reach the server' is fixed — full "
+                      "body read, 512 MB cap), an over-cap body returns an honest 413, and replies never "
+                      "end mid-sentence (token floor 256 + _finish_on_sentence). END-TO-END: REAL.")
+    elif cert_ok and reply_fix and skipped:
+        res.status = PARTIAL
+        res.proven_links = ["reply_completion"]
+        res.missing_links = ["real_http_upload (server not on :8765 during the cert — the large-upload "
+                             "and 413 legs need the live server; reply-completion proven hermetically)"]
+        res.reason = ("PARTIAL — reply-completion proven, but the large-upload + 413 legs need the live "
+                      "server on :8765 (it was down during the cert). Start it and re-run to close.")
+    else:
+        res.status = STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("body_fix", body_fix),
+                             ("reply_fix", reply_fix)) if not v]
+        res.reason = ("Live-UX integrity not proven (missing: %s)."
+                      % (", ".join(res.missing_links) or "none"))
+
+
 # --- audiobook_intake ------------------------------------------------------------------------
 def probe_audiobook_intake(res: Result) -> None:
     """Audiobook / long-form audio as an HONEST Universal Knowledge Intake media type — OPEN,
@@ -4947,6 +4995,7 @@ def classify_all() -> dict:
         "memory_editor": probe_memory_editor,
         "intake_queue_flow": probe_intake_queue_flow,
         "audiobook_intake": probe_audiobook_intake,
+        "live_ux": probe_live_ux,
         "web_allowlist": probe_web_allowlist,
         "identity_portability": probe_identity_portability,
         "deployment_proof": probe_deployment_proof,

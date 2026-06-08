@@ -146,6 +146,32 @@ def final_output_gate(text: str) -> str:
     return clean if (clean and len(clean.split()) >= 4 and not still) else _THIRD_PATH_REDIRECT
 
 
+def _finish_on_sentence(text: str) -> str:
+    """Guarantee a reply never ENDS mid-sentence. If the model hit the token ceiling and stopped
+    on a dangling fragment (the "stops partway" bug: '…what this is or'), trim back to the last
+    COMPLETE sentence so the user sees a clean ending. Conservative — only acts on a long reply
+    that ends WITHOUT terminal punctuation and has an earlier sentence boundary to fall back to,
+    and only if a substantial reply survives the trim (never guts or blanks a reply). Pure."""
+    t = (text or "").rstrip()
+    if not t:
+        return text
+    # already a clean ending? terminal punctuation (optionally wrapped by a quote/paren) or an emoji.
+    if re.search(r'[.!?…:][)"\'’”]?\s*$', t) or ord(t[-1]) > 0x2190:
+        return text
+    words = t.split()
+    if len(words) < 24:                     # short replies often have no period and are fine as-is
+        return text
+    last = None
+    for mm in re.finditer(r'[.!?…][)"\'’”]?(?=\s|$)', t):
+        last = mm
+    if not last:
+        return text                         # no earlier sentence to fall back to — leave it intact
+    trimmed = t[:last.end()].rstrip()
+    if len(trimmed.split()) >= max(8, int(len(words) * 0.5)):   # keep only if a real reply survives
+        return trimmed
+    return text
+
+
 def response_complete(text: str) -> bool:
     """The response COMPLETENESS / integrity guard: a shipped reply must be non-empty and
     substantive (not a bare fragment). final_output_gate() always returns such a reply — a
@@ -897,7 +923,10 @@ class Mouth:
             from . import dials as _dials
             vb = _dials.load(heart.name).get("verbosity", 35)
             if hasattr(self.brain, "max_tokens"):
-                self.brain.max_tokens = max(48, int(40 + vb * 1.2))   # v35→82, v100→160
+                # Length tracks the verbosity dial, but with real headroom to FINISH the thought.
+                # The old 48–160 cap cut replies off mid-sentence (the "stops partway" bug). Voice
+                # turns stream sentence-by-sentence (server /tts), so the higher ceiling is free.
+                self.brain.max_tokens = max(256, int(192 + vb * 4))   # v35→332, v100→592
         except Exception:
             pass
         import time as _time, sys as _sys
@@ -1090,6 +1119,10 @@ class Mouth:
         # host-awareness seam in server._turn passes through the SAME gate (one floor; no second
         # return path that ships before it).
         text = final_output_gate(text)
+        try:
+            text = _finish_on_sentence(text)       # never ship a reply cut off mid-sentence
+        except Exception:
+            pass
         llm_s = _time.perf_counter() - _t0
         if sig.resources:                          # crisis: surface help deterministically
             text = text.rstrip() + "\n\n" + sig.resources
