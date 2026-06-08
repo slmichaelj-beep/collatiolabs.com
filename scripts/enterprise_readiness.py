@@ -69,7 +69,10 @@ def main() -> int:
             feats = d.get("features") or []
             bad = sum(1 for f in feats if f.get("status") in
                       ("WALLPAPER", "STUB", "UNREACHABLE", "REGRESSED", "UNKNOWN"))
-            partials = [f for f in feats if f.get("status") == "PARTIAL"]
+            # exclude this aggregate itself (it IS in the matrix it reads — a self-reference that
+            # would otherwise deadlock it at PARTIAL forever) when judging the partials.
+            partials = [f for f in feats if f.get("status") == "PARTIAL"
+                        and f.get("feature") != "enterprise_readiness"]
             ext_only = all("EXTERNAL" in (f.get("reason") or "").upper() for f in partials)
             clean = (bad == 0 and ext_only)
             print("       (audit: %d contracts, 0 hard-gaps=%s, partials external-only=%s)"
