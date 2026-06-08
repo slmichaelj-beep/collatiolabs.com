@@ -2485,6 +2485,16 @@ def _living_map_events(name: str) -> dict:
         return {"name": name, "events": [], "count": 0, "empty": True, "error": str(e)}
 
 
+def _living_map_replay(name: str) -> dict:
+    """Living Map — Milestone 3: REPLAY. The same real trace as the live view, reconstructed as a
+    chronological, seekable timeline (deterministic seek). Honest empty when idle. Read-only."""
+    try:
+        from .living_map import replay
+        return replay.replay(name, 300)
+    except Exception as e:
+        return {"name": name, "frames": [], "count": 0, "empty": True, "error": str(e)}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2689,6 +2699,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Live-Flow animation, evidence-backed. Token-gated. Read-only; honest empty when idle.
                 return self._send(200, "application/json",
                                   json.dumps(_living_map_events(self.name)).encode())
+            if u.path in ("/founder/living-map/replay", "/living-map/replay"):
+                # Living Map Milestone 3 — REPLAY: the same real trace as a chronological, seekable
+                # timeline (deterministic seek). Token-gated. Read-only; honest empty when idle.
+                return self._send(200, "application/json",
+                                  json.dumps(_living_map_replay(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"

@@ -68,9 +68,9 @@ def main() -> int:
     # L8 — Trust Ledger (BUILT: unified spine over the real trust events + falsifiable invariants)
     layer(8, "Trust Ledger", "GREEN" if _run([SCRIPTS / "certify_trust_ledger.py"], "TRUST-LEDGER CERT: CERTIFIED") else "PARTIAL",
           "unified spine over SOC trail + ROI; 4 falsifiable invariants (append-only / suggest-only / no-silent-memory / reversible)")
-    # L9 — Living Map (BUILT M1+M2)
-    layer(9, "Living Map", "GREEN" if _run([SCRIPTS / "certify_living_map.py"], "LIVING MAP LIVE: GREEN") else "PARTIAL",
-          "operational digital twin: static real map + live event pulses, no wallpaper")
+    # L9 — Living Map (BUILT M1+M2+M3)
+    layer(9, "Living Map", "GREEN" if _run([SCRIPTS / "certify_living_map.py"], "LIVING MAP REPLAY: GREEN") else "PARTIAL",
+          "operational digital twin: static map + live pulses + REPLAY (chronological, deterministic seek), no wallpaper")
     # L10 — Pattern -> Improvement Loop (BUILT)
     layer(10, "Pattern->Improvement", "GREEN" if _run([SCRIPTS / "certify_patterns_dashboard.py"], "PATTERNS-DASHBOARD CERT: CERTIFIED") else "PARTIAL",
           "Pattern Observatory + Improvement Engine + ROI after-measurement")
