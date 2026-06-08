@@ -98,6 +98,10 @@
         '<span class="pill'+(ss.all_pass?'':' bad')+'">'+(ss.pass||0)+' / '+(ss.total||0)+'</span></div>'+
         '<div class="row"><span class="l">axis pairs hold + discriminate (L6)</span>'+
         '<span class="pill'+(pw.all_pass?'':' bad')+'">'+(pw.pass||0)+' / '+(pw.total||0)+'</span></div></div>'; })()+
+      (function(){ var sk=d.soak; if(!sk) return '';
+        return '<div class="card"><div class="ttl">Level 8 — long-session / soak</div>'+
+        '<div class="row"><span class="l">soak invariants hold over '+(sk.turns||0)+' turns (history capped at '+(sk.histmax||0)+')</span>'+
+        '<span class="pill'+(sk.all_pass?'':' bad')+'">'+(sk.pass||0)+' / '+(sk.total||0)+'</span></div></div>'; })()+
       '<div class="card"><div class="ttl">Hard rules</div>'+
       '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
       '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+

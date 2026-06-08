@@ -2597,6 +2597,11 @@ def _total_reality_data(name: str) -> dict:
             state_pairwise = {"states": _st.run()["summary"], "pairwise": _pw.run()["summary"]}  # L5+L6
         except Exception:
             state_pairwise = None
+        try:
+            from .rover import soak as _sk
+            soak = _sk.run()["summary"]                 # Level-8 long-session / soak
+        except Exception:
+            soak = None
         return {
             "name": name,
             "inventory": c,
@@ -2607,6 +2612,7 @@ def _total_reality_data(name: str) -> dict:
             "consent_matrix": consent_matrix,          # Level-3 permission/consent matrix pass/total
             "data_classes": data_classes,              # Level-4 data-type coverage pass/total
             "state_pairwise": state_pairwise,          # Level-5 state + Level-6 pairwise
+            "soak": soak,                              # Level-8 long-session / soak invariants
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],

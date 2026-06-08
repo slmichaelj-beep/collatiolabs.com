@@ -5276,14 +5276,19 @@ def probe_total_reality(res: Result) -> None:
         res.status = COMPLETE
         res.proven_links = ["inventory_real", "no_unmapped_control", "no_unclassified_behaviour",
                             "every_claim_tested", "critical_journeys", "coverage_bites",
-                            "matrix_persists", "served_authed"]
-        res.reason = ("Phase 1 of the Total Reality Test: the REAL product inventoried (surfaces / controls "
-                      "/ routes / feature claims) and reduced to a finite scenario matrix, with the hard "
-                      "rules enforced WITH TEETH — every visible control has a scenario, every claim maps to "
-                      "a scenario, every scenario is fully classified, and the coverage check provably bites "
-                      "on a gap. Level-1 critical journeys pass via the Rover. Served + auth-gated (/reality). "
-                      "Levels 2-9 (full surface / permission / data / state / pairwise / renegade / soak / "
-                      "fuzz) are honestly deferred to the next phases.")
+                            "matrix_persists", "served_authed", "rover_execution",
+                            "observation_bundle_complete", "renegade_chains",
+                            "permission_consent_coverage", "data_type_coverage",
+                            "state_pairwise_coverage", "soak_coverage"]
+        res.reason = ("The Total Reality Test: the REAL product inventoried (surfaces / controls / routes / "
+                      "feature claims) and reduced to a finite scenario matrix, with the hard rules enforced "
+                      "WITH TEETH — every visible control has a scenario, every claim maps to a scenario, "
+                      "every scenario is fully classified, and the coverage check provably bites on a gap. "
+                      "Level-1 critical journeys pass via the Rover. Served + auth-gated (/reality). Levels "
+                      "2-8 are built + certified via delegated certs (Rover surface/control execution + "
+                      "evidence bundle, permission/consent matrix, data-class, state + pairwise, Renegade "
+                      "stress chains, long-session soak) — each runs inside the master cert with teeth. "
+                      "Level 9 (fuzz) and browser-level DOM clicks are honestly deferred to the next phases.")
     else:
         res.status = STUB
         res.reason = "Total Reality Test did not hold (the cert FAILed, _total_reality_data isn't wired, or the page is missing)."
