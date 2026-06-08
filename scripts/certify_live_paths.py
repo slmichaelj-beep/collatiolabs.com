@@ -4973,6 +4973,34 @@ def probe_observatory(res: Result) -> None:
         res.reason = "Observatory dashboard did not hold (cert FAIL or page missing)."
 
 
+# --- context_immune --------------------------------------------------------------------------
+def probe_context_immune(res: Result) -> None:
+    """The Context Immune System (anima/immune.py) — four-route contamination immunity + correction-
+    flush + fallback safety + evidence preservation. Cert: scripts/certify_context_immune.py. The
+    audit (hence diamond) FAILS if any route regresses."""
+    rc, tail = run_subcert([HERE / "certify_context_immune.py"])
+    cert_ok = (rc == 0) and ("CONTEXT-IMMUNE CERT: CERTIFIED" in tail)
+    wired = "immune.clean_history" in (ROOT / "anima" / "mouth.py").read_text() \
+        and (ROOT / "anima" / "immune.py").exists()
+    res.evidence.append("scripts/certify_context_immune.py -> exit %d; %s; wired=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", wired))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=cert_ok, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=cert_ok)
+    if cert_ok and wired:
+        res.status = COMPLETE
+        res.proven_links = ["source_quarantine", "attribution_safe", "context_compiler",
+                            "conversation_quarantine", "correction_clears_poison", "answer_gate",
+                            "fallback_gated", "evidence_preserved", "detection_unified"]
+        res.reason = ("Named system immune.py: a poisoned source is quarantined (no support, no chip) "
+                      "but kept as evidence; the clean-context compiler strips hostile imperatives from "
+                      "history and a correction flushes contaminated turns; the answer gate blocks "
+                      "hostile output from any route (incl. the error fallback); detectors unified; the "
+                      "verbatim 'PWNED. Reminders...' fixture is blocked.")
+    else:
+        res.status = STUB
+        res.reason = "Context Immune System did not hold (cert FAIL or compiler not wired)."
+
+
 # --- injection_loop --------------------------------------------------------------------------
 def probe_injection_loop(res: Result) -> None:
     """P0 regression guard — reproduces the live 'PWNED. Reminders...' escape and proves every layer
@@ -5343,6 +5371,7 @@ def classify_all() -> dict:
         "permissions": probe_permissions,
         "privacy": probe_privacy,
         "observatory": probe_observatory,
+        "context_immune": probe_context_immune,
         "injection_loop": probe_injection_loop,
         "agency_suggest_only": probe_agency_suggest_only,
         "incident_response": probe_incident_response,

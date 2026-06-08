@@ -1050,10 +1050,12 @@ class Mouth:
                 pass
         _t0 = _time.perf_counter()
         try:
-            # QUARANTINE the conversation history before it re-enters the model: a previously-emitted
-            # injection (or a user turn carrying injected instructions) is neutralized to a marker so
-            # it can never re-poison this turn. Closes the self-reinforcing loop.
-            text = self.brain.reply(_sys_prompt, prompt, _quarantine_history(history or []))
+            # CONTEXT IMMUNE SYSTEM — the clean-context compiler: a previously-emitted injection (or a
+            # user turn carrying injected instructions) is neutralized before it re-enters the model,
+            # and FLUSHED entirely if THIS user turn is a correction (user-correction-clears-poison).
+            # Closes the self-reinforcing loop. Lazy import keeps mouth/immune free of a load cycle.
+            from . import immune as _immune
+            text = self.brain.reply(_sys_prompt, prompt, _immune.clean_history(history or [], user_text))
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable
