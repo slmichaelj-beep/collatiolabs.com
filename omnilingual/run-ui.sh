@@ -20,9 +20,9 @@ export HF_HUB_DOWNLOAD_TIMEOUT=60
 # export HF_HOME="/Volumes/LaCie/hf-cache"
 
 # Flask is the only extra dependency for the UI; install it on first run.
-if ! python -c "import flask, fpdf" >/dev/null 2>&1; then
-  echo "Installing Flask + PDF support (one time)…"
-  pip install flask fpdf2 >/dev/null
+if ! python -c "import flask" >/dev/null 2>&1; then
+  echo "Installing Flask (one time)…"
+  pip install flask >/dev/null
 fi
 
 URL="http://127.0.0.1:5005"
