@@ -4964,16 +4964,22 @@ def probe_response_latency(res: Result) -> None:
     # compact-but-rule-stated otherwise) — proven to cut tokens with the safety backstop intact.
     rc_g, tail_g = run_subcert([HERE / "certify_character_routegate.py"])
     rgate_ok = (rc_g == 0) and ("CHARACTER-ROUTEGATE CERT: CERTIFIED" in tail_g)
-    cert_ok = cert_ok and ncap_ok and rgate_ok
+    # Step 3: history sent to the model is bounded by a TOKEN budget (not just a turn count), so a long
+    # conversation can't blow up the prompt — without deleting the conversation or losing recent context.
+    rc_h, tail_h = run_subcert([HERE / "certify_history_budget.py"])
+    hbud_ok = (rc_h == 0) and ("HISTORY-BUDGET CERT: CERTIFIED" in tail_h)
+    cert_ok = cert_ok and ncap_ok and rgate_ok and hbud_ok
     _mtext = (ROOT / "anima" / "mouth.py").read_text()
     wired = "_rc.is_simple_chat(user_text)" in _mtext \
         and (ROOT / "anima" / "route_classifier.py").exists() \
         and "narrative.digest" in _mtext \
+        and "_history_for_model(history)" in _mtext \
         and "is_identity_challenge" in (ROOT / "anima" / "route_classifier.py").read_text()
     res.evidence.append("scripts/certify_response_latency.py --gate -> exit %d; %s; wired=%s"
                         % (rc_, "CERTIFIED" if cert_ok else "FAIL", wired))
-    res.evidence.append("scripts/certify_narrative_cap.py -> exit %d; %s · certify_character_routegate.py -> exit %d; %s"
-                        % (rc_n, "CERTIFIED" if ncap_ok else "FAIL", rc_g, "CERTIFIED" if rgate_ok else "FAIL"))
+    res.evidence.append("prompt-budget certs: narrative_cap=%s · character_routegate=%s · history_budget=%s"
+                        % ("ok" if ncap_ok else "FAIL", "ok" if rgate_ok else "FAIL",
+                           "ok" if hbud_ok else "FAIL"))
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=None)
     if cert_ok and wired:
         res.status = COMPLETE

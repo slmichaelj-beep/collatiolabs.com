@@ -84,6 +84,32 @@ _NUM_CTX = 4096
 # prompt). Measured: the uncapped block was ~25% of a normal turn's prompt for text the prompt itself
 # says "never recite". The cap is generous enough to keep continuity, small enough to stop the bloat.
 _NARRATIVE_BUDGET_TOK = 90
+# PROMPT BUDGET — conversation history sent to the model is bounded BOTH by a turn cap (above) AND a
+# TOKEN budget. Measured: 8 long turns can be ~1100 tok — the single biggest prompt section — so a
+# turn-count cap alone isn't enough. The FULL conversation stays on disk; this only bounds what the
+# model RE-READS each turn (durable memory + LIRF facts already ride the system prompt).
+_HISTORY_BUDGET_TOK = 700
+
+
+def _history_for_model(history):
+    """The conversation history actually sent to the model: the most recent turns, bounded by the turn
+    cap AND the token budget. Newest-first accumulation keeps the most recent context within budget; at
+    least the latest turn always rides. Does NOT mutate or delete anything — the full history stays on
+    disk; this only selects what the model re-reads. Guarded; never raises."""
+    try:
+        turns = list(history or [])[-_HISTORY_TO_MODEL:]
+        if not turns:
+            return []
+        out, used = [], 0
+        for u, a in reversed(turns):                 # newest first
+            t = _count_tokens(u) + _count_tokens(a)
+            if out and used + t > _HISTORY_BUDGET_TOK:
+                break
+            out.append((u, a))
+            used += t
+        return list(reversed(out))                   # back to chronological order
+    except Exception:
+        return list(history or [])[-_HISTORY_TO_MODEL:]
 
 
 def _count_tokens(text) -> int:
@@ -726,7 +752,7 @@ class OllamaBrain:
         # PERFORMANCE (measured: prompt-eval of a large prompt is the bottleneck, not the model): cap
         # the conversation history sent to the model to the most recent turns. The durable memory block
         # is already in the system prompt, so older raw turns add prompt-eval cost without adding recall.
-        for u, a in (history or [])[-_HISTORY_TO_MODEL:]:
+        for u, a in _history_for_model(history):
             msgs += [{"role": "user", "content": u}, {"role": "assistant", "content": a}]
         msgs.append({"role": "user", "content": user})
         # num_ctx caps the KV-cache window: enough for the system prompt + capped history + reply, but
@@ -1090,7 +1116,7 @@ class Mouth:
                 _sys_tok = sum(int(fr.get("tokens") or 0) for fr in _prompt_frags)
                 _hist_tok = 0
                 try:
-                    for _u, _a in (history or [])[-_HISTORY_TO_MODEL:]:
+                    for _u, _a in _history_for_model(history):
                         _hist_tok += _count_tokens(_u) + _count_tokens(_a)
                 except Exception:
                     pass
