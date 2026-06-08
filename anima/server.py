@@ -2170,6 +2170,23 @@ def _observatory_data(name: str) -> dict:
     except Exception:
         out["security"] = None
 
+    # --- PROVEN VALUE (ROI) — a compact summary so "what has Vera done for me" is visible from the one-
+    # glance Observatory too (the full before/after lives on /console -> Completed · ROI). Self-verifying. -
+    try:
+        import importlib.util as _il
+        _sp = _il.spec_from_file_location("_roi_ledger", "scripts/roi_ledger.py")
+        _rm = _il.module_from_spec(_sp)
+        _sp.loader.exec_module(_rm)
+        _roi = _rm.build()
+        _ver = [r for r in _roi if r.get("status") == "verified"]
+        out["roi"] = {
+            "verified": len(_ver), "total": len(_roi),
+            "top": [{"title": r.get("title"), "before": r.get("before"), "after": r.get("after")}
+                    for r in _ver[:3]],
+        }
+    except Exception:
+        out["roi"] = None
+
     return out
 
 

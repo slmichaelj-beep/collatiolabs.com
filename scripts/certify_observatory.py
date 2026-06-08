@@ -84,6 +84,21 @@ def main() -> int:
     ck("8. the page is read-only + local-first framed (nothing leaves the Mac)",
        "Read-only" in html and "leaves your Mac" in html)
 
+    # ---- 9. FINDABLE — ROI is reachable from where the user actually looks ------------------
+    roi = d.get("roi") or {}
+    ck("9. the Observatory carries a PROVEN-VALUE (ROI) summary — real, self-verifying counts",
+       isinstance(roi, dict) and "verified" in roi and "total" in roi
+       and roi.get("verified", 0) >= 1 and roi.get("verified") <= roi.get("total"))
+    ck("9. each ROI headline carries a before->after (not a bare claim)",
+       all(w.get("before") and w.get("after") for w in (roi.get("top") or [])) and bool(roi.get("top")))
+    ck("9. the page RENDERS the proven-value card + a deep link to the full ROI view",
+       "provenValue" in html and "proven value (ROI)" in html and "/console#roi" in html)
+    ck("9. the Observatory is a HUB — it links to the Console and the Security surface (no dead end)",
+       'href="/console"' in html and 'href="/security"' in html)
+    con = (ROOT / "anima" / "web" / "console.html").read_text()
+    ck("9. /console#roi deep-link opens the Completed/ROI tab directly",
+       "location.hash" in con and "roi" in con)
+
     print("\nOBSERVATORY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1
 

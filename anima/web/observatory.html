@@ -77,6 +77,9 @@
         local to your Mac.</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/console#roi">Completed · ROI →</a>
+      <a class="back" href="/console">Patterns &amp; Improvements →</a>
+      <a class="back" href="/security">Security &amp; Quarantine →</a>
       <a class="back" href="/">← Chat</a>
       <span class="refresh" id="refresh">↻ refresh</span>
     </div>
@@ -156,13 +159,27 @@
       '<div class="row">'+lock+caps+sha+'</div>'+
       '<div class="meta">Vera can\'t send, write, or act anywhere until you turn that power on — and you can lock everything in one click.</div>');
   }
+  function provenValue(r){
+    if(!r||!r.total) return card('What I\'ve done for you','proven value (ROI)',
+      '<div class="na">No completed improvements recorded yet.</div>',true);
+    var top=(r.top||[]).map(function(w){
+      return '<div class="row" style="gap:8px"><span class="pill good">✓</span>'+
+        '<span>'+esc(w.title)+' — <b>'+esc(w.before)+'</b> → <b style="color:#9bf0cf">'+esc(w.after)+'</b></span></div>';
+    }).join('');
+    return card('What I\'ve done for you','proven value (ROI)',
+      '<div class="row"><span class="pill good">'+r.verified+' verified</span>'+
+        '<span class="pill">'+r.total+' shipped</span>'+
+        '<a class="back" href="/console#roi" style="margin-left:auto">See all · before→after →</a></div>'+
+      top+
+      '<div class="meta">Every verified win is backed by a passing cert and a COMPLETE feature contract — not a claim.</div>',true);
+  }
   function card(title,jargon,body,full){
     return '<div class="card'+(full?' full':'')+'"><div class="ct">'+esc(title)+
       '<span class="jargon">· '+esc(jargon)+'</span></div>'+body+'</div>';}
 
   function render(d){
     var g=document.getElementById('grid');
-    g.innerHTML = whatsReal(d.audit) + trust(d.security) + whatMind(d.shape) + whatKnows(d.twin) + activity(d.lastTurn);
+    g.innerHTML = whatsReal(d.audit) + trust(d.security) + provenValue(d.roi) + whatMind(d.shape) + whatKnows(d.twin) + activity(d.lastTurn);
     var now=new Date();
     document.getElementById('stamp').textContent='· updated '+now.toLocaleTimeString();
   }

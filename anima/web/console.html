@@ -77,7 +77,8 @@
   var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
   if(TOKEN) localStorage.setItem('anima_token',TOKEN);
   var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
-  var DATA=null, TAB='patterns';
+  var _validTabs={patterns:1,improvements:1,roi:1,loop:1,feed:1};
+  var DATA=null, TAB=(_validTabs[(location.hash||'').replace('#','')]?location.hash.replace('#',''):'patterns');
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function certList(c){ if(!c) return ''; if(Array.isArray(c)) return c.map(esc).join(' · '); return esc(String(c)); }
 
