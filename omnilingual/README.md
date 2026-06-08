@@ -13,7 +13,7 @@ because its fairseq2 backend needs a specific PyTorch version.
 > - You pick **one language per run** (it's language-conditioned). For a mixed
 >   recording, run it once as Balinese, and if parts are clearly Indonesian or
 >   English, run those again with `ind_Latn` / `eng_Latn` and combine.
-> - First run downloads the model (300M ≈ 1.3 GB). On a laptop CPU it's slow;
+> - First run downloads the model (300M card ≈ 6 GB on disk). On a laptop CPU it's slow;
 >   that's expected.
 
 ## Setup (once)
@@ -38,7 +38,7 @@ the saved path, an **Open in Finder** button, and a short preview when each fini
 Files are queued and transcribed one at a time, all locally on your Mac.
 Leave the terminal window open while it runs; Ctrl-C stops it.
 
-> First file triggers a one-time model download (~1.3 GB) before progress starts.
+> First file triggers a one-time model download (~6 GB) before progress starts.
 > DRM-protected Audible `.aax` files won't work — they can't be decoded.
 
 ## Run — terminal

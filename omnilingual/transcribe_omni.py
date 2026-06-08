@@ -11,7 +11,7 @@ Usage:
     python transcribe_omni.py INPUT_AUDIO [--lang ban_Latn] [--model omniASR_LLM_300M_v2]
 
     --lang ban_Latn     (default) Balinese      | ind_Latn = Indonesian | eng_Latn = English
-    --model NAME        omniASR_LLM_300M_v2 (default, ~1.3GB) | _1B_v2 | _7B_v2 (huge)
+    --model NAME        omniASR_LLM_300M (default, ~6GB) | _1B | _7B (huge)
     --list-langs        print region-relevant supported language codes and exit
 """
 

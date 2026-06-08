@@ -68,16 +68,11 @@ def run_job(job_id):
     if not job:
         return
 
-    job_set(job_id, status="loading model", progress=1)
-    try:
-        pipeline = get_pipeline()
-    except Exception as e:
-        job_set(job_id, status="error", error=f"Model failed to load: {e}")
-        return
-
     tmp = tempfile.mkdtemp(prefix="omniui_")
     try:
-        job_set(job_id, status="splitting audio", progress=3)
+        # Split first (cheap) so a bad/DRM file fails instantly, BEFORE the
+        # multi-GB model download is ever triggered.
+        job_set(job_id, status="reading audio", progress=2)
         try:
             chunks = split_audio(job["input_path"], CHUNK_SEC, tmp)
         except SystemExit as e:
@@ -90,6 +85,13 @@ def run_job(job_id):
         total = len(chunks)
         if total == 0:
             job_set(job_id, status="error", error="No audio found in file.")
+            return
+
+        job_set(job_id, status="loading model", progress=4)
+        try:
+            pipeline = get_pipeline()
+        except Exception as e:
+            job_set(job_id, status="error", error=f"Model failed to load: {e}")
             return
 
         job_set(job_id, status="transcribing", total=total, done=0, progress=5)
@@ -272,7 +274,7 @@ document.getElementById('clear').onclick=()=>fetch('/clear',{method:'POST'}).the
 
 function banner(state){
   const b=document.getElementById('banner');
-  if(state==='loading'){b.className='banner show b-load';b.textContent='Loading the speech model… first time downloads ~1.3 GB, please wait.';}
+  if(state==='loading'){b.className='banner show b-load';b.textContent='Loading the speech model… first time downloads ~6 GB, please wait.';}
   else if(state==='error'){b.className='banner show b-err';b.textContent='The speech model failed to load. Check the terminal.';}
   else b.className='banner';
 }
