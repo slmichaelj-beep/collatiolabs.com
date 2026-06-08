@@ -40,6 +40,13 @@ source .venv/bin/activate
 pip install --upgrade pip >/dev/null
 pip install omnilingual-asr
 
+# torchaudio must match the resolved torch version EXACTLY, or its native
+# extension fails to load at import ("Symbol not found: _torch_library_impl").
+# pip doesn't enforce this pairing, so pin torchaudio to whatever torch landed.
+TORCH_VER="$(python -c 'import torch; print(torch.__version__.split("+")[0])')"
+echo "  Pinning torchaudio to match torch ${TORCH_VER}…"
+pip install "torchaudio==${TORCH_VER}"
+
 echo ""
 echo "  Quick check that Balinese is available:"
 python - <<'PY' || echo "  (Couldn't verify now — it will be checked at runtime.)"
