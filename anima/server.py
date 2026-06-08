@@ -2630,9 +2630,11 @@ def _total_reality_data(name: str) -> dict:
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],
                 "fully_classified": [mc["fully_classified"], mc["total"]],
             },
-            "phase": "Phase 1+2 — Level 0 (inventory + matrix) + Level 1 (critical) + Level 2 (Rover "
-                     "executes every surface/control against the real backing path, evidence bundled). "
-                     "Levels 3-9 (permission / data / state / pairwise / renegade / soak / fuzz) are next.",
+            "phase": "ALL numbered levels 0-9 + per-persona are built + certified, each with teeth: "
+                     "Level 0 (inventory + matrix) + Level 1 (critical) + Level 2 (Rover executes every "
+                     "surface/control against the real backing path, evidence bundled) + Levels 3-9 "
+                     "(permission / data / state / pairwise / renegade / soak / fuzz) + per-persona Rover. "
+                     "Only browser-level DOM clicks + per-scenario deep observation streams remain.",
             "law": "Every visible control has a scenario; every claim maps to a scenario; every scenario is "
                    "fully classified. Infinite phrasing reduced to finite behaviour classes. No invented "
                    "surfaces, no invented controls — discovered from the real product.",
