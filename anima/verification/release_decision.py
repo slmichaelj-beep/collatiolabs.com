@@ -33,17 +33,20 @@ def decide(gates: list[dict], floor: dict, build_identity: dict) -> dict:
 
     diamond_worst = worst(diamond_gates)
     alpha_worst = worst(alpha_gates)
+    diamond_statuses = {g["status"] for g in diamond_gates}
 
     p0 = floor.get("p0_open", 0)
     unknown = floor.get("unknown_count", 0)
     bi_green = build_identity.get("status") == GREEN
 
-    # overall color
-    if diamond_worst in (BLOCKED, UNKNOWN) or not build_identity.get("running_commit"):
+    # overall color. A gate that is literally BLOCKED (missing report) or no running server -> BLOCKED.
+    # An UNKNOWN diamond gate (e.g. repeatability not yet PROVEN on this commit) is a work state -> AMBER,
+    # not green, not "can't judge": the product is judgeable, the Diamond PROOF is just pending.
+    if BLOCKED in diamond_statuses or not build_identity.get("running_commit"):
         color = BLOCKED
-    elif diamond_worst == RED or p0 > 0:
+    elif RED in diamond_statuses or p0 > 0:
         color = RED
-    elif diamond_worst == AMBER or unknown > 0 or not bi_green:
+    elif (AMBER in diamond_statuses) or (UNKNOWN in diamond_statuses) or unknown > 0 or not bi_green:
         color = AMBER
     else:
         color = GREEN

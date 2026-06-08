@@ -177,6 +177,11 @@ class Result:
 # Sub-cert subprocess runner. Each hermetic cert exits 0 on PASS / non-zero on FAIL under --gate.
 # We capture (rc, tail) and never let a subprocess failure crash the classifier.
 # ---------------------------------------------------------------------------------------------
+# bounded, VISIBLE retry log: which sub-certs needed a retry under full-gate load (a recovered flake)
+# or failed every attempt. Written to reports/cert_flakes.json + printed; never hidden.
+_FLAKE_RECORDS: dict = {}
+
+
 def run_subcert(args: list[str], retries: int = 1, backoff: float = 0.0) -> tuple[int, str]:
     """Run a sub-cert and return (rc, tail). RETRIES on a non-zero/timeout result: these certs are
     deterministic, so a failure under the audit's concurrent load (many subprocesses + the live server
@@ -186,6 +191,7 @@ def run_subcert(args: list[str], retries: int = 1, backoff: float = 0.0) -> tupl
     sleeps between attempts so a retry lands AFTER a momentary contention spike clears, rather than
     inside the same loaded window — important for certs that hit a live external daemon (Argus :8787)."""
     cmd = [sys.executable, *[str(a) for a in args]]
+    name = Path(str(args[0])).stem if args else "?"
     last = (1, "")
     attempts = max(1, retries + 1)
     for i in range(attempts):
@@ -195,12 +201,17 @@ def run_subcert(args: list[str], retries: int = 1, backoff: float = 0.0) -> tupl
             cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
             tail = (cp.stdout or "")[-1500:] + (("\n[stderr]\n" + cp.stderr[-500:]) if cp.stderr else "")
             if cp.returncode == 0:
+                if i:                                 # recovered after a retry — a BOUNDED, LOGGED flake
+                    _FLAKE_RECORDS[name] = {"attempts": i + 1, "passed_after_retry": True,
+                                            "final_rc": 0, "bounded_max_attempts": attempts}
                 return cp.returncode, tail.strip()
             last = (cp.returncode, tail.strip())
         except subprocess.TimeoutExpired:
             last = (124, "subprocess timeout")
         except Exception as exc:
             last = (1, f"subprocess error: {exc!r}")
+    _FLAKE_RECORDS[name] = {"attempts": attempts, "passed_after_retry": False, "final_rc": last[0],
+                            "bounded_max_attempts": attempts}
     return last
 
 
@@ -5949,6 +5960,17 @@ def main(argv=None) -> int:
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    # ---- external-dependency PREFLIGHT (before the audit) — record live-daemon readiness so a PARTIAL
+    # caused by a cold/slow Argus is classified as an environmental state, not a product gap. ----------
+    _preflight = None
+    try:
+        from anima.verification import preflight as _pf
+        _preflight = _pf.write()
+        print(_pf.render_block(_preflight))
+        print()
+    except Exception as _e:
+        print("EXTERNAL DEPENDENCY STATE: preflight unavailable (%r)\n" % _e)
+
     sha_before = real_anima_sha()
     contracts, results = classify_all()
     sha_after = real_anima_sha()
@@ -6044,6 +6066,33 @@ def main(argv=None) -> int:
         for w in wallpapers:
             print("  WALLPAPER detected: '%s' (a COMPLETE-looking surface contradicts its claim)"
                   % w)
+
+    # ---- cert-flake instrumentation: write the bounded retry log + the CLASSIFIED summary -----------
+    try:
+        (REPORTS_DIR / "cert_flakes.json").write_text(json.dumps(_FLAKE_RECORDS, indent=2))
+        from anima.verification import flakes as _flk
+        cl = _flk.classify_run(payload["features"], _preflight or {}, _FLAKE_RECORDS)
+        if _FLAKE_RECORDS:
+            print("\nRETRY LOG (bounded, logged — not hidden):")
+            for cert, rec in _FLAKE_RECORDS.items():
+                print("  %-32s attempts=%d/%d  %s" % (
+                    cert, rec["attempts"], rec["bounded_max_attempts"],
+                    "RECOVERED" if rec["passed_after_retry"] else "FAILED-ALL"))
+        else:
+            print("\nRETRY LOG: none — every sub-cert passed on the first attempt.")
+        honest = cl["counts"].get("intentional_external_partial", 0) + cl["counts"].get("env_dependency_partial", 0)
+        print("CLASSIFIED: %d COMPLETE / %d HONEST PARTIAL / %d PRODUCT PARTIAL / %d HARNESS FLAKE / "
+              "%d UNCLASSIFIED" % (counts[COMPLETE], honest, len(cl["product_partials"]),
+                                   len(cl["harness_flakes"]), len(cl["unclassified"])))
+        if cl["honest_partials"]:
+            print("  honest partials : " + ", ".join(cl["honest_partials"]))
+        if cl["harness_flakes"]:
+            print("  harness flakes  : " + ", ".join(cl["harness_flakes"]) + " (bounded; pass standalone)")
+        if cl["unclassified"]:
+            print("  UNCLASSIFIED    : " + ", ".join(cl["unclassified"]) + "  <- BLOCKS Diamond")
+        print("  single-run result; Diamond v2 repeatability requires scripts/run_diamond_v2.py --gate")
+    except Exception as _e:
+        print("\n(cert-flake classification unavailable: %r)" % _e)
 
     print("  reports: %s , %s" % ((REPORTS_DIR / "live_path_results.json"),
                                   (REPORTS_DIR / "live_path_matrix.md")))

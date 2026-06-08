@@ -82,7 +82,8 @@
        '<div class="strip">'+
        '<div class="stat"><div class="n">'+(t.diamond_eligible?'YES':'NO')+'</div><div class="k">Diamond eligible</div></div>'+
        '<div class="stat"><div class="n">'+(t.p0_open||0)+'</div><div class="k">P0 open</div></div>'+
-       '<div class="stat"><div class="n">'+(t.p1_open||0)+'</div><div class="k">P1 open</div></div>'+
+       '<div class="stat"><div class="n">'+(t.unclassified_flakes||0)+'</div><div class="k">Unclassified flakes</div></div>'+
+       '<div class="stat"><div class="n">'+(t.repeatability_confirmed?'YES':'NO')+'</div><div class="k">Repeatability</div></div>'+
        '<div class="stat"><div class="n">'+(t.unknown_user_behavior||0)+'</div><div class="k">Unknown</div></div>'+
        '</div></div>';
     // build identity
@@ -94,6 +95,32 @@
        '<div class="row"><span class="l">served frontend hash</span><span class="v">'+esc(t.served_frontend_hash||'unknown')+'</span></div>'+
        '<div class="row"><span class="l">clean tree</span>'+yn(t.clean_tree)+'</div>'+
        '<div class="row"><span class="l">branch · worktree</span><span class="v">'+esc(t.active_branch||'?')+' · '+esc(t.active_worktree||'?')+'</span></div></div>';
+    // external dependency state
+    var ed=d.external_dependencies||[];
+    if(ed.length){ h+='<div class="card"><div class="ttl">External Dependency State</div>';
+      ed.forEach(function(x){ var st=x.state||'unknown';
+        h+='<div class="row">'+pill(st==='running'?'green':(st==='degraded'?'amber':'red'))+
+           '<span class="l" style="min-width:120px">'+esc(x.daemon)+'</span>'+
+           '<span class="ev">port '+esc(x.port)+' · code '+esc(x.code)+' · latency '+esc(x.latency_ms)+'ms · version '+esc(x.version)+'</span></div>';
+      }); h+='</div>'; }
+    // cert-flake classification (the four kinds, distinguished)
+    var cf=d.classification||{};
+    function clsrow(label,arr,bad){ arr=arr||[]; return '<div class="row"><span class="l">'+label+'</span>'+
+      (bad?pill(arr.length?'red':'green'):'')+'<span class="ev">'+esc(arr.join(', ')||'none')+'</span></div>'; }
+    h+='<div class="card"><div class="ttl">Cert-Flake Classification — no unclassified flakes</div>'+
+       clsrow('intentional external partial',cf.intentional_external_partial,false)+
+       clsrow('environmental dependency',cf.env_dependency_partial,false)+
+       clsrow('verification harness flake',cf.harness_flake,false)+
+       clsrow('product partial',cf.product_partial,true)+
+       clsrow('product red (defect)',cf.product_red,true)+
+       clsrow('UNCLASSIFIED (blocks Diamond)',cf.unclassified,true)+'</div>';
+    // repeatability
+    var rp=d.repeatability;
+    h+='<div class="card"><div class="ttl">Diamond Repeatability — N consecutive runs, same head</div>';
+    if(!rp){ h+='<div class="row">'+pill('unknown')+'<span class="ev">no repeatability run recorded — single-run Diamond is not allowed.</span></div>'; }
+    else { h+='<div class="row">'+pill(rp.repeatable?'green':'red')+'<span class="l" style="min-width:140px">'+(rp.runs||0)+' consecutive runs</span>'+
+        '<span class="ev">complete/run '+esc(JSON.stringify(rp.complete_per_run||[]))+' · identity stable '+(rp.identity_stable?'yes':'no')+' · unclassified '+((rp.unclassified||[]).length)+'</span></div>'; }
+    h+='</div>';
     // gates
     h+='<div class="card"><div class="ttl">Release Gates</div>';
     (d.gates||[]).forEach(function(g){

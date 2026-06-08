@@ -90,6 +90,26 @@ def main() -> int:
     ck("6. DIAMOND BITES (RED GATE) — a single red required gate flips the state to RED",
        red_gate["color"] == "red" and red_gate["diamond_eligible"] is False)
 
+    # ---- cert-flake hardening teeth -------------------------------------------------------------
+    rep_unknown = release_decision.decide(
+        all_green + [{"gate_id": "repeatability", "status": "unknown", "required_for": ["diamond"]}], floor0, bi_green)
+    ck("7. NO SINGLE-RUN DIAMOND — an un-run repeatability gate (unknown) flips diamond off",
+       rep_unknown["diamond_eligible"] is False)
+
+    flake_unknown = release_decision.decide(
+        all_green + [{"gate_id": "flake_classification", "status": "unknown", "required_for": ["diamond"]}], floor0, bi_green)
+    ck("8. NO UNCLASSIFIED FLAKE — a flake_classification gate with an unclassified flake flips diamond off",
+       flake_unknown["diamond_eligible"] is False)
+
+    # the live dashboard exposes the cert-flake hardening surface (classification + deps + repeatability)
+    gids = {g["gate_id"] for g in d.get("gates", [])}
+    cls = d.get("classification", {})
+    ck("9. the dashboard surfaces the four flake classes + external dependency state + repeatability",
+       {"flake_classification", "repeatability"} <= gids
+       and {"intentional_external_partial", "env_dependency_partial", "harness_flake", "unclassified"} <= set(cls.keys())
+       and isinstance(d.get("external_dependencies"), list)
+       and "unclassified_flakes" in d.get("top", {}) and "repeatability_confirmed" in d.get("top", {}))
+
     # ---- served leg (only if the server is up) --------------------------------------------------
     try:
         with urllib.request.urlopen("http://127.0.0.1:8765/version", timeout=5) as r:
@@ -102,9 +122,9 @@ def main() -> int:
                 page_ok = r.status == 200 and b"Verification Dashboard" in r.read()
         except Exception:
             page_ok = False
-        ck("7. GET /verification serves the dashboard page on the live server", page_ok)
+        ck("10. GET /verification serves the dashboard page on the live server", page_ok)
     else:
-        print("  --   7. (skipped — server not up; decision teeth above are server-independent)")
+        print("  --   10. (skipped — server not up; decision teeth above are server-independent)")
 
     print("\n  gates computed: %d · release_state=%s · diamond_eligible=%s"
           % (len(gate_ids), d.get("top", {}).get("release_state"), d.get("top", {}).get("diamond_eligible")))

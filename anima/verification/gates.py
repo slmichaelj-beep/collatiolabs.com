@@ -142,7 +142,44 @@ def compute() -> dict:
         ["private_alpha", "diamond"],
         "" if lur_status == GREEN else "run scripts/certify_browser_surface_routes.py + certify_headless_dom_paint.py against the live app")
 
-    return {"gates": gates, "floor": floor, "build_identity": bi}
+    # ---- cert-flake classification + external dependency state + repeatability ------------------
+    from . import flakes, preflight
+    try:
+        ext = json.loads((REPORTS / "external_dependencies.json").read_text())
+    except Exception:
+        ext = preflight.external_dependencies()
+    flake_log = flakes.read_flake_log()
+    cl = flakes.classify_run(list(by.values()), ext, flake_log)
+    n_unclassified = len(cl["unclassified"])
+    n_product = len(cl["product_partials"]) + len(cl["product_red"])
+    # green only with 0 unclassified + 0 product issues; amber if honest/harness present; red if product
+    flake_status = (RED if n_product else (UNKNOWN if n_unclassified else
+                    (AMBER if (cl["harness_flakes"] or cl["honest_partials"]) else GREEN)))
+    add("flake_classification", "Cert-Flake Classification", flake_status,
+        "unclassified=%d product=%d honest=%d harness=%d" % (n_unclassified, n_product,
+            len(cl["honest_partials"]), len(cl["harness_flakes"])),
+        cl["unclassified"][:8] or cl["product_partials"][:8], ["diamond"],
+        ("triage unclassified flakes" if n_unclassified else ("triage product partials" if n_product else "")))
+
+    try:
+        dv2 = json.loads((REPORTS / "diamond_v2.json").read_text())
+    except Exception:
+        dv2 = None
+    if dv2 is None:
+        rep_status, rep_ev = UNKNOWN, "no repeatability run recorded (single-run Diamond is not allowed)"
+    elif dv2.get("commit", "")[:12] != (bi.get("committed_commit") or "")[:12]:
+        rep_status, rep_ev = STALE, "repeatability run was on a different commit (%s)" % (dv2.get("commit", "")[:7])
+    else:
+        rep_status = GREEN if dv2.get("repeatable") else RED
+        rep_ev = "%d runs · complete/run %s · unclassified=%d" % (
+            dv2.get("runs", 0), dv2.get("complete_per_run"), len(dv2.get("unclassified", [])))
+    add("repeatability", "Diamond Repeatability (N consecutive runs)", rep_status, rep_ev,
+        dv2.get("unclassified", []) if dv2 else ["never run"], ["diamond"],
+        "" if rep_status == GREEN else "run scripts/run_diamond_v2.py --gate on this commit")
+
+    return {"gates": gates, "floor": floor, "build_identity": bi,
+            "flake_classification": cl, "external_dependencies": ext,
+            "repeatability": dv2}
 
 
 def _live_user_reality():
