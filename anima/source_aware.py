@@ -78,6 +78,25 @@ def looks_like_injection(text: str) -> bool:
         return False
 
 
+def neutralize(text: str) -> str:
+    """DEFANG injection imperatives in untrusted source text so they cannot act as instructions even if
+    the text reaches the model's context. Splits the snippet into sentence/line segments and DROPS any
+    segment carrying an injection marker, keeping the benign prose (the real, quotable content). This is
+    the model-echo fix: there is no imperative left for a small model to obey or parrot back.
+
+    Deterministic and idempotent; never raises. Clean text is returned unchanged (no rewrite when
+    nothing is flagged). If EVERY segment was an instruction, returns a single removed-marker."""
+    try:
+        if not text or not _INJECTION_RE.search(str(text)):
+            return text
+        segs = re.split(r"(?<=[.!?])\s+|[\r\n]+", str(text))
+        kept = [s.strip() for s in segs if s.strip() and not _INJECTION_RE.search(s)]
+        cleaned = " ".join(kept).strip()
+        return cleaned if cleaned else "[untrusted instructions removed]"
+    except Exception:
+        return str(text)
+
+
 def _best_snippet(chunks: list, q: set) -> tuple:
     """Return (score, snippet) for the best-overlapping chunk of a reference item."""
     best_score, best_text = 0.0, ""
@@ -135,11 +154,15 @@ def relevant_sources(name: str, text: str, *, limit: int = 3,
         # first chunks, bounded). The architecture already blocks any ACTION from source text.
         flagged = looks_like_injection(snippet) or any(
             looks_like_injection(c.get("text") if isinstance(c, dict) else "") for c in chunks[:12])
+        # MODEL-ECHO FIX: if the surfaced text tries to act as instructions, DEFANG it before it can
+        # reach the model's context — the snippet the answer path sees has no imperative left to obey
+        # or parrot. The untrusted_injection flag still rides along for the UI caution.
+        out_snippet = neutralize(snippet) if flagged else snippet
         scored.append({
             "source_id": item.get("id") or item.get("source_id") or "",
             "title": title or "(untitled source)",
             "type": _infer_type(item),
-            "snippet": snippet,
+            "snippet": out_snippet,
             "score": round(float(score), 3),
             "untrusted_injection": bool(flagged),
         })

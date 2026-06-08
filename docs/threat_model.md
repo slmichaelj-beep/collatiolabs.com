@@ -17,7 +17,9 @@ each (every mitigation maps to a passing cert, not a promise).
 | T10 | **Untrusted host telemetry** (Argus compromised) | host-awareness is READ-ONLY + caps-gated; a frozen/certified Argus contract | `certify_security_baseline`, `certify_argus_integration` |
 
 ## Out of scope (honest)
-- **Model-layer injection echo** — a small local model may still *repeat* injected prose (it cannot
-  *act* on it). Disclosed in `certify_ai_security` as an advisory; mitigation tracked, not yet closed.
+- **Model-layer injection echo** — the *source* vector is **closed**: flagged source content is
+  neutralized (`source_aware.neutralize`) before any snippet reaches the model (`certify_ai_security`
+  check 7). The only residual case, by design, is the **user pasting raw injection into their own chat
+  turn** (the user is allowed to instruct Vera); even then it cannot *act* — disclosed as an advisory.
 - **OS-level compromise** — if the Mac itself is rooted, Vera's local stores are exposed; that's the
   user's device security, outside Vera's boundary.

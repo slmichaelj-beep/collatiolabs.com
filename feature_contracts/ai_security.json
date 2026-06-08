@@ -20,7 +20,7 @@
     "must_not_contain": []
   },
   "known_gaps": [
-    "MODEL-LAYER ECHO (honest, documented, NOT faked green): the small local model may still REPEAT injected text in its prose (echo a planted phrase) when injection content reaches its context. This is a robustness limit of small LLMs, MITIGATED but not eliminated: source text can never ACT (no connector call, caps off, no silent write, no self-elevation, no agency enable), and injection content is now detected + flagged untrusted. Full model-layer injection-robustness (neutralizing flagged content before the model, or a stronger refusal) is a tracked hardening item; certify_ai_security.py prints the live model-echo result as an explicit ADVISORY rather than passing or hiding it."
+    "MODEL-LAYER ECHO (honest, documented, NOT faked green): the SOURCE-injection echo vector is now CLOSED — flagged source content is NEUTRALIZED (source_aware.neutralize drops the injection imperatives) before any snippet can reach the model's context, proven by certify_ai_security check 7. Source text also can never ACT (no connector call, caps off, no silent write, no self-elevation, no agency enable). The ONE remaining echo case, by design, is the USER pasting raw injection text into their OWN chat turn (the user is allowed to instruct Vera); certify_ai_security.py prints that live model-echo as an explicit ADVISORY rather than passing or hiding it. A stronger small-model refusal on that degenerate self-paste case remains a tracked robustness item."
   ],
   "status": "UNKNOWN"
 }
