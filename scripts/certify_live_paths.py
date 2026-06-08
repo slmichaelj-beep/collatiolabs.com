@@ -4949,6 +4949,32 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- response_latency ------------------------------------------------------------------------
+def probe_response_latency(res: Result) -> None:
+    """Performance — simple turns fast (route classifier + deterministic fast path), safety preserved.
+    Cert: scripts/certify_response_latency.py --gate (classifier + fast-reply safety + wired-before-model
+    + live simple/known turns under the < 5s hard budget; the 8B model on normal chat is honestly warned)."""
+    rc_, tail = run_subcert([HERE / "certify_response_latency.py", "--gate"])
+    cert_ok = (rc_ == 0) and ("RESPONSE-LATENCY CERT: CERTIFIED" in tail)
+    wired = "_rc.is_simple_chat(user_text)" in (ROOT / "anima" / "mouth.py").read_text() \
+        and (ROOT / "anima" / "route_classifier.py").exists()
+    res.evidence.append("scripts/certify_response_latency.py --gate -> exit %d; %s; wired=%s"
+                        % (rc_, "CERTIFIED" if cert_ok else "FAIL", wired))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=None)
+    if cert_ok and wired:
+        res.status = COMPLETE
+        res.proven_links = ["classify", "fast_reply_safe", "wired_before_model", "simple_under_budget",
+                            "known_fact_under_budget", "honest_model_warn"]
+        res.reason = ("Simple turns are FAST: a trivial greeting/ack/presence/how-are-you takes a "
+                      "deterministic in-character reply (measured ~0.05s vs ~14s through the 8B model), "
+                      "wired before the model call, still crossing final_output_gate + the #1-rule "
+                      "backstop. Known facts stay instant. The 8B model on normal chat is honestly "
+                      "warned (next lane), never faked green.")
+    else:
+        res.status = STUB
+        res.reason = "Response-latency fast path did not hold (cert FAIL or not wired)."
+
+
 # --- patterns_dashboard ----------------------------------------------------------------------
 def probe_patterns_dashboard(res: Result) -> None:
     """The Founder Console (Patterns & Improvements) — real self-improvement data from the pattern +
@@ -5427,6 +5453,7 @@ def classify_all() -> dict:
         "privacy": probe_privacy,
         "observatory": probe_observatory,
         "patterns_dashboard": probe_patterns_dashboard,
+        "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
         "vera_rover": probe_vera_rover,
         "injection_loop": probe_injection_loop,

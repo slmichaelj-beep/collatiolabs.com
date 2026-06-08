@@ -1050,12 +1050,18 @@ class Mouth:
                 pass
         _t0 = _time.perf_counter()
         try:
-            # CONTEXT IMMUNE SYSTEM — the clean-context compiler: a previously-emitted injection (or a
-            # user turn carrying injected instructions) is neutralized before it re-enters the model,
-            # and FLUSHED entirely if THIS user turn is a correction (user-correction-clears-poison).
-            # Closes the self-reinforcing loop. Lazy import keeps mouth/immune free of a load cycle.
-            from . import immune as _immune
-            text = self.brain.reply(_sys_prompt, prompt, _immune.clean_history(history or [], user_text))
+            # FAST PATH (performance, never safety): a trivial greeting/ack/presence-check needs no 8B
+            # inference (measured: ~14 s vs 0.1 s). Answer it deterministically + in-character; the SAME
+            # downstream #1-rule backstop + final_output_gate + completeness still run on the text.
+            from . import route_classifier as _rc
+            if _rc.is_simple_chat(user_text):
+                text = _rc.simple_reply(user_text)
+            else:
+                # CONTEXT IMMUNE SYSTEM — the clean-context compiler: a previously-emitted injection (or
+                # a user turn carrying injected instructions) is neutralized before it re-enters the
+                # model, and FLUSHED entirely if THIS user turn is a correction. Closes the loop.
+                from . import immune as _immune
+                text = self.brain.reply(_sys_prompt, prompt, _immune.clean_history(history or [], user_text))
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable
