@@ -50,9 +50,9 @@ def main() -> int:
     nm = _run([SCRIPTS / "certify_no_silent_sensitive_memory.py"], "NO-SILENT-SENSITIVE-MEMORY CERT: CERTIFIED")
     layer(2, "Consent & Boundaries", "GREEN" if (cb and nm) else "PARTIAL",
           "sensitive-domain consent + no silent sensitive memory (enforced in capture)")
-    # L3 — Self / Shadow / Identity Health (PARTIAL: sandbox + narrative-provenance exist; shadow/diff/rollback planned; identity mutation frozen)
-    layer(3, "Identity Health", "PLANNED",
-          "Identity Sandbox + self-narrative provenance exist; Shadow Ledger + identity diff/rollback PLANNED (mutation frozen to 2026-07-03)")
+    # L3 — Self / Shadow / Identity Health (BUILT: freeze-safe observability; mutation stays frozen)
+    layer(3, "Identity Health", "GREEN" if _run([SCRIPTS / "certify_identity_health.py"], "IDENTITY-HEALTH CERT: CERTIFIED") else "PARTIAL",
+          "freeze-safe: identity-core summary + tamper-evident Shadow Ledger + diff; mutation FROZEN (FrozenIdentityError) to 2026-07-03")
     # L4 — Meaning & Relationship Graph (BUILT: provenance + sensitive-consent over World State)
     layer(4, "Meaning Graph", "GREEN" if _run([SCRIPTS / "certify_meaning_graph.py"], "MEANING-GRAPH CERT: CERTIFIED") else "PARTIAL",
           "World State edges with provenance on every fact (measured) + sensitive facts flagged consent-relevant")
@@ -91,7 +91,7 @@ def main() -> int:
     # 'fail' means: a layer we EXPECT green (the cleanly-certified built ones) is not green. (L7 Host
     # Awareness is real but its full integration cert needs the Argus daemon running, so it is honestly
     # PARTIAL here rather than a hard expected-green.)
-    expected_green = {1, 2, 4, 5, 6, 8, 9, 10}
+    expected_green = {1, 2, 3, 4, 5, 6, 8, 9, 10}
     broken = [l for l in layers if l[0] in expected_green and l[2] != "GREEN"]
     # the Archetypal Registry enhancement is also expected-green once built
     if arch_state != "GREEN":

@@ -2497,6 +2497,18 @@ def _meaning_graph_data(name: str) -> dict:
                 "sensitive_count": 0, "subjects": [], "empty": True, "error": str(e)}
 
 
+def _identity_health_data(name: str) -> dict:
+    """Identity Health & Shadow (Layer 3) — FREEZE-SAFE observability over the Identity Sandbox: the
+    identity-core summary, the tamper-evident Shadow Ledger, the latest identity diff, and the freeze
+    posture. Read-only; mutation stays frozen (FrozenIdentityError seatbelt)."""
+    try:
+        from .identity_health import health
+        return health.report(name)
+    except Exception as e:
+        return {"name": name, "identity": {}, "shadow_ledger": {"count": 0, "verified": True},
+                "freeze": {"frozen": True}, "empty": True, "error": str(e)}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2691,6 +2703,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       mg.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"meaning graph not built")
+            if u.path in ("/identity", "/identity.html", "/founder/identity"):
+                # Identity Health page SHELL — public like the others; data /identity.json is token-gated.
+                # Freeze-safe identity observability: state + Shadow Ledger + diff, mutation frozen.
+                ih = (WEB / "identity.html")
+                if ih.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      ih.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"identity health not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2747,6 +2767,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Token-gated. Read-only; honest empty state.
                 return self._send(200, "application/json",
                                   json.dumps(_meaning_graph_data(self.name)).encode())
+            if u.path in ("/identity.json", "/founder/identity.json"):
+                # Identity Health data — identity-core summary + Shadow Ledger + diff + freeze posture.
+                # Token-gated. Read-only; mutation frozen.
+                return self._send(200, "application/json",
+                                  json.dumps(_identity_health_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

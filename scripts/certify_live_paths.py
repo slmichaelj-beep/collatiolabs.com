@@ -5230,6 +5230,34 @@ def probe_meaning_graph(res: Result) -> None:
         res.reason = "Meaning Graph did not hold (the cert FAILed, _meaning_graph_data isn't wired, or the page is missing)."
 
 
+# --- identity_health -------------------------------------------------------------------------
+def probe_identity_health(res: Result) -> None:
+    """Identity Health & Shadow (Human Operating Layer L3): FREEZE-SAFE identity observability — the
+    identity-core summary, the tamper-evident Shadow Ledger, the diff viewer, and the proven freeze
+    (mutation raises FrozenIdentityError). Cert: scripts/certify_identity_health.py."""
+    rc, t = run_subcert([HERE / "certify_identity_health.py"])
+    cert_ok = (rc == 0) and ("IDENTITY-HEALTH CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "identity.html").exists()
+    wired = "_identity_health_data" in (ROOT / "anima" / "server.py").read_text()
+    freeze = "FrozenIdentityError" in t   # the cert exercised the freeze keystone
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_identity_health -> %s; wired=%s; page=%s; freeze_keystone=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, freeze))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=None, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["state_observed", "shadow_ledger_verifiable", "tamper_detected",
+                            "diff_viewer", "freeze_holds", "read_only", "served_authed"]
+        res.reason = ("Freeze-safe identity observability: the identity-core summary, a tamper-evident "
+                      "Shadow Ledger (a hash chain that DETECTS tampering), and a diff viewer — with the "
+                      "keystone that identity MUTATION stays frozen (rollback on real Vera raises "
+                      "FrozenIdentityError before a byte is written). Read-only; served + auth-gated "
+                      "(GET /identity). Observe now, change later.")
+    else:
+        res.status = STUB
+        res.reason = "Identity Health did not hold (the cert FAILed, _identity_health_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5727,6 +5755,7 @@ def classify_all() -> dict:
         "cognitive_ergonomics": probe_cognitive_ergonomics,
         "mentorship": probe_mentorship,
         "meaning_graph": probe_meaning_graph,
+        "identity_health": probe_identity_health,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
