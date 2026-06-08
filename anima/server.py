@@ -2485,6 +2485,18 @@ def _mentorship_data(name: str) -> dict:
         return {"name": name, "tradeoffs": [], "count": 0, "all_non_coercive": True, "empty": True, "error": str(e)}
 
 
+def _meaning_graph_data(name: str) -> dict:
+    """Meaning Graph (Layer 4) — a read-only view over the World State edges, formalised so every fact
+    names its PROVENANCE (source + confidence + when) and SENSITIVE relationships are flagged
+    consent-relevant. Read-only; honest empty state."""
+    try:
+        from .meaning_graph import graph
+        return graph.build(name, 500)
+    except Exception as e:
+        return {"name": name, "edges": [], "count": 0, "provenance_coverage": 1.0,
+                "sensitive_count": 0, "subjects": [], "empty": True, "error": str(e)}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2671,6 +2683,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       mp.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"mentorship surface not built")
+            if u.path in ("/meaning", "/meaning.html", "/founder/meaning"):
+                # Meaning Graph page SHELL — public like the others; data /meaning.json is token-gated.
+                # The relational/causal graph with provenance + sensitivity on every fact.
+                mg = (WEB / "meaning.html")
+                if mg.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      mg.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"meaning graph not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2722,6 +2742,11 @@ class Handler(BaseHTTPRequestHandler):
                 # pros/cons + a recommendation the user owns). Token-gated. Read-only; honest empty.
                 return self._send(200, "application/json",
                                   json.dumps(_mentorship_data(self.name)).encode())
+            if u.path in ("/meaning.json", "/founder/meaning.json"):
+                # Meaning Graph data — World State edges with provenance + sensitivity on every fact.
+                # Token-gated. Read-only; honest empty state.
+                return self._send(200, "application/json",
+                                  json.dumps(_meaning_graph_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

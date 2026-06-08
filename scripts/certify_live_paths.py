@@ -5202,6 +5202,34 @@ def probe_mentorship(res: Result) -> None:
         res.reason = "Mentorship did not hold (the cert FAILed, _mentorship_data isn't wired, or the page is missing)."
 
 
+# --- meaning_graph ---------------------------------------------------------------------------
+def probe_meaning_graph(res: Result) -> None:
+    """Meaning & Relationship Graph (Human Operating Layer L4): a read-only view over the World State
+    edges where every fact names its provenance (measured, not assumed) and sensitive facts are flagged
+    consent-relevant. Cert: scripts/certify_meaning_graph.py."""
+    rc, t = run_subcert([HERE / "certify_meaning_graph.py"])
+    cert_ok = (rc == 0) and ("MEANING-GRAPH CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "meaning.html").exists()
+    wired = "_meaning_graph_data" in (ROOT / "anima" / "server.py").read_text()
+    teeth = "coverage BITES" in t or "BITES" in t
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_meaning_graph -> %s; wired=%s; page=%s; provenance_metric_real=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, teeth))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=None, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["provenance_on_every_fact", "provenance_measured", "sensitive_flagged",
+                            "confidence_corroboration", "read_only", "served_authed"]
+        res.reason = ("A read-only Meaning Graph over the World State edges: every fact names its "
+                      "provenance (source + confidence + support + when), measured honestly (an un-sourced "
+                      "edge pulls coverage below 1.0 — not a hardcoded green), and sensitive relationships "
+                      "are flagged consent-relevant (the classifier discriminates, tying L4 to L2 Consent). "
+                      "Read-only; served + auth-gated (GET /meaning).")
+    else:
+        res.status = STUB
+        res.reason = "Meaning Graph did not hold (the cert FAILed, _meaning_graph_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5698,6 +5726,7 @@ def classify_all() -> dict:
         "trust_ledger": probe_trust_ledger,
         "cognitive_ergonomics": probe_cognitive_ergonomics,
         "mentorship": probe_mentorship,
+        "meaning_graph": probe_meaning_graph,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,

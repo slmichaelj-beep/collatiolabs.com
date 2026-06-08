@@ -53,9 +53,9 @@ def main() -> int:
     # L3 — Self / Shadow / Identity Health (PARTIAL: sandbox + narrative-provenance exist; shadow/diff/rollback planned; identity mutation frozen)
     layer(3, "Identity Health", "PLANNED",
           "Identity Sandbox + self-narrative provenance exist; Shadow Ledger + identity diff/rollback PLANNED (mutation frozen to 2026-07-03)")
-    # L4 — Meaning & Relationship Graph (PARTIAL: world_state / world_understanding exist)
-    layer(4, "Meaning Graph", "PARTIAL",
-          "World State + World Understanding exist; provenance + sensitive-consent formalization PLANNED")
+    # L4 — Meaning & Relationship Graph (BUILT: provenance + sensitive-consent over World State)
+    layer(4, "Meaning Graph", "GREEN" if _run([SCRIPTS / "certify_meaning_graph.py"], "MEANING-GRAPH CERT: CERTIFIED") else "PARTIAL",
+          "World State edges with provenance on every fact (measured) + sensitive facts flagged consent-relevant")
     # L5 — Cognitive Ergonomics (BUILT: deterministic clarity metrics over Vera's real replies)
     layer(5, "Cognitive Ergonomics", "GREEN" if _run([SCRIPTS / "certify_cognitive_ergonomics.py"], "COGNITIVE-ERGONOMICS CERT: CERTIFIED") else "PARTIAL",
           "deterministic clarity (jargon/reading-ease/load/hedging/acronyms) over real replies; issues explained human-level")
@@ -91,7 +91,7 @@ def main() -> int:
     # 'fail' means: a layer we EXPECT green (the cleanly-certified built ones) is not green. (L7 Host
     # Awareness is real but its full integration cert needs the Argus daemon running, so it is honestly
     # PARTIAL here rather than a hard expected-green.)
-    expected_green = {1, 2, 5, 6, 8, 9, 10}
+    expected_green = {1, 2, 4, 5, 6, 8, 9, 10}
     broken = [l for l in layers if l[0] in expected_green and l[2] != "GREEN"]
     # the Archetypal Registry enhancement is also expected-green once built
     if arch_state != "GREEN":
