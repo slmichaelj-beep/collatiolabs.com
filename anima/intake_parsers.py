@@ -836,22 +836,30 @@ def _activate_ocr(path_or_url: str, meta: dict) -> Optional[dict]:
     p = str(path_or_url)
     if p.startswith(("http://", "https://")):
         return None                    # OCR runs on a local image, not a URL
-    # prefer pytesseract if importable; otherwise fall back to the tesseract BINARY (intake_ocr) so
-    # OCR works without the pip wrapper. Both are source-labeled (extraction_method=ocr).
+    # prefer pytesseract if IMPORTABLE; if it's present but the tool/image raises, stay honest
+    # (needs_dependency) rather than silently fall through. Only when pytesseract is ABSENT do we use
+    # the tesseract BINARY fallback (intake_ocr) so OCR still works without the pip wrapper.
     try:
         from PIL import Image          # noqa: F401  (Pillow)
-        import pytesseract
-        with Image.open(p) as im:
-            text = (pytesseract.image_to_string(im) or "").strip()
+        import pytesseract             # noqa: F401
+        _have_pt = True
+    except Exception:
+        _have_pt = False
+    if _have_pt:
+        try:
+            with Image.open(p) as im:
+                text = (pytesseract.image_to_string(im) or "").strip()
+        except Exception as e:         # present-but-broke (tesseract binary missing / unreadable image)
+            return _result(status="needs_dependency", need="ocr (tesseract binary not found)",
+                           figures=[{"kind": "image", "ref": p}],
+                           meta={**meta, "ocr_error": ("%r" % (e,))[:160]})
         chunks = [{"page": None, "section": "ocr", "text": text}] if text else []
         return _result(status="ok", text=text, chunks=chunks,
                        figures=[{"kind": "image", "ref": p}],
                        meta={**meta, "ocr": "pytesseract", "extraction_method": "ocr",
                              "source_type": "image", "ocr_chars": len(text),
                              "note": "" if text else "OCR ran but found no text in the image"})
-    except Exception:
-        pass
-    from . import intake_ocr
+    from . import intake_ocr           # pytesseract absent -> tesseract CLI fallback
     r = intake_ocr.ocr_image(p)
     return _result(status=r["status"], text=r.get("text", ""), chunks=r.get("chunks", []),
                    figures=[{"kind": "image", "ref": p}], need=r.get("need", ""),
