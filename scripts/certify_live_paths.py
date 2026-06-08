@@ -4956,10 +4956,18 @@ def probe_response_latency(res: Result) -> None:
     + live simple/known turns under the < 5s hard budget; the 8B model on normal chat is honestly warned)."""
     rc_, tail = run_subcert([HERE / "certify_response_latency.py", "--gate"])
     cert_ok = (rc_ == 0) and ("RESPONSE-LATENCY CERT: CERTIFIED" in tail)
+    # PROMPT BUDGET (perf, measure-first): the self-narrative carried into the prompt is capped to a
+    # digest — proven to cut tokens WITHOUT deleting memory / weakening safety / flattening character.
+    rc_n, tail_n = run_subcert([HERE / "certify_narrative_cap.py"])
+    ncap_ok = (rc_n == 0) and ("NARRATIVE-CAP CERT: CERTIFIED" in tail_n)
+    cert_ok = cert_ok and ncap_ok
     wired = "_rc.is_simple_chat(user_text)" in (ROOT / "anima" / "mouth.py").read_text() \
-        and (ROOT / "anima" / "route_classifier.py").exists()
+        and (ROOT / "anima" / "route_classifier.py").exists() \
+        and "narrative.digest" in (ROOT / "anima" / "mouth.py").read_text()
     res.evidence.append("scripts/certify_response_latency.py --gate -> exit %d; %s; wired=%s"
                         % (rc_, "CERTIFIED" if cert_ok else "FAIL", wired))
+    res.evidence.append("scripts/certify_narrative_cap.py -> exit %d; %s"
+                        % (rc_n, "CERTIFIED" if ncap_ok else "FAIL"))
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=None)
     if cert_ok and wired:
         res.status = COMPLETE

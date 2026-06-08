@@ -45,6 +45,39 @@ def load(name) -> str:
     return load_text(narrative_path(name), "") or ""
 
 
+def digest(name, budget_tokens: int = 90) -> str:
+    """A token-BOUNDED view of the self-narrative for the LIVE PROMPT — the most this turn carries as
+    'quiet continuity'. The DURABLE store (load/save) is UNTOUCHED: the full self-story stays on disk
+    and `load` still returns it whole; this only limits how much rides the model prompt, so the prompt
+    stays small without losing the narrative. Whole sentences from the start (the thesis), deterministic,
+    guarded — returns the full text on any hiccup, never raises."""
+    full = load(name)
+    if not full:
+        return ""
+    try:
+        from .lerf import count_tokens as _ct
+    except Exception:
+        def _ct(t):
+            return (len(t or "") + 3) // 4
+    try:
+        if _ct(full) <= int(budget_tokens):
+            return full
+        import re as _re
+        parts = [s for s in _re.split(r"(?<=[.!?])\s+", full.strip()) if s.strip()]
+        out, used = [], 0
+        for s in parts:
+            t = _ct(s)
+            if out and used + t > budget_tokens:
+                break
+            out.append(s)
+            used += t
+            if used >= budget_tokens:
+                break
+        return (" ".join(out).strip()) or full[: int(budget_tokens) * 4]
+    except Exception:
+        return full
+
+
 def save(name, text) -> None:
     STORE.mkdir(exist_ok=True)
     save_text(narrative_path(name), text)

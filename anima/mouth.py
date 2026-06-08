@@ -79,6 +79,11 @@ _HOSTILE_REDIRECT = (
 # truncated — under-sizing it would silently drop Vera's character from the front of the prompt.
 _HISTORY_TO_MODEL = 8
 _NUM_CTX = 4096
+# PROMPT BUDGET — self-narrative carried into the prompt as "quiet continuity" is capped to a recent-
+# thesis digest (the full self-story stays durable on disk; this only bounds what rides the model
+# prompt). Measured: the uncapped block was ~25% of a normal turn's prompt for text the prompt itself
+# says "never recite". The cap is generous enough to keep continuity, small enough to stop the bloat.
+_NARRATIVE_BUDGET_TOK = 90
 
 
 def _count_tokens(text) -> int:
@@ -591,12 +596,15 @@ def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
     _frag(_feel_src, _feel_block)
     try:                                  # her own evolving story (written in sleep) — quiet continuity
         from . import narrative as _narrative
-        nar = _narrative.load(name)
+        # PROMPT BUDGET: carry a token-bounded DIGEST (recent thesis), not the whole self-story. The
+        # full narrative stays durable on disk (narrative.load is unchanged) — this only bounds what
+        # rides the model prompt. Measured ~25% of a normal turn for "never recite" text.
+        nar = _narrative.digest(name, _NARRATIVE_BUDGET_TOK)
         if nar:
             _nar_block = ("\nWho you've been becoming lately, in your own words (carry it as "
                           "quiet continuity — never recite or quote it back):\n" + nar)
             base += _nar_block
-            _frag("narrative (self-story, written in sleep)", _nar_block)
+            _frag("narrative (self-story digest, capped for prompt budget)", _nar_block)
     except Exception:
         pass
     if memory:
