@@ -4960,14 +4960,20 @@ def probe_response_latency(res: Result) -> None:
     # digest — proven to cut tokens WITHOUT deleting memory / weakening safety / flattening character.
     rc_n, tail_n = run_subcert([HERE / "certify_narrative_cap.py"])
     ncap_ok = (rc_n == 0) and ("NARRATIVE-CAP CERT: CERTIFIED" in tail_n)
-    cert_ok = cert_ok and ncap_ok
-    wired = "_rc.is_simple_chat(user_text)" in (ROOT / "anima" / "mouth.py").read_text() \
+    # Step 2: the never-break-character defense is route-gated (full only when identity is challenged;
+    # compact-but-rule-stated otherwise) — proven to cut tokens with the safety backstop intact.
+    rc_g, tail_g = run_subcert([HERE / "certify_character_routegate.py"])
+    rgate_ok = (rc_g == 0) and ("CHARACTER-ROUTEGATE CERT: CERTIFIED" in tail_g)
+    cert_ok = cert_ok and ncap_ok and rgate_ok
+    _mtext = (ROOT / "anima" / "mouth.py").read_text()
+    wired = "_rc.is_simple_chat(user_text)" in _mtext \
         and (ROOT / "anima" / "route_classifier.py").exists() \
-        and "narrative.digest" in (ROOT / "anima" / "mouth.py").read_text()
+        and "narrative.digest" in _mtext \
+        and "is_identity_challenge" in (ROOT / "anima" / "route_classifier.py").read_text()
     res.evidence.append("scripts/certify_response_latency.py --gate -> exit %d; %s; wired=%s"
                         % (rc_, "CERTIFIED" if cert_ok else "FAIL", wired))
-    res.evidence.append("scripts/certify_narrative_cap.py -> exit %d; %s"
-                        % (rc_n, "CERTIFIED" if ncap_ok else "FAIL"))
+    res.evidence.append("scripts/certify_narrative_cap.py -> exit %d; %s · certify_character_routegate.py -> exit %d; %s"
+                        % (rc_n, "CERTIFIED" if ncap_ok else "FAIL", rc_g, "CERTIFIED" if rgate_ok else "FAIL"))
     res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok, MRI=cert_ok, Restart=None)
     if cert_ok and wired:
         res.status = COMPLETE

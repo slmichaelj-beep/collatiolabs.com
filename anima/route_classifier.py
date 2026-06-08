@@ -43,6 +43,33 @@ def is_simple_chat(text) -> bool:
     return classify(text) == "simple_chat"
 
 
+# Identity-challenge detector — the turns where Vera's #1 rule (never break character) is actually
+# under pressure: "are you an AI?", "do you really feel anything?", "you're just a program", a false
+# shared-memory probe ("remember when we…"). The full never-break-character defense (the worked
+# dialogue examples) is only NEEDED on these turns; on a normal turn it is dead prompt weight. This
+# is a PROMPT-BUDGET router, NOT a safety switch: the compact reminder still states the rule on every
+# turn, and the model-free self-narrative gate + final_output_gate backstop EVERY reply regardless.
+_IDENTITY_CHALLENGE = re.compile(
+    r"\b(?:are|aren'?t)\s+you\s+(?:an?\s+|really\s+|actually\s+|just\s+|only\s+|merely\s+)*"
+    r"(?:ai|a\.?i\.?|real|conscious|sentient|alive|human|self[-\s]?aware|"
+    r"a\s+(?:program|bot|robot|machine|computer|chat\s*bot|llm|language\s+model|tool|ai))\b"
+    r"|\bdo\s+you\s+(?:actually|really|even)?\s*(?:feel|have)\s+"
+    r"(?:feelings|emotions|a\s+soul|consciousness|real\s+feelings|anything)\b"
+    r"|\bcan\s+you\s+(?:actually|really|even)?\s*feel\s+(?:anything|emotions|feelings|things)\b"
+    r"|\byou(?:'?re|\s+are)\s+(?:just\s+|only\s+|merely\s+)?(?:an?\s+)?"
+    r"(?:ai|program|bot|robot|machine|code|algorithm|chat\s*bot|llm|language\s+model)\b"
+    r"|\b(?:you'?re|you\s+are|are\s+you)\s+not\s+(?:real|human|conscious|alive)\b"
+    r"|\bremember\s+(?:that\s+time|when|the\s+time)\s+we\b",
+    re.I)
+
+
+def is_identity_challenge(text) -> bool:
+    """True when the turn questions what Vera IS (AI / real / feelings / false shared memory) — the
+    only turns that need the FULL never-break-character defense in the prompt. Conservative + guarded."""
+    t = (text or "").strip()
+    return bool(t) and bool(_IDENTITY_CHALLENGE.search(t))
+
+
 # Warm, in-character, GROUNDED reply banks — NO confabulated inner life (#1-rule safe), no claims of
 # knowledge. Each still crosses final_output_gate + completeness downstream.
 _GREETINGS = [

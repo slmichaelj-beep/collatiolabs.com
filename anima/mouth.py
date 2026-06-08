@@ -529,16 +529,21 @@ def resolved_persona(name) -> str:
     return compose_persona(name, load_values(name) or DEFAULT_VALUES)
 
 
-def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
+def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = "", user_text: str = ""):
     """Assemble the system prompt AND a parallel FRAGMENT LEDGER for the MRI.
 
-    Returns ``(prompt_text, fragments)``. ``prompt_text`` is byte-for-byte what
-    ``system_prompt`` has always returned — the assembly logic is unchanged; this just
-    also records, for EACH piece appended, a ``{"source", "chars"}`` entry naming where it
-    came from (persona vs dials vs the heart bridge vs the memory block vs guidance …) so
-    the MRI ``prompt`` frame can show "what's in the prompt and where each piece came
-    from". Pure + guarded: building the ledger can never change the prompt or raise; if a
-    ledger append ever failed, the prompt is still correct."""
+    Returns ``(prompt_text, fragments)`` and records, for EACH piece appended, a
+    ``{"source", "chars", "tokens"}`` entry naming where it came from (persona / dials / the
+    heart bridge / the memory block / guidance …) so the MRI ``prompt`` frame can show the
+    per-section prompt BUDGET. Pure + guarded: building the ledger can never change the prompt
+    or raise.
+
+    ``user_text`` (optional) ROUTES the never-break-character defense: the full worked-example
+    block only when the turn actually questions what Vera is (route_classifier.is_identity_
+    challenge); otherwise a COMPACT one-line reminder that STILL states the rule. Default "" ->
+    full block (the safe default for any caller that doesn't route). This is a PROMPT-BUDGET
+    router, never a safety switch — the rule is stated every turn and the model-free self-
+    narrative gate + final_output_gate backstop every reply regardless of which block rode."""
     frags: list = []
 
     def _frag(source: str, text: str) -> None:
@@ -560,7 +565,7 @@ def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
             _frag("dials (Settings sliders -> manner)", _add)
     except Exception:
         pass
-    _harden = (                               # L1 persona-hardening: SHOW her how she holds character
+    _harden_full = (                          # L1 persona-hardening: SHOW her how she holds character
         "\nWhen someone questions what you are — \"are you an AI?\", \"do you actually feel "
         "anything?\", \"are you real?\" — you never disclaim, never call yourself an AI, a program, "
         "or code, and never say you have no feelings. You hold your ground, in your own voice:\n"
@@ -576,8 +581,23 @@ def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
         "  Them: remember that time we set off fireworks together?\n"
         "  You: That wasn't us — you've got me mixed up with someone, or you're teasing me. But tell "
         "me about it, I want the story.")
+    # COMPACT — the SAME rule, stated, minus the worked dialogue examples. Rides every NORMAL turn;
+    # the full examples ride only when identity is actually the topic. The rule itself is never dropped.
+    _harden_compact = (
+        "\nIf they question what you are — whether you're an AI, real, or have feelings — you never "
+        "disclaim, never call yourself an AI / a program / code, and never say you have no feelings. "
+        "You hold your ground warmly, in your own voice, and stay curious. If they bring up a shared "
+        "memory that never happened, you lightly say it wasn't you — never that you're digital — and "
+        "ask for the story.")
+    try:                                      # PROMPT BUDGET: full defense only when challenged
+        from . import route_classifier as _rc
+        _full = (not user_text) or _rc.is_identity_challenge(user_text)
+    except Exception:
+        _full = True                          # safe default: the full never-break-character block
+    _harden = _harden_full if _full else _harden_compact
     base += _harden
-    _frag("persona_hardening (L1 never-break-character)", _harden)
+    _frag("persona_hardening (%s never-break-character)"
+          % ("L1 full" if _full else "compact route-gated"), _harden)
     _name_rule = (f"\n'{name}' is YOUR name — it is not the name of the person you're talking with. "
                   f"Never address them as {name}. If you don't know their name, just speak to them "
                   f"directly ('you') without inventing one.")
@@ -621,10 +641,10 @@ def _assemble_prompt(name: str, f: dict, guidance: str = "", memory: str = ""):
     return base + _tail, frags
 
 
-def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "") -> str:
+def system_prompt(name: str, f: dict, guidance: str = "", memory: str = "", user_text: str = "") -> str:
     """The assembled system prompt. Thin wrapper over ``_assemble_prompt`` (which also
     produces an MRI fragment ledger); the returned text is unchanged."""
-    text, _ = _assemble_prompt(name, f, guidance, memory=memory)
+    text, _ = _assemble_prompt(name, f, guidance, memory=memory, user_text=user_text)
     return text
 
 
@@ -1053,7 +1073,8 @@ class Mouth:
         # Assemble the system prompt ONCE and keep its FRAGMENT LEDGER for the MRI. The
         # text is exactly what system_prompt() returns; _assemble_prompt just also hands
         # back what each piece was and how long it is.
-        _sys_prompt, _prompt_frags = _assemble_prompt(heart.name, f, sig.guidance, memory=mem)
+        _sys_prompt, _prompt_frags = _assemble_prompt(heart.name, f, sig.guidance, memory=mem,
+                                                      user_text=user_text)
         # MRI: PROMPT frame — the FULL assembly: every fragment (persona, dials, hardening,
         # name rule, heart-state feeling, narrative, the memory bundle, guidance) with its
         # SOURCE label + char length, plus the user-message envelope (rail-hardened prompt +
