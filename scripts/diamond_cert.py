@@ -120,7 +120,23 @@ def main(argv=None) -> int:
             results[key] = (RED, "MISSING baseline gate %s" % script)
             print("  %-44s %s  MISSING %s" % (label, RED, script))
             continue
-        ok, out = _run([path, *args], pass_token=tok)
+        # gate0_prime is the heavy live-model platform cert — it legitimately runs ~75-80 min
+        # (population / merge-growth / experience all call the local model). Give it real headroom
+        # so a slow-but-passing run is never killed and mis-reported as RED.
+        tmo = 5700 if key == "gate0" else 1200
+        ok, out = _run([path, *args], pass_token=tok, timeout=tmo)
+        if key == "deploy" and not ok:
+            # The server may still be WARMING UP (model load) — DOWN/unreachable is not the same as a
+            # real mismatch. Give it a few short retries before calling deployment RED, so a slow start
+            # doesn't false-RED the whole baseline. A genuine sha mismatch fails fast (not "down").
+            import time as _t
+            for _ in range(4):
+                if "down" not in out.lower() and "unreachable" not in out.lower():
+                    break                                   # a real RED (mismatch/dirty) — don't wait
+                _t.sleep(6)
+                ok, out = _run([path, *args], pass_token=tok)
+                if ok:
+                    break
         tail = next((ln for ln in reversed(out.splitlines()) if ln.strip()), "")[:88]
         results[key] = (GREEN if ok else RED, tail)
         print("  %-44s %s  %s" % (label, GREEN if ok else RED, tail))
