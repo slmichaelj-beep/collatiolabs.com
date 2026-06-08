@@ -1,5 +1,6 @@
 # personal creature state — each anima's life is private and machine-local
-.anima/
+# (no trailing slash: also ignore a `.anima` SYMLINK, e.g. a git-worktree pointing at the real store)
+.anima
 
 # the Caddy binary (48MB Mach-O; downloaded per-machine, not source)
 /caddy
