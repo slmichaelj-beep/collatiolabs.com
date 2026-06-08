@@ -28,6 +28,12 @@
   .replayinfo{font-size:11.5px;color:var(--dim);min-width:240px;font-family:ui-monospace,Menlo,monospace;text-align:right}
   .node.lit{border-color:var(--accent)!important;box-shadow:0 0 0 2px var(--accent),0 0 14px rgba(106,166,255,.5);z-index:3}
   .node.dim{opacity:.32}
+  .node.pred{border-color:var(--warn)!important;box-shadow:0 0 0 2px var(--warn),0 0 14px rgba(214,161,58,.5);z-index:3}
+  .simbar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#0d1422;flex-wrap:wrap}
+  #levers{display:inline-flex;gap:6px;flex-wrap:wrap}
+  .lever{font-size:11.5px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1626;color:var(--dim);cursor:pointer}
+  .lever.on{color:var(--ink);border-color:var(--warn-d);background:var(--warn-d)}
+  .siminfo{flex:1;min-width:240px;font-size:11.5px;color:var(--dim)}
   .stage{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
   .mapbox{position:relative;background:linear-gradient(180deg,#0d1320,#0b0f18);border:1px solid var(--line);border-radius:14px;overflow:auto;min-height:560px}
   #canvas{position:relative}
@@ -83,7 +89,7 @@
   <div class="modes" id="modes">
     <span class="mode on" data-mode="live">Live Flow</span>
     <span class="mode" data-mode="replay">Replay</span>
-    <span class="mode soon" title="Milestone 4">Simulation (soon)</span>
+    <span class="mode" data-mode="simulate">Simulation</span>
     <span class="mode" data-mode="evidence">Evidence</span>
   </div>
 
@@ -91,6 +97,12 @@
     <span style="font-size:11px;color:var(--faint);white-space:nowrap">◀ scrub history</span>
     <input type="range" id="scrubber" min="0" max="0" value="0" step="1"/>
     <div class="replayinfo" id="replayinfo">Loading replay…</div>
+  </div>
+
+  <div class="simbar" id="simbar" style="display:none">
+    <span style="font-size:11px;color:var(--faint);white-space:nowrap">pull a lever →</span>
+    <span id="levers"></span>
+    <div class="siminfo" id="siminfo">Pick a hypothetical to see its predicted impact (sandboxed — nothing real changes).</div>
   </div>
 
   <div class="stage">
@@ -167,6 +179,37 @@
       var sc=document.getElementById('scrubber'), info=document.getElementById('replayinfo');
       if(j.empty||!j.frames||!j.frames.length){ if(info)info.textContent='No history yet — talk with Vera, then replay it here.'; sc.max=0; return; }
       sc.max=j.frames.length-1; sc.value=j.frames.length-1; replayView(j.frames.length-1);
+    }).catch(function(){});
+  }
+
+  // Milestone 4: SIMULATION. Pull a lever -> predicted impact, computed by re-running the REAL status
+  // derivation under a hypothetical (sandboxed server-side). Predicted-to-change nodes glow amber.
+  var SIM_LEVER=null;
+  function simLevers(list){
+    var box=document.getElementById('levers');
+    box.innerHTML=(list||[]).map(function(l){
+      return '<span class="lever'+(l.id===SIM_LEVER?' on':'')+'" data-lever="'+esc(l.id)+'" title="'+esc(l.source||'')+'">'+esc(l.label)+'</span>';
+    }).join('');
+    box.querySelectorAll('.lever').forEach(function(el){ el.onclick=function(){ simulateView(el.dataset.lever); }; });
+  }
+  function clearPred(){ document.querySelectorAll('.node').forEach(function(el){el.classList.remove('pred');}); }
+  function simulateView(leverId){
+    SIM_LEVER=leverId;
+    fetch('/founder/living-map/simulate?lever='+encodeURIComponent(leverId),{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; simLevers(j.levers||[]);
+      var info=document.getElementById('siminfo');
+      if(!j.ok){ if(info)info.textContent=j.error||'Could not simulate.'; clearPred(); return; }
+      clearPred();
+      var ch=j.predicted_changes||[];
+      ch.forEach(function(c){ var el=document.querySelector('.node[data-id="'+c.node_id+'"]'); if(el) el.classList.add('pred'); });
+      var lines=ch.map(function(c){return c.node_id+': '+c.from+'→'+c.to;}).join(' · ')||'no predicted change from the current baseline';
+      if(info) info.innerHTML='<b>Predicted:</b> '+esc(lines)+' &nbsp;·&nbsp; confidence '+Math.round((j.confidence||0)*100)+'% &nbsp;·&nbsp; '+
+        'sandboxed'+(j.sandbox_clean?' ✓':'')+' &nbsp;·&nbsp; <span style="opacity:.7">would require: '+esc(j.required_cert||'')+'</span><br><span style="opacity:.7">'+esc((j.assumptions||[])[0]||'')+'</span>';
+    }).catch(function(){});
+  }
+  function loadSim(){
+    fetch('/founder/living-map/simulate',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; simLevers(j.levers||[]);
     }).catch(function(){});
   }
 
@@ -286,9 +329,11 @@
   document.getElementById('modes').onclick=function(ev){
     var t=ev.target.closest('.mode'); if(!t||t.classList.contains('soon'))return;
     MODE=t.dataset.mode; Array.prototype.slice.call(this.querySelectorAll('.mode')).forEach(function(m){m.classList.toggle('on',m===t);});
-    var rb=document.getElementById('replaybar');
+    var rb=document.getElementById('replaybar'), sb=document.getElementById('simbar');
     if(MODE==='replay'){ rb.style.display='flex'; loadReplay(); }
     else { rb.style.display='none'; document.querySelectorAll('.node').forEach(function(el){el.classList.remove('lit','dim');}); }
+    if(MODE==='simulate'){ sb.style.display='flex'; SIM_LEVER=null; clearPred(); loadSim(); }
+    else { sb.style.display='none'; clearPred(); }
     if(SEL) side();
   };
   document.getElementById('scrubber').addEventListener('input',function(){ replayView(parseInt(this.value,10)||0); });

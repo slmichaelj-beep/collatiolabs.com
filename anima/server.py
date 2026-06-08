@@ -2539,6 +2539,21 @@ def _living_map_replay(name: str) -> dict:
         return {"name": name, "frames": [], "count": 0, "empty": True, "error": str(e)}
 
 
+def _living_map_simulate(name: str, lever: str) -> dict:
+    """Living Map — Milestone 4: SIMULATION. Pull a lever -> predicted impact, computed by re-running the
+    REAL status derivation under a hypothetical, sandboxed (the real source is restored). Read-only."""
+    try:
+        from .living_map import simulation
+        if not lever:
+            return {"name": name, "ok": False, "levers": simulation.levers(),
+                    "error": "pick a lever", "sandboxed": True}
+        out = simulation.simulate(name, lever)
+        out["levers"] = simulation.levers()
+        return out
+    except Exception as e:
+        return {"name": name, "ok": False, "levers": [], "empty": True, "error": str(e)}
+
+
 def _security_action(name: str, data: dict) -> dict:
     """The visible panic button — engage or lift a security LOCKDOWN. Reversible + audited (incident
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
@@ -2787,6 +2802,12 @@ class Handler(BaseHTTPRequestHandler):
                 # timeline (deterministic seek). Token-gated. Read-only; honest empty when idle.
                 return self._send(200, "application/json",
                                   json.dumps(_living_map_replay(self.name)).encode())
+            if u.path in ("/founder/living-map/simulate", "/living-map/simulate"):
+                # Living Map Milestone 4 — SIMULATION: pull a lever -> predicted impact, derived from
+                # re-running the real status resolvers under a hypothetical, sandboxed. Token-gated.
+                _lever = (parse_qs(u.query).get("lever", [""])[0] or "").strip()
+                return self._send(200, "application/json",
+                                  json.dumps(_living_map_simulate(self.name, _lever)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"
