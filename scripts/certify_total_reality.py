@@ -124,6 +124,12 @@ def main() -> int:
                            capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
     ck("11. LEVEL 7 — the Renegade integrated stress chains HOLD (renegade-chains cert)", rn_rc == 0)
 
+    # ---- LEVEL 3 — permission / consent matrix coverage (delegated cert) ------------------------
+    pc_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_permission_consent_coverage.py")],
+                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    ck("12. LEVEL 3 — the permission/consent matrix is executed + discriminates (perm-consent cert)",
+       pc_rc == 0)
+
     print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
           % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
     print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))

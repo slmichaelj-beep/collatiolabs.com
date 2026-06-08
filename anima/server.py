@@ -2582,6 +2582,11 @@ def _total_reality_data(name: str) -> dict:
             renegade = _rn.run()["summary"]            # Level-7 integrated stress chains
         except Exception:
             renegade = None
+        try:
+            from .rover import permissions as _perm
+            consent_matrix = _perm.run()["summary"]    # Level-3 permission/consent matrix
+        except Exception:
+            consent_matrix = None
         return {
             "name": name,
             "inventory": c,
@@ -2589,6 +2594,7 @@ def _total_reality_data(name: str) -> dict:
                        "by_family": mc["by_family"], "critical": mc["critical"], "adversarial": mc["adversarial"]},
             "execution": run["summary"],               # Level-2 pass/fail/blocked/deferred + P0/P1
             "renegade": renegade,                      # Level-7 chains held/total
+            "consent_matrix": consent_matrix,          # Level-3 permission/consent matrix pass/total
             "hard_rules": {
                 "controls_with_scenario": [len(ctrl_ids & scen_ctrl), len(ctrl_ids)],
                 "surfaces_served": [c["surfaces_served"], c["surfaces"]],
