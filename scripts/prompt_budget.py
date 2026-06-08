@@ -144,7 +144,9 @@ def _history(name: str, user_text: str):
 def _real_prompt_tokens() -> int | None:
     """Ground truth: the most recent real prompt_eval_count the model reported, from the server log
     line '[timing] … prompt N tok'. None if no model turn has been logged."""
-    for p in (Path("/Users/lamarmichael/collatiolabs.com/.anima/server.log"),
+    for p in (Path("/Users/lamarmichael/collatiolabs.com/.anima/server.stdout.log"),
+              Path("/Users/lamarmichael/collatiolabs.com/.anima/server.log"),
+              ROOT.parent / "collatiolabs.com" / ".anima" / "server.stdout.log",
               ROOT.parent / "collatiolabs.com" / ".anima" / "server.log"):
         try:
             hits = re.findall(r"prompt (\d+) tok", p.read_text())
