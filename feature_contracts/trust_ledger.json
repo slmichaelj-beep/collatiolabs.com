@@ -1,0 +1,27 @@
+{
+  "feature": "trust_ledger",
+  "claim": "Trust Ledger (Human Operating Layer, Layer 8) — the unified, accountable spine over every trust-touching action Vera records. It creates NO new source of truth: it reads the events Vera already writes (the incident SOC trail .anima/security_events.jsonl: quarantine / lockdown / restore / agency suggest-approve-reject / improvement decisions / consent decisions / gated-memory held-written-discarded) plus the ROI / completed-work ledger (reports/roi_ledger.json), categorises each event into a trust category (security / consent / agency / memory / improvement / identity / value), attaches its real provenance, and computes the TRUST INVARIANTS. The four invariants are promises with teeth — each is falsifiable, and the cert proves a violating event flips it red: append_only (event timestamps never go backwards — the trail is append-only, not rewritten), suggest_only_agency (no executed-without-approval event exists; approvals never exceed suggestions — Vera never acts silently), consent_before_durable (every sensitive_memory_written was first held for consent — no silent sensitive memory), reversible_state (the system is not stuck in lockdown; restore is an audited, exercised capability). Served + auth-gated: GET /trust serves the page shell (public like the other consoles), GET /trust.json rides behind the Face ID seam. Read-only; never mutates Vera state; honest empty state.",
+  "owner": "anima/trust_ledger/ (schema.py categories+invariants taxonomy, ledger.py read-only aggregation + falsifiable invariant computation), anima/server.py (_trust_data + GET /trust shell + GET /trust.json data), anima/web/trust.html (trustView: seal + invariants + categories + provenance-linked timeline + value), scripts/certify_trust_ledger.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "aggregates_real_spine",
+    "categorised",
+    "provenance",
+    "invariants_hold",
+    "invariants_bite",
+    "value_folded_in",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "one_accountable_trust_spine_with_invariants_that_can_fail",
+    "setup": "scripts/certify_trust_ledger.py seeds a clean trust spine into the REAL incident path (hermetic temp store) and proves: the ledger reads it (seeded events appear), every known event carries a trust category + provenance (no 'uncategorised' leak), all four invariants hold on a clean spine, the ROI ledger folds in as the 'value delivered' category, and — the keystone — each invariant BITES: a crafted out-of-order timestamp flips append_only red, a silent-action event flips suggest_only_agency red, a sensitive write with no preceding held flips consent_before_durable red, and a lockdown with no restore flips reversible_state red, while a clean spine keeps all four green (no false positives). The ledger rides through _trust_data; GET /trust serves the page; the page renders the invariants + the non-decoration law.",
+    "prompt": "open /trust — every security catch, consent decision, agency proposal and gated memory is here with its provenance, and the four trust invariants are green (and provably can go red)",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: the spine aggregates the incident SOC trail + ROI ledger with the four core invariants. consent/sensitive-memory and identity event kinds are in the taxonomy and will populate as that activity occurs (the real store currently shows security/agency/improvement/value). A future enrichment is per-event correlation IDs so consent_before_durable can match a specific held->written pair (today it proves the count invariant: writes <= helds) and a signed/hash-chained trail for tamper-evidence beyond the append-only timestamp check."
+  ],
+  "status": "UNKNOWN"
+}

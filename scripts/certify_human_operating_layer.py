@@ -64,9 +64,9 @@ def main() -> int:
     # L7 — Embodied / Host-Aware (BUILT)
     layer(7, "Host Awareness", "GREEN" if _run([SCRIPTS / "certify_argus_integration.py"], "CERTIFIED") else "PARTIAL",
           "host pressure -> model policy / heavy-job defer / keep_alive")
-    # L8 — Trust Ledger (PLANNED: events exist scattered; unified spine not built)
-    layer(8, "Trust Ledger", "PLANNED",
-          "SOC trail + console decisions + ROI + quarantines exist; the UNIFIED trust spine PLANNED")
+    # L8 — Trust Ledger (BUILT: unified spine over the real trust events + falsifiable invariants)
+    layer(8, "Trust Ledger", "GREEN" if _run([SCRIPTS / "certify_trust_ledger.py"], "TRUST-LEDGER CERT: CERTIFIED") else "PARTIAL",
+          "unified spine over SOC trail + ROI; 4 falsifiable invariants (append-only / suggest-only / no-silent-memory / reversible)")
     # L9 — Living Map (BUILT M1+M2)
     layer(9, "Living Map", "GREEN" if _run([SCRIPTS / "certify_living_map.py"], "LIVING MAP LIVE: GREEN") else "PARTIAL",
           "operational digital twin: static real map + live event pulses, no wallpaper")
@@ -90,7 +90,7 @@ def main() -> int:
     # 'fail' means: a layer we EXPECT green (the cleanly-certified built ones) is not green. (L7 Host
     # Awareness is real but its full integration cert needs the Argus daemon running, so it is honestly
     # PARTIAL here rather than a hard expected-green.)
-    expected_green = {1, 2, 9, 10}
+    expected_green = {1, 2, 8, 9, 10}
     broken = [l for l in layers if l[0] in expected_green and l[2] != "GREEN"]
     # the Archetypal Registry enhancement is also expected-green once built
     if arch_state != "GREEN":

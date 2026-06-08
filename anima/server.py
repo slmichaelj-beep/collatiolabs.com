@@ -2441,6 +2441,20 @@ def _consent_action(name: str, data: dict) -> dict:
         return {"ok": False, "error": "consent action failed: %s" % e}
 
 
+def _trust_data(name: str) -> dict:
+    """The Trust Ledger (Layer 8) — one accountable spine over the trust events Vera already records
+    (security catches, consent decisions, agency proposals, gated memory, value delivered), categorised
+    with provenance, plus the trust INVARIANTS (each falsifiable). Read-only; never raises."""
+    try:
+        from .trust_ledger import ledger
+        # read a generous window so the categories + invariants reflect the WHOLE real trail (not just
+        # the most-recent slice, which security catches can dominate); the feed itself stays display-capped.
+        return ledger.build_ledger(name, 5000)
+    except Exception as e:
+        return {"name": name, "events": [], "invariants": [], "all_invariants_hold": None,
+                "categories": {}, "empty": True, "error": str(e)}
+
+
 def _living_map_data(name: str) -> dict:
     """The Living Map — Vera's operational digital twin: the node/edge graph with LIVE, real-telemetry-
     backed status (honest 'unknown' where a subsystem isn't instrumented). Read-only; never raises."""
@@ -2593,6 +2607,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       lm.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"living map not built")
+            if u.path in ("/trust", "/trust.html", "/founder/trust"):
+                # Trust Ledger page SHELL (Founder Console -> Trust) — public like the others; the data
+                # route /trust.json below is token-gated. The one accountable trust spine.
+                tl = (WEB / "trust.html")
+                if tl.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      tl.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"trust ledger not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2629,6 +2651,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Consent & Boundaries data — per-domain consent + held sensitive memories. Token-gated.
                 return self._send(200, "application/json",
                                   json.dumps(_consent_data(self.name)).encode())
+            if u.path in ("/trust.json", "/founder/trust.json"):
+                # Trust Ledger data — the categorised, provenance-linked trust spine + the trust
+                # invariants (each falsifiable). Token-gated. Read-only; honest empty state.
+                return self._send(200, "application/json",
+                                  json.dumps(_trust_data(self.name)).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.

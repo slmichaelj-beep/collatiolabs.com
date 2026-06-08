@@ -5118,6 +5118,34 @@ def probe_archetypal_pattern_registry(res: Result) -> None:
                       "the registry isn't wired into _console_data, or the page is missing).")
 
 
+# --- trust_ledger ----------------------------------------------------------------------------
+def probe_trust_ledger(res: Result) -> None:
+    """Trust Ledger (Human Operating Layer L8): the unified, accountable spine over the trust events
+    Vera already records, categorised with provenance, guarded by FALSIFIABLE invariants. Cert:
+    scripts/certify_trust_ledger.py."""
+    rc, t = run_subcert([HERE / "certify_trust_ledger.py"])
+    cert_ok = (rc == 0) and ("TRUST-LEDGER CERT: CERTIFIED" in t)
+    page = (ROOT / "anima" / "web" / "trust.html").exists()
+    wired = "_trust_data" in (ROOT / "anima" / "server.py").read_text()
+    teeth = ("invariants BITE" in t) or ("BITES" in t)   # the cert exercised the falsifiable invariants
+    ok = cert_ok and page and wired
+    res.evidence.append("certify_trust_ledger -> %s; wired=%s; page=%s; teeth_exercised=%s"
+                        % ("CERTIFIED" if cert_ok else "FAIL", wired, page, teeth))
+    res.set(UI=ok, Backend=ok, Storage=None, Retrieval=ok, Use=ok, MRI=None, Restart=ok)
+    if ok:
+        res.status = COMPLETE
+        res.proven_links = ["aggregates_real_spine", "categorised", "provenance", "invariants_hold",
+                            "invariants_bite", "value_folded_in", "served_authed"]
+        res.reason = ("One accountable spine over the REAL trust events (incident SOC trail + ROI ledger), "
+                      "categorised with provenance, guarded by four FALSIFIABLE invariants — append-only "
+                      "integrity, suggest-only agency, no silent sensitive memory, reversible state. Each "
+                      "invariant has teeth: the cert proves a violating event flips it red. Served + "
+                      "auth-gated (GET /trust + /trust.json). Records nothing new; makes the record provable.")
+    else:
+        res.status = STUB
+        res.reason = "Trust Ledger did not hold (the cert FAILed, _trust_data isn't wired, or the page is missing)."
+
+
 # --- living_map ------------------------------------------------------------------------------
 def probe_living_map(res: Result) -> None:
     """The Living Map — Vera's operational digital twin (Founder Console -> Living Map). Milestone 1:
@@ -5606,6 +5634,7 @@ def classify_all() -> dict:
         "security_surface": probe_security_surface,
         "consent_boundaries": probe_consent_boundaries,
         "archetypal_pattern_registry": probe_archetypal_pattern_registry,
+        "trust_ledger": probe_trust_ledger,
         "living_map": probe_living_map,
         "response_latency": probe_response_latency,
         "context_immune": probe_context_immune,
