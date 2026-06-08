@@ -2094,6 +2094,85 @@ def _serve_host_certification(name: str) -> dict:
     return {"on": True, **client().certification()}
 
 
+def _observatory_data(name: str) -> dict:
+    """Aggregate Vera's observation surfaces into ONE honest JSON for the Observatory page (no jargon):
+      what's real (audit), what kind of mind (system shape), what Vera knows about you (twin),
+      the latest turn (activity/proof), and trust/security. Read-only; every missing input degrades to
+      an honest null, never a crash, never a flattering guess."""
+    reports = Path("reports")
+    out = {"name": name}
+
+    # --- WHAT'S REAL (the no-wallpaper audit) -------------------------------------------------
+    try:
+        d = json.loads((reports / "live_path_results.json").read_text())
+        c = d.get("counts") or {}
+        out["audit"] = {
+            "total": sum(c.values()), "complete": c.get("COMPLETE", 0), "partial": c.get("PARTIAL", 0),
+            "wallpaper": c.get("WALLPAPER", 0), "stub": c.get("STUB", 0),
+            "unknown": c.get("UNKNOWN", 0) + c.get("UNREACHABLE", 0) + c.get("REGRESSED", 0),
+        }
+    except Exception:
+        out["audit"] = None
+
+    # --- WHAT KIND OF MIND (system shape) -----------------------------------------------------
+    try:
+        s = json.loads((reports / "system_shape.json").read_text())
+        _syn = s.get("synthesis")
+        out["shape"] = {
+            "headline": (_syn if isinstance(_syn, str) else (_syn or {}).get("line")) or s.get("headline_status"),
+            "dimensions": [{"label": x.get("label"), "status": x.get("status"),
+                            "value": x.get("value"), "human": x.get("human")}
+                           for x in (s.get("dimensions") or [])],
+        }
+    except Exception:
+        out["shape"] = None
+
+    # --- WHAT VERA KNOWS ABOUT YOU (twin) -----------------------------------------------------
+    try:
+        t = json.loads((reports / "twin_dashboard.json").read_text())
+        _rich = t.get("richness")
+        out["twin"] = {
+            "person": t.get("person"),
+            "richness": _rich if isinstance(_rich, str) else (_rich or {}).get("label"),
+            "dimensions": [{"label": x.get("label"), "count": x.get("count"),
+                            "present": x.get("present"), "items": (x.get("items") or [])[:4]}
+                           for x in (t.get("dimensions") or [])],
+        }
+    except Exception:
+        out["twin"] = None
+
+    # --- THE LATEST TURN (activity / proof) ---------------------------------------------------
+    try:
+        lines = [ln for ln in (STORE / f"{name}.mri.jsonl").read_text().splitlines() if ln.strip()]
+        last = json.loads(lines[-1])
+        out["lastTurn"] = {
+            "user_text": (last.get("user_text") or "")[:700],
+            "reply": (last.get("reply") or "")[:700],
+            "total_ms": last.get("total_ms"), "at": last.get("at"),
+            "stages": [{"stage": st.get("stage"), "summary": (st.get("note") or "")[:80]}
+                       for st in (last.get("stages") or [])],
+        }
+    except Exception:
+        out["lastTurn"] = None
+
+    # --- TRUST / SECURITY ---------------------------------------------------------------------
+    try:
+        from . import incident, caps
+        st = incident.status()
+        cp = caps.load(name)
+        out["security"] = {
+            "locked": bool(st.get("locked")),
+            "caps_on": sorted(k for k, v in cp.items() if v is True),
+            "caps_off": sum(1 for k, v in cp.items() if v is False),
+            "running_sha": _DEPLOY.get("sha"),
+            "recent_events": st.get("recent_events", [])[-5:],
+        }
+    except Exception:
+        out["security"] = None
+
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
@@ -2169,6 +2248,14 @@ class Handler(BaseHTTPRequestHandler):
                 html = ((WEB / "index.html").read_text(encoding="utf-8")
                         .replace("__NAME__", self.name).replace("__TOKEN__", ""))
                 return self._send(200, "text/html; charset=utf-8", html.encode())
+            if u.path in ("/observatory", "/observatory.html"):
+                # the Observatory page SHELL — public like index.html (it holds no secrets; the data
+                # route /observatory.json below is token-gated). One-glance, no-jargon observation view.
+                obs = (WEB / "observatory.html")
+                if obs.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      obs.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"observatory not built")
             if u.path == "/version":
                 # ANIMA LAW 005 — DEPLOYED OVER BUILT. The deploy fingerprint of THIS
                 # running process: the commit it is actually executing, captured ONCE at
@@ -2185,6 +2272,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", json.dumps(passkey.status()).encode())
             if not self._passed():               # Face ID required but not unlocked this session
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if u.path == "/observatory.json":
+                # the one honest JSON behind the Observatory page: what's real (audit), what kind of
+                # mind (system shape), what Vera knows about you (twin), the latest turn (activity/proof),
+                # and trust/security. Personal -> token-gated. Read-only; never raises.
+                return self._send(200, "application/json",
+                                  json.dumps(_observatory_data(self.name)).encode())
             if u.path == "/audio":
                 nm = Path(parse_qs(u.query).get("name", [self.name])[0]).name  # no traversal
                 f = STORE / f"{nm}.last.wav"

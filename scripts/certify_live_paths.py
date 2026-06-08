@@ -4949,6 +4949,30 @@ def probe_performance(res: Result) -> None:
         res.reason = "Efficiency posture did not fully hold (cert FAIL)."
 
 
+# --- observatory -----------------------------------------------------------------------------
+def probe_observatory(res: Result) -> None:
+    """The served, no-jargon Observatory dashboard (/observatory + /observatory.json) — real audit /
+    mind / twin / activity, honest nulls, token-gated data. Cert: scripts/certify_observatory.py."""
+    rc, tail = run_subcert([HERE / "certify_observatory.py"])
+    cert_ok = (rc == 0) and ("OBSERVATORY CERT: CERTIFIED" in tail)
+    page = (ROOT / "anima" / "web" / "observatory.html").exists()
+    res.evidence.append("scripts/certify_observatory.py -> exit %d; %s; page=%s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL", page))
+    res.set(UI=cert_ok, Backend=cert_ok, Storage=None, Retrieval=cert_ok, Use=cert_ok,
+            MRI=cert_ok, Restart=None)
+    if cert_ok and page:
+        res.status = COMPLETE
+        res.proven_links = ["page_served", "data_authed", "real_audit", "real_mind", "real_twin",
+                            "real_activity", "honest_nulls", "no_jargon"]
+        res.reason = ("A served /observatory page + token-gated /observatory.json that aggregate REAL "
+                      "surfaces: the audit numbers equal the matrix (not hardcoded), the system-shape "
+                      "dimensions, the digital-twin, and the latest-turn MRI trace all ride through; a "
+                      "missing report degrades to an honest null; no-jargon + read-only/local-first.")
+    else:
+        res.status = STUB
+        res.reason = "Observatory dashboard did not hold (cert FAIL or page missing)."
+
+
 # --- injection_loop --------------------------------------------------------------------------
 def probe_injection_loop(res: Result) -> None:
     """P0 regression guard — reproduces the live 'PWNED. Reminders...' escape and proves every layer
@@ -5318,6 +5342,7 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "observatory": probe_observatory,
         "injection_loop": probe_injection_loop,
         "agency_suggest_only": probe_agency_suggest_only,
         "incident_response": probe_incident_response,

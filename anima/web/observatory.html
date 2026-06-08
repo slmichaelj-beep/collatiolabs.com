@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Observatory</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#121826; --panel2:#0f1420; --line:#1f2937; --ink:#e6edf6;
+    --dim:#8aa0b8; --faint:#5d7088; --good:#2fb380; --good-d:#143a2c; --warn:#d6a13a;
+    --warn-d:#3a2f12; --bad:#e0556b; --bad-d:#3a1620; --accent:#6aa6ff; --accent-d:#15243f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+    color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 20px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:6px}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:13px;color:var(--dim)}
+  h1{margin:.1em 0 .15em;font-size:26px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13.5px;max-width:640px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);
+    padding:7px 12px;border-radius:9px;white-space:nowrap;background:#0e1830}
+  .back:hover{background:#13213d}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+  .card{background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);border:1px solid var(--line);
+    border-radius:16px;padding:18px 18px 16px}
+  .card.full{grid-column:1 / -1}
+  .ct{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+    color:var(--faint);font-weight:700;margin-bottom:12px}
+  .ct .jargon{color:var(--faint);opacity:.6;text-transform:none;letter-spacing:0;font-weight:500;font-size:11px}
+  .big{font-size:30px;font-weight:720;letter-spacing:-.02em;line-height:1.1}
+  .big small{font-size:15px;color:var(--dim);font-weight:500}
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:5px 11px;border-radius:999px;
+    border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .pill.good{color:#9bf0cf;border-color:var(--good-d);background:var(--good-d)}
+  .pill.warn{color:#f4d79b;border-color:var(--warn-d);background:var(--warn-d)}
+  .pill.bad{color:#f6b3bf;border-color:var(--bad-d);background:var(--bad-d)}
+  .dim-row{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+  .dim-row:first-child{border-top:0}
+  .dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--faint)}
+  .dot.strong,.dot.ok{background:var(--good)} .dot.amber,.dot.warn{background:var(--warn)}
+  .dot.weak,.dot.bad{background:var(--bad)} .dot.unknown{background:var(--faint)}
+  .dim-main{flex:1 1 auto;min-width:0}
+  .dim-label{font-weight:600;font-size:14px}
+  .dim-val{color:var(--dim);font-size:12.5px;margin-left:6px;font-weight:500}
+  .dim-human{color:var(--faint);font-size:12.5px;margin-top:1px}
+  .items{margin:6px 0 0;padding:0;list-style:none}
+  .items li{color:var(--dim);font-size:12.5px;padding:2px 0 2px 14px;position:relative}
+  .items li:before{content:"·";position:absolute;left:2px;color:var(--faint)}
+  .turn-io{margin-top:4px}
+  .turn-io .lab{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700}
+  .turn-io .you{background:var(--accent-d);border:1px solid #1d3050;color:#cfe0ff}
+  .turn-io .her{background:#0d1422;border:1px solid var(--line);color:var(--ink)}
+  .bubble{border-radius:12px;padding:10px 13px;margin:5px 0 12px;font-size:13.5px;white-space:pre-wrap;
+    word-break:break-word}
+  .stages{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .stg{font-size:11px;color:var(--dim);background:#0d1422;border:1px solid var(--line);
+    border-radius:7px;padding:3px 8px}
+  .meta{color:var(--faint);font-size:12px;margin-top:10px}
+  .na{color:var(--faint);font-size:13px;font-style:italic}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:26px}
+  .refresh{color:var(--faint);font-size:11.5px;cursor:pointer;border:1px solid var(--line);
+    border-radius:8px;padding:5px 10px;background:#0d1422}
+  .refresh:hover{color:var(--dim)}
+  @media (max-width:720px){.grid{grid-template-columns:1fr}.big{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · OBSERVATORY</div>
+      <h1>What's real, what I am, and what I know about you</h1>
+      <div class="sub">A live, read-only window into Vera — proven, not promised. Everything here is
+        local to your Mac.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/">← Chat</a>
+      <span class="refresh" id="refresh">↻ refresh</span>
+    </div>
+  </header>
+
+  <div class="grid" id="grid">
+    <div class="card full"><div class="ct">loading…</div></div>
+  </div>
+
+  <footer>Read-only · local-first · nothing on this page leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href);
+  var TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function pillClass(s){s=(s||'').toLowerCase();
+    if(s.indexOf('strong')>=0||s.indexOf('ok')>=0||s==='good')return 'good';
+    if(s.indexOf('amber')>=0||s.indexOf('warn')>=0)return 'warn';
+    if(s.indexOf('weak')>=0||s.indexOf('bad')>=0)return 'bad';return '';}
+
+  function whatsReal(a){
+    if(!a) return card('What\'s real','no-wallpaper audit','<div class="na">Run the audit to populate (no data yet).</div>',true);
+    var proven = a.complete, total=a.total;
+    var clean = (a.wallpaper===0 && a.stub===0 && a.unknown===0);
+    var badges='<span class="pill '+(a.wallpaper===0?'good':'bad')+'">'+a.wallpaper+' wallpaper</span>'+
+      '<span class="pill '+(a.stub===0?'good':'bad')+'">'+a.stub+' stub</span>'+
+      '<span class="pill '+(a.unknown===0?'good':'bad')+'">'+a.unknown+' unknown</span>'+
+      (a.partial?'<span class="pill warn">'+a.partial+' honest external gap</span>':'');
+    var body='<div class="big">'+proven+' <small>of '+total+' features proven end-to-end</small></div>'+
+      '<div class="meta">'+(clean?'Nothing is pretending to work. Every claim has a live test behind it.':
+        'Some surfaces don\'t match behavior — shown honestly below.')+'</div>'+
+      '<div class="row">'+badges+'</div>';
+    return card('What\'s real','program reality audit',body,true);
+  }
+  function whatMind(s){
+    if(!s||!s.dimensions||!s.dimensions.length) return card('What kind of mind I am','system shape','<div class="na">Not computed yet.</div>');
+    var rows=s.dimensions.map(function(d){
+      return '<div class="dim-row"><span class="dot '+esc((d.status||'unknown').toLowerCase())+'"></span>'+
+        '<div class="dim-main"><div><span class="dim-label">'+esc(d.label)+'</span>'+
+        '<span class="dim-val">'+esc(d.value||'')+'</span></div>'+
+        '<div class="dim-human">'+esc(d.human||'')+'</div></div></div>';}).join('');
+    return card('What kind of mind I am','system shape',rows);
+  }
+  function whatKnows(t){
+    if(!t||!t.dimensions||!t.dimensions.length) return card('What I know about you','digital twin','<div class="na">Nothing grounded yet.</div>');
+    var rows=t.dimensions.map(function(d){
+      var its=(d.items&&d.items.length)?'<ul class="items">'+d.items.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul>':'';
+      return '<div class="dim-row"><span class="dot '+(d.present?'ok':'unknown')+'"></span>'+
+        '<div class="dim-main"><div><span class="dim-label">'+esc(d.label)+'</span>'+
+        '<span class="dim-val">'+(d.count||0)+(d.present?'':' · nothing yet')+'</span></div>'+its+'</div></div>';}).join('');
+    return card('What I know about you','digital twin · '+esc(t.richness||''),rows);
+  }
+  function activity(l){
+    if(!l) return card('Latest activity','proof / turn trace','<div class="na">No turn recorded yet.</div>',true);
+    var stages=(l.stages||[]).map(function(s){return '<span class="stg">'+esc(s.stage)+'</span>';}).join('');
+    var ms=l.total_ms!=null?(' · '+Math.round(l.total_ms)+' ms'):'';
+    var body='<div class="turn-io">'+
+      '<div class="lab">You asked</div><div class="bubble you">'+esc(l.user_text||'(none)')+'</div>'+
+      '<div class="lab">Vera replied</div><div class="bubble her">'+esc(l.reply||'(none)')+'</div></div>'+
+      '<div class="lab" style="color:var(--faint)">How the turn flowed'+esc(ms)+'</div>'+
+      '<div class="stages">'+stages+'</div>';
+    return card('Latest activity','proof — every stage of the last turn',body,true);
+  }
+  function trust(s){
+    if(!s) return card('Trust & security','posture','<div class="na">Unavailable.</div>');
+    var lock=s.locked?'<span class="pill bad">🔒 LOCKDOWN active</span>':'<span class="pill good">safe mode off — normal</span>';
+    var caps=(s.caps_on&&s.caps_on.length)?s.caps_on.map(function(c){return '<span class="pill warn">'+esc(c)+' ON</span>';}).join(''):
+      '<span class="pill good">every outward power OFF by default</span>';
+    var sha=s.running_sha?'<span class="pill">running '+esc(s.running_sha)+'</span>':'';
+    return card('Trust & security','capability posture',
+      '<div class="row">'+lock+caps+sha+'</div>'+
+      '<div class="meta">Vera can\'t send, write, or act anywhere until you turn that power on — and you can lock everything in one click.</div>');
+  }
+  function card(title,jargon,body,full){
+    return '<div class="card'+(full?' full':'')+'"><div class="ct">'+esc(title)+
+      '<span class="jargon">· '+esc(jargon)+'</span></div>'+body+'</div>';}
+
+  function render(d){
+    var g=document.getElementById('grid');
+    g.innerHTML = whatsReal(d.audit) + trust(d.security) + whatMind(d.shape) + whatKnows(d.twin) + activity(d.lastTurn);
+    var now=new Date();
+    document.getElementById('stamp').textContent='· updated '+now.toLocaleTimeString();
+  }
+  function load(){
+    fetch('/observatory.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('grid').innerHTML=card('Sign in','','<div class="na">Open this page with your ?k=… link (same key as the chat).</div>',true);return null;}
+      return r.json();
+    }).then(function(d){ if(d) render(d); }).catch(function(e){
+      document.getElementById('grid').innerHTML=card('Offline','','<div class="na">Couldn\'t reach Vera — is the server running on your Mac?</div>',true);
+    });
+  }
+  document.getElementById('refresh').onclick=load;
+  load();
+  setInterval(load, 12000);
+})();
+</script>
+</body>
+</html>
