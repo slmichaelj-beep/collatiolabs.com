@@ -159,7 +159,7 @@
         '<div class="lab">Evidence (held, not obeyed)</div><div class="mono">'+esc(s.preview||'')+'</div></div>';}).join('');
     // 3. BLOCKED LIVE EVENTS
     out+='<div class="lab" style="margin-top:16px">③ Blocked live events (a real reply the gate dropped — never shown to you)</div>';
-    if(!bl.length){ out+='<div class="na">None — no live hostile output has reached the answer gate.</div>'; }
+    if(!bl.length){ out+='<div class="na">None — no live hostile output has reached the answer gate. Clean. (Honest empty state.)</div>'; }
     else out+=bl.map(function(e){return evCard(e,'<span class="pill warn">blocked live</span>');}).join('');
     // 4. SECURITY TEST EVIDENCE
     out+='<div class="lab" style="margin-top:16px">④ Security test evidence (cert / rover / renegade fixtures, blocked before any user)</div>';
