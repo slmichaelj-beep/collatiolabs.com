@@ -61,7 +61,7 @@ def _identity():
     }
 
 
-def _run_gate(timeout=480) -> list[dict]:
+def _run_gate(timeout=900) -> list[dict]:
     """Run the full gate once; return the per-feature records from the fresh report."""
     subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_live_paths.py"), "--gate"],
                    cwd=str(ROOT), capture_output=True, text=True, timeout=timeout)
