@@ -2399,6 +2399,17 @@ def _security_data(name: str) -> dict:
     except Exception:
         out["caps"] = {"on": [], "off": []}
 
+    # 7. TRUTH LABELS — origin / active-state / visibility / context-reach for every hostile catch, so
+    #    blocked PWNED/wire-money TEST FIXTURES are not shown as active compromise. Split into the four
+    #    user-facing buckets + a top summary. (Increment 3 — Security Event Truth Labels.)
+    try:
+        from . import security_truth
+        _ld = out["lockdown"] if out["locked"] else None
+        out["truth_summary"] = security_truth.summarize(out["quarantine_events"], out["quarantined_sources"], _ld)
+        out["truth_sections"] = security_truth.split(out["quarantine_events"], out["quarantined_sources"], _ld)
+    except Exception:
+        out["truth_summary"], out["truth_sections"] = {}, {}
+
     out["counts"] = {
         "quarantined_sources": len(out["quarantined_sources"]),
         "quarantine_events": len(out["quarantine_events"]),

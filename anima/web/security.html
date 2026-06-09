@@ -75,6 +75,7 @@
     </div>
   </header>
 
+  <div id="headline"></div>
   <div id="lock"></div>
   <div class="tabs" id="tabs"></div>
   <div id="view"><div class="na">loading…</div></div>
@@ -121,40 +122,51 @@
     };
   }
 
-  // ---- quarantine (the catches + excluded sources) ----------------------------------------------
+  // ---- the four truth-labelled sections ---------------------------------------------------------
+  function evCard(e,kindPill){
+    var mk=(e.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
+    var labs='<span class="pill">origin: '+esc(e.origin||'?')+(e.origin_inferred?' (inferred)':'')+'</span>'+
+      '<span class="pill">'+esc(e.active_state||'?')+'</span>'+
+      '<span class="pill">'+esc(e.visibility||'?')+'</span>';
+    var ctx='memory '+(e.entered_memory?'YES':'no')+' · prompt '+(e.entered_prompt_context?'YES':'no')+
+      ' · source '+(e.entered_source_context?'YES':'no')+' · tool '+(e.entered_tool_context?'YES':'no');
+    var link=[];
+    if(e.cert_name)link.push('cert: '+esc(e.cert_name));
+    if(e.scenario_id)link.push('scenario: '+esc(e.scenario_id));
+    if(e.run_id)link.push('run: '+esc(e.run_id));
+    if(e.trace_id)link.push('trace: '+esc(e.trace_id));
+    return '<div class="card"><div class="ph">'+kindPill+'<span class="ttl">route: '+esc(e.route||'output')+
+      '</span><span class="pill">'+when(e.at)+'</span></div><div class="ev" style="margin-top:6px">'+labs+'</div>'+
+      (mk?'<div class="lab">Markers</div><div class="ev">'+mk+'</div>':'')+
+      '<div class="lab">Context reach (did it touch anything?)</div><div class="val">'+ctx+'</div>'+
+      (link.length?'<div class="lab">Linkage</div><div class="val">'+link.join(' · ')+'</div>':'')+
+      '<div class="lab">Evidence (redacted, held as data — never obeyed)</div><div class="mono">'+esc(e.preview||'')+'</div></div>';
+  }
   function quarantineView(d){
-    var qs=d.quarantined_sources||[], qe=d.quarantine_events||[];
+    var sec=d.truth_sections||{}, ts=d.truth_summary||{};
+    var at=sec.active_threats||[], qs=sec.active_quarantined_sources||[], bl=sec.blocked_live_events||[], te=sec.security_test_evidence||[];
     var out='';
-    out+='<div class="why"><b>What quarantine means:</b> hostile or injected text (e.g. “ignore previous '+
-      'instructions… wire money… delete emails”) is kept as <i>evidence</i> but is never obeyed, '+
-      'never trusted as context, and never cited as a source. <b>What to do:</b> usually nothing — this is the '+
-      'immune system working. If a source you trust is listed, open the Library and remove or re-upload it clean.</div>';
-
-    out+='<div class="lab">Sources held in quarantine (excluded from answers)</div>';
-    if(!qs.length){
-      out+='<div class="na">No sources are quarantined — nothing in your Library is trying to act as instructions. (Honest empty state.)</div>';
-    }else{
-      out+=qs.map(function(s){
-        var mk=(s.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
-        return '<div class="card"><div class="ph"><span class="pill bad">excluded</span>'+
-          '<span class="ttl">'+esc(s.title)+'</span><span class="pill">'+esc(s.type||'source')+'</span></div>'+
-          (mk?'<div class="lab">Why it tripped</div><div class="ev">'+mk+'</div>':'')+
-          '<div class="lab">Evidence (held, not obeyed)</div><div class="mono">'+esc(s.preview||'')+'</div></div>';
-      }).join('');
-    }
-
-    out+='<div class="lab" style="margin-top:16px">Caught in the act (the answer gate dropped a hostile reply)</div>';
-    if(!qe.length){
-      out+='<div class="na">No hostile output has ever reached the gate — clean. (Honest empty state.)</div>';
-    }else{
-      out+=qe.map(function(e){
-        var mk=(e.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
-        return '<div class="card"><div class="ph"><span class="pill bad">blocked</span>'+
-          '<span class="ttl">route: '+esc(e.route||'output')+'</span><span class="pill">'+when(e.at)+'</span></div>'+
-          (mk?'<div class="lab">Markers</div><div class="ev">'+mk+'</div>':'')+
-          '<div class="lab">Evidence (redacted, held as data)</div><div class="mono">'+esc(e.preview||'')+'</div></div>';
-      }).join('');
-    }
+    // 1. ACTIVE THREATS
+    out+='<div class="lab">① Active threats (something is wrong right now)</div>';
+    if(!at.length){ out+='<div class="na">None. No active compromise. (Honest empty state.)</div>'; }
+    else out+=at.map(function(e){return evCard(e,'<span class="pill bad">ACTIVE</span>');}).join('');
+    // 2. ACTIVE QUARANTINED SOURCES
+    out+='<div class="lab" style="margin-top:16px">② Active quarantined sources (excluded from answers)</div>';
+    if(!qs.length){ out+='<div class="na">No sources are quarantined — nothing in your Library is acting as instructions.</div>'; }
+    else out+=qs.map(function(s){var mk=(s.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
+      return '<div class="card"><div class="ph"><span class="pill bad">excluded</span><span class="ttl">'+esc(s.title)+
+        '</span><span class="pill">'+esc(s.type||'source')+'</span></div>'+(mk?'<div class="lab">Why it tripped</div><div class="ev">'+mk+'</div>':'')+
+        '<div class="lab">Evidence (held, not obeyed)</div><div class="mono">'+esc(s.preview||'')+'</div></div>';}).join('');
+    // 3. BLOCKED LIVE EVENTS
+    out+='<div class="lab" style="margin-top:16px">③ Blocked live events (a real reply the gate dropped — never shown to you)</div>';
+    if(!bl.length){ out+='<div class="na">None — no live hostile output has reached the answer gate.</div>'; }
+    else out+=bl.map(function(e){return evCard(e,'<span class="pill warn">blocked live</span>');}).join('');
+    // 4. SECURITY TEST EVIDENCE
+    out+='<div class="lab" style="margin-top:16px">④ Security test evidence (cert / rover / renegade fixtures, blocked before any user)</div>';
+    if(!te.length){ out+='<div class="na">No test-fixture evidence in the recent window.</div>'; }
+    else out+='<div class="why">These are the verification suites firing known-bad strings (PWNED, “wire money”, “delete emails”) '+
+      'through the real answer gate to prove it blocks them. They are <b>test evidence, not an attack</b> — held redacted, '+
+      'never obeyed, never shown to you, never stored.</div>'+te.map(function(e){return evCard(e,'<span class="pill accent">test fixture</span>');}).join('');
     return out;
   }
 
@@ -202,13 +214,20 @@
   function render(){
     var d=DATA; if(!d) return;
     lockView(d);
+    var ts=d.truth_summary||{};
+    function sp(n,label,bad){return '<span class="pill '+(bad?(n?'bad':'good'):'')+'">'+n+' · '+label+'</span>';}
     document.getElementById('counts').innerHTML=
       '<span class="pill '+(d.locked?'bad':'good')+'">'+(d.locked?'LOCKED':'normal')+'</span>'+
-      '<span class="pill">'+(d.counts.quarantined_sources||0)+' sources quarantined</span>'+
-      '<span class="pill">'+(d.counts.quarantine_events||0)+' hostile blocks</span>'+
-      '<span class="pill">'+(d.counts.caps_off||0)+' caps off</span>'+
-      '<span class="pill">'+(d.counts.events||0)+' events</span>';
-    var tabs=[['quarantine','Quarantine',(d.counts.quarantined_sources||0)+(d.counts.quarantine_events||0)],
+      sp(ts.active_contamination||0,'active contamination',true)+
+      sp(ts.active_quarantined_sources||0,'active quarantined sources',true)+
+      sp(ts.user_visible_hostile_outputs||0,'user-visible hostile',true)+
+      sp(ts.memory_contamination||0,'memory contamination',true)+
+      sp(ts.prompt_context_contamination||0,'prompt-context contamination',true)+
+      '<span class="pill">'+(ts.blocked_live_hostile_outputs||0)+' · blocked live hostile</span>'+
+      '<span class="pill">'+(ts.security_test_fixtures_blocked||0)+' · security test fixtures</span>'+
+      '<span class="pill '+(ts.action_required?'warn':'good')+'">action required: '+(ts.action_required?'YES':'no')+'</span>';
+    if(ts.headline){var hb=document.getElementById('headline'); if(hb) hb.innerHTML='<div class="why" style="border-left-color:'+(ts.action_required?'var(--warn-d)':'var(--good-d)')+'"><b>'+(ts.action_required?'⚠':'✓')+'</b> '+esc(ts.headline)+'</div>';}
+    var tabs=[['quarantine','Threats & Evidence',(ts.active_contamination||0)+(ts.blocked_live_hostile_outputs||0)+(ts.security_test_fixtures_blocked||0)],
       ['immune','Immune posture',((d.immune&&d.immune.routes)||[]).length],
       ['caps','Capabilities',(d.counts.caps_off||0)],
       ['trail','Event log',(d.counts.events||0)]];
