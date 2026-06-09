@@ -48,9 +48,17 @@ def main() -> int:
     srv = (ROOT / "anima" / "server.py").read_text()
     html_txt = html.read_text() if html.exists() else ""
     no_hardcoded = ("RELEASE: GREEN" not in html_txt) and ("diamond_eligible:true" not in html_txt.replace(" ", ""))
-    ck("1. verification.html exists, /verification + /verification.json wired, no hardcoded verdict",
+    # §5: the dashboard is organised into tabs; every required tab must be present (computed, not faked)
+    required_tabs = ["build_identity", "program_reality", "feature_certs", "scenario_coverage",
+                     "rover_journeys", "renegade", "live_user_reality", "observation_bundle",
+                     "performance", "host_reality", "ai_security", "consent_privacy",
+                     "ui_truth_consistency", "recovery", "evidence_room", "cert_freshness",
+                     "open_blockers", "release_decision"]
+    tabs_present = all(("'" + t + "'") in html_txt for t in required_tabs) and "var TABS=" in html_txt
+    ck("1. verification.html: /verification wired, no hardcoded verdict, all §5 tabs present (computed)",
        html.exists() and "/verification" in srv and "/verification.json" in srv
-       and "verification import dashboard" in srv and no_hardcoded and "fetch('/verification.json'" in html_txt)
+       and "verification import dashboard" in srv and no_hardcoded
+       and "fetch('/verification.json'" in html_txt and tabs_present)
 
     # ---- 2 computed from real reports -----------------------------------------------------------
     d = dashboard.data()
