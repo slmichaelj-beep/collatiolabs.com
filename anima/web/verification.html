@@ -174,22 +174,39 @@
     else ov.forEach(function(o){h+='<div class="row"><span class="l">'+esc(o.who)+' · '+esc(o.gate)+'</span><span class="ev">'+esc(o.why)+' · risk '+esc(o.risk_accepted)+' · expires '+esc(o.expires_at)+'</span></div>';});
     return h+'</div>';}
 
+  // ---- §4 row-level detail under a gate tab (real evidence, never summary-only-green) ----------
+  function detailRows(tab){
+    var dt=(D.detail||{})[tab]; if(!dt) return '';
+    var h='<div class="card"><div class="ttl">Row-level evidence — '+esc(dt.label||tab)+' ('+dt.row_count+' contributing features · rolled '+esc(dt.rolled_status||'?')+')</div>';
+    if(!dt.rows||!dt.rows.length){ h+='<div class="na">no contributing-feature rows for this tab</div>'; }
+    (dt.rows||[]).forEach(function(r){
+      h+='<div class="row" style="flex-direction:column;align-items:stretch;gap:3px">'+
+         '<div>'+pill((({COMPLETE:"green",PARTIAL:"amber",DEFERRED:"amber",DISABLED:"amber",STUB:"red",WALLPAPER:"red",UNKNOWN:"red",REGRESSED:"red"})[r.status]||"unknown"))+
+         '<span class="l" style="min-width:220px">'+esc(r.feature)+'</span><span class="ev">'+esc(r.status)+'</span></div>'+
+         ((r.evidence&&r.evidence.length)?'<div class="ev" style="font-size:11px;color:#9fb4cc">'+r.evidence.map(esc).join('<br>')+'</div>':'')+
+         ((r.missing_links&&r.missing_links.length)?'<div class="next">missing: '+r.missing_links.map(esc).join(', ')+'</div>':'')+
+         (r.reason?'<div class="why" style="margin:2px 0">'+esc(r.reason)+'</div>':'')+'</div>';
+    });
+    var en=dt.enrichment||{};
+    if(Object.keys(en).length){ h+='<div class="lab" style="margin-top:8px">enrichment (live reports)</div><div class="mono" style="font-size:11px">'+esc(JSON.stringify(en,null,1)).slice(0,1400)+'</div>'; }
+    return h+'</div>';
+  }
   var TABS=[
     ['diamond','Diamond v2',function(){return tDiamond();}],
     ['build_identity','Build Identity',tBuild],
     ['program_reality','Program Reality',function(){return gateCard('program_reality');}],
     ['feature_certs','Feature Certs',function(){return gateCard('feature_certs');}],
     ['scenario_coverage','Scenario Coverage',tScenario],
-    ['rover_journeys','Rover Journeys',function(){return gateCard('rover_journeys');}],
-    ['renegade','Renegade Trials',function(){return gateCard('renegade');}],
+    ['rover_journeys','Rover Journeys',function(){return gateCard('rover_journeys')+detailRows('rover_journeys');}],
+    ['renegade','Renegade Trials',function(){return gateCard('renegade')+detailRows('renegade');}],
     ['live_user_reality','Live User Reality',tLUR],
-    ['observation_bundle','Observation Bundle',function(){return gateCard('observation_bundle');}],
-    ['performance','Performance Reality',function(){return gateCard('performance');}],
-    ['host_reality','Host Reality',tLUR],
-    ['ai_security','AI Security',function(){return gateCard('ai_security');}],
-    ['consent_privacy','Consent / Privacy',function(){return gateCard('consent_privacy');}],
+    ['observation_bundle','Observation Bundle',function(){return gateCard('observation_bundle')+detailRows('observation_bundle');}],
+    ['performance','Performance Reality',function(){return gateCard('performance')+detailRows('performance');}],
+    ['host_reality','Host Reality',function(){return tLUR()+detailRows('host_reality');}],
+    ['ai_security','AI Security',function(){return gateCard('ai_security')+detailRows('ai_security');}],
+    ['consent_privacy','Consent / Privacy',function(){return gateCard('consent_privacy')+detailRows('consent_privacy');}],
     ['ui_truth_consistency','UI Truth',function(){return gateCard('ui_truth_consistency');}],
-    ['recovery','Recovery',function(){return gateCard('recovery');}],
+    ['recovery','Recovery',function(){return gateCard('recovery')+detailRows('recovery');}],
     ['flake_classification','Cert-Flake',tFlake],
     ['repeatability','Repeatability',tRepeat],
     ['evidence_room','Evidence Room',tEvidence],

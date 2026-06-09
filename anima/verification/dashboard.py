@@ -29,6 +29,12 @@ def data() -> dict:
         tier_block = tiers_mod.decide_tiers(g)
     except Exception:
         tier_block = {"tiers": [], "highest_diamond_tier": None, "highest_diamond_tier_label": None}
+    # §4: per-tab row-level detail (real evidence rows from the live-path audit + report enrichment)
+    try:
+        from . import detail as _detail_mod
+        _details = _detail_mod.all_details()
+    except Exception:
+        _details = {}
     # Founder Overrides are RECORDED + surfaced, but never flip the computed gates/diamond — the verdict
     # stays gate-truth; an override is the documented, expiring human acceptance shown alongside it.
     try:
@@ -90,6 +96,7 @@ def data() -> dict:
         "blockers": blockers,
         "decision": decision,
         "classification": classification,
+        "detail": _details,
         "release_tiers": tier_block.get("tiers", []),
         "highest_diamond_tier": tier_block.get("highest_diamond_tier"),
         "tiers_doctrine": tier_block.get("doctrine"),
