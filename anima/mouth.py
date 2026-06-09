@@ -694,8 +694,11 @@ class OllamaBrain:
         self.name = f"ollama:{self.model}"
         # Keep the model resident between turns. Default unload is 5 min, so an
         # intermittent companion reloads the 8B (10-30s) on most turns — the "slow
-        # first, fast after" you saw. "30m" (or -1 to never unload) keeps it warm.
-        self.keep_alive = os.environ.get("ANIMA_KEEP_ALIVE", "30m")
+        # first, fast after" you saw. "1h" (or -1 to never unload) keeps it warm across
+        # typical daily-use gaps (Lamar-path Rover measured a 15.7s idle/cold first turn — Inc5
+        # cold-start fix: longer default residency, with the host-pressure valve below unloading to
+        # '0' under red memory so this never deepens pressure). Override with ANIMA_KEEP_ALIVE.
+        self.keep_alive = os.environ.get("ANIMA_KEEP_ALIVE", "1h")
         # Ceiling on reply length — fewer tokens means faster generation AND faster
         # voice synthesis. ~160 tokens ≈ 2-3 sentences; raise via ANIMA_MAX_TOKENS.
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
