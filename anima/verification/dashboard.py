@@ -19,19 +19,10 @@ def data() -> dict:
     fc = g.get("flake_classification") or {}
     ext = g.get("external_dependencies") or {}
     rep = g.get("repeatability")
+    fresh = g.get("freshness") or {}
+    blockers = g.get("blockers") or []          # computed once in gates.collect
 
     decision = release_decision.decide(gates, floor, bi)
-
-    # open blockers: every non-green required gate + the red feature list
-    blockers = []
-    for gate in gates:
-        if gate["status"] in ("red", "blocked", "unknown") and "diamond" in (gate.get("required_for") or []):
-            blockers.append({"blocker_id": "gate:" + gate["gate_id"], "severity": "P0" if gate["status"] == "red" else "UNKNOWN",
-                             "source_gate": gate["gate_id"], "status": gate["status"],
-                             "required_fix": gate.get("next_action", ""), "evidence": gate.get("evidence", "")})
-    for f in floor.get("red_features", []):
-        blockers.append({"blocker_id": "feature:" + f, "severity": "P0", "source_gate": "program_reality",
-                         "status": "red", "required_fix": "triage + re-cert feature %s" % f, "evidence": ""})
 
     top = {
         "diamond_eligible": decision["diamond_eligible"],
@@ -56,6 +47,13 @@ def data() -> dict:
         "product_partials": len(fc.get("product_partials", [])),
         "repeatability_confirmed": bool(rep and rep.get("repeatable")),
         "repeatability_runs": (rep or {}).get("runs"),
+        "stale_certs": len(fresh.get("stale_required", [])),
+        "open_blockers": len(blockers),
+        # the §3 summary lines for a few headline gates
+        "live_user_reality": _gate_status(gates, "live_user_reality"),
+        "rover_critical_journeys": _gate_status(gates, "rover_journeys"),
+        "observation_bundle": "COMPLETE" if _gate_status(gates, "observation_bundle") == "green" else "INCOMPLETE",
+        "last_full_verification_run": next((x["last_run"] for x in gates if x["gate_id"] == "program_reality"), None),
     }
     # the classified breakdown (distinguishes the FOUR kinds) + the EXTERNAL DEPENDENCY STATE block
     by_class = {}
@@ -78,9 +76,19 @@ def data() -> dict:
         "classification": classification,
         "external_dependencies": ext.get("dependencies", []),
         "repeatability": rep,
+        "freshness": fresh,
+        "evidence_room": g.get("evidence_room"),
+        "scenario_matrix": g.get("scenario_matrix"),
+        "ui_truth": g.get("ui_truth"),
         "doctrine": "No Verification Green without Live User Reality Green. No Diamond Green without "
-                    "running==committed==served==certified, 0 P0, 0 P1, 0 UNKNOWN.",
+                    "running==committed==served==certified, 0 P0, 0 P1, 0 UNKNOWN, 0 stale required certs, "
+                    "0 unclassified flakes, repeatability confirmed.",
     }
+
+
+def _gate_status(gates, gid):
+    g = next((x for x in gates if x["gate_id"] == gid), None)
+    return g["status"] if g else "unknown"
 
 
 if __name__ == "__main__":

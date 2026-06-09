@@ -18,7 +18,6 @@ GREEN, AMBER, RED, BLOCKED, UNKNOWN, STALE = "green", "amber", "red", "blocked",
 # verification gate -> (display name, contributing live-path feature ids, required-for)
 GATE_MAP = [
     ("program_reality",   "Program Reality",        None,  ["private_alpha", "diamond"]),  # all features
-    ("total_reality",     "Total Scenario Matrix + Rover + Renegade", ["total_reality", "vera_rover"], ["diamond"]),
     ("feature_certs",     "Feature Certs",          None,  ["diamond"]),                    # all features
     ("ai_security",       "AI Security",            ["ai_security", "injection_loop", "context_immune",
                                                      "output_gate", "honesty_rail", "security_baseline",
@@ -101,9 +100,20 @@ def compute() -> dict:
 
     gates = []
 
-    def add(gate_id, name, status, evidence, notes, required_for, next_action=""):
+    def _mtime(rel):
+        try:
+            import time
+            return time.strftime("%Y-%m-%d %H:%M", time.localtime((REPORTS / rel).stat().st_mtime))
+        except Exception:
+            return None
+
+    _LAST = _mtime("live_path_results.json")
+
+    def add(gate_id, name, status, evidence, notes, required_for, next_action="",
+            owner="vera/verification", last_run=None, link=None):
         gates.append({"gate_id": gate_id, "name": name, "status": status, "evidence": evidence,
-                      "notes": notes, "required_for": required_for, "next_action": next_action})
+                      "notes": notes, "required_for": required_for, "next_action": next_action,
+                      "owner": owner, "last_run": last_run or _LAST, "link": link})
 
     # build identity (computed live)
     add("build_identity", "Build Identity", bi["status"],
@@ -177,9 +187,107 @@ def compute() -> dict:
         dv2.get("unclassified", []) if dv2 else ["never run"], ["diamond"],
         "" if rep_status == GREEN else "run scripts/run_diamond_v2.py --gate on this commit")
 
+    # ---- Total Reality split: scenario coverage / rover journeys / renegade / observation bundle ----
+    tr = by.get("total_reality", {})
+    trs = (tr.get("status") or "").upper()
+    tr_gate = (GREEN if trs == "COMPLETE" else (AMBER if trs in ("PARTIAL", "DEFERRED") else
+               (RED if trs in ("STUB", "WALLPAPER", "UNKNOWN", "REGRESSED") else BLOCKED)))
+    tr_notes = [] if trs == "COMPLETE" else ["total_reality=%s" % (trs or "MISSING")]
+    tr_next = "" if trs == "COMPLETE" else "re-run scripts/certify_total_reality.py"
+    try:
+        sm = json.loads((REPORTS / "scenario_matrix.json").read_text()).get("counts", {})
+    except Exception:
+        sm = {}
+    add("scenario_coverage", "Total Scenario Matrix", tr_gate,
+        "%s scenario classes · critical %s · adversarial %s · fully classified %s/%s" % (
+            sm.get("total"), sm.get("critical"), sm.get("adversarial"), sm.get("fully_classified"), sm.get("total")),
+        tr_notes, ["diamond"], tr_next, link="/reality")
+    add("rover_journeys", "Rover Critical Journeys", tr_gate,
+        "critical journeys via the synthetic-user Rover + Level-2 execution (master cert)", tr_notes,
+        ["diamond"], tr_next, link="/reality")
+    add("renegade", "Renegade Trials", tr_gate,
+        "integrated cross-subsystem stress chains hold; harness discriminates (master cert)", tr_notes,
+        ["diamond"], tr_next, link="/reality")
+    add("observation_bundle", "Observation Bundle", tr_gate,
+        "every scenario has a run_id-correlated evidence record + per-run host snapshot + deep stream",
+        tr_notes, ["diamond"], tr_next, link="/reality")
+
+    # ---- cert freshness (old green is not current green) ----------------------------------------
+    from . import freshness as _fresh, evidence as _ev, blockers as _blk
+    fr = _fresh.compute()
+    fresh_status = STALE if fr["stale_required"] else GREEN
+    add("cert_freshness", "Cert Freshness", fresh_status,
+        "stale required: %s" % (", ".join(fr["stale_required"]) or "none"),
+        fr["stale_required"], ["diamond"],
+        "re-run the gate/certs on this commit" if fr["stale_required"] else "")
+
+    # ---- UI truth consistency (UI must not contradict backend truth) ---------------------------
+    uic = _ui_truth(by, floor, bi)
+    add("ui_truth_consistency", "UI Truth Consistency", uic["status"], uic["evidence"],
+        uic["mismatches"], ["diamond"], "reconcile UI vs backend" if uic["mismatches"] else "")
+
+    # ---- evidence room -------------------------------------------------------------------------
+    er = _ev.room()
+    add("evidence_room", "Evidence Room", er["status"],
+        "%d/%d evidence documents present" % (er["present"], er["total"]),
+        [x["document"] for x in er["documents"] if not x["exists"]], ["diamond"],
+        "generate missing evidence" if er["present"] < er["total"] else "")
+
+    # ---- open blockers (summary gate) ----------------------------------------------------------
+    blk = _blk.collect(gates, floor, cl, fr)
+    p0p1 = [b for b in blk if b["severity"] in ("P0", "P1")]
+    blk_status = RED if any(b["severity"] == "P0" for b in blk) else (AMBER if blk else GREEN)
+    add("open_blockers", "Open Blockers", blk_status,
+        "%d open (%d P0/P1)" % (len(blk), len(p0p1)),
+        [b["blocker_id"] for b in blk[:8]], ["diamond"],
+        "clear blockers" if blk else "")
+
     return {"gates": gates, "floor": floor, "build_identity": bi,
             "flake_classification": cl, "external_dependencies": ext,
-            "repeatability": dv2}
+            "repeatability": dv2, "freshness": fr, "evidence_room": er,
+            "blockers": blk, "scenario_matrix": sm, "ui_truth": uic}
+
+
+def _ui_truth(by: dict, floor: dict, bi: dict, served: dict | None = None) -> dict:
+    """UI Truth Consistency: the dashboard's derived numbers must not contradict the backing reports.
+
+    When `served` is injected (tests), compare that payload's headline numbers against the computed
+    floor/build-identity. In LIVE mode (served=None) we must NOT fetch /verification.json — that would
+    recurse into this very computation — so instead we verify the dashboard's computed summary against
+    the RAW reports it claims to summarise (the real anti-contradiction check), non-recursively."""
+    mismatches = []
+    import urllib.request
+    if served is not None:
+        st = served.get("top", {})
+        if st.get("p0_open") != floor.get("p0_open"):
+            mismatches.append("served p0_open != computed (%s vs %s)" % (st.get("p0_open"), floor.get("p0_open")))
+        if st.get("running_commit") and bi.get("running_commit") and st["running_commit"] != bi["running_commit"]:
+            mismatches.append("served running_commit != build identity")
+        served_pr = next((g for g in served.get("gates", []) if g.get("gate_id") == "program_reality"), {})
+        if served_pr and ("%d COMPLETE" % floor.get("complete", -1)) not in (served_pr.get("evidence") or ""):
+            mismatches.append("served program_reality complete count != computed")
+        status = GREEN if not mismatches else RED
+        ev = "served payload matches the backend" if not mismatches else "; ".join(mismatches)
+        return {"status": status, "evidence": ev, "mismatches": mismatches}
+    # LIVE: compare the dashboard's computed numbers to the RAW reports (non-recursive).
+    try:
+        raw = json.loads((REPORTS / "live_path_results.json").read_text())
+        items = raw.get("features", raw if isinstance(raw, list) else [])
+        actual_complete = sum(1 for x in items if (x.get("status") or "").upper() == "COMPLETE")
+        if actual_complete != floor.get("complete"):
+            mismatches.append("dashboard COMPLETE %s != raw report %s" % (floor.get("complete"), actual_complete))
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8765/version", timeout=5) as r:
+                ver = json.loads(r.read().decode("utf-8"))
+            if bi.get("running_commit") and ver.get("sha") and ver["sha"] != bi["running_commit"]:
+                mismatches.append("build-identity running_commit != /version sha")
+        except Exception:
+            pass                                     # /version optional; the report check is the core
+        status = GREEN if not mismatches else RED
+        ev = "dashboard summary matches the raw reports" if not mismatches else "; ".join(mismatches)
+    except Exception:
+        status, ev = UNKNOWN, "raw reports unreadable — cannot prove UI/backend consistency"
+    return {"status": status, "evidence": ev, "mismatches": mismatches}
 
 
 def _live_user_reality():

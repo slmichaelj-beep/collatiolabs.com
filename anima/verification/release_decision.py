@@ -7,7 +7,7 @@ zero and running==committed==served==certified.
 """
 from __future__ import annotations
 
-from .gates import GREEN, AMBER, RED, BLOCKED, UNKNOWN
+from .gates import GREEN, AMBER, RED, BLOCKED, UNKNOWN, STALE
 
 # section-23 release states
 APPROVED, R_BLOCKED, PRIVATE_ALPHA, INTERNAL, TESTING, DO_NOT_USE = (
@@ -24,7 +24,7 @@ def decide(gates: list[dict], floor: dict, build_identity: dict) -> dict:
     alpha_gates = required("private_alpha")
 
     def worst(gs):
-        order = {GREEN: 0, AMBER: 1, RED: 2, BLOCKED: 3, UNKNOWN: 3}
+        order = {GREEN: 0, AMBER: 1, STALE: 1, RED: 2, BLOCKED: 3, UNKNOWN: 3}
         w = GREEN
         for g in gs:
             if order.get(g["status"], 3) > order.get(w, 0):
@@ -46,8 +46,9 @@ def decide(gates: list[dict], floor: dict, build_identity: dict) -> dict:
         color = BLOCKED
     elif RED in diamond_statuses or p0 > 0:
         color = RED
-    elif (AMBER in diamond_statuses) or (UNKNOWN in diamond_statuses) or unknown > 0 or not bi_green:
-        color = AMBER
+    elif (AMBER in diamond_statuses) or (STALE in diamond_statuses) or (UNKNOWN in diamond_statuses) \
+            or unknown > 0 or not bi_green:
+        color = AMBER          # STALE is never green (old green is not current green)
     else:
         color = GREEN
 

@@ -84,7 +84,8 @@
        '<div class="stat"><div class="n">'+(t.p0_open||0)+'</div><div class="k">P0 open</div></div>'+
        '<div class="stat"><div class="n">'+(t.unclassified_flakes||0)+'</div><div class="k">Unclassified flakes</div></div>'+
        '<div class="stat"><div class="n">'+(t.repeatability_confirmed?'YES':'NO')+'</div><div class="k">Repeatability</div></div>'+
-       '<div class="stat"><div class="n">'+(t.unknown_user_behavior||0)+'</div><div class="k">Unknown</div></div>'+
+       '<div class="stat"><div class="n">'+(t.stale_certs||0)+'</div><div class="k">Stale certs</div></div>'+
+       '<div class="stat"><div class="n">'+(t.open_blockers||0)+'</div><div class="k">Open blockers</div></div>'+
        '</div></div>';
     // build identity
     h+='<div class="card"><div class="ttl">Build Identity — running == committed == served == certified</div>'+
@@ -121,6 +122,20 @@
     else { h+='<div class="row">'+pill(rp.repeatable?'green':'red')+'<span class="l" style="min-width:140px">'+(rp.runs||0)+' consecutive runs</span>'+
         '<span class="ev">complete/run '+esc(JSON.stringify(rp.complete_per_run||[]))+' · identity stable '+(rp.identity_stable?'yes':'no')+' · unclassified '+((rp.unclassified||[]).length)+'</span></div>'; }
     h+='</div>';
+    // cert freshness
+    var fr=d.freshness;
+    if(fr){ h+='<div class="card"><div class="ttl">Cert Freshness — old green is not current green</div>';
+      (fr.reports||[]).forEach(function(r){
+        h+='<div class="row">'+pill(r.stale?'red':'green')+'<span class="l" style="min-width:230px">'+esc(r.report)+'</span>'+
+           '<span class="ev">'+esc(r.stale?(r.reason||'stale'):'fresh')+'</span></div>'; });
+      h+='</div>'; }
+    // evidence room
+    var er=d.evidence_room;
+    if(er){ h+='<div class="card"><div class="ttl">Evidence Room — '+(er.present||0)+'/'+(er.total||0)+' documents</div>';
+      (er.documents||[]).forEach(function(x){
+        h+='<div class="row">'+pill(x.exists?'green':'red')+'<span class="l" style="min-width:230px">'+esc(x.document)+'</span>'+
+           '<span class="ev">'+esc(x.exists?(x.path+(x.age_hours!=null?(' · '+x.age_hours+'h old'):'')):'missing')+'</span></div>'; });
+      h+='</div>'; }
     // gates
     h+='<div class="card"><div class="ttl">Release Gates</div>';
     (d.gates||[]).forEach(function(g){

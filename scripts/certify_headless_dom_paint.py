@@ -31,9 +31,10 @@ ROOT = Path(__file__).resolve().parent.parent
 BASE = "http://127.0.0.1:8765"
 URL = BASE + "/reality"
 
-# values that appear ONLY in the rendered DOM (server-computed, returned in /reality.json, painted) —
-# verified absent from the static shell, so finding them headlessly proves the JS fetch+render ran.
-PAINT_MARKERS = ["ALL numbered levels 0-9", "73 / 73", "223"]
+# strings that appear ONLY in the rendered DOM (server-computed phase/law text, returned in
+# /reality.json and painted) — verified absent from the static shell, so finding them headlessly proves
+# the JS fetch+render ran. Chosen to be STABLE (not count-dependent, unlike a scenario total).
+PAINT_MARKERS = ["ALL numbered levels 0-9", "Infinite phrasing reduced to finite"]
 
 
 def _find_chrome() -> str | None:

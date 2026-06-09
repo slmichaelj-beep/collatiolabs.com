@@ -56,9 +56,13 @@ def main() -> int:
     d = dashboard.data()
     gate_ids = {g["gate_id"] for g in d.get("gates", [])}
     pr = next((g for g in d["gates"] if g["gate_id"] == "program_reality"), {})
-    ck("2. the dashboard computes its gates from the real Program Reality report (build identity live)",
-       isinstance(d.get("gates"), list) and len(gate_ids) >= 8
-       and {"build_identity", "program_reality", "live_user_reality"} <= gate_ids
+    required_gates = {"build_identity", "program_reality", "feature_certs", "scenario_coverage",
+                      "rover_journeys", "renegade", "observation_bundle", "live_user_reality",
+                      "performance", "host_reality", "ai_security", "consent_privacy", "recovery",
+                      "ui_truth_consistency", "evidence_room", "open_blockers", "cert_freshness",
+                      "flake_classification", "repeatability"}
+    ck("2. the dashboard computes the full gate set from real reports (build identity live)",
+       isinstance(d.get("gates"), list) and required_gates <= gate_ids
        and "COMPLETE" in (pr.get("evidence") or ""))
 
     # ---- teeth: feed decide() synthetic inputs ---------------------------------------------------
@@ -100,6 +104,11 @@ def main() -> int:
         all_green + [{"gate_id": "flake_classification", "status": "unknown", "required_for": ["diamond"]}], floor0, bi_green)
     ck("8. NO UNCLASSIFIED FLAKE — a flake_classification gate with an unclassified flake flips diamond off",
        flake_unknown["diamond_eligible"] is False)
+
+    stale = release_decision.decide(
+        all_green + [{"gate_id": "cert_freshness", "status": "stale", "required_for": ["diamond"]}], floor0, bi_green)
+    ck("8b. NO STALE GREEN — a stale required cert flips diamond off (state amber, not green)",
+       stale["diamond_eligible"] is False)
 
     # the live dashboard exposes the cert-flake hardening surface (classification + deps + repeatability)
     gids = {g["gate_id"] for g in d.get("gates", [])}
