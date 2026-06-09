@@ -1,33 +1,34 @@
 #!/usr/bin/env python3
 """certify_release_tiers — the four-rung Diamond ladder obeys no-wallpaper law: a lower tier is a
-SMALLER SURFACE, never a LOWER STANDARD, and the per-tier waiver can NEVER launder a product gap.
+SMALLER SURFACE, never a LOWER STANDARD; the per-tier waiver can NEVER launder a product gap; a tier
+that CLAIMS a feature must prove it; and a tier cannot be green with hidden required gates or evidence.
 
-The ladder (local_internal < private_alpha < external_notification < enterprise) differs ONLY by the
-'external_not_required_for_this_tier' waiver. This cert proves the waiver is double-locked and the
-strictness is real:
+Rungs: local_internal < private_alpha < external_notification < enterprise.
 
-  1. LADDER COMPLETE        — all four rungs, in strict rank order, with labels + surfaces.
-  2. WAIVER UNLOCKS LOCAL ONLY — with acknowledge_flow an honest external partial + all else green,
-                              ONLY Local/Internal earns Diamond; Private-Alpha-and-up stay blocked
-                              (APNs required there). This is the user's "allow Local/Internal only."
-  3. FULL LADDER ON PROOF   — once APNs is proven (acknowledge_flow COMPLETE), the whole ladder unlocks
-                              through Enterprise.
-  4. PRODUCT GAP NEVER WAIVED (keystone) — reclassify acknowledge_flow as a product_partial (NOT in
-                              honest_partials) and NO tier is eligible, not even Local/Internal. The
-                              waiver cannot hide a broken LOCAL handler.
-  5. RED NEVER WAIVED       — a product_red feature blocks every rung.
-  6. CORE GATE GATES ALL TIERS — a red core gate (ai_security) blocks every rung, Local/Internal first.
-  7. NO STALE GREEN ANY TIER — a stale required cert blocks every rung.
-  8. NO SINGLE-RUN DIAMOND ANY TIER — repeatability not proven blocks every rung.
-  9. ENTERPRISE STRICTEST   — APNs proven but enterprise_readiness amber: lower three rungs green,
-                              Enterprise NOT eligible (its extra requirement bites).
- 10. DOWNWARD-CLOSED        — eligibility is monotonic down the ladder (no eligible rung above an
-                              ineligible one).
- 11. WAIVER DOUBLE-LOCK     — waivable_for() needs BOTH the static map AND live honest-external classt.
- 12. SERVED (if up)         — /verification.json carries the 4 rungs + highest_diamond_tier, and the
-                              legacy global Diamond == the Enterprise rung.
+  1.  LADDER COMPLETE        — four rungs, strict rank order, each with required_gates + claims + evidence
+                              + decision (§1.7 schema).
+  2.  LOCAL DOES NOT REQUIRE APNs — acknowledge_flow honest-external + all else green/evidenced -> Local/
+                              Internal earns Diamond with APNs WAIVED, and APNs is shown as a visible
+                              non-blocking item; Local does NOT claim notifications.
+  3.  EXTERNAL REQUIRES APNs (RED) — same input: External Notification is RED/not-eligible because it
+                              CLAIMS notifications but APNs is not complete.
+  4.  APNs PROVEN UNLOCKS    — acknowledge_flow COMPLETE + all evidence -> External + Enterprise unlock.
+  5.  PRODUCT GAP NEVER WAIVED (keystone) — acknowledge_flow as a product_partial -> NO tier eligible.
+  6.  RED NEVER WAIVED       — a product-red feature blocks every rung.
+  7.  MISSING EVIDENCE BLOCKS — a missing required evidence artifact (lamar_path_rover) defers the rung
+                              (not green) and is named in missing_evidence.
+  8.  ENTERPRISE REQUIRES GOVERNANCE — a missing governance artifact (threat_model) blocks ONLY Enterprise;
+                              External (which doesn't require it) can still pass.
+  9.  NON-BLOCKING PARTIAL VISIBLE — Local's waived APNs is surfaced in non_blocking_items and Local's
+                              not_claimed lists notifications (green Local never implies notifications).
+ 10.  NO GREEN WITH FLOOR OPEN — P0 / UNKNOWN / stale / unclassified / repeatability-missing each block
+                              every rung.
+ 11.  DOWNWARD-CLOSED        — eligibility is monotonic down the ladder.
+ 12.  WAIVER DOUBLE-LOCK     — waiver_for needs the live class (external) / not-red (scope); never at/above.
+ 13.  SERVED (if up)         — /verification.json carries the 4 rungs + highest_diamond_tier; the legacy
+                              global Diamond == the Enterprise rung.
 
-Hermetic for the logic teeth (pure function over synthetic bundles). Exit 0 == CERTIFIED.
+Hermetic for the logic teeth (pure over synthetic bundles). Exit 0 == CERTIFIED.
 """
 from __future__ import annotations
 
@@ -43,16 +44,16 @@ if str(ROOT) not in sys.path:
 CORE = ["build_identity", "ai_security", "consent_privacy", "performance", "host_reality", "recovery",
         "consistency", "memory_truth", "live_user_reality", "repeatability", "scenario_coverage",
         "rover_journeys", "renegade", "observation_bundle", "cert_freshness", "ui_truth_consistency",
-        "evidence_room", "open_blockers"]
+        "evidence_room", "program_reality", "feature_certs", "flake_classification"]
 
 
-def bundle(*, ack="PARTIAL", ack_class="intentional_external_partial", ent="COMPLETE",
-           core_red=None, stale=None, rep=("ok", 3), unknown=0, core_status=None):
-    """Build a synthetic gates.compute()-shaped bundle to exercise the tier logic."""
+def bundle(*, ack="PARTIAL", ack_class="intentional_external_partial", core_red=None, stale=None,
+           rep=("ok", 3), unknown=0, core_status=None, evidence=None, unclassified=None):
+    """Synthetic gates.compute()-shaped bundle. evidence=dict(id->bool) overrides evidence presence."""
+    from anima.verification import release_tiers as rt
     per = [{"feature": "acknowledge_flow", "status": ack, "class": ack_class},
-           {"feature": "enterprise_readiness", "status": ent,
-            "class": "ok" if ent == "COMPLETE" else ("product_red" if ent in
-                     ("STUB", "WALLPAPER", "UNKNOWN", "REGRESSED") else "product_partial")}]
+           {"feature": "enterprise_readiness", "status": "COMPLETE", "class": "ok"},
+           {"feature": "capability_truth", "status": "COMPLETE", "class": "ok"}]
     red = [p["feature"] for p in per if p["class"] == "product_red"]
     prod = [p["feature"] for p in per if p["class"] == "product_partial"]
     if core_red:
@@ -60,21 +61,22 @@ def bundle(*, ack="PARTIAL", ack_class="intentional_external_partial", ent="COMP
         red = red + [core_red + "_feat"]
     honest = (["acknowledge_flow"] if ack != "COMPLETE"
               and ack_class in ("intentional_external_partial", "env_dependency_partial") else [])
-    gate_status = dict(core_status or {})
-    gates = [{"gate_id": c, "status": gate_status.get(c, "green")} for c in CORE]
-    gates += [{"gate_id": g, "status": "green"} for g in
-              ("program_reality", "feature_certs", "flake_classification")]
-    rep_obj = None
-    if rep is not None:
-        rep_obj = {"repeatable": rep[0] == "ok", "runs": rep[1]}
+    gst = dict(core_status or {})
+    gates = [{"gate_id": c, "status": gst.get(c, "green"), "name": c} for c in CORE]
+    rep_obj = {"repeatable": rep[0] == "ok", "runs": rep[1]} if rep is not None else None
+    all_ev = {eid: True for eid in rt.EVIDENCE}
+    if evidence:
+        all_ev.update(evidence)
     return {
         "gates": gates,
         "floor": {"p0_open": len(red), "unknown_count": unknown},
         "build_identity": {"status": "green", "running_commit": "abc1234"},
-        "flake_classification": {"per_feature": per, "honest_partials": honest, "unclassified": [],
+        "flake_classification": {"per_feature": per, "honest_partials": honest,
+                                 "unclassified": list(unclassified or []),
                                  "product_partials": prod, "product_red": red, "harness_flakes": []},
         "freshness": {"stale_required": list(stale or [])},
         "repeatability": rep_obj,
+        "evidence_status": all_ev,
     }
 
 
@@ -89,92 +91,109 @@ def main() -> int:
     print("RELEASE TIERS — a lower tier is a smaller surface, never a lower standard (no-wallpaper)")
     print("=" * 92)
 
-    from anima.verification import tiers
+    from anima.verification import release_tiers as tiers
 
-    def elig(b):
+    def rungs(b):
         r = tiers.decide_tiers(b)
-        return {x["tier"]: x["diamond_eligible"] for x in r["tiers"]}, r
+        return {x["tier_id"]: x for x in r["tiers"]}, r
 
-    # ---- 1 ladder complete -----------------------------------------------------------------------
-    _, r = elig(bundle())
-    order = [x["tier"] for x in r["tiers"]]
-    ck("1. ladder is the four rungs in strict rank order, each labelled + with a surface",
+    # ---- 1 ladder complete + §1.7 schema --------------------------------------------------------
+    by, r = rungs(bundle())
+    order = [x["tier_id"] for x in r["tiers"]]
+    schema_ok = all(all(k in x for k in ("required_gates", "release_claims", "not_claimed", "evidence",
+                                         "decision", "blocking_items", "non_blocking_items", "status"))
+                    for x in r["tiers"])
+    ck("1. four rungs in strict rank order, each carrying the full §1.7 schema",
        order == ["local_internal", "private_alpha", "external_notification", "enterprise"]
-       and all(x.get("label") and x.get("surface") for x in r["tiers"])
-       and [x["rank"] for x in r["tiers"]] == [0, 1, 2, 3])
+       and [x["rank"] for x in r["tiers"]] == [0, 1, 2, 3] and schema_ok)
 
-    # ---- 2 waiver unlocks LOCAL ONLY (the directive) --------------------------------------------
-    e, r = elig(bundle())
-    ck("2. acknowledge_flow honest-external + all green -> ONLY Local/Internal Diamond (others blocked)",
-       e["local_internal"] is True and e["private_alpha"] is False
-       and e["external_notification"] is False and e["enterprise"] is False
-       and r["highest_diamond_tier"] == "local_internal")
+    # ---- 2 local does NOT require APNs (waived, visible) ----------------------------------------
+    by, _ = rungs(bundle())
+    li = by["local_internal"]
+    ck("2. Local/Internal earns Diamond with APNs WAIVED (acknowledge_flow honest-external, all else green)",
+       li["diamond_eligible"] is True and "acknowledge_flow" in li["waived_external"])
 
-    # ---- 3 full ladder once APNs proven ---------------------------------------------------------
-    e, r = elig(bundle(ack="COMPLETE"))
-    ck("3. APNs proven (acknowledge_flow COMPLETE) -> the WHOLE ladder unlocks through Enterprise",
-       all(e.values()) and r["highest_diamond_tier"] == "enterprise")
+    # ---- 3 external REQUIRES APNs -> RED ---------------------------------------------------------
+    en = by["external_notification"]
+    apns_blocks = any("APNs" in b or "acknowledge_flow" in b for b in en["blocking_items"])
+    ck("3. External Notification is RED/not-eligible because it CLAIMS notifications but APNs is incomplete",
+       en["diamond_eligible"] is False and en["color"] == "RED" and apns_blocks)
 
-    # ---- 4 product gap NEVER waived (keystone) --------------------------------------------------
-    e, _ = elig(bundle(ack_class="product_partial"))
-    ck("4. KEYSTONE: acknowledge_flow as a PRODUCT partial (not external) -> NO tier eligible, not even Local",
-       not any(e.values()))
+    # ---- 4 APNs proven unlocks notification + enterprise ----------------------------------------
+    by2, r2 = rungs(bundle(ack="COMPLETE"))
+    ck("4. APNs proven (acknowledge_flow COMPLETE) + all evidence -> External + Enterprise unlock",
+       by2["external_notification"]["diamond_eligible"] and by2["enterprise"]["diamond_eligible"]
+       and r2["highest_diamond_tier"] == "enterprise")
 
-    # ---- 5 red never waived ---------------------------------------------------------------------
-    e, _ = elig(bundle(ack="COMPLETE", core_red="x"))
-    ck("5. a product-RED feature blocks EVERY rung", not any(e.values()))
+    # ---- 5 product gap NEVER waived (keystone) --------------------------------------------------
+    by3, _ = rungs(bundle(ack_class="product_partial"))
+    ck("5. KEYSTONE: acknowledge_flow as a PRODUCT partial (not external) -> NO tier eligible, not even Local",
+       not any(x["diamond_eligible"] for x in by3.values()))
 
-    # ---- 6 core gate gates all tiers ------------------------------------------------------------
-    e, _ = elig(bundle(core_status={"ai_security": "red"}))
-    ck("6. a RED core gate (ai_security) blocks EVERY rung — lower tier != lower standard",
-       not any(e.values()))
+    # ---- 6 red never waived ---------------------------------------------------------------------
+    by4, _ = rungs(bundle(ack="COMPLETE", core_red="x"))
+    ck("6. a product-RED feature blocks EVERY rung", not any(x["diamond_eligible"] for x in by4.values()))
 
-    # ---- 7 no stale green any tier --------------------------------------------------------------
-    e, _ = elig(bundle(stale=["live_path_results.json"]))
-    ck("7. a STALE required cert blocks EVERY rung (no stale green at any tier)", not any(e.values()))
+    # ---- 7 missing evidence blocks (deferred) ---------------------------------------------------
+    by5, _ = rungs(bundle(evidence={"lamar_path_rover": False}))
+    li5 = by5["local_internal"]
+    ck("7. a missing required evidence artifact defers the rung (not green) and is NAMED",
+       li5["diamond_eligible"] is False and li5["decision"] == "deferred"
+       and any("Lamar-path" in m for m in li5["missing_evidence"]))
 
-    # ---- 8 no single-run diamond any tier -------------------------------------------------------
-    e_missing, _ = elig(bundle(rep=None))
-    e_notrep, _ = elig(bundle(rep=("no", 1)))
-    ck("8. repeatability not proven (missing OR not-repeatable) blocks EVERY rung",
-       not any(e_missing.values()) and not any(e_notrep.values()))
+    # ---- 8 enterprise requires governance (isolated) --------------------------------------------
+    by6, _ = rungs(bundle(ack="COMPLETE", evidence={"threat_model": False}))
+    ck("8. a missing GOVERNANCE artifact (threat_model) blocks ONLY Enterprise; External still passes",
+       by6["external_notification"]["diamond_eligible"] is True
+       and by6["enterprise"]["diamond_eligible"] is False
+       and any("Threat model" in m for m in by6["enterprise"]["missing_evidence"]))
 
-    # ---- 9 enterprise strictest -----------------------------------------------------------------
-    e, _ = elig(bundle(ack="COMPLETE", ent="DEFERRED"))
-    ck("9. APNs proven but enterprise_readiness amber -> lower three GREEN, Enterprise NOT eligible",
-       e["local_internal"] and e["private_alpha"] and e["external_notification"]
-       and e["enterprise"] is False)
+    # ---- 9 non-blocking partial visible + local never implies notifications ---------------------
+    li_nb = any("acknowledge_flow" in s for s in li["non_blocking_items"])
+    li_noclaim = any("notification" in c.lower() for c in li["not_claimed"])
+    ck("9. Local's waived APNs is a VISIBLE non-blocking item; Local does NOT claim notifications",
+       li_nb and li_noclaim)
 
-    # ---- 10 downward-closed (monotonic) ---------------------------------------------------------
+    # ---- 10 no green with the floor open --------------------------------------------------------
+    floor_blocks = all(
+        not any(x["diamond_eligible"] for x in rungs(b)[0].values()) for b in (
+            bundle(ack="COMPLETE", unknown=1),
+            bundle(ack="COMPLETE", core_red="p0"),                      # p0
+            bundle(ack="COMPLETE", stale=["live_path_results.json"]),
+            bundle(ack="COMPLETE", unclassified=["mystery_feature"]),
+            bundle(ack="COMPLETE", rep=None),
+            bundle(ack="COMPLETE", rep=("no", 1)),
+        ))
+    ck("10. P0 / UNKNOWN / stale / repeatability-missing each block EVERY rung", floor_blocks)
+
+    # ---- 11 downward-closed ---------------------------------------------------------------------
     def monotone(b):
-        r = tiers.decide_tiers(b)["tiers"]
-        flags = [x["diamond_eligible"] for x in sorted(r, key=lambda z: z["rank"])]
-        # once it goes False going UP, it must never go back True
+        rs = sorted(tiers.decide_tiers(b)["tiers"], key=lambda z: z["rank"])
         seen_false = False
-        for f in flags:
-            if not f:
+        for x in rs:
+            if not x["diamond_eligible"]:
                 seen_false = True
             elif seen_false:
                 return False
         return True
-    ck("10. eligibility is downward-closed for every state (no eligible rung above an ineligible one)",
-       all(monotone(b) for b in (bundle(), bundle(ack="COMPLETE"), bundle(ack="COMPLETE", ent="DEFERRED"),
-                                 bundle(ack_class="product_partial"), bundle(stale=["x"]))))
+    ck("11. eligibility is downward-closed for every state",
+       all(monotone(b) for b in (bundle(), bundle(ack="COMPLETE"), bundle(ack="COMPLETE", evidence={"threat_model": False}),
+                                 bundle(ack_class="product_partial"), bundle(evidence={"lamar_path_rover": False}))))
 
-    # ---- 11 waiver double-lock (both kinds) -----------------------------------------------------
+    # ---- 12 waiver double-lock ------------------------------------------------------------------
     W = tiers.waiver_for
     ext_locked = (W("acknowledge_flow", "local_internal", honest_external=set(), status="PARTIAL") is None
                   and W("acknowledge_flow", "local_internal", honest_external={"acknowledge_flow"}, status="PARTIAL") == "external"
-                  and W("acknowledge_flow", "private_alpha", honest_external={"acknowledge_flow"}, status="PARTIAL") is None  # at/above req
-                  and W("acknowledge_flow", "local_internal", honest_external={"acknowledge_flow"}, status="REGRESSED") is None)  # red never
+                  and W("acknowledge_flow", "external_notification", honest_external={"acknowledge_flow"}, status="PARTIAL") is None
+                  and W("acknowledge_flow", "local_internal", honest_external={"acknowledge_flow"}, status="REGRESSED") is None)
     scope_locked = (W("enterprise_readiness", "local_internal", honest_external=set(), status="DEFERRED") == "scope"
-                    and W("enterprise_readiness", "enterprise", honest_external=set(), status="DEFERRED") is None  # required here
-                    and W("enterprise_readiness", "local_internal", honest_external=set(), status="STUB") is None)  # red never scoped
-    unmapped = W("some_other_feature", "local_internal", honest_external={"some_other_feature"}, status="PARTIAL") is None
-    ck("11. waiver_for double-locks BOTH kinds: external needs honest-external class; scope never waives a red; neither waives at/above its rung",
-       ext_locked and scope_locked and unmapped)
+                    and W("enterprise_readiness", "enterprise", honest_external=set(), status="DEFERRED") is None
+                    and W("enterprise_readiness", "local_internal", honest_external=set(), status="STUB") is None)
+    ck("12. waiver_for double-locks both kinds (external needs live class; scope never waives red; neither at/above rung)",
+       ext_locked and scope_locked
+       and W("unmapped", "local_internal", honest_external={"unmapped"}, status="PARTIAL") is None)
 
-    # ---- 12 served leg (only if the server is up) -----------------------------------------------
+    # ---- 13 served leg (only if the server is up) -----------------------------------------------
     try:
         with urllib.request.urlopen("http://127.0.0.1:8765/verification.json", timeout=8) as resp:
             payload = json.loads(resp.read())
@@ -184,20 +203,19 @@ def main() -> int:
     if up:
         rt = payload.get("release_tiers", [])
         top = payload.get("top", {})
-        names = [x.get("tier") for x in rt]
+        names = [x.get("tier_id") for x in rt]
         served_ok = (names == ["local_internal", "private_alpha", "external_notification", "enterprise"]
+                     and all(x.get("required_gates") and "release_claims" in x for x in rt)
                      and "highest_diamond_tier" in top)
-        # the legacy global Diamond is exactly the Enterprise rung (it waives nothing)
-        ent = next((x for x in rt if x.get("tier") == "enterprise"), {})
+        ent = next((x for x in rt if x.get("tier_id") == "enterprise"), {})
         invariant = (bool(top.get("diamond_eligible")) == bool(ent.get("diamond_eligible")))
-        ck("12. GET /verification.json carries the 4 rungs + highest_diamond_tier; global Diamond == Enterprise rung",
+        ck("13. GET /verification.json carries the 4 rungs + schema + highest tier; global Diamond == Enterprise rung",
            served_ok and invariant)
     else:
-        print("  --   12. (skipped — server not up; logic teeth above are server-independent)")
+        print("  --   13. (skipped — server not up; logic teeth above are server-independent)")
 
-    _, r = elig(bundle())
-    print("\n  rungs: %s · highest-now(synthetic real state): %s"
-          % (len(r["tiers"]), r["highest_diamond_tier"]))
+    _, r = rungs(bundle())
+    print("\n  rungs: %d · highest(synthetic real state): %s" % (len(r["tiers"]), r["highest_diamond_tier"]))
     print("RELEASE-TIERS CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1
 

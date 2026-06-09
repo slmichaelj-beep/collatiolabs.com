@@ -146,17 +146,24 @@
     else b.forEach(function(x){h+='<div class="row"><span class="pill'+((x.severity==='P0')?' red':' amber')+'">'+esc(x.severity)+'</span><span class="l" style="min-width:200px">'+esc(x.blocker_id)+'</span><span class="ev">'+esc(x.required_fix||'')+'</span></div>';});
     return h+'</div>';}
   function tTiers(){var ts=D.release_tiers||[],hi=D.top.highest_diamond_tier;
+    function lst(label,arr,cls){arr=arr||[];if(!arr.length)return '';
+      return '<div class="row"><span class="l" style="min-width:150px">'+label+'</span><span class="'+(cls||'ev')+'">'+arr.map(esc).join(' · ')+'</span></div>';}
     var h=tBanner()+'<div class="card"><div class="ttl">Release Tiers — the four-rung Diamond ladder (a lower tier is a smaller surface, never a lower standard)</div>'+
-      '<div class="row"><span class="l">highest Diamond now</span><span class="ev"><b>'+esc(D.top.highest_diamond_tier_label||'none yet')+'</b></span></div>';
+      '<div class="row"><span class="l">highest Diamond now</span><span class="ev"><b>'+esc(D.top.highest_diamond_tier_label||'none yet')+'</b></span></div></div>';
     if(!ts.length)h+='<div class="na">no tier data</div>';
     ts.forEach(function(r){
-      h+='<div class="row" style="align-items:flex-start">'+pill((r.color||'').toLowerCase())+
-         '<span class="l" style="min-width:280px">'+esc(r.label)+(r.tier===hi?' ◀ ceiling':'')+'</span>'+
-         '<span class="ev"><b>Diamond: '+(r.diamond_eligible?'YES':'NO')+'</b> — '+esc(r.surface)+
-         ((r.waived_external&&r.waived_external.length)?('<br><span class="next">external-not-required: '+esc(r.waived_external.join(', '))+'</span>'):'')+
-         ((r.waived_scope&&r.waived_scope.length)?('<br><span class="next">scope-not-required: '+esc(r.waived_scope.join(', '))+'</span>'):'')+
-         '<br>'+esc(r.reason)+'</span></div>';});
-    return h+'</div><div class="why">'+esc(D.tiers_doctrine||'')+'</div>';}
+      var pass=(r.passed_gates||[]).length, tot=(r.required_gates||[]).length;
+      h+='<div class="card"><div class="ttl">'+pill((r.color||'').toLowerCase())+' '+esc(r.name||r.label)+
+         (r.tier_id===hi?'  ◀ current ceiling':'')+'</div>'+
+         '<div class="row"><span class="l">Diamond</span><span class="ev"><b>'+(r.diamond_eligible?'YES':'NO')+
+         '</b> · decision: '+esc(r.decision||'')+' · gates '+pass+'/'+tot+' green · '+esc(r.surface||'')+'</span></div>'+
+         lst('claims',r.release_claims,'ev')+
+         lst('does NOT claim',r.not_claimed,'next')+
+         lst('blocking',r.blocking_items)+
+         lst('non-blocking (visible)',r.non_blocking_items,'next')+
+         lst('missing evidence',r.missing_evidence)+
+         '<div class="row"><span class="l">reason</span><span class="ev">'+esc(r.reason||'')+'</span></div></div>';});
+    return h+'<div class="why">'+esc(D.tiers_doctrine||'')+'</div>';}
   function tRelease(){var t=D.top,ov=D.founder_overrides||[];
     var h=tBanner()+'<div class="card"><div class="ttl">Release Decision (computed — not manually settable)</div>'+
       '<div class="row"><span class="l">decision</span><span class="ev">'+esc(t.release_decision)+'</span></div>'+

@@ -5,7 +5,7 @@ Everything here is computed live; nothing is hardcoded green.
 """
 from __future__ import annotations
 
-from . import build_identity, gates as gates_mod, release_decision, tiers as tiers_mod
+from . import build_identity, gates as gates_mod, release_decision, release_tiers as tiers_mod
 
 
 def data() -> dict:

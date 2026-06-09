@@ -66,11 +66,12 @@ def main() -> int:
         print("RELEASE TIERS (Diamond ladder) — highest now: %s"
               % (t.get("highest_diamond_tier_label") or "none yet"))
         for r in rt:
-            mark = "  <= ceiling" if r.get("tier") == t.get("highest_diamond_tier") else ""
-            waived = (r.get("waived_external") or []) + (r.get("waived_scope") or [])
-            wv = (" · waived: " + ", ".join(waived)) if waived else ""
-            print("  %-38s %-7s Diamond=%-3s%s%s" % (
-                r.get("label"), r.get("color"), "YES" if r.get("diamond_eligible") else "NO", wv, mark))
+            mark = "  <= ceiling" if r.get("tier_id") == t.get("highest_diamond_tier") else ""
+            miss = r.get("missing_evidence") or []
+            why = (" · missing: " + ", ".join(miss[:3])) if miss else ""
+            print("  %-38s %-7s Diamond=%-3s [%s]%s%s" % (
+                r.get("name") or r.get("label"), r.get("color"),
+                "YES" if r.get("diamond_eligible") else "NO", r.get("decision", ""), why, mark))
     return 0
 
 
