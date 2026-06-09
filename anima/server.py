@@ -2901,6 +2901,22 @@ class Handler(BaseHTTPRequestHandler):
                 from .verification import dashboard as _vdash
                 return self._send(200, "application/json",
                                   json.dumps(_vdash.data()).encode())
+            if u.path.startswith("/founder/verification/"):
+                # §27 read API — slices of the computed verdict + the run records. Token + Face-ID gated.
+                from .verification import dashboard as _vdash, api as _vapi
+                sub = u.path[len("/founder/verification/"):]
+                if sub.startswith("runs/"):
+                    return self._send(200, "application/json",
+                                      json.dumps(_vapi.get_run(sub[len("runs/"):])).encode())
+                if sub == "runs":
+                    return self._send(200, "application/json", json.dumps(_vapi.list_runs()).encode())
+                d = _vdash.data()
+                pick = {"status": d.get("top"), "gates": d.get("gates"), "blockers": d.get("blockers"),
+                        "evidence": d.get("evidence_room"), "release-decision": d.get("decision"),
+                        "overrides": _vapi.overrides()}.get(sub)
+                if pick is None:
+                    return self._send(404, "application/json", b'{"error":"unknown verification resource"}')
+                return self._send(200, "application/json", json.dumps(pick).encode())
             if u.path in ("/founder/living-map/state", "/living-map/state"):
                 # Living Map graph — nodes/edges with LIVE, real-telemetry-backed status (honest
                 # 'unknown' where not instrumented). Token-gated. Read-only; never mutates Vera state.
@@ -3096,6 +3112,29 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self._read_body() or b"{}")
                 return self._send(200, "application/json",
                                   json.dumps(_consent_action(self.name, data)).encode())
+            if path.startswith("/founder/verification/"):
+                # §27/§23 write API — trigger a verification run, record a Founder Override (the ONLY
+                # human path to move the verdict, and it cannot be created without a complete record),
+                # or acknowledge a blocker. Token + Face-ID gated (above). Persisted + auditable.
+                from .verification import api as _vapi
+                import datetime as _dt
+                now = _dt.datetime.utcnow().isoformat() + "Z"
+                data = json.loads(self._read_body() or b"{}")
+                act = path[len("/founder/verification/"):]
+                if act.startswith("run-"):
+                    out = _vapi.start_run(act[len("run-"):], at=now)
+                elif act == "founder-override":
+                    out = _vapi.record_override(
+                        data.get("who"), data.get("gate"), data.get("why"),
+                        data.get("risk_accepted"), data.get("expires_at"),
+                        data.get("required_follow_up"), at=now)
+                elif act == "acknowledge-blocker":
+                    out = _vapi.acknowledge_blocker(data.get("blocker_id"), data.get("who"),
+                                                    data.get("note", ""), at=now)
+                else:
+                    out = {"error": "unknown verification action %r" % act}
+                code = 400 if out.get("error") else 200
+                return self._send(code, "application/json", json.dumps(out).encode())
             if path == "/talk":
                 data = json.loads(self._read_body() or b"{}")
                 text = str(data.get("text", ""))[:4000]          # cap absurd input

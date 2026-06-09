@@ -23,6 +23,13 @@ def data() -> dict:
     blockers = g.get("blockers") or []          # computed once in gates.collect
 
     decision = release_decision.decide(gates, floor, bi)
+    # Founder Overrides are RECORDED + surfaced, but never flip the computed gates/diamond — the verdict
+    # stays gate-truth; an override is the documented, expiring human acceptance shown alongside it.
+    try:
+        from . import api as _vapi
+        overrides = _vapi.overrides()
+    except Exception:
+        overrides = []
 
     top = {
         "diamond_eligible": decision["diamond_eligible"],
@@ -76,6 +83,7 @@ def data() -> dict:
         "classification": classification,
         "external_dependencies": ext.get("dependencies", []),
         "repeatability": rep,
+        "founder_overrides": overrides,
         "freshness": fresh,
         "evidence_room": g.get("evidence_room"),
         "scenario_matrix": g.get("scenario_matrix"),
