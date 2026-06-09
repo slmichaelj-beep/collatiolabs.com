@@ -95,7 +95,8 @@
       '<div class="stat"><div class="n">'+(t.unclassified_flakes||0)+'</div><div class="k">Unclassified flakes</div></div>'+
       '<div class="stat"><div class="n">'+(t.repeatability_confirmed?'YES':'NO')+'</div><div class="k">Repeatability</div></div>'+
       '<div class="stat"><div class="n">'+(t.stale_certs||0)+'</div><div class="k">Stale certs</div></div>'+
-      '<div class="stat"><div class="n">'+(t.open_blockers||0)+'</div><div class="k">Open blockers</div></div></div></div>';}
+      '<div class="stat"><div class="n">'+(t.open_blockers||0)+'</div><div class="k">Open blockers</div></div>'+
+      '<div class="stat"><div class="n" style="font-size:13px">'+esc(t.highest_diamond_tier_label||'none yet')+'</div><div class="k">Highest Diamond tier</div></div></div></div>';}
   function tDiamond(){var t=D.top,h=tBanner();
     h+='<div class="card"><div class="ttl">All release gates</div>';
     (D.gates||[]).forEach(function(g){h+='<div class="row">'+pill(g.status)+'<span class="l" style="min-width:230px">'+esc(g.name)+'</span><span class="ev">'+esc(g.evidence||'')+'</span></div>';});
@@ -144,6 +145,18 @@
     if(!b.length)h+='<div class="na">none</div>';
     else b.forEach(function(x){h+='<div class="row"><span class="pill'+((x.severity==='P0')?' red':' amber')+'">'+esc(x.severity)+'</span><span class="l" style="min-width:200px">'+esc(x.blocker_id)+'</span><span class="ev">'+esc(x.required_fix||'')+'</span></div>';});
     return h+'</div>';}
+  function tTiers(){var ts=D.release_tiers||[],hi=D.top.highest_diamond_tier;
+    var h=tBanner()+'<div class="card"><div class="ttl">Release Tiers — the four-rung Diamond ladder (a lower tier is a smaller surface, never a lower standard)</div>'+
+      '<div class="row"><span class="l">highest Diamond now</span><span class="ev"><b>'+esc(D.top.highest_diamond_tier_label||'none yet')+'</b></span></div>';
+    if(!ts.length)h+='<div class="na">no tier data</div>';
+    ts.forEach(function(r){
+      h+='<div class="row" style="align-items:flex-start">'+pill((r.color||'').toLowerCase())+
+         '<span class="l" style="min-width:280px">'+esc(r.label)+(r.tier===hi?' ◀ ceiling':'')+'</span>'+
+         '<span class="ev"><b>Diamond: '+(r.diamond_eligible?'YES':'NO')+'</b> — '+esc(r.surface)+
+         ((r.waived_external&&r.waived_external.length)?('<br><span class="next">external-not-required: '+esc(r.waived_external.join(', '))+'</span>'):'')+
+         ((r.waived_scope&&r.waived_scope.length)?('<br><span class="next">scope-not-required: '+esc(r.waived_scope.join(', '))+'</span>'):'')+
+         '<br>'+esc(r.reason)+'</span></div>';});
+    return h+'</div><div class="why">'+esc(D.tiers_doctrine||'')+'</div>';}
   function tRelease(){var t=D.top,ov=D.founder_overrides||[];
     var h=tBanner()+'<div class="card"><div class="ttl">Release Decision (computed — not manually settable)</div>'+
       '<div class="row"><span class="l">decision</span><span class="ev">'+esc(t.release_decision)+'</span></div>'+
@@ -175,13 +188,14 @@
     ['evidence_room','Evidence Room',tEvidence],
     ['cert_freshness','Cert Freshness',tFresh],
     ['open_blockers','Open Blockers',tBlockers],
+    ['release_tiers','Release Tiers',tTiers],
     ['release_decision','Release Decision',tRelease]
   ];
   function render(){
     if(!D){document.getElementById('view').innerHTML='<div class="na">Loading…</div>';return;}
     if(D.error){document.getElementById('view').innerHTML='<div class="card"><div class="ttl">Verification error</div><div class="why">'+esc(D.error)+'</div></div>';return;}
     var bar='<div class="tabs">';
-    TABS.forEach(function(t){var st=(t[0]==='diamond'||t[0]==='release_decision')?(D.top.release_state||'').toLowerCase():(gst(t[0])||'unknown');
+    TABS.forEach(function(t){var st=(t[0]==='diamond'||t[0]==='release_decision'||t[0]==='release_tiers')?(D.top.release_state||'').toLowerCase():(gst(t[0])||'unknown');
       bar+='<div class="tab'+(CUR===t[0]?' on':'')+'" data-tab="'+t[0]+'"><span class="dot '+st+'"></span>'+esc(t[1])+'</div>';});
     bar+='</div>';
     var body='';try{TABS.forEach(function(t){if(t[0]===CUR)body=t[2]();});}catch(e){body='<div class="na">render error: '+esc(e.message)+'</div>';}

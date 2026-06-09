@@ -5,7 +5,7 @@ Everything here is computed live; nothing is hardcoded green.
 """
 from __future__ import annotations
 
-from . import build_identity, gates as gates_mod, release_decision
+from . import build_identity, gates as gates_mod, release_decision, tiers as tiers_mod
 
 
 def data() -> dict:
@@ -23,6 +23,12 @@ def data() -> dict:
     blockers = g.get("blockers") or []          # computed once in gates.collect
 
     decision = release_decision.decide(gates, floor, bi)
+    # the four-rung release ladder (§ release tiers): each rung is the SAME standard over a smaller or
+    # larger surface. The global decision above == the Enterprise rung (it waives nothing).
+    try:
+        tier_block = tiers_mod.decide_tiers(g)
+    except Exception:
+        tier_block = {"tiers": [], "highest_diamond_tier": None, "highest_diamond_tier_label": None}
     # Founder Overrides are RECORDED + surfaced, but never flip the computed gates/diamond — the verdict
     # stays gate-truth; an override is the documented, expiring human acceptance shown alongside it.
     try:
@@ -56,6 +62,9 @@ def data() -> dict:
         "repeatability_runs": (rep or {}).get("runs"),
         "stale_certs": len(fresh.get("stale_required", [])),
         "open_blockers": len(blockers),
+        # the highest release rung that currently earns Diamond (None if none) — the computed ceiling
+        "highest_diamond_tier": tier_block.get("highest_diamond_tier"),
+        "highest_diamond_tier_label": tier_block.get("highest_diamond_tier_label"),
         # the §3 summary lines for a few headline gates
         "live_user_reality": _gate_status(gates, "live_user_reality"),
         "rover_critical_journeys": _gate_status(gates, "rover_journeys"),
@@ -81,6 +90,9 @@ def data() -> dict:
         "blockers": blockers,
         "decision": decision,
         "classification": classification,
+        "release_tiers": tier_block.get("tiers", []),
+        "highest_diamond_tier": tier_block.get("highest_diamond_tier"),
+        "tiers_doctrine": tier_block.get("doctrine"),
         "external_dependencies": ext.get("dependencies", []),
         "repeatability": rep,
         "founder_overrides": overrides,

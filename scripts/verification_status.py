@@ -59,6 +59,18 @@ def main() -> int:
     print("-" * 60)
     print("RELEASE STATE: %s · DECISION: %s" % (t["release_state"], t["release_decision"]))
     print("REASON: %s" % t.get("reason", ""))
+    # the four-rung Diamond ladder (release tiers)
+    rt = d.get("release_tiers") or []
+    if rt:
+        print("-" * 60)
+        print("RELEASE TIERS (Diamond ladder) — highest now: %s"
+              % (t.get("highest_diamond_tier_label") or "none yet"))
+        for r in rt:
+            mark = "  <= ceiling" if r.get("tier") == t.get("highest_diamond_tier") else ""
+            waived = (r.get("waived_external") or []) + (r.get("waived_scope") or [])
+            wv = (" · waived: " + ", ".join(waived)) if waived else ""
+            print("  %-38s %-7s Diamond=%-3s%s%s" % (
+                r.get("label"), r.get("color"), "YES" if r.get("diamond_eligible") else "NO", wv, mark))
     return 0
 
 
