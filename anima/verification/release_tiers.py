@@ -173,8 +173,18 @@ def _feat_status(per_feature: list, feature: str) -> str:
             "STUB": RED, "WALLPAPER": RED, "UNKNOWN": RED, "REGRESSED": RED}.get(s, BLOCKED)
 
 
+def _head_short() -> str:
+    import subprocess
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=str(ROOT),
+                              capture_output=True, text=True, timeout=10).stdout.strip()
+    except Exception:
+        return ""
+
+
 def _report_passes(name: str) -> bool:
-    """A report-kind evidence artifact exists AND records a pass/green (not just any json)."""
+    """A report-kind evidence artifact exists, records a pass/green, AND (if it stamps the commit it ran
+    at) was produced on the CURRENT HEAD — a stale report from an older build never counts as green."""
     import json
     f = REPORTS / name
     if not f.exists():
@@ -183,6 +193,10 @@ def _report_passes(name: str) -> bool:
         j = json.loads(f.read_text())
     except Exception:
         return False
+    recorded = (j.get("commit") or "")
+    head = _head_short()
+    if recorded and head and recorded[:12] != head[:12]:
+        return False                                  # stale: ran on a different commit than HEAD
     if j.get("green") is True or j.get("passed") is True:
         return True
     return str(j.get("status", "")).lower() in ("green", "pass", "passed", "certified")
