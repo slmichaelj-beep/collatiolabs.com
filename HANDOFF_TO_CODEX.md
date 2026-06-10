@@ -67,13 +67,17 @@ were generated at older commits (`5c5d7f8`, `16bc09e`) and cert-freshness correc
   static checks.
 - **Diamond v2 repeatability (final run, full environment):** identity stable, **[108, 108, 108]
   COMPLETE across 3 consecutive runs, 0 unclassified flakes** — repeatability itself is proven.
-  Progression tonight as env deps were fixed: 103 → 107 → 108. Verdict **BLOCKED** by exactly two:
-  - `audiobook_intake` — **real defect, the only red** (end-to-end now runs with ffmpeg installed;
-    fails steps 6–7: the answer doesn't cite the transcript / label audio provenance). Fix first.
+  Progression tonight as env deps were fixed: 103 → 107 → 108. Verdict **BLOCKED** by exactly two,
+  then re-scoped:
+  - `audiobook_intake` — **DEFERRED / NOT CLAIMED (product decision 2026-06-09, commit 414398f)**:
+    not part of the current Local/Internal release; scoped to a future "Media/Audiobook Intake"
+    tier; UI no longer advertises it; visible as deferred on every surface; never a blocker. The
+    citation defect (e2e steps 6–7) stays recorded in the contract's known_gaps for that future tier.
   - `enterprise_readiness` — partial (was PARTIAL on the old machine too; external-dependency tier).
 - **Known stale:** none in `reports/` (all regenerated at 81a2d8c). The LaCie's old reports are
   stale by definition — leave them there.
-- **Known blockers (full list):** audiobook_intake defect; enterprise_readiness partial;
+- **Known blockers (full list):** enterprise_readiness partial (audiobook_intake is no longer a
+  blocker — deferred/not-claimed, commit 414398f);
   4 STUB-classified features from program_reality_audit (e.g. voice_io stub note) — see
   `reports/program_reality_audit.md`.
 
@@ -84,7 +88,7 @@ NOT retract — the spine fast-path replies with the canned recall line and the 
 active. "Forget that my favorite color is teal" (value restated) retracts correctly and recall then
 honestly reports the fact is gone. Root cause + fix sketch: `anima/memory_lirf.py` `_RETRACT_CUE`
 fires but the retract flag only attaches to extraction candidates; bare phrasing yields none.
-This is a good first development task after the audiobook defect.
+This is the first development task (Codex began it in-tree on 2026-06-09; audiobook is deferred).
 
 ## Small infrastructure notes
 
@@ -129,9 +133,10 @@ This is a good first development task after the audiobook defect.
     in short: `scripts/deploy_check.py`, then `scripts/verification_status.py`, then the cert for
     whatever it touches.
 15. **What exact checkpoint should Codex continue from?** Commit `81a2d8c`, branch `anima`,
-    fresh `.anima` preserved, reports regenerated. **Resume feature development at: fix
-    `audiobook_intake` end-to-end (steps 6–7), then the chat-forget retraction gap, then
-    re-run `scripts/run_diamond_v2.py --gate` chasing the old machine's fully-green Diamond.**
+    fresh `.anima` preserved, reports regenerated. **Resume feature development at: the chat-forget
+    retraction gap (Codex began this in-tree on 2026-06-09 — finish + commit it), then re-run
+    `scripts/run_diamond_v2.py --gate`. audiobook_intake is deferred/not-claimed (commit 414398f) —
+    do NOT treat it as a blocker; it resumes only when a Media/Audiobook Intake tier is claimed.**
 
 ---
 
