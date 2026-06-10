@@ -3065,6 +3065,10 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/packs":
+                from .knowledge_packs import api as _kp_api
+                self._send(200, "application/json",
+                           json.dumps(_kp_api.serve_list(self.name)).encode())
             elif u.path == "/teaching/queue":
                 # Teach Vera — the approval queue with full review payloads (conflicts, rollback plan)
                 from .teaching import api as _teach_api
@@ -3224,6 +3228,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", out.encode())
             if not self._passed():
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if path in ("/packs/add", "/packs/build", "/packs/lifecycle", "/packs/retrieve",
+                        "/packs/import"):
+                # Knowledge Packs — quarantined-by-default curated knowledge; DATA, never policy
+                data = json.loads(self._read_body() or b"{}")
+                from .knowledge_packs import api as _kp_api
+                fn = {"/packs/add": _kp_api.serve_add, "/packs/build": _kp_api.serve_build,
+                      "/packs/lifecycle": _kp_api.serve_lifecycle,
+                      "/packs/retrieve": _kp_api.serve_retrieve,
+                      "/packs/import": _kp_api.serve_import}[path]
+                return self._send(200, "application/json",
+                                  json.dumps(fn(self.name, data)).encode())
             if path == "/teaching/propose":
                 # Teach Vera — create a PENDING teaching record (nothing persists without approval)
                 data = json.loads(self._read_body() or b"{}")
