@@ -31,6 +31,11 @@ SURFACES = [
     ("/revenue", "make money now", "revenue truth board", True),
     ("/revenue/swarm", "revenue experiments", "portfolio truth", True),
     ("/compounding", "compound it", "portfolio allocations", True),
+    ("/revenue/intelligence", "learned from trying to make money", "revenue graph", True),
+    ("/distribution", "where buyers come from", "buyer database", True),
+    ("/trust/moat", "trust moat", "proof library", True),
+    ("/resources", "what i need to grow", "bottlenecks", True),
+    ("/empire", "hosts, work routing, capital", "capital decisions", True),
 ]
 
 

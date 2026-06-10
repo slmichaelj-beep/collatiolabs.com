@@ -2979,6 +2979,31 @@ class Handler(BaseHTTPRequestHandler):
                 if cpf.exists():
                     return self._send(200, "text/html; charset=utf-8", cpf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"compounding surface not built")
+            if u.path in ("/revenue/intelligence", "/revenue/intelligence.html"):
+                rif = (WEB / "revenue_intelligence.html")
+                if rif.exists():
+                    return self._send(200, "text/html; charset=utf-8", rif.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"revenue intelligence surface not built")
+            if u.path in ("/distribution", "/distribution.html"):
+                dsf = (WEB / "distribution.html")
+                if dsf.exists():
+                    return self._send(200, "text/html; charset=utf-8", dsf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"distribution surface not built")
+            if u.path in ("/trust/moat", "/trust/moat.html"):
+                tmf = (WEB / "trust_moat.html")
+                if tmf.exists():
+                    return self._send(200, "text/html; charset=utf-8", tmf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"trust moat surface not built")
+            if u.path in ("/resources", "/resources.html"):
+                ref = (WEB / "resources.html")
+                if ref.exists():
+                    return self._send(200, "text/html; charset=utf-8", ref.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"resources surface not built")
+            if u.path in ("/empire", "/empire.html"):
+                emf = (WEB / "empire.html")
+                if emf.exists():
+                    return self._send(200, "text/html; charset=utf-8", emf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"empire surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3250,6 +3275,37 @@ class Handler(BaseHTTPRequestHandler):
                 _obeCp.record(self.name, "/compounding", "compounding", "compounding_dashboard_viewed",
                               actor="user", report_refs=["reports/compounding_engine.json"])
                 self._send(200, "application/json", json.dumps(_cpa.dashboard(self.name)).encode())
+            elif u.path == "/revenue/intelligence.json":
+                from .revenue_intelligence import api as _ria
+                from .observation import emit as _obeRi
+                _obeRi.record(self.name, "/revenue/intelligence", "revenue_intelligence",
+                              "revenue_intelligence_dashboard_viewed", actor="user",
+                              report_refs=["reports/revenue_intelligence_layer.json"])
+                self._send(200, "application/json", json.dumps(_ria.dashboard(self.name)).encode())
+            elif u.path == "/distribution.json":
+                from .distribution import api as _dia
+                from .observation import emit as _obeDi
+                _obeDi.record(self.name, "/distribution", "distribution", "distribution_dashboard_viewed",
+                              actor="user", report_refs=["reports/distribution_demand_engine.json"])
+                self._send(200, "application/json", json.dumps(_dia.dashboard(self.name)).encode())
+            elif u.path == "/trust/moat.json":
+                from .trust import api as _tma
+                from .observation import emit as _obeTm
+                _obeTm.record(self.name, "/trust/moat", "trust", "trust_moat_dashboard_viewed",
+                              actor="user", report_refs=["reports/trust_reputation_moat.json"])
+                self._send(200, "application/json", json.dumps(_tma.dashboard(self.name)).encode())
+            elif u.path == "/resources.json":
+                from .resources import api as _rea
+                from .observation import emit as _obeRe
+                _obeRe.record(self.name, "/resources", "resources", "resource_dashboard_viewed",
+                              actor="user", report_refs=["reports/resource_expansion_planner.json"])
+                self._send(200, "application/json", json.dumps(_rea.dashboard(self.name)).encode())
+            elif u.path == "/empire.json":
+                from .empire import api as _ema
+                from .observation import emit as _obeEm
+                _obeEm.record(self.name, "/empire", "empire", "empire_dashboard_viewed",
+                              actor="user", report_refs=["reports/multi_host_empire_allocator.json"])
+                self._send(200, "application/json", json.dumps(_ema.dashboard(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",

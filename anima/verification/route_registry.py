@@ -38,6 +38,11 @@ ROUTES = {
     "/revenue":    {"status": "linked_active", "label": "Revenue · immediate strike engine"},
     "/revenue/swarm": {"status": "linked_active", "label": "Revenue · swarm factory"},
     "/compounding": {"status": "linked_active", "label": "Compounding · global allocator"},
+    "/revenue/intelligence": {"status": "linked_active", "label": "Revenue · intelligence"},
+    "/distribution": {"status": "linked_active", "label": "Distribution · demand capture"},
+    "/trust/moat":  {"status": "linked_active", "label": "Trust · proof + reputation moat"},
+    "/resources":  {"status": "linked_active", "label": "Resources · expansion planner"},
+    "/empire":     {"status": "linked_active", "label": "Empire · multi-host + capital"},
     # NOT built as standalone pages — affirmatively classified, never linked as active.
     "/board":      {"status": "not_claimed", "label": "Board",
                     "reason": "board surface is /chairman; no separate /board page is claimed"},

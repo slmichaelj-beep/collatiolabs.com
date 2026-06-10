@@ -101,6 +101,12 @@ STACK = [
     ("certify_revenue_strike_engine", []),
     ("certify_revenue_swarm_factory", []),
     ("certify_compounding_engine", []),
+    # revenue infrastructure — intelligence / distribution / trust / resources / empire
+    ("certify_revenue_intelligence_layer", []),
+    ("certify_distribution_engine", []),
+    ("certify_trust_moat", []),
+    ("certify_resource_expansion_planner", []),
+    ("certify_empire_allocator", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")
