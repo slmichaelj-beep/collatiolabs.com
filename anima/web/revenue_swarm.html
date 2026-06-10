@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Revenue Swarm</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:800px}
+  main{padding:18px 28px;max-width:1020px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header>
+  <div class="brand">VERA · REVENUE SWARM FACTORY</div>
+  <h1>Many small revenue experiments, run in parallel</h1>
+  <div class="sub">Tiny, safe, time-boxed, killable revenue bets. Each has a hypothesis, a budget,
+    success + kill criteria, a fulfillment plan, and an approval gate. I kill no-signal fast, pivot
+    when the offer's wrong, and scale only with demand + margin + capacity proof.</div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/revenue/swarm.json').then(r=>r.json()).then(function(d){
+  var pf=d.portfolio||{}, exps=d.experiments||[];
+  var h='<div class="step"><h2>Experiments</h2>'
+    +(exps.length? exps.map(function(e){return '<div class="card"><b>'+esc(e.hypothesis)+'</b> <span class="tag">'+esc(e.method)+'</span><span class="tag">'+esc(e.status)+'</span><span class="tag">$'+esc(e.budget)+'</span>'+(e.recommendation?'<span class="tag" style="color:#8ab4ff">'+esc(e.recommendation)+'</span>':'')+'</div>';}).join('')
+      :'<div class="empty">no experiments yet — create revenue experiments from opportunities/offers</div>')+'</div>';
+  h+='<div class="step"><h2>Portfolio truth</h2><div class="card">'
+    +'experiments: '+esc(pf.experiments||0)+' · pipeline meetings: '+esc(pf.pipeline_meetings||0)
+    +' · cash collected: <b>$'+esc(pf.cash_collected||0)+'</b></div>'
+    +((pf.killed||[]).length?'<div class="card"><b>Killed</b>: '+esc(pf.killed.join(', '))+'</div>':'')
+    +((pf.scaled||[]).length?'<div class="card"><b>Scaled</b>: '+esc(pf.scaled.join(', '))+'</div>':'')
+    +'<div class="honest">'+esc(pf.honesty||'')+'</div></div>';
+  h+='<div class="step"><h2>Next move</h2><div class="card">'+esc(d.next_move||'—')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/revenue">Revenue strike →</a> · <a href="/compounding">Compounding →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Spend: <b>budget+approval</b> · Scale: <b>evidence-required</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')
+    +'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

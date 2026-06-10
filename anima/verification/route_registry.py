@@ -35,6 +35,9 @@ ROUTES = {
     "/teams":      {"status": "linked_active", "label": "Teams · org + delegation"},
     "/workforce":  {"status": "linked_active", "label": "Workforce · digital workforce foundry"},
     "/self":       {"status": "linked_active", "label": "Self · observe / heal / evolve"},
+    "/revenue":    {"status": "linked_active", "label": "Revenue · immediate strike engine"},
+    "/revenue/swarm": {"status": "linked_active", "label": "Revenue · swarm factory"},
+    "/compounding": {"status": "linked_active", "label": "Compounding · global allocator"},
     # NOT built as standalone pages — affirmatively classified, never linked as active.
     "/board":      {"status": "not_claimed", "label": "Board",
                     "reason": "board surface is /chairman; no separate /board page is claimed"},

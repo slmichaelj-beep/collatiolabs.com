@@ -2964,6 +2964,21 @@ class Handler(BaseHTTPRequestHandler):
                 if slf.exists():
                     return self._send(200, "text/html; charset=utf-8", slf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"self surface not built")
+            if u.path in ("/revenue/swarm", "/revenue/swarm.html"):
+                rsf = (WEB / "revenue_swarm.html")
+                if rsf.exists():
+                    return self._send(200, "text/html; charset=utf-8", rsf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"revenue swarm surface not built")
+            if u.path in ("/revenue", "/revenue.html"):
+                rvf = (WEB / "revenue.html")
+                if rvf.exists():
+                    return self._send(200, "text/html; charset=utf-8", rvf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"revenue surface not built")
+            if u.path in ("/compounding", "/compounding.html"):
+                cpf = (WEB / "compounding.html")
+                if cpf.exists():
+                    return self._send(200, "text/html; charset=utf-8", cpf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"compounding surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3217,6 +3232,24 @@ class Handler(BaseHTTPRequestHandler):
                 _obeSf.record(self.name, "/self", "self_evolution", "self_dashboard_viewed",
                               actor="user", report_refs=["reports/self_observation_diagnosis_layer.json"])
                 self._send(200, "application/json", json.dumps(_sa.dashboard(self.name)).encode())
+            elif u.path == "/revenue/swarm.json":
+                from .revenue_swarm import api as _rswa
+                from .observation import emit as _obeRs
+                _obeRs.record(self.name, "/revenue/swarm", "revenue_swarm", "revenue_swarm_dashboard_viewed",
+                              actor="user", report_refs=["reports/revenue_swarm_factory.json"])
+                self._send(200, "application/json", json.dumps(_rswa.dashboard(self.name)).encode())
+            elif u.path == "/revenue.json":
+                from .revenue import api as _rva
+                from .observation import emit as _obeRv
+                _obeRv.record(self.name, "/revenue", "revenue", "revenue_strike_dashboard_viewed",
+                              actor="user", report_refs=["reports/revenue_strike_engine.json"])
+                self._send(200, "application/json", json.dumps(_rva.dashboard(self.name)).encode())
+            elif u.path == "/compounding.json":
+                from .compounding import api as _cpa
+                from .observation import emit as _obeCp
+                _obeCp.record(self.name, "/compounding", "compounding", "compounding_dashboard_viewed",
+                              actor="user", report_refs=["reports/compounding_engine.json"])
+                self._send(200, "application/json", json.dumps(_cpa.dashboard(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",

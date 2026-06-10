@@ -28,6 +28,9 @@ SURFACES = [
     ("/teams", "teams i can build", "work orders", True),
     ("/workforce", "where the work is", "service catalog", True),
     ("/self", "what i am", "frozen systems", True),
+    ("/revenue", "make money now", "revenue truth board", True),
+    ("/revenue/swarm", "revenue experiments", "portfolio truth", True),
+    ("/compounding", "compound it", "portfolio allocations", True),
 ]
 
 

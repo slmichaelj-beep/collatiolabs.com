@@ -97,6 +97,10 @@ STACK = [
     ("certify_workforce_foundry", []),
     # autonomous self-evolution + self-healing
     ("certify_self_evolution", []),
+    # revenue generation — strike / swarm / compounding
+    ("certify_revenue_strike_engine", []),
+    ("certify_revenue_swarm_factory", []),
+    ("certify_compounding_engine", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")
