@@ -395,6 +395,10 @@ form{padding:10px 12px;border-top:1px solid #141414;
           <span class="tpill-label">Add Knowledge</span>
         </button>
         <div id="addMenu">
+          <div class="emitem" id="amTeach">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            Teach Vera<span style="opacity:.42;font-size:.82em;margin-left:auto;padding-left:14px">approval-gated · reversible</span>
+          </div>
           <div class="emitem" id="amUpload">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Upload file<span style="opacity:.42;font-size:.82em;margin-left:auto;padding-left:14px">docs · images (.pdf/.txt/.md/.png/.jpg)</span>
@@ -1921,6 +1925,85 @@ async function openDash(){
   document.getElementById('dExport').onclick=()=>document.getElementById('idexport').click();
 }
 document.getElementById('dashknob').onclick=()=> dash.classList.contains('open') ? dash.classList.remove('open') : openDash();
+</script>
+<!-- TEACH VERA — structured learning: evidence, scope, approval, rollback. Nothing persists
+     without an explicit Approve; sensitive items require a second confirmation; everything is
+     reversible and Truth-Ledger traced. -->
+<div id="teachModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#10182a;border:1px solid rgba(255,255,255,.14);border-radius:14px;max-width:560px;width:92%;max-height:86vh;overflow:auto;padding:18px 20px">
+    <h3 style="margin:0 0 4px">Teach Vera</h3>
+    <div style="opacity:.6;font-size:12.5px;margin-bottom:12px">Nothing persists until you approve it. Every approval is reversible (Rollback) and recorded in her Truth Ledger.</div>
+    <label style="font-size:12px;opacity:.75">What kind of teaching?</label>
+    <select id="teachType" style="width:100%;margin:4px 0 10px;padding:7px;background:#0b1220;color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:8px">
+      <option value="preference">preference</option><option value="project_rule">project rule</option>
+      <option value="behavior_rule">behavior rule</option><option value="concept">concept</option>
+      <option value="method">method</option><option value="correction">correction</option>
+      <option value="domain_note">domain note</option><option value="do_not_learn">do-not-learn item</option>
+    </select>
+    <label style="font-size:12px;opacity:.75">The teaching, in your words</label>
+    <textarea id="teachContent" rows="3" style="width:100%;margin:4px 0 10px;padding:8px;background:#0b1220;color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:8px"></textarea>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1"><label style="font-size:12px;opacity:.75">Scope</label>
+      <select id="teachScope" style="width:100%;margin:4px 0 10px;padding:7px;background:#0b1220;color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:8px">
+        <option value="long_term">long term</option><option value="project">this project</option>
+        <option value="chat">this chat only</option><option value="until_revoked">until revoked</option>
+        <option value="behavior">behavior</option>
+      </select></div>
+      <div style="flex:1"><label style="font-size:12px;opacity:.75">Risk</label>
+      <select id="teachRisk" style="width:100%;margin:4px 0 10px;padding:7px;background:#0b1220;color:inherit;border:1px solid rgba(255,255,255,.16);border-radius:8px">
+        <option value="low">low</option><option value="medium">medium</option>
+        <option value="high">high</option><option value="sensitive">sensitive</option>
+      </select></div>
+    </div>
+    <button class="mbtn" id="teachPropose" style="padding:8px 16px">Propose</button>
+    <div id="teachQueue" style="margin-top:14px"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var modal=document.getElementById('teachModal');
+  var open=document.getElementById('amTeach');
+  if(open)open.onclick=function(){modal.style.display='flex';loadTeach();};
+  function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  window.loadTeach=function(){fetch('/teaching/queue').then(r=>r.json()).then(function(d){
+    var q=document.getElementById('teachQueue');var h='';
+    (d.pending||[]).forEach(function(it){var r=it.record,v=it.review;
+      h+='<div style="border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;margin:8px 0">'
+        +'<div style="font-size:12px;opacity:.6">'+esc(r.type)+' · scope '+esc(v.scope)+' · '+esc(v.duration)+' · risk '+esc(r.risk)+' · → '+esc(r.target_store)+'</div>'
+        +'<div style="margin:6px 0">'+esc(v.proposed_wording)+'</div>'
+        +((v.conflicts||[]).length?('<div style="font-size:12px;color:#f6c454">conflicts: '+v.conflicts.map(function(c){return esc(c.content)+(c.new_wins?' (this teaching would win)':' (existing wins)');}).join(' · ')+'</div>'):'')
+        +'<div style="font-size:11.5px;opacity:.55;margin:4px 0">'+esc(v.rollback_plan)+'</div>'
+        +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'
+        +'<button class="mbtn" onclick="teachDecide(\''+r.teaching_id+'\',\'approve\')">Approve</button>'
+        +'<button class="mbtn" onclick="teachEdit(\''+r.teaching_id+'\')">Edit</button>'
+        +'<button class="mbtn" onclick="teachDecide(\''+r.teaching_id+'\',\'reject\')">Reject</button>'
+        +'<button class="mbtn" onclick="teachDecide(\''+r.teaching_id+'\',\'chat_only\')">This chat only</button>'
+        +'<button class="mbtn" onclick="teachDecide(\''+r.teaching_id+'\',\'never_learn\')">Never learn this</button>'
+        +'</div></div>';});
+    (d.records||[]).filter(function(r){return r.approval_state==='approved';}).forEach(function(r){
+      h+='<div style="border:1px solid rgba(120,255,160,.18);border-radius:10px;padding:8px 10px;margin:6px 0;font-size:12.5px">'
+        +'<span style="opacity:.6">approved '+esc(r.type)+':</span> '+esc(r.content.slice(0,120))
+        +' <button class="mbtn" style="float:right" onclick="teachDecide(\''+r.teaching_id+'\',\'rollback\')">Rollback</button></div>';});
+    q.innerHTML=h||'<div style="opacity:.5;font-size:12.5px">No teachings yet — propose one above.</div>';
+  });};
+  window.teachDecide=function(id,action){var body={teaching_id:id,action:action};
+    if(action==='approve'){/* sensitive items: the server asks for explicit confirmation */}
+    fetch('/teaching/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(r=>r.json()).then(function(d){
+        if(d&&d.needs_confirmation&&confirm('This teaching is SENSITIVE. Approve it anyway?')){
+          body.confirm_sensitive=true;
+          return fetch('/teaching/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).then(loadTeach);}
+        loadTeach();});};
+  window.teachEdit=function(id){var t=prompt('Edit the teaching — only the edited form will persist:');
+    if(t!=null&&t.trim())fetch('/teaching/decide',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teaching_id:id,action:'edit',content:t.trim()})}).then(r=>r.json()).then(loadTeach);};
+  var btn=document.getElementById('teachPropose');
+  if(btn)btn.onclick=function(){var c=document.getElementById('teachContent').value.trim();if(!c)return;
+    fetch('/teaching/propose',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:document.getElementById('teachType').value,content:c,
+        scope:document.getElementById('teachScope').value,risk:document.getElementById('teachRisk').value})})
+      .then(r=>r.json()).then(function(d){if(!d.ok&&d.error)alert(d.error);
+        document.getElementById('teachContent').value='';loadTeach();});};
+})();
 </script>
 </body>
 </html>

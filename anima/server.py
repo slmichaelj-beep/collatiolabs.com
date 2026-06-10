@@ -3065,6 +3065,11 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/teaching/queue":
+                # Teach Vera — the approval queue with full review payloads (conflicts, rollback plan)
+                from .teaching import api as _teach_api
+                self._send(200, "application/json",
+                           json.dumps(_teach_api.serve_queue(self.name)).encode())
             elif u.path == "/host/profile.json":
                 # the ACTIVE host runtime contract — the same record enforcement reads
                 from .host import profile as _hprof
@@ -3219,6 +3224,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", out.encode())
             if not self._passed():
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if path == "/teaching/propose":
+                # Teach Vera — create a PENDING teaching record (nothing persists without approval)
+                data = json.loads(self._read_body() or b"{}")
+                from .teaching import api as _teach_api
+                return self._send(200, "application/json",
+                                  json.dumps(_teach_api.serve_propose(self.name, data)).encode())
+            if path == "/teaching/decide":
+                # approve / edit / reject / chat_only / never_learn / rollback — the user's call
+                data = json.loads(self._read_body() or b"{}")
+                from .teaching import api as _teach_api
+                return self._send(200, "application/json",
+                                  json.dumps(_teach_api.serve_decide(self.name, data)).encode())
             if path == "/console/decide":
                 # Founder Console — approve / reject an improvement suggestion. Persisted + audited.
                 data = json.loads(self._read_body() or b"{}")
