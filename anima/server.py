@@ -1873,6 +1873,17 @@ def _intake_plan(name: str, data: dict) -> dict:
     # ENOSPCs mid-write and can corrupt. Refuse HONESTLY before writing, with an actionable message.
     if kind == "file":
         b64 = data.get("bytes_b64") or ""
+        # HOST RUNTIME CONTRACT: the profile's upload budget is enforced HERE, before any byte is
+        # staged — the UI may only claim what this seam actually refuses (no host-profile theater).
+        try:
+            from .host import enforcement as _henf
+            _size_mb = (len(b64) * 3) // 4 / (1024 * 1024)
+            _verdict = _henf.upload_allowed(_size_mb)
+            if not _verdict["allowed"]:
+                return {"ok": False, "source_id": source_id, "error": _verdict["reason"],
+                        "host_profile_refusal": True}
+        except ImportError:
+            pass
         need = (len(b64) * 3) // 4 + (128 * 1024 * 1024)   # decoded size + 128 MB headroom (parse/temp)
         free = _free_bytes(_staging_dir(name))
         if free is not None and need > free:
@@ -3054,6 +3065,11 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/host/profile.json":
+                # the ACTIVE host runtime contract — the same record enforcement reads
+                from .host import profile as _hprof
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "profile": _hprof.current()}).encode())
             elif u.path == "/truth.json":
                 # Truth Ledger summary — the dashboard's "what does she claim, and is it backed?"
                 from .truth import ledger as _tl, query as _tq

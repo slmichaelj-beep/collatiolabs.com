@@ -54,7 +54,12 @@
   <header>
     <div>
       <div class="brand">VERA · FOUNDER CONSOLE</div>
-      <h1>Patterns &amp; Improvements</h1>
+      <h1>Patterns &amp; Improvements <span id="hostProfileBadge" style="font-size:.45em;opacity:.7;font-weight:500;vertical-align:middle;border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:2px 10px;margin-left:10px" title="The active host runtime profile — the same contract the runtime enforces (uploads, heavy jobs, voice). Overrides are logged."></span></h1>
+      <script>fetch('/host/profile.json').then(r=>r.json()).then(d=>{var p=(d.profile||{});
+        var el=document.getElementById('hostProfileBadge');
+        el.textContent='Host: '+(p.selected_profile||'?')+' · '+(p.memory_gb||'?')+'GB '+(p.chip||'');
+        if((p.manual_overrides||[]).length){el.textContent+=' · override (logged)';}
+      }).catch(()=>{});</script>
       <div class="sub">What Vera is noticing, what's repeating, what she recommends, and whether her
         fixes worked — the visible face of her self-improvement loop. Real data, honest gaps.</div>
       <div class="counts" id="counts"></div>
