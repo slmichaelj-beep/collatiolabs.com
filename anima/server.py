@@ -2920,6 +2920,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       rl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"total reality control room not built")
+            if u.path in ("/learning", "/learning.html", "/founder/learning"):
+                lf = (WEB / "learning.html")
+                if lf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      lf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"learning dashboard not built")
             if u.path in ("/verification", "/verification.html", "/founder/verification"):
                 # Verification Dashboard (release-truth board) page SHELL — public; data is token-gated.
                 vf = (WEB / "verification.html")
@@ -3091,6 +3097,10 @@ class Handler(BaseHTTPRequestHandler):
                 from .host import profile as _hprof
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "profile": _hprof.current()}).encode())
+            elif u.path == "/learning.json":
+                from .truth import learning_view as _lv
+                self._send(200, "application/json",
+                           json.dumps(_lv.build(self.name)).encode())
             elif u.path == "/truth.json":
                 # Truth Ledger summary — the dashboard's "what does she claim, and is it backed?"
                 from .truth import ledger as _tl, query as _tq
