@@ -22,6 +22,7 @@ SURFACES = [
     ("/observation", "Observation", "evidence", False),
     ("/commercial", "first sale", "asset inventory", True),
     ("/sales", "selling going", "Revenue truth", True),
+    ("/board/revenue", "revenue actually stands", "closed revenue", True),
 ]
 
 

@@ -83,6 +83,10 @@ STACK = [
     ("certify_commercial_safety_policy", []),
     # commercialization revenue surface (real /commercial + /sales)
     ("certify_software_commercialization", []),
+    # commercialization deepening — the 3-phase operator
+    ("certify_commercial_phase1", []),
+    ("certify_commercial_phase2", []),
+    ("certify_commercial_phase3", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

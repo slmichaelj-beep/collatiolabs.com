@@ -33,8 +33,7 @@ ROUTES = {
     # NOT built as standalone pages — affirmatively classified, never linked as active.
     "/board":      {"status": "not_claimed", "label": "Board",
                     "reason": "board surface is /chairman; no separate /board page is claimed"},
-    "/board/revenue": {"status": "not_claimed", "label": "Board · Revenue",
-                       "reason": "revenue surfaced via the sales pipeline backend; no page claimed"},
+    "/board/revenue": {"status": "linked_active", "label": "Board · Revenue"},
 }
 
 

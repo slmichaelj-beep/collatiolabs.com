@@ -2932,6 +2932,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       sf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"sales surface not built")
+            if u.path in ("/board/revenue", "/board/revenue.html"):
+                bf = (WEB / "board_revenue.html")
+                if bf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      bf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"board revenue surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3128,12 +3134,20 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "profile": _hprof.current()}).encode())
             elif u.path == "/commercial.json":
-                from .commercial import assets as _ca, wedge as _cw, offer as _co
+                from .commercial import (assets as _ca, wedge as _cw, offer as _co,
+                                         ip_license as _cip, wedge_ranker as _cwr)
                 from .observation import emit as _obeC
                 _obeC.record(self.name, "/commercial", "commercial", "software_asset_inventory_viewed",
                              actor="user")
+                _inv = _ca.inventory(self.name)
+                for _a in _inv["assets"]:
+                    _a["sell_gate"] = _cip.can_sell(self.name, _a["asset_id"])
+                try:  # compute the recommendation live + read-only (honest current state, no side-effects)
+                    _wedge = _cwr.rank(self.name, write=False)
+                except Exception:
+                    _wedge = None
                 self._send(200, "application/json", json.dumps({
-                    "ok": True, "inventory": _ca.inventory(self.name),
+                    "ok": True, "inventory": _inv, "first_wedge": _wedge,
                     "wedges": _cw.list_wedges(self.name), "offers": _co.list_offers(self.name)}).encode())
             elif u.path == "/sales.json":
                 from .commercial import revenue_briefing as _rb
@@ -3141,6 +3155,12 @@ class Handler(BaseHTTPRequestHandler):
                 _obeS.record(self.name, "/sales", "commercial", "revenue_briefing_generated",
                              actor="user", report_refs=["reports/verification_worklog.md"])
                 self._send(200, "application/json", json.dumps(_rb.build(self.name)).encode())
+            elif u.path == "/board/revenue.json":
+                from .commercial import revenue_briefing as _rbb
+                from .observation import emit as _obeB
+                _obeB.record(self.name, "/board/revenue", "commercial", "board_revenue_briefing_viewed",
+                             actor="user", report_refs=["reports/board_revenue_briefing.json"])
+                self._send(200, "application/json", json.dumps(_rbb.build(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",
