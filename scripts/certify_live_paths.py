@@ -6141,11 +6141,15 @@ def main(argv=None) -> int:
         else:
             print("\nRETRY LOG: none — every sub-cert passed on the first attempt.")
         honest = cl["counts"].get("intentional_external_partial", 0) + cl["counts"].get("env_dependency_partial", 0)
-        print("CLASSIFIED: %d COMPLETE / %d HONEST PARTIAL / %d PRODUCT PARTIAL / %d HARNESS FLAKE / "
-              "%d UNCLASSIFIED" % (counts[COMPLETE], honest, len(cl["product_partials"]),
-                                   len(cl["harness_flakes"]), len(cl["unclassified"])))
+        deferred = cl.get("deferred_not_claimed", [])
+        print("CLASSIFIED: %d COMPLETE / %d HONEST PARTIAL / %d DEFERRED-NOT-CLAIMED / %d PRODUCT PARTIAL / "
+              "%d HARNESS FLAKE / %d UNCLASSIFIED" % (counts[COMPLETE], honest, len(deferred),
+                                                      len(cl["product_partials"]),
+                                                      len(cl["harness_flakes"]), len(cl["unclassified"])))
         if cl["honest_partials"]:
             print("  honest partials : " + ", ".join(cl["honest_partials"]))
+        if deferred:
+            print("  deferred / not claimed : " + ", ".join(deferred) + " (visible; not part of this release's claims)")
         if cl["harness_flakes"]:
             print("  harness flakes  : " + ", ".join(cl["harness_flakes"]) + " (bounded; pass standalone)")
         if cl["unclassified"]:
