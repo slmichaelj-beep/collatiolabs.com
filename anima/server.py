@@ -2920,6 +2920,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       rl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"total reality control room not built")
+            if u.path in ("/chairman", "/chairman.html"):
+                cf = (WEB / "chairman.html")
+                if cf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      cf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"chairman dashboard not built")
             if u.path in ("/founder", "/founder.html", "/company", "/company.html"):
                 ff = (WEB / "founder.html")
                 if ff.exists():
@@ -3103,6 +3109,9 @@ class Handler(BaseHTTPRequestHandler):
                 from .host import profile as _hprof
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "profile": _hprof.current()}).encode())
+            elif u.path == "/foundry/portfolio.json":
+                from .foundry import core as _fc
+                self._send(200, "application/json", json.dumps(_fc.portfolio(self.name)).encode())
             elif u.path == "/company/briefing.json":
                 from .company import briefing as _brief
                 self._send(200, "application/json", json.dumps(_brief.build(self.name)).encode())
