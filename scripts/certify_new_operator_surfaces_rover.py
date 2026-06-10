@@ -20,6 +20,8 @@ SURFACES = [
     ("/founder", "Where do we stand", "Founder decisions needed", True),
     ("/chairman", "Where should my capital", "Ventures", True),
     ("/observation", "Observation", "evidence", False),
+    ("/commercial", "first sale", "asset inventory", True),
+    ("/sales", "selling going", "Revenue truth", True),
 ]
 
 

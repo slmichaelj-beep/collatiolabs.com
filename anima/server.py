@@ -2920,6 +2920,18 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       rl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"total reality control room not built")
+            if u.path in ("/commercial", "/commercial.html"):
+                cf = (WEB / "commercial.html")
+                if cf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      cf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"commercial surface not built")
+            if u.path in ("/sales", "/sales.html"):
+                sf = (WEB / "sales.html")
+                if sf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      sf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"sales surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3115,6 +3127,20 @@ class Handler(BaseHTTPRequestHandler):
                 from .host import profile as _hprof
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "profile": _hprof.current()}).encode())
+            elif u.path == "/commercial.json":
+                from .commercial import assets as _ca, wedge as _cw, offer as _co
+                from .observation import emit as _obeC
+                _obeC.record(self.name, "/commercial", "commercial", "software_asset_inventory_viewed",
+                             actor="user")
+                self._send(200, "application/json", json.dumps({
+                    "ok": True, "inventory": _ca.inventory(self.name),
+                    "wedges": _cw.list_wedges(self.name), "offers": _co.list_offers(self.name)}).encode())
+            elif u.path == "/sales.json":
+                from .commercial import revenue_briefing as _rb
+                from .observation import emit as _obeS
+                _obeS.record(self.name, "/sales", "commercial", "revenue_briefing_generated",
+                             actor="user", report_refs=["reports/verification_worklog.md"])
+                self._send(200, "application/json", json.dumps(_rb.build(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",

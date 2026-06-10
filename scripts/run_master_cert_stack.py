@@ -81,6 +81,8 @@ STACK = [
     ("certify_sales_pipeline_command_center", []),
     ("certify_foundry_product_polish", []),
     ("certify_commercial_safety_policy", []),
+    # commercialization revenue surface (real /commercial + /sales)
+    ("certify_software_commercialization", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

@@ -27,11 +27,10 @@ ROUTES = {
     "/security":   {"status": "linked_active", "label": "Security & Quarantine"},
     "/console":    {"status": "linked_active", "label": "Founder Console (patterns)"},
     "/consent":    {"status": "linked_active", "label": "Consent & Boundaries"},
+    # live revenue surfaces (the commercialization loop)
+    "/sales":      {"status": "linked_active", "label": "Sales · pipeline + revenue"},
+    "/commercial": {"status": "linked_active", "label": "Commercial · inventory → wedge → offer"},
     # NOT built as standalone pages — affirmatively classified, never linked as active.
-    "/sales":      {"status": "not_claimed", "label": "Sales (backend + surfaced via /chairman, /founder)",
-                    "reason": "sales logic is backend + observed; no standalone /sales page is claimed"},
-    "/commercial": {"status": "not_claimed", "label": "Commercial",
-                    "reason": "commercialization surface not built as a page in this build"},
     "/board":      {"status": "not_claimed", "label": "Board",
                     "reason": "board surface is /chairman; no separate /board page is claimed"},
     "/board/revenue": {"status": "not_claimed", "label": "Board · Revenue",

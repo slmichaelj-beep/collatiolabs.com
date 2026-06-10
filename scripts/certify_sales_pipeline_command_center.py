@@ -36,10 +36,10 @@ def main() -> int:
         ck("3. revenue truth distinguishes activity / pipeline / closed revenue",
            rt["closed_revenue"] == 0 and rt["pipeline_value_forecast"] >= 52000
            and "activity" in rt)
-        # /sales is honestly NOT linked as an active page (no false claim)
+        # /sales is now a REAL linked page (the revenue surface)
         idx = (ROOT / "anima" / "web" / "index.html").read_text()
-        ck("4. /sales is NOT linked as an active surface (honest — built as backend + chairman/founder)",
-           'href="/sales"' not in idx)
+        ck("4. /sales is linked as an active surface (the real revenue page)",
+           'href="/sales"' in idx)
     green = not fails
     try:
         from anima.verification import cert_result as cr
