@@ -76,6 +76,11 @@ STACK = [
     ("certify_operator_observation_integration", []),
     ("certify_operator_evidence_chain", []),
     ("certify_operator_governance_visibility", []),
+    # directive-named surface certs (§13 run order)
+    ("certify_founder_command_center", []),
+    ("certify_sales_pipeline_command_center", []),
+    ("certify_foundry_product_polish", []),
+    ("certify_commercial_safety_policy", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")
