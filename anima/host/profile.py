@@ -68,6 +68,33 @@ def select_profile(memory_gb: float) -> str:
     return "Minimal"
 
 
+_DOWNGRADE = {"Ultra": "Performance", "Performance": "Balanced", "Balanced": "Portable",
+              "Portable": "Minimal", "Minimal": "Minimal"}
+
+
+def select_with_benchmark(memory_gb: float, *, simple_chat_ms: float | None = None,
+                          host_pressure: str = "normal", disk_free_gb: float | None = None) -> dict:
+    """The memory-based recommendation, then DOWNGRADED by measured reality: slow simple chat,
+    high host pressure, or low disk each step the profile down. Final profile is capability-driven,
+    not memory alone. Returns {recommended, selected, reasons}."""
+    rec = select_profile(memory_gb)
+    selected = rec
+    reasons = []
+    # slow simple chat -> down a step (budgets per profile; >6s simple chat is a clear miss)
+    if simple_chat_ms is not None and simple_chat_ms > 6000:
+        selected = _DOWNGRADE[selected]
+        reasons.append("simple-chat latency %dms > 6000ms -> downgraded" % simple_chat_ms)
+    if host_pressure == "high":
+        selected = _DOWNGRADE[selected]
+        reasons.append("host pressure high -> downgraded")
+    if disk_free_gb is not None and disk_free_gb < 10:
+        selected = _DOWNGRADE[selected]
+        reasons.append("low disk (%dGB) -> downgraded" % disk_free_gb)
+    if not reasons:
+        reasons.append("benchmarks within budget -> recommended profile holds")
+    return {"recommended": rec, "selected": selected, "reasons": reasons}
+
+
 def detect() -> dict:
     """Measured host facts — never assumed."""
     chip, mem_gb = "", 0.0
