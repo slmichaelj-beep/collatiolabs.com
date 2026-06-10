@@ -2964,6 +2964,11 @@ class Handler(BaseHTTPRequestHandler):
                 if slf.exists():
                     return self._send(200, "text/html; charset=utf-8", slf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"self surface not built")
+            if u.path in ("/revenue/cash", "/revenue/cash.html"):
+                rcf = (WEB / "revenue_cash.html")
+                if rcf.exists():
+                    return self._send(200, "text/html; charset=utf-8", rcf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"cash milestone surface not built")
             if u.path in ("/revenue/swarm", "/revenue/swarm.html"):
                 rsf = (WEB / "revenue_swarm.html")
                 if rsf.exists():
@@ -3257,6 +3262,12 @@ class Handler(BaseHTTPRequestHandler):
                 _obeSf.record(self.name, "/self", "self_evolution", "self_dashboard_viewed",
                               actor="user", report_refs=["reports/self_observation_diagnosis_layer.json"])
                 self._send(200, "application/json", json.dumps(_sa.dashboard(self.name)).encode())
+            elif u.path == "/revenue/cash.json":
+                from .revenue import milestone_api as _mca
+                from .observation import emit as _obeMc
+                _obeMc.record(self.name, "/revenue/cash", "revenue_milestone", "cash_milestone_dashboard_viewed",
+                              actor="user", report_refs=["reports/financial_milestone_16000_plan.json"])
+                self._send(200, "application/json", json.dumps(_mca.dashboard(self.name)).encode())
             elif u.path == "/revenue/swarm.json":
                 from .revenue_swarm import api as _rswa
                 from .observation import emit as _obeRs

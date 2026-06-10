@@ -36,6 +36,7 @@ ROUTES = {
     "/workforce":  {"status": "linked_active", "label": "Workforce · digital workforce foundry"},
     "/self":       {"status": "linked_active", "label": "Self · observe / heal / evolve"},
     "/revenue":    {"status": "linked_active", "label": "Revenue · immediate strike engine"},
+    "/revenue/cash": {"status": "linked_active", "label": "Revenue · $16k cash milestone"},
     "/revenue/swarm": {"status": "linked_active", "label": "Revenue · swarm factory"},
     "/compounding": {"status": "linked_active", "label": "Compounding · global allocator"},
     "/revenue/intelligence": {"status": "linked_active", "label": "Revenue · intelligence"},

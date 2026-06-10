@@ -107,6 +107,8 @@ STACK = [
     ("certify_trust_moat", []),
     ("certify_resource_expansion_planner", []),
     ("certify_empire_allocator", []),
+    # financial milestone — $16k net profit strike machine
+    ("certify_revenue_milestone", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

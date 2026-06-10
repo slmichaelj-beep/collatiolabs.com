@@ -36,6 +36,7 @@ SURFACES = [
     ("/trust/moat", "trust moat", "proof library", True),
     ("/resources", "what i need to grow", "bottlenecks", True),
     ("/empire", "hosts, work routing, capital", "capital decisions", True),
+    ("/revenue/cash", "16,000 net profit by 2026-06-28", "remaining gap", True),
 ]
 
 
