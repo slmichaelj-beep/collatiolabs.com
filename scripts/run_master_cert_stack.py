@@ -111,6 +111,9 @@ STACK = [
     ("certify_revenue_milestone", []),
     # revenue operations setup — accounts / payment rails / launch readiness
     ("certify_revenue_ops_setup", []),
+    # fiverr marketplace channel — governed
+    ("certify_fiverr_policy_gate", []),
+    ("certify_fiverr_channel_engine", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

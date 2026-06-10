@@ -2964,6 +2964,11 @@ class Handler(BaseHTTPRequestHandler):
                 if slf.exists():
                     return self._send(200, "text/html; charset=utf-8", slf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"self surface not built")
+            if u.path in ("/marketplaces/fiverr", "/marketplaces/fiverr.html", "/marketplaces"):
+                fvf = (WEB / "fiverr.html")
+                if fvf.exists():
+                    return self._send(200, "text/html; charset=utf-8", fvf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"fiverr channel surface not built")
             if u.path in ("/revenue/cash", "/revenue/cash.html"):
                 rcf = (WEB / "revenue_cash.html")
                 if rcf.exists():
@@ -3262,6 +3267,12 @@ class Handler(BaseHTTPRequestHandler):
                 _obeSf.record(self.name, "/self", "self_evolution", "self_dashboard_viewed",
                               actor="user", report_refs=["reports/self_observation_diagnosis_layer.json"])
                 self._send(200, "application/json", json.dumps(_sa.dashboard(self.name)).encode())
+            elif u.path == "/marketplaces/fiverr.json":
+                from .marketplaces.fiverr import api as _fva
+                from .observation import emit as _obeFv
+                _obeFv.record(self.name, "/marketplaces/fiverr", "fiverr", "fiverr_dashboard_viewed",
+                              actor="user", report_refs=["reports/fiverr_channel_engine.json"])
+                self._send(200, "application/json", json.dumps(_fva.dashboard(self.name)).encode())
             elif u.path == "/revenue/cash.json":
                 from .revenue import milestone_api as _mca
                 from .observation import emit as _obeMc

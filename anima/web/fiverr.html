@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Fiverr Channel</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}.brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:820px}main{padding:18px 28px;max-width:1020px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header><div class="brand">VERA · FIVERR CHANNEL</div>
+  <h1>Fiverr as a governed service channel</h1>
+  <div class="sub">A lawful marketplace channel — not a bot playground. I research public docs, review
+    markets manually, draft compliant gigs, fulfill purchased orders through QA, and track payout-true
+    revenue. No scraping, no mass messaging, no fake reviews, no off-platform payment. Account + identity
+    are yours.</div></header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/marketplaces/fiverr.json').then(r=>r.json()).then(function(d){
+  var pol=d.policy||{}, acct=d.account||{}, rev=d.revenue||{};
+  var h='<div class="step"><h2>Policy (enforced)</h2><div class="card">'
+    +Object.keys(pol).map(function(k){return '<span class="tag" style="color:#ff9a9a">'+esc(k)+': '+esc(pol[k])+'</span>';}).join(' ')+'</div></div>';
+  h+='<div class="step"><h2>Seller account</h2><div class="card">status: <b>'+esc(acct.status)+'</b>'
+    +(acct.note?(' — '+esc(acct.note)):'')+' · raw credentials stored: '+esc(acct.raw_credentials_stored)+'</div></div>';
+  h+='<div class="step"><h2>Opportunities</h2>'
+    +((d.opportunities||[]).length? d.opportunities.map(function(o){return '<div class="card">'+esc(o.concept)+' <span class="tag">risk: '+esc(o.risk)+'</span></div>';}).join('')
+      :'<div class="empty">none yet — scan compliant service opportunities</div>')+'</div>';
+  h+='<div class="step"><h2>Gigs</h2>'
+    +((d.gigs||[]).length? d.gigs.map(function(gg){return '<div class="card">'+esc(gg.title)+' <span class="tag">'+esc(gg.status)+'</span></div>';}).join('')
+      :'<div class="empty">no gig drafts yet</div>')+'</div>';
+  h+='<div class="step"><h2>Orders + revenue truth</h2><div class="card">orders: '+esc((d.orders||[]).length)
+    +' · net-profit cash: <b>$'+esc(rev.cash_collected_net_profit||0)+'</b> · pending (not cash): $'+esc(rev.pending_not_yet_cash||0)+'</div>'
+    +'<div class="honest">'+esc(rev.honesty||'')+'</div></div>';
+  h+='<div class="step"><h2>Next move</h2><div class="card">'+esc(d.next_move||'—')+'</div><div class="honest">'+esc(d.honesty||'')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/revenue/cash">Cash milestone →</a> · <a href="/revenue/intelligence">Revenue intelligence →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Fiverr channel: <b>governed</b> · Scraping: <b>blocked</b> · Mass messaging: <b>blocked</b> · Fake reviews: <b>blocked</b> · Off-platform payment: <b>blocked</b> · Gig publish: <b>approval-required</b> · Delivery: <b>QA-required</b> · Legal/Financial: <b>human-only</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>
