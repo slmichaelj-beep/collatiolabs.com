@@ -78,7 +78,19 @@ def compute() -> dict:
                     "recorded_commit": (recorded or None), "reason": reason})
     any_stale = any(r["stale"] for r in out)
     stale_required = [r["report"] for r in out if r["stale"] and r["required"]]
-    return {"reports": out, "any_stale": any_stale, "stale_required": stale_required, "head": head}
+    # cert-result spine: every stored machine-readable cert result is re-evaluated against the
+    # LIVE context (commit/dirt/host/profile/inputs-hash). A record whose effective status is no
+    # longer green is surfaced here — visible, and never able to light a green downstream.
+    cert_results = {}
+    try:
+        from . import cert_result as _cr
+        for name, ev in _cr.evaluate_all().items():
+            if ev["effective"] != ev["recorded"] or ev["effective"] in ("stale", "blocked", "unknown"):
+                cert_results[name] = ev
+    except Exception:
+        pass
+    return {"reports": out, "any_stale": any_stale, "stale_required": stale_required, "head": head,
+            "cert_results_downgraded": cert_results}
 
 
 if __name__ == "__main__":
