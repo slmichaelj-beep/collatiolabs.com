@@ -2938,6 +2938,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       bf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"board revenue surface not built")
+            if u.path in ("/opportunities", "/opportunities.html"):
+                opf = (WEB / "opportunities.html")
+                if opf.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      opf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"opportunities surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3161,6 +3167,12 @@ class Handler(BaseHTTPRequestHandler):
                 _obeB.record(self.name, "/board/revenue", "commercial", "board_revenue_briefing_viewed",
                              actor="user", report_refs=["reports/board_revenue_briefing.json"])
                 self._send(200, "application/json", json.dumps(_rbb.build(self.name)).encode())
+            elif u.path == "/opportunities.json":
+                from .market_vision import api as _mva
+                from .observation import emit as _obeO
+                _obeO.record(self.name, "/opportunities", "market_vision", "market_vision_dashboard_viewed",
+                             actor="user", report_refs=["reports/market_vision_engine.json"])
+                self._send(200, "application/json", json.dumps(_mva.dashboard(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",

@@ -87,6 +87,9 @@ STACK = [
     ("certify_commercial_phase1", []),
     ("certify_commercial_phase2", []),
     ("certify_commercial_phase3", []),
+    # market vision engine — opportunity intelligence
+    ("certify_market_vision_engine", []),
+    ("certify_market_vision_safety", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

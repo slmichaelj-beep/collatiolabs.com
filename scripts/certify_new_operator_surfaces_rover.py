@@ -23,6 +23,7 @@ SURFACES = [
     ("/commercial", "first sale", "asset inventory", True),
     ("/sales", "selling going", "Revenue truth", True),
     ("/board/revenue", "revenue actually stands", "closed revenue", True),
+    ("/opportunities", "opportunities i can see", "highest-leverage next move", True),
 ]
 
 

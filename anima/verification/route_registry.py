@@ -30,6 +30,7 @@ ROUTES = {
     # live revenue surfaces (the commercialization loop)
     "/sales":      {"status": "linked_active", "label": "Sales · pipeline + revenue"},
     "/commercial": {"status": "linked_active", "label": "Commercial · inventory → wedge → offer"},
+    "/opportunities": {"status": "linked_active", "label": "Opportunities · market vision"},
     # NOT built as standalone pages — affirmatively classified, never linked as active.
     "/board":      {"status": "not_claimed", "label": "Board",
                     "reason": "board surface is /chairman; no separate /board page is claimed"},
