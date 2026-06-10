@@ -798,6 +798,7 @@ def _turn(name, text, voice=False):
         # known_fact_match -> deterministic reply -> gate.
         _known_reply = None
         _known_backend = None
+        _truth_events = []                       # Truth Ledger events emitted by THIS turn (ids ride out["truth"])
         try:
             if not _host_reply and not _reference_reply and not _repair_reply:
                 from . import spine as _sp_live
@@ -846,6 +847,13 @@ def _turn(name, text, voice=False):
                         _stg("deterministic_known_fact_reply", out={"chars": len(_raw_known)},
                              note="fixed text FROM memory (known fact) or honest admission — no LLM")
                         _known_reply = _final_gate4(_raw_known)
+                        try:                      # Truth Ledger: the displayed claim traces to its row
+                            from .truth import api as _truth_api
+                            _tev = _truth_api.on_memory_recall(name, _kf_row, _turn_id or "")
+                            if _tev:
+                                _truth_events.append(_tev["event_id"])
+                        except Exception:
+                            pass
                         _stg("final_gate", out={"changed": _known_reply != _raw_known,
                                                 "chars": len(_known_reply or "")},
                              note="model-free #1-rule final gate + output integrity (shared)")
@@ -1114,6 +1122,14 @@ def _turn(name, text, voice=False):
             _cs0 = time.perf_counter()
             _lirf_written = memory_lirf.capture(name, text) or []   # sleep → a fact told today is known tomorrow.
             _cap_ms += (time.perf_counter() - _cs0) * 1000.0
+            try:                                   # Truth Ledger: every write/retraction is an event
+                from .truth import api as _truth_api4
+                for _row in _lirf_written:
+                    _wev = _truth_api4.on_memory_write(name, _row, text, _turn_id or "")
+                    if _wev:
+                        _truth_events.append(_wev["event_id"])
+            except Exception:
+                pass
         except Exception:
             pass
         try:                                       # Personal World State: capture relational/causal
@@ -1278,6 +1294,29 @@ def _turn(name, text, voice=False):
             _telem.get(name).commit(_tid)
         except Exception:
             pass
+        # MEMORY TRUTH (LAW: unsupported memory language never ships): on a MODEL-generated reply
+        # with NO memory provenance this turn (no bound rows, no fact block), forbidden memory-claim
+        # shapes ("I remember…", "you told me…") are rewritten to their honest counterparts and the
+        # violation is recorded in the Truth Ledger as `unsupported` — visible and driven to zero.
+        # Deterministic seams (known-fact / honest-unknown / retraction ack / host / reference /
+        # repair / LERF) are provenance-backed by construction and never touched.
+        try:
+            _model_path = not (_lerf_solved or _host_reply or _reference_reply or _repair_reply
+                               or _known_reply)
+            if _model_path and getattr(u, "text", None):
+                from .truth import memory_language as _mlang
+                from .truth import api as _truth_api2
+                _support = bool(_bind_rows) or bool(_fact_block)
+                _gtext, _flagged = _mlang.guard(u.text, _support)
+                if _flagged:
+                    u.text = _gtext
+                    _uev = _truth_api2.on_unsupported(name, _flagged, _gtext, _turn_id or "")
+                    if _uev:
+                        _truth_events.append(_uev["event_id"])
+                    _stg("memory_truth_guard", out={"flagged": _flagged, "rewritten": True},
+                         note="unsupported memory language rewritten to honest form + ledgered")
+        except Exception:
+            pass
         out = {
             "reply": u.text, "feeling": u.feeling, "register": u.delivery["register"],
             "rate": u.delivery["rate"], "backend": u.backend,
@@ -1287,6 +1326,8 @@ def _turn(name, text, voice=False):
             # Additive; clients ignore unknown keys. Lets a caller pull the trace via
             # `whole_mri.by_turn_id(name, turn_id)` / `scripts/whole_mri.py --turn <id>`.
             "turn_id": _turn_id or "",
+            # Truth Ledger: the displayed claims' provenance handles (trace via /truth/trace).
+            "truth_events": list(_truth_events or []),
         }
         # SOURCE-AWARE ATTRIBUTION (Intake Wave 3, Q — safe layer): surface which uploaded
         # REFERENCE sources are relevant to this question, labeled and distinct from personal
@@ -1299,6 +1340,12 @@ def _turn(name, text, voice=False):
             _srcs = _srcaware.relevant_sources(name, text)
             if _srcs:
                 out["sources"] = _srcs
+                try:                              # Truth Ledger: every shipped source chip is traceable
+                    from .truth import api as _truth_api3
+                    for _sev in _truth_api3.on_source_use(name, _srcs, _turn_id or ""):
+                        _truth_events.append(_sev["event_id"])
+                except Exception:
+                    pass
         except Exception:
             pass
         tok = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
@@ -3007,6 +3054,27 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/truth.json":
+                # Truth Ledger summary — the dashboard's "what does she claim, and is it backed?"
+                from .truth import ledger as _tl, query as _tq
+                _evs = _tl.load(self.name)
+                _folded = _tq.fold(self.name)
+                _by_status = {}
+                for _e in _folded.values():
+                    _by_status[_e.get("active_status", "?")] = _by_status.get(_e.get("active_status", "?"), 0) + 1
+                self._send(200, "application/json", json.dumps({
+                    "ok": True, "events_total": len(_evs), "by_status": _by_status,
+                    "unsupported": len(_tq.unsupported(self.name)),
+                    "active": [{k: e.get(k) for k in ("event_id", "subject", "claim", "claim_type",
+                                                       "scope", "confidence", "created_at")}
+                               for e in _tq.active(self.name)][-200:],
+                }).encode())
+            elif u.path == "/truth/trace":
+                # the provenance chain behind one displayed claim (oldest first)
+                from .truth import query as _tq2
+                _eid = parse_qs(u.query).get("event_id", [""])[0]
+                self._send(200, "application/json", json.dumps({
+                    "ok": True, "event_id": _eid, "chain": _tq2.trace(self.name, _eid)}).encode())
             elif u.path == "/dials":
                 from . import dials
                 self._send(200, "application/json",
