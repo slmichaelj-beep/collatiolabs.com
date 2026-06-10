@@ -90,6 +90,13 @@ STACK = [
     # market vision engine — opportunity intelligence
     ("certify_market_vision_engine", []),
     ("certify_market_vision_safety", []),
+    # collatio operating authority + team builder
+    ("certify_collatio_authority_layer", []),
+    ("certify_team_builder_layer", []),
+    # digital workforce foundry
+    ("certify_workforce_foundry", []),
+    # autonomous self-evolution + self-healing
+    ("certify_self_evolution", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

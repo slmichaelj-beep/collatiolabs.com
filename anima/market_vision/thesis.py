@@ -53,7 +53,7 @@ def generate(name: str, *, title, one_line_thesis, customer, pain, product_gap, 
 
 
 def get(name, opportunity_id, store=None):
-    return storage.load(name, "mv_opportunity_%s" % opportunity_id, store, default=None)
+    return storage.load(name, "mv_opportunity_%s" % opportunity_id, store, default=None) or None
 
 
 def save(name, rec, store=None):

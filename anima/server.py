@@ -2944,6 +2944,26 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       opf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"opportunities surface not built")
+            if u.path in ("/collatio", "/collatio.html"):
+                cof = (WEB / "collatio.html")
+                if cof.exists():
+                    return self._send(200, "text/html; charset=utf-8", cof.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"collatio surface not built")
+            if u.path in ("/teams", "/teams.html"):
+                tf = (WEB / "teams.html")
+                if tf.exists():
+                    return self._send(200, "text/html; charset=utf-8", tf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"teams surface not built")
+            if u.path in ("/workforce", "/workforce.html"):
+                wff = (WEB / "workforce.html")
+                if wff.exists():
+                    return self._send(200, "text/html; charset=utf-8", wff.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"workforce surface not built")
+            if u.path in ("/self", "/self.html"):
+                slf = (WEB / "self.html")
+                if slf.exists():
+                    return self._send(200, "text/html; charset=utf-8", slf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"self surface not built")
             if u.path in ("/observation", "/observation.html", "/founder/observation"):
                 of = (WEB / "observation.html")
                 if of.exists():
@@ -3173,6 +3193,30 @@ class Handler(BaseHTTPRequestHandler):
                 _obeO.record(self.name, "/opportunities", "market_vision", "market_vision_dashboard_viewed",
                              actor="user", report_refs=["reports/market_vision_engine.json"])
                 self._send(200, "application/json", json.dumps(_mva.dashboard(self.name)).encode())
+            elif u.path == "/collatio.json":
+                from .collatio import api as _ca
+                from .observation import emit as _obeCo
+                _obeCo.record(self.name, "/collatio", "collatio", "collatio_dashboard_viewed",
+                              actor="user", report_refs=["reports/collatio_operating_authority_layer.json"])
+                self._send(200, "application/json", json.dumps(_ca.dashboard(self.name)).encode())
+            elif u.path == "/teams.json":
+                from .teams import api as _ta
+                from .observation import emit as _obeT
+                _obeT.record(self.name, "/teams", "teams", "teams_dashboard_viewed",
+                             actor="user", report_refs=["reports/team_builder_delegation_layer.json"])
+                self._send(200, "application/json", json.dumps(_ta.dashboard(self.name)).encode())
+            elif u.path == "/workforce.json":
+                from .workforce import api as _wa
+                from .observation import emit as _obeW
+                _obeW.record(self.name, "/workforce", "workforce", "workforce_dashboard_viewed",
+                             actor="user", report_refs=["reports/workforce_foundry_engine.json"])
+                self._send(200, "application/json", json.dumps(_wa.dashboard(self.name)).encode())
+            elif u.path == "/self.json":
+                from .self_evolution import api as _sa
+                from .observation import emit as _obeSf
+                _obeSf.record(self.name, "/self", "self_evolution", "self_dashboard_viewed",
+                              actor="user", report_refs=["reports/self_observation_diagnosis_layer.json"])
+                self._send(200, "application/json", json.dumps(_sa.dashboard(self.name)).encode())
             elif u.path == "/governance.json":
                 from .observation import emit as _obe
                 self._send(200, "application/json",

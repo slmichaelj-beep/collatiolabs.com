@@ -24,6 +24,10 @@ SURFACES = [
     ("/sales", "selling going", "Revenue truth", True),
     ("/board/revenue", "revenue actually stands", "closed revenue", True),
     ("/opportunities", "opportunities i can see", "highest-leverage next move", True),
+    ("/collatio", "collatio labs", "entity status", True),
+    ("/teams", "teams i can build", "work orders", True),
+    ("/workforce", "where the work is", "service catalog", True),
+    ("/self", "what i am", "frozen systems", True),
 ]
 
 

@@ -49,4 +49,4 @@ def recommend(name: str, opportunity_id: str, *, hypothesis: str, method: str, b
 
 
 def get(name, opportunity_id, store=None):
-    return storage.load(name, "mv_experiment_%s" % opportunity_id, store, default=None)
+    return storage.load(name, "mv_experiment_%s" % opportunity_id, store, default=None) or None
