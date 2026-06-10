@@ -28,6 +28,15 @@ end-to-end LIVE user path through the SAME functions server._turn's known-fact s
      onto SELF: a belief about Vera can NEVER enter this store as a user fact.
   G. CORRECTION + HISTORY (provenance never deleted) — a corrected birthday supersedes newest-wins,
      and the displaced value is kept in history[] so the correction is provable.
+  H. RETRACTION — THE USER OWNS DELETION (the 2026-06-09 live-drive gap) — a BARE "Forget my
+     favorite color." (value NOT restated) must (1) read as RETRACTION INTENT in the spine seam
+     (retraction_intent routes it; fact_question REFUSES it, so the canned recall "teal's your
+     favorite — I remember." can never ship on a forget-turn), (2) be acknowledged WITHOUT reciting
+     the stored value (acknowledge_forget), and (3) actually retract the active row via the SAME
+     capture->merge path a restated retraction takes — kept on disk as status='retracted' for audit,
+     never silently no-op'd. Restated-value retraction ("Forget that my favorite color is X.") still
+     works unweakened, a forget aimed at an EMPTY slot creates nothing, and a recall turn that merely
+     contains a retraction-ish cue ("never mind that — what's my favorite color?") retracts NOTHING.
 
 Hermetic + offline (NO model, NO network): memory_lirf/spine/server stores are redirected by
 _temp_store; reliability.DEFAULT_STORE is redirected here (its guarded-load/backup side effects).
@@ -169,13 +178,63 @@ def main() -> int:
                after is not None and "july 4" in str(after.get("value", "")).lower())
             ck("G2: the displaced value is KEPT in history[] (correction is provable, never deleted)",
                any("june 12" in str(h.get("value", "")).lower() for h in after.get("history", [])))
+
+            # ---- H. RETRACTION — the user owns deletion (2026-06-09 live-drive gap) ----
+            FORGET = "Forget my favorite color."
+            memory_lirf.capture(N, "my favorite color is teal")
+            ck("H1: precondition — favorite_color='teal' is active on record",
+               (lambda r: r is not None and "teal" in str(r.get("value", "")).lower())(
+                   Facts.load(N).lookup(SELF, "favorite_color")))
+            # the seam reads the forget as RETRACTION, never recall
+            ck("H2: retraction_intent routes the bare forget to its trait (no value restated)",
+               spine.retraction_intent(FORGET) == "favorite_color")
+            ck("H3: fact_question REFUSES a forget-turn — the canned recall can NEVER fire on it",
+               spine.fact_question(FORGET) is None)
+            ack = spine.acknowledge_forget(FORGET, name=N, on_record=True)
+            shipped_ack = mouth.final_output_gate(ack) if ack else None
+            ck("H4: the shipped ack confirms the forget WITHOUT reciting the stored value",
+               bool(shipped_ack) and "teal" not in shipped_ack.lower()
+               and "favorite color" in shipped_ack.lower()
+               and "i remember" not in shipped_ack.lower())
+            # the same turn's normal LIRF capture performs the actual retraction
+            memory_lirf.capture(N, FORGET)
+            ck("H5: a BARE retraction retracts the active row (the forget is no longer a no-op)",
+               Facts.load(N).lookup(SELF, "favorite_color") is None)
+            ck("H6: the retracted row is KEPT on disk for audit (status='retracted', not deleted)",
+               any(r.get("trait") == "favorite_color" and r.get("status") == "retracted"
+                   for r in Facts.load(N).rows))
+            # the second live-drive phrasing
+            memory_lirf.capture(N, "my favorite color is green")
+            memory_lirf.capture(N, "Please forget my favorite color — delete it from your memory.")
+            ck("H7: 'Please forget my favorite color — delete it from your memory.' retracts too",
+               Facts.load(N).lookup(SELF, "favorite_color") is None)
+            # restated-value retraction is UNWEAKENED
+            memory_lirf.capture(N, "my favorite color is blue")
+            memory_lirf.capture(N, "Forget that my favorite color is blue.")
+            ck("H8: restated-value retraction ('forget that my X is Y') still retracts (unweakened)",
+               Facts.load(N).lookup(SELF, "favorite_color") is None)
+            # a forget aimed at an EMPTY slot creates nothing and claims nothing
+            empty_touch = memory_lirf.capture(N, "Forget my anniversary.")
+            ack_empty = spine.acknowledge_forget("Forget my anniversary.", name=N, on_record=False)
+            ck("H9: a forget for an EMPTY slot writes NOTHING (a forget can never create a row)",
+               empty_touch == [] and Facts.load(N).lookup(SELF, "anniversary") is None)
+            ck("H10: ...and its ack honestly says there is nothing to forget (no false deletion claim)",
+               bool(ack_empty) and "nothing" in ack_empty.lower())
+            # a recall turn that merely CONTAINS a retraction-ish cue retracts NOTHING
+            memory_lirf.capture(N, "my favorite color is red")
+            ck("H11: 'never mind that — what's my favorite color?' carries NO retraction intent",
+               spine.retraction_intent("never mind that — what's my favorite color?") is None)
+            memory_lirf.capture(N, "never mind that — what's my favorite color?")
+            ck("H12: ...and a capture pass over it leaves the row ACTIVE (recall never deletes)",
+               (lambda r: r is not None and "red" in str(r.get("value", "")).lower())(
+                   Facts.load(N).lookup(SELF, "favorite_color")))
         finally:
             for m, attr, old in extra:
                 if old is not None:
                     setattr(m, attr, old)
 
     fp_after = _footprint(real_anima)
-    ck("H1: real .anima is byte-identical after the cert (no contamination)", fp_before == fp_after)
+    ck("I1: real .anima is byte-identical after the cert (no contamination)", fp_before == fp_after)
 
     print("\nLIRF-MEMORY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
     return 0 if not fails else 1

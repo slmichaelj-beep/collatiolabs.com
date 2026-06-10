@@ -719,6 +719,23 @@ class Facts:
         if _RETRACT_CUE.search(user_text or ""):
             for c in cands:
                 c["retract"] = True
+        # BARE retraction ("Forget my favorite color." — the value is NOT restated):
+        # every extractor above is anchored to a "my X is Y" shape, so a value-less
+        # forget lifts NO candidate, the flag above lands on nothing, and the forget
+        # silently no-ops while the fact stays active (the 2026-06-09 live-drive gap).
+        # Resolve the trait straight from the forget-verb's object (retract_target)
+        # and synthesise a retraction candidate for the ACTIVE (SELF, trait) row — it
+        # rides the SAME merge() retract path a restated-value retraction takes (no
+        # second write path), and when nothing is on record nothing is synthesised
+        # (a forget can never CREATE a row). A trait already carried by a real
+        # candidate (the restated form) is left to that candidate.
+        t = retract_target(user_text)
+        if t and t not in {c["trait"] for c in cands}:
+            row = self._by_key.get((SELF, t))
+            if row is not None:
+                cands.append({"trait": t, "value": row.get("value"),
+                              "evidence": _clean(user_text) or "",
+                              "correction": False, "retract": True})
         return cands
 
     # --- merge: candidate -> ledger (the heart) -----------------------------
@@ -1150,6 +1167,33 @@ _Q_TRAITS = [
     (re.compile(r"\bmy (?:wedding )?anniversary\b|when(?:'?s| is) (?:my|our) anniversary\b", re.I), "anniversary"),
     (re.compile(r"\bmy blood type\b|what'?s my blood type\b", re.I), "blood_type"),
 ]
+
+
+# Retraction-target resolution: the forget-VERB's object ("forget/delete … my X"),
+# routed through the SAME question->trait table above. Anchored to the verb so a turn
+# that merely CONTAINS a retraction-ish cue ("never mind that — when's my birthday?")
+# can NEVER resolve a target: a forget must name the slot as the verb's object. The
+# optional "that" admits the restated form ("forget that my favorite color is teal"),
+# so retraction INTENT is one predicate for both phrasings.
+_RETRACT_TARGET = re.compile(
+    r"\b(?:forget|delete|erase|remove|drop|clear|scrub)\s+(?:about\s+)?(?:that\s+)?my\s+"
+    r"(?P<obj>[\w'’ -]{2,60})", re.I)
+
+
+def retract_target(text):
+    """The canonical trait slug an explicit retraction names ("forget my favorite
+    color" -> 'favorite_color'), or None when the turn carries no verb-anchored
+    forget-object. The object phrase is routed through _Q_TRAITS — the SINGLE shared
+    question->trait table — so every alias that can recall a slot can also release
+    it. Pure parse: no store access, never raises."""
+    m = _RETRACT_TARGET.search(text or "")
+    if not m:
+        return None
+    obj = "my " + m.group("obj").strip()
+    for rx, trait in _Q_TRAITS:
+        if rx.search(obj):
+            return canon_trait(trait)
+    return None
 
 
 def _query_trait(query, f: "Facts"):

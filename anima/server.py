@@ -790,16 +790,45 @@ def _turn(name, text, voice=False):
         # exact, model-free — so the model never gets the chance to hedge or disclaim a fact we hold.
         # When the same clean question's trait is NOT on record, ship spine.honest_unknown: a warm
         # "I don't have your ___ yet — when is it?" that admits + asks, never confabulates a value.
+        # A FORGET-turn ("Forget my favorite color.") is detected FIRST (spine.retraction_intent) and
+        # acknowledged deterministically (spine.acknowledge_forget) — never recited back as a recall.
         # Either way the text crosses the SAME #1-rule final_output_gate (backend memory:known_fact /
-        # memory:honest_unknown). Compound/emotional turns fall through to the model (which still has
-        # the fact bound + the post-hoc floor). MRI: known_fact_match -> deterministic reply -> gate.
+        # memory:honest_unknown / memory:retraction_ack). Compound/emotional turns fall through to the
+        # model (which still has the fact bound + the post-hoc floor). MRI: retraction_intent_match /
+        # known_fact_match -> deterministic reply -> gate.
         _known_reply = None
         _known_backend = None
         try:
             if not _host_reply and not _reference_reply and not _repair_reply:
                 from . import spine as _sp_live
                 from .mouth import final_output_gate as _final_gate4
-                _kf_trait = _sp_live.fact_question(text)
+                # RETRACTION INTENT first ("Forget my favorite color.") — checked BEFORE the
+                # recall route, because the same words route to the same trait-slot in _Q_TRAITS
+                # and would otherwise ship the canned recall ("teal's your favorite — I
+                # remember.") right after the user asked her to forget (the 2026-06-09
+                # live-drive gap). The seam only ACKNOWLEDGES here; the ledger row itself is
+                # retracted moments later by THIS turn's normal LIRF capture
+                # (memory_lirf.capture -> Facts.merge retract path) — one write path, inside
+                # the same per-turn lock, before the turn returns.
+                _rt_trait = _sp_live.retraction_intent(text)
+                if _rt_trait:
+                    from .memory_lirf import Facts as _RFacts, SELF as _RSELF
+                    _rt_row = _RFacts.load(name).lookup(_RSELF, _rt_trait)
+                    _raw_ack = _sp_live.acknowledge_forget(text, name=name,
+                                                           on_record=_rt_row is not None)
+                    if _raw_ack:
+                        _known_backend = "memory:retraction_ack"
+                        _stg("retraction_intent_match", in_shape={"text_chars": len(text or "")},
+                             out={"trait": _rt_trait, "on_record": _rt_row is not None},
+                             note="forget-turn detected -> deterministic ack (no model); the "
+                                  "row is retracted by this turn's LIRF capture below")
+                        _stg("deterministic_retraction_ack_reply", out={"chars": len(_raw_ack)},
+                             note="fixed text — acknowledges the forget, NEVER recites the value")
+                        _known_reply = _final_gate4(_raw_ack)
+                        _stg("final_gate", out={"changed": _known_reply != _raw_ack,
+                                                "chars": len(_known_reply or "")},
+                             note="model-free #1-rule final gate + output integrity (shared)")
+                _kf_trait = None if _rt_trait else _sp_live.fact_question(text)
                 if _kf_trait:
                     from .memory_lirf import Facts as _KFacts, SELF as _KSELF
                     _kf_row = _KFacts.load(name).lookup(_KSELF, _kf_trait)

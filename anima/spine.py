@@ -63,6 +63,8 @@ from typing import Any, Optional
 #   * _fmt_value                — list-aware value rendering ("a, b")
 #   * CONF_BLOCK_FLOOR (0.55)   — the [SENSE] floor (§1.3)
 #   * _Q_TRAITS                 — the SINGLE question->trait table fact_note routes on
+#   * retract_target            — the forget-verb's-object -> trait resolver, so the
+#                                 seam reads "forget my X" as RETRACTION, never recall
 # The thresholds 0.85 / 0.70 below are the §1.3 truth-class bars (FACT / OBSERVATION);
 # they sit between LIRF's own CONF_NEW(0.9)/CONF_CORRECTION(0.97) and CONF_BLOCK_FLOOR.
 # ---------------------------------------------------------------------------
@@ -73,6 +75,7 @@ try:  # pragma: no cover - import wiring
         _fmt_value,
         CONF_BLOCK_FLOOR,
         _Q_TRAITS,
+        retract_target,
     )
 except Exception:  # pragma: no cover - isolation fallback
     SELF = "you"
@@ -95,7 +98,24 @@ except Exception:  # pragma: no cover - isolation fallback
         (re.compile(r"\bmy cat'?s? name|what'?s my cat\b", re.I), "cat_name"),
         (re.compile(r"\bmy name\b|what'?s my name|who am i\b", re.I), "name"),
         (re.compile(r"\bmy (?:middle name)\b", re.I), "middle_name"),
+        (re.compile(r"\bfavou?rite colou?r\b", re.I), "favorite_color"),
     ]
+
+    # Contract-identical local of memory_lirf.retract_target (verb-anchored object,
+    # routed through the table above) so retraction intent works in isolation too.
+    _RETRACT_TARGET = re.compile(
+        r"\b(?:forget|delete|erase|remove|drop|clear|scrub)\s+(?:about\s+)?(?:that\s+)?my\s+"
+        r"(?P<obj>[\w'’ -]{2,60})", re.I)
+
+    def retract_target(text):
+        m = _RETRACT_TARGET.search(text or "")
+        if not m:
+            return None
+        obj = "my " + m.group("obj").strip()
+        for rx, trait in _Q_TRAITS:
+            if rx.search(obj):
+                return canon_trait(trait)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +224,23 @@ def asked_trait(question: str) -> Optional[str]:
     return None
 
 
+def retraction_intent(text: str) -> Optional[str]:
+    """The canonical trait slug this turn explicitly asks her to FORGET, or None.
+
+    Fires for BOTH retraction phrasings — bare ("forget my favorite color") and
+    restated ("forget that my favorite color is teal") — via the verb-anchored
+    ``memory_lirf.retract_target``: the slot must be the forget-verb's OBJECT, so a
+    recall question that merely contains a retraction-ish cue ("never mind that —
+    when's my birthday?") never resolves and falls through to normal recall. This is
+    the seam predicate that keeps a forget-turn out of the canned-recall path (the
+    2026-06-09 live-drive gap: "teal's your favorite — I remember." shipped right
+    after "Forget my favorite color."). Pure; never raises."""
+    try:
+        return retract_target(text or "")
+    except Exception:
+        return None
+
+
 # Compound / non-lookup cues: if a turn carries one of these it is NOT a clean fact-recall
 # question — there is more to address than the fact, so the deterministic seam must defer to the
 # model (which has the fact bound) rather than answer only the slot and drop the rest.
@@ -221,6 +258,8 @@ def fact_question(question: str) -> Optional[str]:
     from memory with zero hedge and no model; "I'm down today, when's my birthday again?" is not."""
     slot = asked_trait(question)
     if not slot:
+        return None
+    if retraction_intent(question):             # a forget-turn is NEVER a recall question
         return None
     t = (question or "").strip()
     if len(t.split()) > 14:                      # a long turn carries more than a lookup
@@ -504,6 +543,46 @@ def honest_unknown(question: str, name: str = "") -> Optional[str]:
         return None
     tmpl = _pick(_UNKNOWN_TEMPLATES, name, slot)
     return tmpl.format(label=_label(slot))
+
+
+# The retraction ACK bank — the deterministic reply for a forget-turn. Its contract is
+# the INVERSE of the recall banks: (a) confirm the release, (b) NEVER recite the stored
+# value (reciting is the exact failure the 2026-06-09 live drive caught: "teal's your
+# favorite — I remember." right after "Forget my favorite color."), and (c) never claim
+# an act that didn't happen — the EMPTY bank covers a forget aimed at a slot with
+# nothing on record. Deterministic per (creature, trait), like every bank above.
+_FORGET_TEMPLATES = [
+    "Done — your {label}'s gone from my memory.",
+    "Okay. I've let your {label} go — it's off the record.",
+    "Forgotten. Your {label}'s not in my memory anymore.",
+]
+_FORGET_EMPTY_TEMPLATES = [
+    "I don't have your {label} on record at all — so there's nothing to forget.",
+    "Nothing's saved for your {label} — that slot was already empty.",
+]
+
+
+def acknowledge_forget(question: str, name: str = "", on_record: bool = True) -> Optional[str]:
+    """The deterministic, warm acknowledgment for a forget-turn — PART 3's retraction
+    counterpart. Where ``answer_from_fact`` guarantees a KNOWN fact ships and
+    ``honest_unknown`` guarantees an honest admission ships, this guarantees a forget
+    is ACKNOWLEDGED as a forget — the value is never recited back.
+
+    ``question``  : the user's turn text (must carry retraction intent, else None).
+    ``name``      : the creature's name — folded into the variant seed.
+    ``on_record`` : whether the named slot held an active row when the turn arrived —
+                    True picks the "gone from my memory" bank, False the honest
+                    "nothing to forget" bank (never claim a deletion that didn't happen).
+
+    Returns the acknowledgment, or **None** when the turn carries no retraction intent.
+    Pure, model-free, never raises. The ledger mutation itself is NOT done here — it
+    rides the turn's normal LIRF capture (``memory_lirf.capture`` -> ``Facts.merge``
+    retract path), the single write path every retraction takes."""
+    slot = retraction_intent(question)
+    if not slot:
+        return None
+    bank = _FORGET_TEMPLATES if on_record else _FORGET_EMPTY_TEMPLATES
+    return _pick(bank, name, slot).format(label=_label(slot))
 
 
 # ---------------------------------------------------------------------------
