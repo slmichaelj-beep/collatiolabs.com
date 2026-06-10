@@ -252,18 +252,6 @@ form{padding:10px 12px;border-top:1px solid #141414;
 .overlay-close{background:none;border:1px solid rgba(255,255,255,.1);color:#9a9aa2;border-radius:99px;
   padding:6px 16px;font-size:12px;cursor:pointer;margin-top:14px;transition:background .15s,color .15s}
 .overlay-close:hover{background:rgba(255,255,255,.07);color:#e4e4e7}
-/* dashboard drawer — pulls DOWN from the top: the operator's gauges + verdict */
-#dashknob{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:13;width:54px;height:18px;
-  display:flex;align-items:center;justify-content:center;font-size:11px;color:#9a9aa2;cursor:pointer;
-  background:rgba(255,255,255,.05);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  border:1px solid rgba(255,255,255,.08);border-top:none;border-radius:0 0 12px 12px;transition:color .2s,background .2s}
-#dashknob:hover{background:rgba(255,255,255,.1);color:#e8e8ec}
-#dash{position:fixed;top:0;left:0;right:0;margin:10px auto;max-width:720px;max-height:82vh;overflow-y:auto;z-index:12;
-  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
-  border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.55);padding:20px 22px 16px;
-  transform:translateY(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
-#dash.open{transform:translateY(0);pointer-events:auto}
-#dash h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec}
 .gauge{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .gauge:last-of-type{border-bottom:none}
 .gh{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:#cfcfd6;margin-bottom:7px}
@@ -369,7 +357,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
   <div class="state" id="state"></div>
 </header>
 <!-- the settings knob lives OUTSIDE the (backdrop-filtered) header so position:fixed top:50% is
-     viewport-relative — i.e. it rides the vertical MIDDLE of the right edge, mirroring #dashknob -->
+     viewport-relative — i.e. it rides the vertical MIDDLE of the right edge -->
 <button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2.4" fill="currentColor" stroke="none"/></svg></button>
 <div id="log"></div>
 <form id="f">
@@ -704,8 +692,6 @@ form{padding:10px 12px;border-top:1px solid #141414;
   </div>
 </div>
 
-<button id="dashknob" aria-label="dashboard">▾</button>
-<div id="dash"><div id="dashbody"></div></div>
 
 <script>
 // token comes from ?k= on the FIRST visit, then is remembered in localStorage — so a
@@ -1565,7 +1551,6 @@ log.addEventListener('click',()=>{
   document.getElementById('settings').classList.remove('open');
   libDrawer.classList.remove('open');
   searchPanel.classList.remove('open');
-  document.getElementById('dash').classList.remove('open');
 });
 
 // ============================================================
@@ -1887,44 +1872,6 @@ dialsBox.addEventListener('input',()=>{ clearTimeout(_dialT); _dialT=setTimeout(
 // open / close — cog toggles; the edge pull-bar or a tap on the chat dismisses
 document.getElementById('cog').onclick=()=>{ if(panel.classList.contains('open')){ panel.classList.remove('open'); } else { closeAllPanels(); openSettings(); } };
 document.getElementById('grab').onclick=()=>panel.classList.remove('open');
-// --- dashboard drawer (operator gauges + the pre-registered verdict) ---
-const dash=document.getElementById('dash'), dashBody=document.getElementById('dashbody');
-function _pct(x){ return (x==null)?'—':(x*100).toFixed(1)+'%'; }
-// which deployment is this dashboard talking to? derived from the URL host — local (Mac/tailnet)
-// vs a remote domain — so the operator always knows whose Mind these gauges describe.
-function _envLabel(){
-  const h=location.hostname||'localhost';
-  const isLocal = h==='localhost'||h==='127.0.0.1'||/^(192\.168|10|172\.(1[6-9]|2\d|3[01]))\./.test(h)||/\.local$|\.ts\.net$/.test(h);
-  return (isLocal?'local':'remote')+' · '+h;
-}
-async function openDash(){
-  dash.classList.add('open');
-  dashBody.innerHTML='<div class="dhint">loading…</div>';
-  let d; try{ const r=await fetch('/metrics',{headers:HDR});
-    if(!r.ok){ dashBody.innerHTML='<div class="dhint">dashboard is off — start the server with ANIMA_METRICS=1.</div>'; return; }
-    d=await r.json(); }
-  catch(e){ dashBody.innerHTML='<div class="dhint">couldn’t reach the server.</div>'; return; }
-  const c=d.contamination||{}, co=d.coherence||{}, g=d.growth||{};
-  dashBody.innerHTML=
-   '<h2 style="margin-bottom:4px">'+esc(document.title||'Vera')+' · identity health</h2>'
-   +'<div style="margin:0 0 14px;font-size:11px;letter-spacing:.06em;color:#6f6f76">'
-     +'<span style="text-transform:uppercase">env</span> · <b style="color:#9aa0ac;font-weight:500">'+esc(_envLabel())+'</b></div>'
-   +'<div class="gauge"><div class="gh">Contamination<span>is identity being corrupted?</span></div>'
-     +'<div class="grow"><span>organic break-rate</span><b>'+_pct(c.organic_break_rate)+'</b><span class="gn">'+(c.organic_n?'('+(c.organic_broken||0)+'/'+c.organic_n+')':'')+'</span></div>'
-     +'<div class="grow"><span>adversarial (eval)</span><b>'+_pct(c.eval_break_rate)+'</b><span class="gn">'+(c.eval_n?'('+(c.eval_broken||0)+'/'+c.eval_n+')':'')+'</span></div>'
-     +'<div class="grow"><span>narrative rejections</span><b>'+(c.narrative_rejections||0)+'</b></div></div>'
-   +'<div class="gauge"><div class="gh">Coherence<span>internally consistent?</span></div>'
-     +'<div class="grow"><span>narrative acceptance</span><b>'+_pct(co.narrative_accept_rate)+'</b><span class="gn">'+(co.narrative_total?'('+(co.narrative_acceptances||0)+'/'+co.narrative_total+')':'')+'</span></div></div>'
-   +'<div class="gauge"><div class="gh">Growth<span>becoming more accurate?</span></div>'
-     +'<div class="grow"><span>consolidations kept</span><b>'+_pct(g.accept_rate)+'</b></div>'
-     +'<div class="grow"><span>median pred. delta</span><b>'+(g.median_prediction_delta==null?'—':(+g.median_prediction_delta).toFixed(4))+'</b></div></div>'
-   +'<div class="verdict">'+esc(d.verdict||'').replace(/\n/g,'<br>')+'</div>'
-   +'<div class="row" style="margin-top:14px"><button type="button" class="mbtn" id="dRefresh">Refresh</button>'
-     +'<button type="button" class="mbtn" id="dExport">Export self</button></div>';
-  document.getElementById('dRefresh').onclick=openDash;
-  document.getElementById('dExport').onclick=()=>document.getElementById('idexport').click();
-}
-document.getElementById('dashknob').onclick=()=> dash.classList.contains('open') ? dash.classList.remove('open') : openDash();
 </script>
 <!-- TEACH VERA — structured learning: evidence, scope, approval, rollback. Nothing persists
      without an explicit Approve; sensitive items require a second confirmation; everything is
