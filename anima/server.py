@@ -2920,6 +2920,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       rl.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"total reality control room not built")
+            if u.path in ("/observation", "/observation.html", "/founder/observation"):
+                of = (WEB / "observation.html")
+                if of.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      of.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"observation surface not built")
             if u.path in ("/chairman", "/chairman.html"):
                 cf = (WEB / "chairman.html")
                 if cf.exists():
@@ -3109,11 +3115,29 @@ class Handler(BaseHTTPRequestHandler):
                 from .host import profile as _hprof
                 self._send(200, "application/json",
                            json.dumps({"ok": True, "profile": _hprof.current()}).encode())
+            elif u.path == "/governance.json":
+                from .observation import emit as _obe
+                self._send(200, "application/json",
+                           json.dumps({"ok": True, "governance": _obe.governance_snapshot(self.name)}).encode())
+            elif u.path == "/observation.json":
+                from .observation import api as _oba, emit as _obe2
+                _obe2.record(self.name, "/observation", "observation", "observation_surface_viewed",
+                             actor="user")
+                self._send(200, "application/json", json.dumps(_oba.serve_recent(self.name)).encode())
+            elif u.path == "/observation/trace":
+                from .observation import api as _oba2
+                tid = parse_qs(u.query).get("trace_id", [""])[0]
+                self._send(200, "application/json", json.dumps(_oba2.serve_trace(self.name, tid)).encode())
             elif u.path == "/foundry/portfolio.json":
                 from .foundry import core as _fc
+                from .observation import emit as _obe3
+                _obe3.record(self.name, "/chairman", "foundry", "chairman_dashboard_viewed", actor="user")
                 self._send(200, "application/json", json.dumps(_fc.portfolio(self.name)).encode())
             elif u.path == "/company/briefing.json":
                 from .company import briefing as _brief
+                from .observation import emit as _obeF
+                _obeF.record(self.name, "/founder", "company", "daily_briefing_generated", actor="user",
+                             report_refs=["reports/verification_worklog.md"])
                 self._send(200, "application/json", json.dumps(_brief.build(self.name)).encode())
             elif u.path == "/company/state.json":
                 from .company import engineering_state as _eng, release_tracker as _rel
@@ -3121,6 +3145,8 @@ class Handler(BaseHTTPRequestHandler):
                     {"ok": True, "engineering": _eng.snapshot(), "release": _rel.state()}).encode())
             elif u.path == "/learning.json":
                 from .truth import learning_view as _lv
+                from .observation import emit as _obeL
+                _obeL.record(self.name, "/learning", "learning", "learning_dashboard_viewed", actor="user")
                 self._send(200, "application/json",
                            json.dumps(_lv.build(self.name)).encode())
             elif u.path == "/truth.json":

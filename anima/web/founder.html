@@ -26,6 +26,7 @@
 </style>
 </head>
 <body>
+<div id="govBanner" style="font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)"></div>
 <header>
   <div class="brand">VERA · FOUNDER COMMAND CENTER</div>
   <h1>Where do we stand?</h1>
@@ -59,6 +60,20 @@ fetch('/company/briefing.json').then(r=>r.json()).then(function(b){
     +'<div class="card full"><h2>Deferred / not claimed</h2><div>'+esc((s.deferred_not_claimed||[]).join(", ")||"none")+'</div>'
       +'<div style="margin-top:8px;font-size:12px"><a href="/learning">Learning integrity →</a> · <a href="/verification">Verification →</a> · <a href="/security">Security →</a></div></div>';
 }).catch(function(e){document.getElementById('lead').innerHTML='<span class="bad">could not reach the server ('+esc(e)+')</span>';});
+</script>
+<script>
+// GOVERNANCE VISIBILITY — the operator surface always states where authority stands.
+fetch('/governance.json').then(r=>r.json()).then(function(d){
+  var g=(d.governance||{});
+  var el=document.getElementById('govBanner');
+  if(el) el.innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b>'
+    +' · External actions: <b>'+(g.external_actions_enabled?'enabled':'disabled')+'</b>'
+    +' · Spending: <b>'+(g.spending_enabled?'enabled':'disabled')+'</b>'
+    +' · Legal/Financial: <b>human-only</b>'
+    +' · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')+'</b>'
+    +' · <span title="this surface is observed; every view is a trace-linked event">Observed • Trace linked</span>'
+    +' · <a href="/observation" style="color:#8ab4ff;text-decoration:none">Observation →</a>';
+}).catch(function(){});
 </script>
 </body>
 </html>

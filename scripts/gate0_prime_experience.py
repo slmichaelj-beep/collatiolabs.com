@@ -301,6 +301,7 @@ _STORE_MODULES = (
     "cognitive_ergonomics.analyzer",    # Cognitive Ergonomics reads {name}.mri.jsonl for recent replies
     "truth.ledger",                     # Truth Ledger append-only store (per-turn writes)
     "company.storage",                  # Company/Foundry layer store
+    "observation.store",                # Observation event log
 )
 
 
