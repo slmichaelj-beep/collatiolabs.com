@@ -3065,6 +3065,10 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/auto_learn/queue":
+                from .auto_learn import api as _al_api
+                self._send(200, "application/json",
+                           json.dumps(_al_api.serve_queue(self.name)).encode())
             elif u.path == "/packs":
                 from .knowledge_packs import api as _kp_api
                 self._send(200, "application/json",
@@ -3228,6 +3232,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", out.encode())
             if not self._passed():
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if path == "/auto_learn/decide":
+                # Auto Learn — suggestion-only; convert creates a Teaching draft (no direct persist)
+                data = json.loads(self._read_body() or b"{}")
+                from .auto_learn import api as _al_api
+                return self._send(200, "application/json",
+                                  json.dumps(_al_api.serve_decide(self.name, data)).encode())
             if path in ("/packs/add", "/packs/build", "/packs/lifecycle", "/packs/retrieve",
                         "/packs/import"):
                 # Knowledge Packs — quarantined-by-default curated knowledge; DATA, never policy
