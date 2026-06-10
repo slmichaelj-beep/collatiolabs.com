@@ -55,23 +55,23 @@ RELEASE_CLAIMS = {
         "claims": ["local chat + follow-ups", "memory recall + forget", "source add + cited recall",
                    "security & quarantine inspect", "host health", "verification dashboard",
                    "living map", "observation dashboard"],
-        "not_claimed": ["remote push notifications", "external user accounts", "multi-tenant admin"],
+        "not_claimed": ["remote push notifications", "external user accounts", "multi-tenant admin", "audiobook / long-form media intake (deferred -> future Media/Audiobook Intake tier)"],
     },
     "private_alpha": {
         "claims": ["everything Local/Internal claims", "tester onboarding", "capability-honest surfaces",
                    "support / export package", "clear security-event labels", "tester feedback path"],
-        "not_claimed": ["remote push notifications", "enterprise admin / governance"],
+        "not_claimed": ["remote push notifications", "enterprise admin / governance", "audiobook / long-form media intake (deferred -> future Media/Audiobook Intake tier)"],
     },
     "external_notification": {
         "claims": ["everything Private Alpha claims", "push notifications (APNs send + acknowledge)",
                    "notification permission + retry/debounce", "notification privacy + audit trail"],
-        "not_claimed": ["enterprise admin / governance"],
+        "not_claimed": ["enterprise admin / governance", "audiobook / long-form media intake (deferred -> future Media/Audiobook Intake tier)"],
     },
     "enterprise": {
         "claims": ["everything External Notification claims", "admin controls", "RBAC/ABAC",
                    "audit log export", "governance evidence package", "incident response",
                    "threat model", "vulnerability management"],
-        "not_claimed": [],
+        "not_claimed": ["audiobook / long-form media intake (deferred -> future Media/Audiobook Intake tier; enterprise media intake is not claimed)"],
     },
 }
 
@@ -83,7 +83,17 @@ REQUIRED_AT = {
     "acknowledge_flow":     ("external_notification", "external"),
     # enterprise-readiness controls are an enterprise-only surface; required at Enterprise.
     "enterprise_readiness": ("enterprise", "scope"),
+    # audiobook / long-form-audio intake is DEFERRED by product decision (2026-06-09): not part of the
+    # current Local/Internal release and not claimed by ANY current rung (incl. Enterprise — enterprise
+    # media intake is not claimed). It becomes required only at the FUTURE "media_intake" tier
+    # ("Media/Audiobook Intake"), which is not yet on the ladder — so every current rung waives it as
+    # scope, surfaced never silent. A product-red still blocks (waiver_for never waives red).
+    "audiobook_intake":     ("media_intake", "scope"),
 }
+
+# future tiers referenced by REQUIRED_AT but not yet on the 4-rung ladder: every CURRENT rung ranks
+# below them, so the feature is waived (surfaced) everywhere until the tier is added to TIERS.
+FUTURE_TIERS = {"media_intake": "Media/Audiobook Intake"}
 
 # the universal CORE gate set — required green for EVERY rung (a lower tier is a smaller surface, not a
 # lower standard). These are the gate_ids gates.compute() emits.
@@ -153,7 +163,12 @@ def waiver_for(feature: str, tier: str, *, honest_external: set, status: str) ->
     if spec is None:
         return None
     req_tier, kind = spec
-    if TIER_RANK[tier] >= TIER_RANK[req_tier]:
+    # a FUTURE tier (declared in FUTURE_TIERS, not yet in TIERS) outranks every current rung — the
+    # feature is not required anywhere on the current ladder, so the waiver applies (still never red).
+    if req_tier not in TIER_RANK:
+        if req_tier not in FUTURE_TIERS:
+            return None                       # unknown tier name: refuse to waive (fail closed)
+    elif TIER_RANK[tier] >= TIER_RANK[req_tier]:
         return None
     if (status or "").upper() in _PRODUCT_RED:
         return None

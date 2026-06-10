@@ -82,6 +82,7 @@ def data() -> dict:
     for o in fc.get("per_feature", []):
         by_class.setdefault(o["class"], []).append(o["feature"])
     classification = {
+        "deferred_not_claimed": by_class.get("deferred_not_claimed", []),
         "intentional_external_partial": by_class.get("intentional_external_partial", []),
         "env_dependency_partial": by_class.get("env_dependency_partial", []),
         "harness_flake": by_class.get("harness_flake", []),

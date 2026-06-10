@@ -8,6 +8,9 @@ status that varies across identical full-gate runs must land in exactly one name
   env_dependency_partial       — a live external daemon was unavailable/degraded at gate time (Argus).
   harness_flake                — the cert passes standalone but flaked under full-gate concurrency
                                  (proven by cross-run inconsistency or a recovered-after-retry record).
+  deferred_not_claimed         — a contract-declared deferral: the feature is NOT part of any current
+                                 release tier's claims (release_required=false). Visible, never blocking,
+                                 never hidden; it becomes required only at its named future tier.
   product_partial              — a real product gap (the only class that should worry us).
   product_red                  — STUB/WALLPAPER/UNKNOWN/REGRESSED: a release-blocking product defect.
   ok                           — COMPLETE, first try.
@@ -23,6 +26,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 FLAKE_LOG = ROOT / "reports" / "cert_flakes.json"
 
+# features DEFERRED by an explicit product decision: not claimed by any current release tier; the
+# contract carries release_required=false + claimed_by_current_tier=false + a named future tier.
+# Visible in every classification surface as "deferred / not claimed" — never blocking, never hidden.
+DEFERRED_NOT_CLAIMED = {
+    "audiobook_intake": "deferred / not claimed for this release — not part of current Local/Internal "
+                        "Vera release scope (product decision 2026-06-09); becomes required only at the "
+                        "future 'Media/Audiobook Intake' tier.",
+}
 # features that are PARTIAL by design because an external dependency cannot be exercised locally
 INTENTIONAL_EXTERNAL = {
     "acknowledge_flow": "Apple APNs / VoIP PushKit stack not built (no .p8 key, no built iOS app) — "
@@ -72,6 +83,9 @@ def classify_one(feature: str, status: str, *, dep_state: str | None = None,
         return {"class": "product_red", "release_blocking": True, "why": "%s — a release-blocking product defect." % s}
 
     if s in PARTIALISH:
+        if s == "DEFERRED" and feature in DEFERRED_NOT_CLAIMED:
+            return {"class": "deferred_not_claimed", "release_blocking": False,
+                    "why": DEFERRED_NOT_CLAIMED[feature]}
         if feature in INTENTIONAL_EXTERNAL:
             return {"class": "intentional_external_partial", "release_blocking": False,
                     "why": INTENTIONAL_EXTERNAL[feature]}
@@ -119,6 +133,7 @@ def classify_run(items: list[dict], preflight: dict, flake_log: dict | None = No
     return {"per_feature": out, "counts": counts, "unclassified": unclassified,
             "honest_partials": [o["feature"] for o in out
                                 if o["class"] in ("intentional_external_partial", "env_dependency_partial")],
+            "deferred_not_claimed": [o["feature"] for o in out if o["class"] == "deferred_not_claimed"],
             "product_partials": [o["feature"] for o in out if o["class"] == "product_partial"],
             "product_red": [o["feature"] for o in out if o["class"] == "product_red"],
             "harness_flakes": [o["feature"] for o in out if o["class"] == "harness_flake"]}

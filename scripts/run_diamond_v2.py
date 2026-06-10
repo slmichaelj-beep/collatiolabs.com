@@ -140,6 +140,8 @@ def main(argv=None) -> int:
               % (d["daemon"], d["state"], worst, impact))
 
     print("\nCLASS BREAKDOWN (distinguishes the four kinds):")
+    deferred = sorted({rec["feature"] for rec in cl["features"] if rec["class"] == "deferred_not_claimed"})
+    print("  deferred / not claimed     : %s" % (deferred or "none"))
     print("  product partial            : %s" % (product_partial or "none"))
     print("  product red (defect)       : %s" % (product_red or "none"))
     print("  environmental dependency   : %s" % ([f for f in honest if f in flakes.EXTERNAL_DEP] or "none"))

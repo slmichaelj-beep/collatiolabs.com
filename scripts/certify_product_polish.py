@@ -54,8 +54,10 @@ def main() -> int:
        "_envLabel" in html and "location.hostname" in html)
 
     # ---- 3. NO DEAD CONTROLS ---------------------------------------------------------------
-    ck("3. the removed `</>` code toggle is gone (no dead control) and the upload advertises formats",
-       'id="codeToggle"' not in html and "audiobooks" in html and "Add Knowledge" in html)
+    ck("3. the removed `</>` code toggle is gone (no dead control) and the upload advertises formats "
+       "(audiobook NOT advertised — deferred / not claimed for this release)",
+       'id="codeToggle"' not in html and "docs · images" in html and "audiobook" not in html.lower()
+       and "Add Knowledge" in html)
 
     # ---- 4. HONEST COMPOSER ----------------------------------------------------------------
     ck("4. a calm, plain-language composer prompt (not internal jargon)",

@@ -60,6 +60,16 @@ def main() -> int:
        and harness["class"] == "harness_flake"
        and product["class"] == "product_partial")
 
+    # ---- 2b deferred / not claimed (contract-declared release scope) -----------------------------
+    deferred = flakes.classify_one("audiobook_intake", "DEFERRED")
+    # fail-closed: DEFERRED on a feature with NO declared deferral is a product partial (blocking)
+    undeclared = flakes.classify_one("some_random_feature", "DEFERRED")
+    ck("2b. deferred-not-claimed: a DECLARED deferral is visible + non-blocking; an UNDECLARED "
+       "DEFERRED status stays release-blocking (fail closed)",
+       deferred["class"] == "deferred_not_claimed" and deferred["release_blocking"] is False
+       and "not claimed" in deferred["why"]
+       and undeclared["class"] == "product_partial" and undeclared["release_blocking"] is True)
+
     # ---- 3 unclassified bites ------------------------------------------------------------------
     weird = flakes.classify_one("x", "SOMETHING_WEIRD")
     ck("3. UNCLASSIFIED BITES — a status fitting no class is 'unclassified' + release-blocking",

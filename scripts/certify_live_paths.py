@@ -87,6 +87,7 @@ WALLPAPER = "WALLPAPER"
 STUB = "STUB"
 UNREACHABLE = "UNREACHABLE"
 UNKNOWN = "UNKNOWN"
+DEFERRED = "DEFERRED"      # contract-declared: not claimed by any current release tier (visible, non-blocking)
 
 # The unique probe phrase used by the durable-reference / reference-recall / MRI chain. This is
 # the SAME blue-copper-ladder phrase the existing hermetic certs use, so the seam fires identically.
@@ -5718,6 +5719,65 @@ def probe_audiobook_intake(res: Result) -> None:
     iff a decodable fixture is ingested end-to-end (END-TO-END: REAL); PARTIAL if detection/metadata
     work but transcription is blocked by tooling (END-TO-END: SKIPPED); WALLPAPER if the UI advertises
     audio/audiobook support but the honest pipeline does not hold (cert fails)."""
+    # ---- DEFERRED / NOT CLAIMED (contract-declared release scope) -------------------------------
+    # Product decision 2026-06-09: audiobook intake is NOT part of the current Local/Internal release
+    # and is scoped to a future "Media/Audiobook Intake" tier. While deferred it must hold three
+    # honest properties (else it is WALLPAPER, not deferred): (1) NO active claim — the UI must not
+    # advertise audiobook/long-form-audio intake; (2) the dormant pipeline stays honest — no
+    # DRM-circumvention code, heavy transcription opt-in only; (3) the deferral is contract-surfaced
+    # (status/release_required/claimed_by_current_tier/future_tier), never hidden.
+    try:
+        _contract = json.loads((ROOT / "feature_contracts" / "audiobook_intake.json").read_text())
+    except Exception:
+        _contract = {}
+    _deferred = ((_contract.get("status") or "").upper() == "DEFERRED"
+                 and _contract.get("release_required") is False
+                 and _contract.get("claimed_by_current_tier") is False)
+    if _deferred:
+        par_src = (ROOT / "anima" / "intake_parsers.py").read_text()
+        detected = ('"audiobook"' in par_src and '".m4b"' in par_src
+                    and "intake_audio" in par_src and '".aax"' not in par_src)
+        audio_src = (ROOT / "anima" / "intake_audio.py").read_text().lower()
+        circ_tokens = ("activation_bytes", "activation bytes", "-activation", "rcrack",
+                       "rainbow table", "rainbow_table", "deactivation", "audible_key")
+        present = [t for t in circ_tokens if t in audio_src]
+        no_drm = not present
+        opt_in = "ANIMA_INTAKE_ACTIVATE_HEAVY" in (ROOT / "anima" / "intake_parsers.py").read_text() \
+                 or "ANIMA_INTAKE_ACTIVATE_HEAVY" in audio_src.upper() \
+                 or "anima_intake_activate_heavy" in audio_src
+        html = (ROOT / "anima" / "web" / "index.html").read_text().lower()
+        ui_claims = ("audiobook" in html or ".m4b" in html)
+        res.evidence.append("contract: status=DEFERRED release_required=false claimed_by_current_tier="
+                            "false future_tier=%r reason=%r"
+                            % (_contract.get("future_tier"), _contract.get("deferred_reason")))
+        res.evidence.append("no active claim: UI advertises audiobook=%s (must be False); dormant code "
+                            "honest: no DRM token=%s%s, .m4b routing intact=%s, heavy transcription "
+                            "opt-in=%s" % (ui_claims, no_drm,
+                                           (" (FOUND %s!)" % present) if present else "", detected, opt_in))
+        if ui_claims:
+            res.status = WALLPAPER
+            res.missing_links = ["no_active_claim (UI still advertises audiobook intake while the "
+                                 "contract defers it — disable the claim or certify the feature)"]
+            res.reason = ("WALLPAPER — the contract defers audiobook_intake but the UI still actively "
+                          "advertises it. A deferred feature may not be claimed anywhere.")
+            return
+        if not no_drm:
+            res.status = WALLPAPER
+            res.missing_links = ["no_drm_code (dormant pipeline contains a circumvention token: %s)" % present]
+            res.reason = "WALLPAPER — the dormant audiobook pipeline violates the no-DRM boundary."
+            return
+        res.status = DEFERRED
+        res.proven_links = ["no_drm_code"]
+        res.missing_links = []
+        res.reason = ("DEFERRED / NOT CLAIMED for this release — %s. Scoped to the future %r tier. "
+                      "No UI or user route claims audiobook intake; the dormant pipeline stays honest "
+                      "(no DRM code, heavy transcription opt-in, undecodable files return an honest "
+                      "needs_dependency). Known defect recorded in the contract (answer-citation steps "
+                      "6-7) must be fixed before that future tier can claim this feature."
+                      % (_contract.get("deferred_reason") or "deferred by contract",
+                         _contract.get("future_tier") or "Media/Audiobook Intake"))
+        return
+
     rc, tail = run_subcert([HERE / "certify_audiobook_intake.py"])
     cert_ok = (rc == 0) and ("AUDIOBOOK-INTAKE CERT: CERTIFIED" in tail)
     real_e2e = "END-TO-END: REAL" in tail
