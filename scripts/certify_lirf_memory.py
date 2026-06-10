@@ -228,6 +228,13 @@ def main() -> int:
             ck("H12: ...and a capture pass over it leaves the row ACTIVE (recall never deletes)",
                (lambda r: r is not None and "red" in str(r.get("value", "")).lower())(
                    Facts.load(N).lookup(SELF, "favorite_color")))
+            # a DECLARATIVE teach is never a recall question: the seam must not look up (and
+            # honest-unknown) a fact the user is GIVING us in this very turn (2026-06-10 gap:
+            # "My favorite color is teal." was answered "I don't have your favorite color yet")
+            ck("H13: a declarative teach ('My favorite color is teal.') is NOT a recall question",
+               spine.fact_question("My favorite color is teal.") is None)
+            ck("H14: ...while the bare question ('What is my favorite color?') still IS one",
+               spine.fact_question("What is my favorite color?") == "favorite_color")
         finally:
             for m, attr, old in extra:
                 if old is not None:

@@ -262,6 +262,15 @@ def fact_question(question: str) -> Optional[str]:
     if retraction_intent(question):             # a forget-turn is NEVER a recall question
         return None
     t = (question or "").strip()
+    try:
+        # a turn that TEACHES the slot is never a recall question: "My favorite color is teal."
+        # declares a value — the seam must not look it up (and honest-unknown a fact the user is
+        # GIVING us in this very turn); capture stores it and the model acks it with the fact bound.
+        from .memory_lirf import extract as _lift
+        if any(canon_trait(c.get("trait", "")) == slot for c in (_lift(t) or [])):
+            return None
+    except Exception:
+        pass
     if len(t.split()) > 14:                      # a long turn carries more than a lookup
         return None
     if t.count("?") > 1:                         # multiple questions -> let the model handle it
