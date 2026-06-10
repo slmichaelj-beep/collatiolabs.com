@@ -3065,6 +3065,14 @@ class Handler(BaseHTTPRequestHandler):
                 from .mouth import values_for_ui
                 self._send(200, "application/json",
                            json.dumps({"values": values_for_ui(self.name)}).encode())
+            elif u.path == "/first_launch.json":
+                from . import first_launch as _fl
+                self._send(200, "application/json",
+                           json.dumps(_fl.state()).encode())
+            elif u.path == "/first_launch/smoke":
+                from . import first_launch as _fl
+                self._send(200, "application/json",
+                           json.dumps(_fl.smoke_test()).encode())
             elif u.path == "/auto_learn/queue":
                 from .auto_learn import api as _al_api
                 self._send(200, "application/json",
