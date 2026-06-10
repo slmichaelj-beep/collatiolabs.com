@@ -41,6 +41,14 @@ fetch('/revenue/cash.json').then(r=>r.json()).then(function(d){
     +' · required net/day $'+esc(d.required_net_per_day||0)+'</div>';
   if(d.payment_path && d.payment_path.blocking){
     h+='<div class="card blocked"><b>BLOCKED — no payment path.</b> '+esc(d.payment_path.message||'')+'</div>';}
+  if(d.readiness){var rd=d.readiness;
+    h+='<div class="step"><h2>Launch readiness</h2><div class="card">'
+      +['payment_path','business_bank','sender_email','calendar','buyer_list','offer_approval','outreach_approval','crm'].map(function(k){
+         var v=rd[k]||'missing'; var col=(v==='active'||v==='approved')?'#9af0b6':(v==='pending'?'#f6c454':'#ff9a9a');
+         return '<span class="tag" style="color:'+col+'">'+esc(k)+': '+esc(v)+'</span>';}).join(' ')
+      +'<div style="margin-top:6px;font-size:12px">cleared to launch: <b>'+(d.cleared_to_launch?'YES':'no — blockers below')+'</b></div>'
+      +((d.launch_blockers||[]).length?'<div style="font-size:11px;color:#ff9a9a;margin-top:4px">'+esc(d.launch_blockers.join(' · '))+'</div>':'')
+      +'</div></div>';}
   h+='<div class="step"><h2>Offers (prepared)</h2>'
     +(d.offers||[]).map(function(o){return '<div class="card"><b>'+esc(o.name)+'</b> — $'+esc(o.price)+(o.lead?' <span style="color:#9af0b6">(lead offer)</span>':'')+'</div>';}).join('')+'</div>';
   h+='<div class="step"><h2>Approvals / resources Vera needs from you</h2>'

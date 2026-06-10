@@ -109,6 +109,8 @@ STACK = [
     ("certify_empire_allocator", []),
     # financial milestone — $16k net profit strike machine
     ("certify_revenue_milestone", []),
+    # revenue operations setup — accounts / payment rails / launch readiness
+    ("certify_revenue_ops_setup", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")
