@@ -359,6 +359,7 @@ form{padding:10px 12px;border-top:1px solid #141414;
 <!-- the settings knob lives OUTSIDE the (backdrop-filtered) header so position:fixed top:50% is
      viewport-relative — i.e. it rides the vertical MIDDLE of the right edge -->
 <button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2.4" fill="currentColor" stroke="none"/></svg></button>
+<div id="envBadge" title="which deployment this is — local (your Mac) vs remote" style="position:fixed;top:6px;left:10px;z-index:11;font-size:10px;letter-spacing:.06em;opacity:.32;pointer-events:none;text-transform:uppercase"></div>
 <div id="log"></div>
 <form id="f">
   <div id="bar">
@@ -1950,6 +1951,18 @@ document.getElementById('grab').onclick=()=>panel.classList.remove('open');
         scope:document.getElementById('teachScope').value,risk:document.getElementById('teachRisk').value})})
       .then(r=>r.json()).then(function(d){if(!d.ok&&d.error)alert(d.error);
         document.getElementById('teachContent').value='';loadTeach();});};
+})();
+</script>
+<script>
+// ENV INDICATOR — derived from the URL host: local (Mac/tailnet) vs a remote domain, so it is
+// always clear whose Vera this is. (Restored as a standalone badge after the metrics drawer was removed.)
+(function(){
+  function _envLabel(){
+    var h=location.hostname||'localhost';
+    var isLocal = h==='localhost'||h==='127.0.0.1'||/^(192\.168|10|172\.(1[6-9]|2\d|3[01]))\./.test(h)||/\.local$|\.ts\.net$/.test(h);
+    return (isLocal?'local':'remote')+' · '+h;
+  }
+  var el=document.getElementById('envBadge'); if(el) el.textContent=_envLabel();
 })();
 </script>
 </body>

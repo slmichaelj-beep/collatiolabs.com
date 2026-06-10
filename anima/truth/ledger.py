@@ -12,9 +12,15 @@ from pathlib import Path
 
 from . import schema
 
+# Module-level store, so hermetic certs (gate0_prime_experience._temp_store) can redirect the
+# Truth Ledger the SAME way every other store-bearing module is redirected — keeping the real
+# .anima byte-identical during a cert. ANIMA_STORE env still wins when set.
+STORE = Path(".anima")
+
 
 def default_store() -> Path:
-    return Path(os.environ.get("ANIMA_STORE", ".anima"))
+    env = os.environ.get("ANIMA_STORE")
+    return Path(env) if env else STORE
 
 
 def path_for(name: str, store: Path | None = None) -> Path:

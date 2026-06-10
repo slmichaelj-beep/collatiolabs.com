@@ -299,6 +299,8 @@ _STORE_MODULES = (
     "agency_intent_ledger",             # Wave 2 Alpha intent ledger (per-creature)
     "consent.policy",                   # Consent & Boundaries store + held sensitive-memory candidates
     "cognitive_ergonomics.analyzer",    # Cognitive Ergonomics reads {name}.mri.jsonl for recent replies
+    "truth.ledger",                     # Truth Ledger append-only store (per-turn writes)
+    "company.storage",                  # Company/Foundry layer store
 )
 
 

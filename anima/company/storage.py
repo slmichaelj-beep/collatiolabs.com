@@ -14,8 +14,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+STORE = Path(".anima")  # redirectable by hermetic certs (see truth.ledger)
+
+
 def default_store() -> Path:
-    return Path(os.environ.get("ANIMA_STORE", ".anima"))
+    env = os.environ.get("ANIMA_STORE")
+    return Path(env) if env else STORE
 
 
 def now() -> str:
