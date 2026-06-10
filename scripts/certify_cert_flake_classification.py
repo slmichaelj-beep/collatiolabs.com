@@ -70,6 +70,12 @@ def main() -> int:
        and "not claimed" in deferred["why"]
        and undeclared["class"] == "product_partial" and undeclared["release_blocking"] is True)
 
+    # ---- 2c enterprise-only (claim-registry scoped) ----------------------------------------------
+    ent = flakes.classify_one("enterprise_readiness", "PARTIAL")
+    ck("2c. enterprise-only: an Enterprise-rung-scoped partial is visible + NON-blocking for the "
+       "global gate (the Enterprise rung itself still requires it green)",
+       ent["class"] == "enterprise_only_partial" and ent["release_blocking"] is False)
+
     # ---- 3 unclassified bites ------------------------------------------------------------------
     weird = flakes.classify_one("x", "SOMETHING_WEIRD")
     ck("3. UNCLASSIFIED BITES — a status fitting no class is 'unclassified' + release-blocking",

@@ -126,6 +126,7 @@
     function r(label,arr,bad){arr=arr||[];return '<div class="row"><span class="l">'+label+'</span>'+(bad?pill(arr.length?'red':'green'):'')+'<span class="ev">'+esc(arr.join(', ')||'none')+'</span></div>';}
     return gateCard('flake_classification')+'<div class="card"><div class="ttl">Cert-flake classification — no unclassified flakes</div>'+
       r('deferred / not claimed (this release)',cf.deferred_not_claimed,false)+
+      r('enterprise-only (scoped to Enterprise rung)',cf.enterprise_only_partial,false)+
       r('intentional external partial',cf.intentional_external_partial,false)+r('environmental dependency',cf.env_dependency_partial,false)+
       r('verification harness flake',cf.harness_flake,false)+r('product partial',cf.product_partial,true)+
       r('product red (defect)',cf.product_red,true)+r('UNCLASSIFIED (blocks Diamond)',cf.unclassified,true)+'</div>';}

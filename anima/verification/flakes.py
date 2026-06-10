@@ -11,6 +11,9 @@ status that varies across identical full-gate runs must land in exactly one name
   deferred_not_claimed         — a contract-declared deferral: the feature is NOT part of any current
                                  release tier's claims (release_required=false). Visible, never blocking,
                                  never hidden; it becomes required only at its named future tier.
+  enterprise_only_partial      — claimed ONLY at the Enterprise rung (claim-registry: enterprise_only).
+                                 Visible, never blocks Local/Internal or the global repeatability gate;
+                                 the Enterprise rung itself still requires it green (release_tiers).
   product_partial              — a real product gap (the only class that should worry us).
   product_red                  — STUB/WALLPAPER/UNKNOWN/REGRESSED: a release-blocking product defect.
   ok                           — COMPLETE, first try.
@@ -33,6 +36,14 @@ DEFERRED_NOT_CLAIMED = {
     "audiobook_intake": "deferred / not claimed for this release — not part of current Local/Internal "
                         "Vera release scope (product decision 2026-06-09); becomes required only at the "
                         "future 'Media/Audiobook Intake' tier.",
+}
+# features claimed ONLY at the Enterprise rung (claim-registry status: enterprise_only). A partial
+# here never blocks Local/Internal or the global gate — the Enterprise rung still requires it green.
+# Product decision 2026-06-09: "enterprise_readiness is Enterprise-tier only unless claimed by
+# another tier" — do not let it block Local/Internal.
+ENTERPRISE_ONLY = {
+    "enterprise_readiness": "claimed only at the Enterprise rung — an enterprise-surface partial never "
+                            "blocks Local/Internal; the Enterprise rung itself still requires it green.",
 }
 # features that are PARTIAL by design because an external dependency cannot be exercised locally
 INTENTIONAL_EXTERNAL = {
@@ -86,6 +97,9 @@ def classify_one(feature: str, status: str, *, dep_state: str | None = None,
         if s == "DEFERRED" and feature in DEFERRED_NOT_CLAIMED:
             return {"class": "deferred_not_claimed", "release_blocking": False,
                     "why": DEFERRED_NOT_CLAIMED[feature]}
+        if feature in ENTERPRISE_ONLY:
+            return {"class": "enterprise_only_partial", "release_blocking": False,
+                    "why": ENTERPRISE_ONLY[feature]}
         if feature in INTENTIONAL_EXTERNAL:
             return {"class": "intentional_external_partial", "release_blocking": False,
                     "why": INTENTIONAL_EXTERNAL[feature]}
@@ -134,6 +148,7 @@ def classify_run(items: list[dict], preflight: dict, flake_log: dict | None = No
             "honest_partials": [o["feature"] for o in out
                                 if o["class"] in ("intentional_external_partial", "env_dependency_partial")],
             "deferred_not_claimed": [o["feature"] for o in out if o["class"] == "deferred_not_claimed"],
+            "enterprise_only": [o["feature"] for o in out if o["class"] == "enterprise_only_partial"],
             "product_partials": [o["feature"] for o in out if o["class"] == "product_partial"],
             "product_red": [o["feature"] for o in out if o["class"] == "product_red"],
             "harness_flakes": [o["feature"] for o in out if o["class"] == "harness_flake"]}
