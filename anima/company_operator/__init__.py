@@ -6,4 +6,5 @@ right authority level + (when required) an approved packet + budget, and the kil
 everything instantly. Default authority is L0 (think-only). v1 wires NO real external
 integrations — Vera prepares and queues; humans execute regulated/financial/account actions.
 """
-from . import action_ledger, approvals, authority, budget, kill_switch  # noqa: F401
+from . import (accounts, action_ledger, approvals, authority, budget, departments,  # noqa: F401
+               kill_switch, legal_ip, planning)
