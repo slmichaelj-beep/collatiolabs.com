@@ -9,6 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from anima.verification import route_registry as rr  # noqa: E402
+
 oks, fails = [], []
 def ck(l, c): (oks if c else fails).append(l); print(("  ok   " if c else "  XX   ") + l)
 
@@ -56,11 +58,31 @@ def main() -> int:
             dead.append(r)
     ck("3. no app link 404s (dead: %s)" % (dead or "none"), not dead)
 
-    # 4. honest: un-built operator routes are NOT linked as active surfaces
-    not_built = ["/sales", "/commercial", "/board", "/board/revenue"]
-    falsely_linked = [r for r in not_built if ('href="%s"' % r) in idx]
-    ck("4. un-built operator routes are NOT linked as active (falsely linked: %s)"
-       % (falsely_linked or "none"), not falsely_linked)
+    # 4. EVERY operator route is affirmatively CLASSIFIED in the route registry (never merely absent)
+    rr.build_report()
+    classified = set(rr.ROUTES)
+    operator_routes = {"/learning", "/founder", "/chairman", "/observation", "/sales",
+                       "/commercial", "/board", "/board/revenue"}
+    unclassified = sorted(operator_routes - classified)
+    ck("4. every operator route is affirmatively classified in the route registry (unclassified: %s)"
+       % (unclassified or "none"), not unclassified)
+
+    # 5. not_claimed routes are NEVER linked as active (honest); and a not_claimed route that is
+    #    served (200) would be a contradiction — they must not resolve as active pages.
+    nc = rr.not_claimed()
+    falsely_linked = [r for r in nc if ('href="%s"' % r) in idx]
+    ck("5. not_claimed routes (%s) are NOT linked as active (falsely linked: %s)"
+       % (", ".join(nc), falsely_linked or "none"), not falsely_linked)
+
+    # 6. every linked_active operator route is genuinely linked AND serves 200
+    la = [r for r in rr.linked_active() if r in operator_routes]
+    bad_active = []
+    for r in la:
+        st, _ = _get(r)
+        if ('href="%s"' % r) not in idx or st != 200:
+            bad_active.append("%s(link=%s,http=%s)" % (r, 'href="%s"' % r in idx, st))
+    ck("6. every linked_active operator route is linked + serves 200 (bad: %s)"
+       % (bad_active or "none"), not bad_active)
 
     green = not fails
     try:

@@ -1,0 +1,70 @@
+"""verification.route_registry — every operator route carries an explicit classification.
+
+The closure bar: a route is acceptable as un-built ONLY if it is affirmatively classified
+not_claimed / future_tier — never merely absent. This is the single source of truth for which
+operator routes are live (must be linked + served + proven) vs. honestly not-claimed (must NOT be
+linked as active). If a route is later claimed live, flipping it here forces the nav/rover/
+observation certs to require it.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent.parent
+REPORTS = ROOT / "reports"
+
+STATUSES = ("linked_active", "not_claimed", "future_tier", "coming_soon", "removed")
+
+# the canonical operator route classification
+ROUTES = {
+    "/learning":   {"status": "linked_active", "label": "Learning Integrity"},
+    "/founder":    {"status": "linked_active", "label": "Founder Command Center"},
+    "/chairman":   {"status": "linked_active", "label": "Chairman · Venture Portfolio"},
+    "/observation": {"status": "linked_active", "label": "Observation"},
+    # built-elsewhere live surfaces (linked from the chat UI already)
+    "/verification": {"status": "linked_active", "label": "Verification Dashboard"},
+    "/security":   {"status": "linked_active", "label": "Security & Quarantine"},
+    "/console":    {"status": "linked_active", "label": "Founder Console (patterns)"},
+    "/consent":    {"status": "linked_active", "label": "Consent & Boundaries"},
+    # NOT built as standalone pages — affirmatively classified, never linked as active.
+    "/sales":      {"status": "not_claimed", "label": "Sales (backend + surfaced via /chairman, /founder)",
+                    "reason": "sales logic is backend + observed; no standalone /sales page is claimed"},
+    "/commercial": {"status": "not_claimed", "label": "Commercial",
+                    "reason": "commercialization surface not built as a page in this build"},
+    "/board":      {"status": "not_claimed", "label": "Board",
+                    "reason": "board surface is /chairman; no separate /board page is claimed"},
+    "/board/revenue": {"status": "not_claimed", "label": "Board · Revenue",
+                       "reason": "revenue surfaced via the sales pipeline backend; no page claimed"},
+}
+
+
+def linked_active() -> list[str]:
+    return [r for r, v in ROUTES.items() if v["status"] == "linked_active"]
+
+
+def not_claimed() -> list[str]:
+    return [r for r, v in ROUTES.items() if v["status"] in ("not_claimed", "future_tier", "coming_soon")]
+
+
+def classification(route: str) -> str | None:
+    rec = ROUTES.get(route)
+    return rec["status"] if rec else None
+
+
+def build_report() -> dict:
+    out = {"report": "operator_route_registry", "routes": ROUTES,
+           "linked_active": linked_active(), "not_claimed": not_claimed(),
+           "counts": {s: sum(1 for v in ROUTES.values() if v["status"] == s) for s in STATUSES
+                      if any(v["status"] == s for v in ROUTES.values())}}
+    REPORTS.mkdir(exist_ok=True)
+    (REPORTS / "operator_route_registry.json").write_text(json.dumps(out, indent=1))
+    md = ["# Operator route registry — every route classified", "",
+          "| route | status | label |", "|---|---|---|"]
+    md += ["| %s | **%s** | %s |" % (r, v["status"], v["label"]) for r, v in ROUTES.items()]
+    (REPORTS / "operator_route_registry.md").write_text("\n".join(md) + "\n")
+    return out
+
+
+if __name__ == "__main__":
+    print(json.dumps(build_report()["counts"], indent=1))
