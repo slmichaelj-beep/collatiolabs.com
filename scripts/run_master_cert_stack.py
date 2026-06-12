@@ -114,6 +114,8 @@ STACK = [
     # fiverr marketplace channel — governed
     ("certify_fiverr_policy_gate", []),
     ("certify_fiverr_channel_engine", []),
+    # upwork bid pipeline — live dashboard
+    ("certify_upwork_pipeline", []),
 ]
 
 _GREEN = ("CERTIFIED", "GREEN ✓", "NO-STUB AUDIT: CERTIFIED")

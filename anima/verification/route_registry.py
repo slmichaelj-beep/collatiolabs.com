@@ -38,6 +38,7 @@ ROUTES = {
     "/revenue":    {"status": "linked_active", "label": "Revenue · immediate strike engine"},
     "/revenue/cash": {"status": "linked_active", "label": "Revenue · $16k cash milestone"},
     "/marketplaces/fiverr": {"status": "linked_active", "label": "Fiverr · governed channel"},
+    "/pipeline":   {"status": "linked_active", "label": "Pipeline · live Upwork bid funnel"},
     "/revenue/swarm": {"status": "linked_active", "label": "Revenue · swarm factory"},
     "/compounding": {"status": "linked_active", "label": "Compounding · global allocator"},
     "/revenue/intelligence": {"status": "linked_active", "label": "Revenue · intelligence"},

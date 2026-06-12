@@ -2964,6 +2964,11 @@ class Handler(BaseHTTPRequestHandler):
                 if slf.exists():
                     return self._send(200, "text/html; charset=utf-8", slf.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"self surface not built")
+            if u.path in ("/pipeline", "/pipeline.html"):
+                plf = (WEB / "pipeline.html")
+                if plf.exists():
+                    return self._send(200, "text/html; charset=utf-8", plf.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"pipeline surface not built")
             if u.path in ("/marketplaces/fiverr", "/marketplaces/fiverr.html", "/marketplaces"):
                 fvf = (WEB / "fiverr.html")
                 if fvf.exists():
@@ -3267,6 +3272,12 @@ class Handler(BaseHTTPRequestHandler):
                 _obeSf.record(self.name, "/self", "self_evolution", "self_dashboard_viewed",
                               actor="user", report_refs=["reports/self_observation_diagnosis_layer.json"])
                 self._send(200, "application/json", json.dumps(_sa.dashboard(self.name)).encode())
+            elif u.path == "/pipeline.json":
+                from .marketplaces.upwork import api as _uwa
+                from .observation import emit as _obePl
+                _obePl.record(self.name, "/pipeline", "upwork", "pipeline_dashboard_viewed",
+                              actor="user", report_refs=["reports/upwork_pipeline.json"])
+                self._send(200, "application/json", json.dumps(_uwa.dashboard(self.name)).encode())
             elif u.path == "/marketplaces/fiverr.json":
                 from .marketplaces.fiverr import api as _fva
                 from .observation import emit as _obeFv

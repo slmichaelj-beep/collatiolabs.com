@@ -38,6 +38,7 @@ SURFACES = [
     ("/empire", "hosts, work routing, capital", "capital decisions", True),
     ("/revenue/cash", "16,000 net profit by 2026-06-28", "remaining gap", True),
     ("/marketplaces/fiverr", "fiverr as a governed service channel", "policy (enforced)", True),
+    ("/pipeline", "upwork bid pipeline", "recent triage", True),
 ]
 
 
