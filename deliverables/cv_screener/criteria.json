@@ -1,0 +1,6 @@
+{
+  "skills":   {"python": 10, "sql": 6, "aws": 5, "excel": 3, "machine learning": 8},
+  "required": ["python"],
+  "min_years": 2,
+  "education_bonus": {"phd": 5, "master": 3, "bachelor": 2}
+}
