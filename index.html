@@ -47,6 +47,8 @@ body {
   color: var(--ink);
   font-family: var(--font);
   line-height: 1.45;
+  word-spacing: normal;
+  overflow-x: hidden;
 }
 
 a { color: inherit; }
@@ -76,7 +78,7 @@ a { color: inherit; }
 .brand {
   font-size: 0.82rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   text-decoration: none;
   text-transform: uppercase;
 }
@@ -105,8 +107,8 @@ a { color: inherit; }
 .hero {
   min-height: 92vh;
   position: relative;
-  display: grid;
-  align-items: end;
+  display: flex;
+  align-items: flex-end;
   overflow: hidden;
   background: var(--charcoal);
 }
@@ -125,7 +127,7 @@ a { color: inherit; }
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 1440px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 132px 24px 56px;
   color: var(--bone);
@@ -136,6 +138,11 @@ a { color: inherit; }
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
   gap: 42px;
   align-items: end;
+  max-width: 100%;
+}
+
+.hero-grid > * {
+  min-width: 0;
 }
 
 .kicker {
@@ -144,7 +151,7 @@ a { color: inherit; }
   gap: 10px;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: rgba(255, 250, 240, 0.72);
   margin-bottom: 22px;
@@ -160,14 +167,15 @@ a { color: inherit; }
 
 h1 {
   max-width: 8.8ch;
-  font-size: clamp(4rem, 13vw, 12.6rem);
-  line-height: 0.78;
-  letter-spacing: -0.08em;
+  font-size: clamp(4rem, 11vw, 11.2rem);
+  line-height: 0.86;
+  letter-spacing: 0;
   font-weight: 800;
+  overflow-wrap: normal;
 }
 
 .hero-copy {
-  max-width: 510px;
+  max-width: min(510px, 100%);
   margin-top: 30px;
   color: rgba(255, 250, 240, 0.78);
   font-size: clamp(1.02rem, 1.4vw, 1.22rem);
@@ -175,6 +183,7 @@ h1 {
 }
 
 .hero-panel {
+  min-width: 0;
   border: 1px solid rgba(255, 250, 240, 0.2);
   border-radius: 8px;
   background: rgba(13, 13, 11, 0.55);
@@ -194,7 +203,7 @@ h1 {
   font-size: 1.35rem;
   font-weight: 800;
   color: var(--green);
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   line-height: 1;
   white-space: nowrap;
 }
@@ -210,6 +219,7 @@ h1 {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 34px;
+  max-width: 100%;
 }
 
 .button {
@@ -256,7 +266,7 @@ h1 {
   padding: 16px 20px;
   font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: rgba(255, 250, 240, 0.7);
 }
@@ -281,17 +291,18 @@ h1 {
 .label {
   font-size: 0.73rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   color: var(--muted);
   text-transform: uppercase;
 }
 
 .statement {
   font-size: clamp(2rem, 4.7vw, 5.8rem);
-  line-height: 0.94;
-  letter-spacing: -0.07em;
+  line-height: 1;
+  letter-spacing: 0;
   font-weight: 800;
   max-width: 930px;
+  overflow-wrap: normal;
 }
 
 .statement em {
@@ -307,17 +318,18 @@ h1 {
 
 .thesis-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 56px;
+  grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+  gap: 72px;
   align-items: end;
 }
 
 .thesis h2 {
-  max-width: 920px;
-  font-size: clamp(2.9rem, 7vw, 8.8rem);
-  line-height: 0.84;
-  letter-spacing: -0.075em;
+  max-width: 8.6ch;
+  font-size: clamp(3rem, 5.8vw, 7.4rem);
+  line-height: 0.96;
+  letter-spacing: 0;
   font-weight: 800;
+  overflow-wrap: normal;
 }
 
 .thesis-copy {
@@ -347,7 +359,7 @@ h1 {
   display: block;
   color: var(--clay);
   font-size: 0.76rem;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
   margin-bottom: 36px;
 }
@@ -387,15 +399,15 @@ h1 {
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 
 .work-card h3 {
   margin-top: 34px;
   font-size: clamp(1.6rem, 3vw, 3.1rem);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .work-card p {
@@ -426,13 +438,13 @@ h1 {
   color: var(--clay);
   font-size: 2rem;
   font-weight: 800;
-  letter-spacing: -0.06em;
+  letter-spacing: 0;
 }
 
 .service h3 {
   font-size: clamp(1.35rem, 2vw, 2.2rem);
-  line-height: 1;
-  letter-spacing: -0.045em;
+  line-height: 1.05;
+  letter-spacing: 0;
   margin-bottom: 12px;
 }
 
@@ -472,8 +484,8 @@ h1 {
   display: block;
   color: var(--green);
   font-size: clamp(1.8rem, 3vw, 3.7rem);
-  line-height: 0.92;
-  letter-spacing: -0.07em;
+  line-height: 1;
+  letter-spacing: 0;
   margin-bottom: 14px;
 }
 
@@ -496,8 +508,8 @@ h1 {
 .governed h2 {
   max-width: 720px;
   font-size: clamp(2.4rem, 6vw, 7.6rem);
-  line-height: 0.86;
-  letter-spacing: -0.075em;
+  line-height: 0.96;
+  letter-spacing: 0;
   font-weight: 800;
 }
 
@@ -528,9 +540,9 @@ h1 {
 
 .contact h2 {
   max-width: 900px;
-  font-size: clamp(3.6rem, 10vw, 11.8rem);
-  line-height: 0.79;
-  letter-spacing: -0.08em;
+  font-size: clamp(3.6rem, 9vw, 10.4rem);
+  line-height: 0.9;
+  letter-spacing: 0;
   font-weight: 800;
 }
 
@@ -598,7 +610,11 @@ footer a {
   .nav-links a:not(.nav-cta) { display: none; }
   .nav-inner { padding: 0 16px; }
   .hero-content { padding: 108px 16px 40px; }
-  h1 { font-size: clamp(3.5rem, 22vw, 6rem); }
+  h1 {
+    max-width: 6.5ch;
+    font-size: clamp(3.4rem, 18vw, 5.2rem);
+    line-height: 0.92;
+  }
   .section { padding: 58px 16px; }
   .work-grid,
   .proof-grid,
