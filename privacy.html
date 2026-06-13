@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy – Collatio Labs</title>
+    <meta name="description" content="Privacy Policy for Collatio Labs LLC. How we collect, use, and protect your information.">
+    <meta property="og:title" content="Privacy Policy – Collatio Labs">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://collatiolabs.com/privacy">
+    <link rel="canonical" href="https://collatiolabs.com/privacy">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --black: #111111;
+            --text: #1a1a1a;
+            --muted: #6b6b6b;
+            --light: #999;
+            --border: #e8e8e8;
+            --bg: #F9F7F3;
+            --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font);
+            color: var(--text);
+            background-color: var(--bg);
+            line-height: 1.6;
+        }
+
+        /* Navigation — matches consulting page exactly */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(249, 247, 243, 0.97);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.3px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            align-items: center;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--muted); }
+
+        .nav-cta {
+            background-color: var(--black);
+            color: #ffffff !important;
+            padding: 0.6rem 1.4rem;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .nav-cta:hover { background-color: var(--muted); }
+
+        /* Main Content */
+        main {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 7rem 2rem 4rem;
+        }
+
+        .page-header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            letter-spacing: -1px;
+            color: var(--black);
+        }
+
+        .page-meta {
+            font-size: 0.9rem;
+            color: var(--light);
+        }
+
+        .page-meta strong { color: var(--muted); font-weight: 500; }
+
+        .intro {
+            font-size: 1rem;
+            color: var(--text);
+            line-height: 1.75;
+            margin-bottom: 2rem;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .toc h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--black);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin: 0;
+        }
+
+        .toc li { margin-bottom: 0.5rem; }
+
+        .toc a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .toc a:hover { color: var(--black); }
+
+        /* Sections */
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1.25rem;
+            color: var(--black);
+            letter-spacing: -0.3px;
+        }
+
+        h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+            color: var(--black);
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text);
+            line-height: 1.75;
+            font-size: 0.95rem;
+        }
+
+        ul, ol {
+            margin: 1rem 0 1rem 1.5rem;
+            color: var(--text);
+            line-height: 1.7;
+        }
+
+        li {
+            margin-bottom: 0.6rem;
+            font-size: 0.95rem;
+        }
+
+        strong { font-weight: 600; color: var(--black); }
+
+        .note {
+            background: #ffffff;
+            border-left: 3px solid var(--black);
+            padding: 1.25rem 1.5rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            line-height: 1.65;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .note strong { color: var(--black); }
+
+        .note a {
+            color: var(--muted);
+            text-decoration: none;
+            border-bottom: 1px solid var(--border);
+            transition: border-color 0.2s, color 0.2s;
+        }
+
+        .note a:hover {
+            color: var(--text);
+            border-bottom-color: var(--text);
+        }
+
+        /* Footer — matches consulting page exactly */
+        footer {
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+            margin-top: 4rem;
+        }
+
+        .footer-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .footer-top {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3rem;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 3rem;
+        }
+
+        .footer-col h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--black);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 1rem;
+        }
+
+        .footer-col a {
+            display: block;
+            font-size: 14px;
+            color: var(--text);
+            text-decoration: none;
+            margin-bottom: 0.7rem;
+            transition: color 0.2s;
+        }
+
+        .footer-col a:hover { color: var(--muted); }
+
+        .footer-bottom {
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.8;
+        }
+
+        .footer-bottom a {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .footer-bottom a:hover { color: var(--black); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            main { padding: 6rem 1.5rem 3rem; }
+            .page-header h1 { font-size: 1.8rem; }
+            .nav-links { gap: 1.5rem; }
+            .footer-top { grid-template-columns: 1fr; gap: 2rem; }
+        }
+
+        @media (max-width: 480px) {
+            nav { padding: 1rem; }
+            .nav-links { gap: 1rem; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">Collatio Labs</a>
+            <ul class="nav-links">
+                <li><a href="collatio_labs_landing_v2.html">Consulting</a></li>
+                <li><a href="collatio_labs_research.html">Research</a></li>
+                <li><a href="mailto:contact@collatiolabs.com" class="nav-cta">Get in touch</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main>
+        <div class="page-header">
+            <h1>Privacy Policy</h1>
+            <p class="page-meta"><strong>Effective:</strong> April 1, 2026</p>
+        </div>
+
+        <p class="intro"><strong>Collatio Labs LLC</strong> ("we," "us," "our," or "Company") respects your privacy and is committed to protecting your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you interact with our consulting and research services.</p>
+
+        <div class="toc">
+            <h2>Contents</h2>
+            <ul>
+                <li><a href="#section1">1. Information We Collect</a></li>
+                <li><a href="#section2">2. How We Use Your Information</a></li>
+                <li><a href="#section3">3. How We Share Your Information</a></li>
+                <li><a href="#section4">4. Data Security</a></li>
+                <li><a href="#section5">5. Data Retention</a></li>
+                <li><a href="#section6">6. Your Privacy Rights</a></li>
+                <li><a href="#section7">7. Cookies and Similar Technologies</a></li>
+                <li><a href="#section8">8. Third-Party Links</a></li>
+                <li><a href="#section9">9. Children's Privacy</a></li>
+                <li><a href="#section10">10. International Data Transfers</a></li>
+                <li><a href="#section11">11. California Privacy Rights (CCPA)</a></li>
+                <li><a href="#section12">12. Changes to This Policy</a></li>
+                <li><a href="#section13">13. Contact Us</a></li>
+            </ul>
+        </div>
+
+        <h2 id="section1">1. Information We Collect</h2>
+        <p>We collect information only as necessary to provide our consulting and research services. This includes:</p>
+
+        <h3>A. Contact Information</h3>
+        <ul>
+            <li><strong>Name, title, and organizational affiliation</strong></li>
+            <li><strong>Email address and phone number</strong></li>
+            <li><strong>Mailing address and business location</strong></li>
+            <li><strong>Preferred communication methods</strong></li>
+        </ul>
+
+        <h3>B. Engagement Information</h3>
+        <ul>
+            <li><strong>Project scope, timeline, and deliverables</strong></li>
+            <li><strong>Service line selected</strong> (consulting or research)</li>
+            <li><strong>Engagement type</strong> (assessment, implementation sprint, fractional executive retainer, formal verification, etc.)</li>
+            <li><strong>Relevant business context and objectives</strong></li>
+        </ul>
+
+        <h3>C. Communications</h3>
+        <ul>
+            <li><strong>Email correspondence related to service delivery</strong></li>
+            <li><strong>Meeting notes and call recordings</strong> (only when explicitly authorized and documented)</li>
+            <li><strong>Feedback and satisfaction survey responses</strong></li>
+        </ul>
+
+        <h3>D. Transaction Information</h3>
+        <ul>
+            <li><strong>Invoicing details and payment method information</strong> (processed securely through third-party providers; we do not store raw payment card data)</li>
+            <li><strong>Engagement dates and service hours</strong></li>
+        </ul>
+
+        <h3>E. Automatically Collected Information</h3>
+        <ul>
+            <li><strong>IP address and device type</strong> (when visiting our website)</li>
+            <li><strong>Browser type and operating system</strong></li>
+            <li><strong>Pages visited and time spent on each page</strong></li>
+            <li><strong>Referring website</strong></li>
+        </ul>
+
+        <p><strong>What We Do Not Collect:</strong> We do not engage in extensive behavioral tracking, targeted advertising networks, or cookie-based profiling. We do not collect sensitive information such as social security numbers, biometric data, or health information unless explicitly required for a specific engagement and only with your written consent.</p>
+
+        <h2 id="section2">2. How We Use Your Information</h2>
+        <p>We use the information we collect for the following purposes:</p>
+        <ul>
+            <li><strong>Service Delivery:</strong> To engage with you, understand your needs, scope projects, schedule meetings, and deliver consulting and research services.</li>
+            <li><strong>Communication:</strong> To respond to inquiries, provide project updates, send invoices, and communicate important engagement information.</li>
+            <li><strong>Billing and Payment Processing:</strong> To prepare invoices, process payments, and maintain financial records.</li>
+            <li><strong>Legal and Compliance:</strong> To comply with applicable laws, regulations, tax obligations, and contractual requirements.</li>
+            <li><strong>Website Improvement:</strong> To understand how you use our website and improve its functionality and content.</li>
+            <li><strong>Aggregate Analytics:</strong> To generate anonymized, aggregate reports about website traffic and user behavior (not tied to individuals).</li>
+            <li><strong>Security and Fraud Prevention:</strong> To detect, prevent, and address fraud, abuse, and security incidents.</li>
+        </ul>
+        <p><strong>Legitimate Basis:</strong> We process your information based on: (1) performance of our contract with you, (2) your explicit consent, (3) our legitimate business interests in operating and improving our services, and (4) legal compliance obligations.</p>
+
+        <h2 id="section3">3. How We Share Your Information</h2>
+
+        <h3>A. Data We Do Not Sell</h3>
+        <p><strong>We do not sell, rent, or lease your personal information to any third party under any circumstances.</strong> Your data is not a commodity, and we do not participate in data broking or similar practices.</p>
+
+        <h3>B. Limited Sharing with Service Providers</h3>
+        <p>We may share your information with trusted third-party service providers who assist us in delivering services, provided they:</p>
+        <ul>
+            <li>Are contractually obligated to protect your information</li>
+            <li>Only access information necessary to perform their specific function</li>
+            <li>Are prohibited from using your information for their own purposes</li>
+            <li>Are subject to data protection agreements consistent with this policy</li>
+        </ul>
+
+        <p><strong>Categories of service providers include:</strong></p>
+        <ul>
+            <li><strong>Email and communication platforms</strong> (for engagement coordination)</li>
+            <li><strong>Payment processors</strong> (for invoice and payment handling)</li>
+            <li><strong>Accounting and tax service providers</strong> (for financial record-keeping and compliance)</li>
+            <li><strong>Cloud infrastructure providers</strong> (for secure data storage)</li>
+            <li><strong>Website analytics platforms</strong> (minimal, aggregated data only)</li>
+        </ul>
+
+        <h3>C. Legal Requirements and Safety</h3>
+        <p>We may disclose your information if required by law, legal process (e.g., subpoena, court order), or governmental authority. We will provide reasonable advance notice when legally permissible and will disclose only the minimum information required.</p>
+        <p>We may also disclose information when we believe in good faith that disclosure is necessary to protect our legal rights, your safety, the safety of others, or to investigate and prevent fraud or violations of our terms of service.</p>
+
+        <h3>D. Business Transitions</h3>
+        <p>In the event of a merger, acquisition, bankruptcy, or sale of substantially all assets, your information may be transferred as part of that transaction. We will provide notice of any such change and any choices you may have regarding your information.</p>
+
+        <h3>E. Client Consent</h3>
+        <p>For certain research projects, we may share anonymized or aggregated findings with the broader research community. We will not identify you or your organization in such publications without your explicit written consent.</p>
+
+        <h2 id="section4">4. Data Security</h2>
+        <p>We implement reasonable administrative, technical, and physical safeguards to protect your personal information against unauthorized access, disclosure, alteration, and destruction. These measures include:</p>
+        <ul>
+            <li><strong>Encryption in transit:</strong> Data transmitted between your devices and our systems is encrypted using TLS/SSL protocols.</li>
+            <li><strong>Encryption at rest:</strong> Sensitive data stored on our systems is encrypted.</li>
+            <li><strong>Access controls:</strong> Only authorized personnel with legitimate business need have access to your information.</li>
+            <li><strong>Secure authentication:</strong> We require strong passwords and multi-factor authentication for accounts that access sensitive information.</li>
+            <li><strong>Regular security audits:</strong> We conduct periodic reviews of our security practices and systems.</li>
+            <li><strong>Incident response procedures:</strong> We have established protocols to respond to any security incidents.</li>
+        </ul>
+        <p><strong>Important Limitation:</strong> While we implement industry-standard security measures, no system is completely secure. We cannot guarantee absolute security of your information. If a security incident occurs, we will notify affected individuals as required by law.</p>
+
+        <h2 id="section5">5. Data Retention</h2>
+        <p>We retain your information for as long as necessary to provide our services and fulfill the purposes outlined in this policy. Retention periods vary depending on the type of information and the basis for processing:</p>
+        <ul>
+            <li><strong>Engagement information:</strong> Retained for the duration of the engagement and for 7 years thereafter to comply with tax and legal requirements.</li>
+            <li><strong>Communications and project records:</strong> Retained for the duration of the engagement and for a reasonable period (typically 3-7 years) to handle disputes and document service delivery.</li>
+            <li><strong>Website analytics:</strong> Aggregated data is retained for 24 months; individual identifiers are removed after processing.</li>
+            <li><strong>Payment records:</strong> Retained for a minimum of 7 years for tax and accounting purposes.</li>
+        </ul>
+        <p>After the retention period expires, we securely delete or anonymize your information. You may request deletion of your information at any time, subject to legal and contractual obligations (see Section 6 below).</p>
+
+        <h2 id="section6">6. Your Privacy Rights</h2>
+        <p>Depending on your location and applicable law, you may have the following rights regarding your personal information:</p>
+
+        <h3>A. Right of Access</h3>
+        <p>You have the right to request access to the personal information we hold about you. Upon request, we will provide a copy of your information in a portable format within 30 days.</p>
+
+        <h3>B. Right to Correction</h3>
+        <p>You have the right to request correction of inaccurate or incomplete information. We will correct information upon verification of the inaccuracy.</p>
+
+        <h3>C. Right to Deletion</h3>
+        <p>You have the right to request deletion of your personal information, subject to certain exceptions. We cannot delete information when: (1) it is necessary to complete an ongoing engagement, (2) deletion would violate legal or contractual obligations, or (3) we have a legitimate legal basis for retention. We will inform you of any reason we cannot comply with a deletion request.</p>
+
+        <h3>D. Right to Restrict Processing</h3>
+        <p>You may request that we restrict how we use your information while a dispute or request is pending.</p>
+
+        <h3>E. Right to Withdraw Consent</h3>
+        <p>When we process information based on your consent, you may withdraw that consent at any time by contacting us. This will not affect the lawfulness of processing that occurred before withdrawal.</p>
+
+        <h3>F. Right to Opt-Out of Certain Uses</h3>
+        <p>You may opt out of receiving marketing communications from us at any time by clicking the unsubscribe link in any such communication or by contacting us directly.</p>
+
+        <h3>G. Exercising Your Rights</h3>
+        <p>To exercise any of these rights, please contact us using the information in Section 13. We will respond to all requests within 30 days. We may need to verify your identity before processing your request.</p>
+
+        <h2 id="section7">7. Cookies and Similar Technologies</h2>
+        <p>We use cookies and similar technologies on our website in a minimal, transparent manner:</p>
+
+        <h3>A. Types of Cookies We Use</h3>
+        <ul>
+            <li><strong>Essential/Functional Cookies:</strong> These are required for basic website functionality, such as maintaining your session and security. They do not track you across other sites.</li>
+            <li><strong>Analytics Cookies:</strong> We use anonymized analytics to understand aggregate traffic patterns and improve our website. We do not use these cookies to build a profile of your individual behavior.</li>
+        </ul>
+
+        <h3>B. Cookies We Do Not Use</h3>
+        <p>We do not use advertising or targeting cookies. We do not participate in cross-site tracking or behavioral advertising networks.</p>
+
+        <h3>C. Cookie Management</h3>
+        <p>Most browsers allow you to refuse cookies or alert you when a cookie is being set. You can disable cookies through your browser settings. Be aware that disabling essential cookies may affect website functionality.</p>
+
+        <h2 id="section8">8. Third-Party Links</h2>
+        <p>Our website may contain links to third-party websites and services that are not operated by Collatio Labs. This Privacy Policy applies only to information we collect directly. We are not responsible for the privacy practices of third-party websites or services. We encourage you to review the privacy policies of any third-party services before providing your information.</p>
+
+        <h2 id="section9">9. Children's Privacy</h2>
+        <p>Our services are not directed at individuals under 13 years of age, and we do not knowingly collect personal information from children under 13. If we become aware that we have collected information from a child under 13, we will delete such information promptly. If you believe we have inadvertently collected information from a child, please contact us immediately.</p>
+
+        <h2 id="section10">10. International Data Transfers</h2>
+        <p>Collatio Labs is based in the United States. If you are located outside the United States, please note that your information will be transferred to, stored in, and processed in the United States. By providing your information to us, you consent to such transfers, storage, and processing.</p>
+        <p>When we transfer personal information internationally, we implement appropriate safeguards, including standard contractual clauses and other mechanisms recognized under applicable data protection laws, to ensure your information is protected to the same extent as required by this policy.</p>
+
+        <h2 id="section11">11. California Privacy Rights (CCPA)</h2>
+        <p>If you are a California resident, you have additional rights under the California Consumer Privacy Act (CCPA):</p>
+        <ul>
+            <li><strong>Right to Know:</strong> You may request what personal information we collect, use, share, and sell.</li>
+            <li><strong>Right to Delete:</strong> You may request deletion of personal information collected from you, subject to certain exceptions.</li>
+            <li><strong>Right to Opt-Out:</strong> You may opt out of the sale or sharing of your personal information. (Note: We do not sell or share personal information for targeted advertising purposes.)</li>
+            <li><strong>Right to Correct:</strong> You may request correction of inaccurate personal information.</li>
+            <li><strong>Right to Limit Use:</strong> You may request that we limit our use of sensitive personal information.</li>
+            <li><strong>Right to Non-Discrimination:</strong> We will not discriminate against you for exercising your privacy rights.</li>
+        </ul>
+        <p>To exercise your California privacy rights, please contact us at the information provided in Section 13. We will verify your identity and respond within 45 days. You may also authorize an agent to submit requests on your behalf.</p>
+
+        <h2 id="section12">12. Changes to This Privacy Policy</h2>
+        <p>We may update this Privacy Policy from time to time to reflect changes in our practices, technology, law, or other factors. We will notify you of material changes by updating the "Effective Date" at the top of this policy. If we make material changes that affect how we handle your information, we will provide prominent notice and obtain your consent where required by law.</p>
+        <p>Your continued use of our services after changes become effective constitutes your acceptance of the updated Privacy Policy. We encourage you to review this policy periodically to stay informed about how we protect your information.</p>
+
+        <h2 id="section13">13. Contact Us</h2>
+        <p>If you have questions about this Privacy Policy, wish to exercise your privacy rights, or have concerns about how we handle your information:</p>
+
+        <div class="note">
+            <strong>Collatio Labs LLC</strong><br>
+            Portland, Oregon<br><br>
+            Email: <a href="mailto:contact@collatiolabs.com">contact@collatiolabs.com</a>
+        </div>
+
+        <p>We will respond to all inquiries within 30 days. If you are not satisfied with our response to a privacy concern, you may have the right to lodge a complaint with the data protection authority in your jurisdiction (if applicable).</p>
+
+        <div class="note">
+            <strong>Privacy Notice Update:</strong> This policy was last updated on April 1, 2026, and reflects our current practices as of that date. We remain committed to transparency and responsible data stewardship.
+        </div>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-col">
+                    <h3>Company</h3>
+                    <a href="index.html">Home</a>
+                    <a href="collatio_labs_landing_v2.html">Consulting</a>
+                    <a href="collatio_labs_research.html">Research</a>
+                </div>
+                <div class="footer-col">
+                    <h3>Legal</h3>
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                </div>
+                <div class="footer-col">
+                    <h3>Connect</h3>
+                    <a href="mailto:contact@collatiolabs.com">Email</a>
+                    <a href="https://linkedin.com/in/stevenlamarmichael" target="_blank">LinkedIn</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Collatio Labs LLC. All rights reserved.</p>
+                <p style="margin-top: 0.75rem;">Enterprise Consulting &middot; Mathematical Research &middot; Portland, Oregon</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll', () => {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 0) {
+                navbar.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+            } else {
+                navbar.style.boxShadow = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

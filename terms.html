@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service – Collatio Labs</title>
+    <meta name="description" content="Terms of Service for Collatio Labs LLC. Enterprise consulting and mathematical research services.">
+    <meta property="og:title" content="Terms of Service – Collatio Labs">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://collatiolabs.com/terms">
+    <link rel="canonical" href="https://collatiolabs.com/terms">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --black: #111111;
+            --text: #1a1a1a;
+            --muted: #6b6b6b;
+            --light: #999;
+            --border: #e8e8e8;
+            --bg: #F9F7F3;
+            --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: var(--font);
+            color: var(--text);
+            background-color: var(--bg);
+            line-height: 1.6;
+        }
+
+        /* Navigation — matches consulting page exactly */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(249, 247, 243, 0.97);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            transition: box-shadow 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.3px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            align-items: center;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--muted); }
+
+        .nav-cta {
+            background-color: var(--black);
+            color: #ffffff !important;
+            padding: 0.6rem 1.4rem;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .nav-cta:hover { background-color: var(--muted); }
+
+        /* Main Content */
+        main {
+            max-width: 820px;
+            margin: 0 auto;
+            padding: 7rem 2rem 4rem;
+        }
+
+        .page-header {
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            letter-spacing: -1px;
+            color: var(--black);
+        }
+
+        .page-meta {
+            font-size: 0.9rem;
+            color: var(--light);
+        }
+
+        .page-meta strong { color: var(--muted); font-weight: 500; }
+
+        /* Table of Contents */
+        .toc {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .toc h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--black);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .toc ol {
+            list-style-position: inside;
+            color: var(--muted);
+        }
+
+        .toc li { margin-bottom: 0.5rem; }
+
+        .toc a {
+            color: var(--text);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .toc a:hover { color: var(--black); }
+
+        /* Sections */
+        section { margin-bottom: 3rem; }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            margin-top: 2rem;
+            color: var(--black);
+            letter-spacing: -0.3px;
+        }
+
+        h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin: 1.5rem 0 0.75rem 0;
+            color: var(--black);
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--text);
+            line-height: 1.75;
+            font-size: 0.95rem;
+        }
+
+        ul, ol {
+            margin: 1rem 0 1rem 1.5rem;
+            color: var(--text);
+        }
+
+        li {
+            margin-bottom: 0.6rem;
+            line-height: 1.7;
+            font-size: 0.95rem;
+        }
+
+        strong { font-weight: 600; color: var(--black); }
+        em { color: var(--muted); }
+
+        .definition {
+            background: #ffffff;
+            border-left: 3px solid var(--black);
+            padding: 1.25rem 1.5rem;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+            line-height: 1.65;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .contact-info {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem 2rem;
+            margin: 2rem 0;
+        }
+
+        .contact-info p {
+            margin-bottom: 0.4rem;
+            font-size: 0.95rem;
+        }
+
+        .contact-info a {
+            color: var(--text);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .contact-info a:hover { color: var(--black); }
+
+        .acknowledgment {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+
+        /* Footer — matches consulting page exactly */
+        footer {
+            background: #ffffff;
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+            margin-top: 4rem;
+        }
+
+        .footer-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .footer-top {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3rem;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 3rem;
+        }
+
+        .footer-col h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--black);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 1rem;
+        }
+
+        .footer-col a {
+            display: block;
+            font-size: 14px;
+            color: var(--text);
+            text-decoration: none;
+            margin-bottom: 0.7rem;
+            transition: color 0.2s;
+        }
+
+        .footer-col a:hover { color: var(--muted); }
+
+        .footer-bottom {
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.8;
+        }
+
+        .footer-bottom a {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .footer-bottom a:hover { color: var(--black); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            main { padding: 6rem 1.5rem 3rem; }
+            .page-header h1 { font-size: 1.8rem; }
+            .nav-links { gap: 1.5rem; }
+            .footer-top { grid-template-columns: 1fr; gap: 2rem; }
+        }
+
+        @media (max-width: 480px) {
+            nav { padding: 1rem; }
+            .nav-links { gap: 1rem; font-size: 13px; }
+        }
+    </style>
+</head>
+<body>
+    <nav id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="nav-logo">Collatio Labs</a>
+            <ul class="nav-links">
+                <li><a href="collatio_labs_landing_v2.html">Consulting</a></li>
+                <li><a href="collatio_labs_research.html">Research</a></li>
+                <li><a href="mailto:contact@collatiolabs.com" class="nav-cta">Get in touch</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main>
+        <div class="page-header">
+            <h1>Terms of Service</h1>
+            <p class="page-meta"><strong>Effective:</strong> April 1, 2026 &nbsp;&middot;&nbsp; <strong>Last updated:</strong> April 1, 2026</p>
+        </div>
+
+        <div class="toc">
+            <h2>Contents</h2>
+            <ol>
+                <li><a href="#acceptance">Acceptance of Terms</a></li>
+                <li><a href="#services">Services Description</a></li>
+                <li><a href="#fees">Payment Terms and Fees</a></li>
+                <li><a href="#ip">Intellectual Property Rights</a></li>
+                <li><a href="#confidentiality">Confidentiality</a></li>
+                <li><a href="#warranties">Warranty Disclaimer</a></li>
+                <li><a href="#limitation">Limitation of Liability</a></li>
+                <li><a href="#indemnification">Indemnification</a></li>
+                <li><a href="#term">Term and Termination</a></li>
+                <li><a href="#data">Data Protection and Privacy</a></li>
+                <li><a href="#dispute">Dispute Resolution</a></li>
+                <li><a href="#force-majeure">Force Majeure</a></li>
+                <li><a href="#severability">Severability</a></li>
+                <li><a href="#entire">Entire Agreement</a></li>
+                <li><a href="#contact">Contact Information</a></li>
+            </ol>
+        </div>
+
+        <section id="acceptance">
+            <h2>1. Acceptance of Terms</h2>
+            <p>These Terms of Service (these <strong>"Terms"</strong>) constitute a binding legal agreement between you or the entity you represent (<strong>"Client"</strong>) and Collatio Labs LLC, an Oregon limited liability company (<strong>"Collatio," "we," "us,"</strong> or <strong>"our"</strong>). By engaging Collatio for services, submitting payment, or accepting a service agreement referencing these Terms, Client agrees to be bound by all terms and conditions herein. If Client does not agree to these Terms, Client may not use Collatio's services.</p>
+            <p>These Terms apply to all services provided by Collatio, including but not limited to enterprise consulting engagements and mathematical research work. To the extent Client has executed a separate Statement of Work, Master Service Agreement, or other service-specific document, those terms shall apply in conjunction with these Terms. In the event of a conflict, the service-specific document shall control.</p>
+        </section>
+
+        <section id="services">
+            <h2>2. Services Description</h2>
+            <p>Collatio provides professional services in two primary domains:</p>
+
+            <h3>2.1 Enterprise Consulting Services</h3>
+            <p>Collatio offers enterprise consulting services including, but not limited to:</p>
+            <ul>
+                <li>Operational assessments and diagnostics</li>
+                <li>Strategic transformation planning and implementation</li>
+                <li>Implementation sprints and rapid deployment programs</li>
+                <li>Fractional executive retainers and advisory services</li>
+                <li>Process optimization and business architecture consulting</li>
+            </ul>
+            <p>Consulting services are provided on a time-and-materials, fixed-fee, or retainer basis as specified in the applicable Statement of Work. Deliverables may include written reports, recommendations, implementation plans, training materials, and executive briefings.</p>
+
+            <h3>2.2 Mathematical Research Services</h3>
+            <p>Collatio provides specialized mathematical research services including, but not limited to:</p>
+            <ul>
+                <li>Formal verification of mathematical claims and theorems</li>
+                <li>Gauge theory unification research and analysis</li>
+                <li>Cascade parameter derivation and validation</li>
+                <li>Theoretical physics modeling and computational analysis</li>
+                <li>Mathematical proof development and machine verification</li>
+            </ul>
+            <p>Research services are provided on a project or engagement basis. Deliverables may include mathematical proofs, computational analyses, research reports, and technical documentation. Research work is inherently exploratory and does not guarantee any specific outcome or discovery.</p>
+
+            <h3>2.3 Scope of Work</h3>
+            <p>The specific scope of services, timeline, and deliverables shall be set forth in a Statement of Work or engagement letter. Any services or deliverables not explicitly listed in the engagement agreement are outside the scope of work and require a separate amendment and fee arrangement.</p>
+        </section>
+
+        <section id="fees">
+            <h2>3. Payment Terms and Fees</h2>
+
+            <h3>3.1 Fees and Billing</h3>
+            <p>Client shall pay all fees specified in the applicable Statement of Work or engagement letter. Fees for consulting services are calculated based on hourly rates, fixed project fees, or monthly retainer amounts as agreed. Fees for research services are project-based and established in advance.</p>
+            <p>Unless otherwise specified, billing is monthly in arrears, with invoices issued upon completion of monthly milestones or as specified in the engagement agreement.</p>
+
+            <h3>3.2 Expenses</h3>
+            <p>Client shall reimburse Collatio for all reasonable out-of-pocket expenses incurred in the performance of services, including but not limited to travel, accommodation, software licenses, and third-party services. Expense reimbursement requests must include supporting documentation and shall be submitted monthly with invoices.</p>
+
+            <h3>3.3 Payment Terms</h3>
+            <p>All invoices are due and payable within thirty (30) days of invoice date (Net 30). Payment shall be made via wire transfer, ACH, credit card, or other method specified on the invoice. Client shall pay all bank charges and wire transfer fees associated with payment.</p>
+
+            <h3>3.4 Late Payment Fees</h3>
+            <p>Invoices not paid by the due date shall accrue interest at the rate of 1.5% per month (18% annual percentage rate) or the maximum rate permitted by Oregon law, whichever is lower. In addition to accrued interest, Client shall pay all reasonable collection costs, including attorney's fees, if payment is not received within thirty (30) days of the due date.</p>
+
+            <h3>3.5 Taxes</h3>
+            <p>Unless Client provides a valid tax exemption certificate, all fees and expenses are exclusive of applicable sales tax, use tax, VAT, and other transaction taxes. Client is responsible for all such taxes, or Collatio shall add applicable taxes to invoices.</p>
+
+            <h3>3.6 Price Changes</h3>
+            <p>For ongoing retainer arrangements, Collatio reserves the right to increase fees upon thirty (30) days' written notice. Fees shall not increase more than once per twelve (12) month period without mutual written agreement.</p>
+        </section>
+
+        <section id="ip">
+            <h2>4. Intellectual Property Rights</h2>
+
+            <h3>4.1 Collatio IP</h3>
+            <p>Collatio retains all right, title, and interest in and to: (a) all pre-existing methodologies, tools, frameworks, algorithms, and know-how developed prior to or independent of the engagement (<strong>"Collatio Pre-Existing IP"</strong>), (b) all improvements, derivatives, and generalizations of such IP developed during or after the engagement, and (c) all general principles, techniques, and insights derived from the engagement that are not unique to Client's specific situation or data.</p>
+
+            <h3>4.2 Work Product License</h3>
+            <p>Collatio grants Client a non-exclusive, non-transferable, worldwide license to use any deliverables, reports, analyses, and work product provided under the engagement (<strong>"Deliverables"</strong>) solely for Client's internal business purposes. This license does not include the right to: (i) modify, reverse-engineer, or create derivative works of Deliverables, (ii) sell, license, or sublicense Deliverables to third parties, (iii) publish Deliverables or use them for competitive purposes, or (iv) use Deliverables in any manner that violates applicable law or these Terms.</p>
+
+            <h3>4.3 Client Data</h3>
+            <p>Client retains all right, title, and interest in Client data, materials, and information provided to Collatio (<strong>"Client Data"</strong>). Client grants Collatio a limited, non-exclusive license to use Client Data solely to perform the services and as otherwise permitted by these Terms.</p>
+
+            <h3>4.4 Feedback and Improvement</h3>
+            <p>Collatio may use any feedback, suggestions, or insights provided by Client during or after the engagement to improve its services, methodologies, and products, without obligation to Client. Such use shall not disclose Client's confidential information or identity without consent.</p>
+
+            <h3>4.5 Academic and Research Use</h3>
+            <p>For mathematical research engagements, Client acknowledges that Collatio may publish findings, theorems, proofs, or insights derived from the research in academic journals, conferences, or other public forums, provided that Client's confidential information is not disclosed without prior written consent. Client shall have the opportunity to review any publication for confidentiality concerns before submission.</p>
+
+            <h3>4.6 Copyright and Attribution</h3>
+            <p>All Deliverables are provided "as-is" without warranty of copyright clearance or third-party rights. Client is responsible for ensuring that use of Deliverables does not infringe any third-party intellectual property rights. Collatio does not warrant that Deliverables are free from claims of infringement.</p>
+        </section>
+
+        <section id="confidentiality">
+            <h2>5. Confidentiality</h2>
+
+            <h3>5.1 Confidential Information</h3>
+            <p><strong>"Confidential Information"</strong> means all non-public information disclosed by either party that is marked as confidential or that reasonably should be understood to be confidential, including but not limited to: business strategies, financial information, client lists, technical data, research findings, methodologies, and trade secrets.</p>
+
+            <h3>5.2 Obligations</h3>
+            <p>Each party shall: (a) maintain the confidentiality of the other party's Confidential Information using at least the same degree of care it uses for its own confidential information, but not less than reasonable care, (b) limit access to Confidential Information to employees, contractors, and advisors who have a legitimate need to know and who are bound by written confidentiality obligations at least as protective as these Terms, and (c) use Confidential Information solely for the purposes of performing services or fulfilling obligations under the engagement.</p>
+
+            <h3>5.3 Exclusions</h3>
+            <p>Confidential Information does not include information that: (a) is or becomes publicly available through no breach of these Terms, (b) is rightfully received by the receiving party from a third party without breach of any confidentiality obligation, (c) is independently developed by the receiving party without reference to Confidential Information, or (d) is required to be disclosed by law, regulation, or court order, provided the disclosing party gives prompt notice to allow the other party to seek protective measures.</p>
+
+            <h3>5.4 Legal Compulsion</h3>
+            <p>If either party is compelled to disclose Confidential Information by law, subpoena, or regulatory authority, the disclosing party shall: (a) promptly notify the other party of the requirement, unless prohibited by law, (b) cooperate in seeking a protective order, and (c) limit disclosure to the minimum required by law.</p>
+
+            <h3>5.5 Term of Confidentiality</h3>
+            <p>Confidentiality obligations shall survive termination of the engagement for a period of three (3) years, except for trade secrets, which shall remain confidential for so long as they qualify as trade secrets under applicable law.</p>
+        </section>
+
+        <section id="warranties">
+            <h2>6. Warranty Disclaimer</h2>
+
+            <h3>6.1 Consulting Services</h3>
+            <p>Collatio warrants that consulting services shall be performed in a professional and competent manner consistent with industry standards for similar services. However, Collatio does not warrant that: (a) recommendations will achieve Client's business objectives or desired outcomes, (b) implementation of recommendations will be successful or problem-free, or (c) any particular results or performance levels will be achieved.</p>
+
+            <h3>6.2 Research Services</h3>
+            <p>Collatio provides research services on an <strong>"AS-IS"</strong> basis. Research work is inherently exploratory and speculative. Collatio makes no warranty that research will result in any discovery, proof, derivation, or publishable finding. All mathematical claims, proofs, and conclusions are provided without warranty of accuracy, completeness, or suitability for any particular purpose. Client is responsible for independently verifying all research findings and conclusions.</p>
+
+            <h3>6.3 Deliverables</h3>
+            <p>All Deliverables, including reports, recommendations, analyses, and documentation, are provided in their current form without warranty of accuracy, completeness, merchantability, or fitness for a particular purpose. Collatio shall not be liable for errors, omissions, or failures in Deliverables caused by incomplete information provided by Client, errors in Client Data, or factors beyond Collatio's reasonable control.</p>
+
+            <h3>6.4 Third-Party Services and Tools</h3>
+            <p>Collatio may use third-party software, tools, services, or APIs in performing services. Collatio makes no warranty regarding third-party tools and disclaims all liability for third-party service failures, errors, or unavailability. Client's use of third-party services is governed by their respective terms and privacy policies.</p>
+
+            <h3>6.5 Disclaimer of All Other Warranties</h3>
+            <p>EXCEPT AS EXPRESSLY PROVIDED IN SECTION 6.1, COLLATIO MAKES NO OTHER WARRANTIES, EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR TITLE. COLLATIO DOES NOT WARRANT THAT SERVICES WILL BE UNINTERRUPTED, ERROR-FREE, OR THAT ANY DEFECTS WILL BE CORRECTED.</p>
+        </section>
+
+        <section id="limitation">
+            <h2>7. Limitation of Liability</h2>
+
+            <h3>7.1 Limitation Cap</h3>
+            <p>IN NO EVENT SHALL EITHER PARTY'S TOTAL LIABILITY UNDER THESE TERMS OR THE ENGAGEMENT EXCEED THE TOTAL FEES PAID BY CLIENT TO COLLATIO IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO LIABILITY. If no services have been rendered or fees paid, the liability cap shall be one thousand dollars ($1,000.00).</p>
+
+            <h3>7.2 Exclusion of Consequential Damages</h3>
+            <p>IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING LOSS OF PROFITS, LOSS OF REVENUE, LOSS OF DATA, LOSS OF BUSINESS OPPORTUNITY, COST OF SUBSTITUTE SERVICES, OR OTHER INTANGIBLE LOSSES, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</p>
+
+            <h3>7.3 Exceptions to Limitation</h3>
+            <p>The limitations of liability in this Section 7 shall not apply to: (a) either party's indemnification obligations, (b) either party's breach of confidentiality obligations, (c) infringement of intellectual property rights, (d) either party's breach of payment obligations, (e) either party's gross negligence or willful misconduct, or (f) either party's breach of license restrictions on Client Data or Collatio Pre-Existing IP.</p>
+
+            <h3>7.4 Mitigation</h3>
+            <p>Client acknowledges that it has opportunity to limit damages through insurance, risk management, and contract provisions. The parties have negotiated this allocation of risk and limited remedies in setting the fees for services.</p>
+        </section>
+
+        <section id="indemnification">
+            <h2>8. Indemnification</h2>
+
+            <h3>8.1 Collatio Indemnification</h3>
+            <p>Collatio shall defend, indemnify, and hold harmless Client from and against any third-party claims, damages, and costs (including reasonable attorney's fees) alleging that Deliverables, as delivered by Collatio and used in accordance with these Terms, infringe any United States patent, copyright, trademark, or trade secret; provided that Client: (a) promptly notifies Collatio of the claim, (b) grants Collatio sole control of the defense and settlement, and (c) provides reasonable cooperation at Collatio's expense.</p>
+
+            <h3>8.2 Collatio Remedies</h3>
+            <p>If Deliverables become subject to infringement claims, Collatio may, at its option and expense: (a) obtain the right for Client to continue using the Deliverables, (b) modify the Deliverables to make them non-infringing, or (c) if neither (a) nor (b) is reasonably available, terminate the engagement and refund any prepaid fees for unused services.</p>
+
+            <h3>8.3 Client Indemnification</h3>
+            <p>Client shall defend, indemnify, and hold harmless Collatio from and against any third-party claims, damages, and costs (including reasonable attorney's fees) arising from or related to: (a) Client Data provided to Collatio, (b) Client's use of Deliverables outside the scope permitted by these Terms, (c) Client's combination of Deliverables with other services or products not provided by Collatio, (d) Client's modification of Deliverables without Collatio's consent, or (e) Client's breach of these Terms.</p>
+
+            <h3>8.4 Indemnification Procedure</h3>
+            <p>The indemnified party shall: (a) promptly notify the indemnifying party of any claim, (b) provide reasonable information about the claim, and (c) allow the indemnifying party to control the defense and settlement, provided settlement does not admit liability or impose obligations on the indemnified party without consent.</p>
+        </section>
+
+        <section id="term">
+            <h2>9. Term and Termination</h2>
+
+            <h3>9.1 Term</h3>
+            <p>The engagement shall commence on the effective date of the Statement of Work and shall continue until completion of services, unless earlier terminated as provided herein. For ongoing retainer arrangements, the engagement shall continue on a month-to-month basis unless otherwise specified.</p>
+
+            <h3>9.2 Termination for Convenience</h3>
+            <p>Either party may terminate the engagement for any reason upon thirty (30) days' written notice. Client shall pay all fees for services performed through the termination date, plus any non-cancelable expenses incurred.</p>
+
+            <h3>9.3 Termination for Cause</h3>
+            <p>Either party may terminate the engagement immediately upon written notice if: (a) the other party materially breaches these Terms or the engagement agreement and fails to cure the breach within fifteen (15) days of written notice, or (b) the other party becomes insolvent, files for bankruptcy, or ceases business operations.</p>
+
+            <h3>9.4 Effect of Termination</h3>
+            <p>Upon termination: (a) Client shall pay all undisputed fees and expenses owed through the termination date, (b) Collatio shall deliver or make available any completed Deliverables and Client Data, (c) all licenses and confidentiality obligations shall survive termination as specified in these Terms, and (d) any provisions that by their nature should survive termination shall continue in force.</p>
+
+            <h3>9.5 Suspension for Non-Payment</h3>
+            <p>If Client fails to pay invoices within thirty (30) days of due date, Collatio may suspend services and delivery of Deliverables without liability until payment is received in full, including accrued interest and collection costs.</p>
+        </section>
+
+        <section id="data">
+            <h2>10. Data Protection and Privacy</h2>
+
+            <h3>10.1 Data Handling</h3>
+            <p>Collatio shall use industry-standard security measures to protect Client Data from unauthorized access, loss, and disclosure. However, Collatio does not warrant that security is absolute or that breaches will not occur. Client is responsible for deciding what data to share and maintaining backups of critical data.</p>
+
+            <h3>10.2 Data Retention</h3>
+            <p>Collatio shall retain Client Data only for the duration necessary to perform services and as required by law. Upon engagement termination, Collatio shall, at Client's request, securely delete Client Data or return it to Client, except where retention is required by law or these Terms.</p>
+
+            <h3>10.3 Personal Data</h3>
+            <p>If Client provides any personal data (as defined by applicable privacy laws) to Collatio, Collatio shall process such data only as a service provider for Client's benefit and in compliance with applicable privacy laws, including the California Consumer Privacy Act (CCPA) and Oregon data protection laws. Client shall ensure it has appropriate legal basis and consent to provide personal data to Collatio.</p>
+
+            <h3>10.4 Privacy Policy</h3>
+            <p>Collatio's collection and use of personal data is governed by its <a href="privacy.html" style="color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); transition: border-color 0.2s;">Privacy Policy</a>. By using Collatio's services, Client consents to the practices described in the Privacy Policy.</p>
+        </section>
+
+        <section id="dispute">
+            <h2>11. Dispute Resolution</h2>
+
+            <h3>11.1 Informal Resolution</h3>
+            <p>Before initiating arbitration, the parties shall attempt to resolve any dispute through good-faith negotiation between senior representatives of each party. If the dispute cannot be resolved within thirty (30) days, either party may proceed to arbitration.</p>
+
+            <h3>11.2 Binding Arbitration</h3>
+            <p>Except as provided in Section 11.3, any dispute arising out of or related to these Terms or the engagement shall be resolved by binding arbitration administered by JAMS (Judicial Arbitration and Mediation Services) in Portland, Oregon. The arbitration shall be conducted by a single neutral arbitrator under the JAMS Comprehensive Arbitration Rules &amp; Procedures.</p>
+
+            <h3>11.3 Exceptions to Arbitration</h3>
+            <p>The following matters are excluded from arbitration and may be brought in court: (a) claims for injunctive relief to prevent infringement of intellectual property rights or breach of confidentiality, (b) claims involving liens or security interests, and (c) claims in small claims court if applicable.</p>
+
+            <h3>11.4 Arbitration Procedures</h3>
+            <p>The arbitrator shall: (a) apply substantive law consistent with these Terms, (b) issue a written decision, (c) allow discovery as permitted by JAMS rules, and (d) award attorney's fees and costs to the prevailing party if permitted by applicable law. The arbitration shall be conducted in Portland, Oregon, and judgment on the award may be entered in any court having jurisdiction.</p>
+
+            <h3>11.5 Governing Law</h3>
+            <p>These Terms and all disputes shall be governed by the laws of the State of Oregon, without regard to conflicts of law principles. Any arbitration or legal proceeding shall be governed by Oregon substantive law.</p>
+
+            <h3>11.6 Attorneys' Fees</h3>
+            <p>In any arbitration or litigation arising out of these Terms, the prevailing party shall be entitled to recover reasonable attorneys' fees, court costs, and other expenses from the non-prevailing party.</p>
+        </section>
+
+        <section id="force-majeure">
+            <h2>12. Force Majeure</h2>
+
+            <h3>12.1 Force Majeure Events</h3>
+            <p>Neither party shall be liable for failure to perform its obligations if such failure results from causes beyond the reasonable control of that party, including but not limited to acts of God, war, terrorism, civil unrest, pandemic, government action, natural disaster, or infrastructure failure (<strong>"Force Majeure Event"</strong>).</p>
+
+            <h3>12.2 Mitigation and Notice</h3>
+            <p>The affected party shall: (a) promptly notify the other party of the Force Majeure Event, (b) use reasonable efforts to mitigate the impact and resume performance, and (c) provide regular updates on status and expected resumption. If a Force Majeure Event prevents performance for more than thirty (30) days, either party may terminate the affected services without liability.</p>
+
+            <h3>12.3 Payment Obligations</h3>
+            <p>Force Majeure does not excuse payment obligations. Client shall remain obligated to pay all fees for services performed or partially performed before the Force Majeure Event.</p>
+        </section>
+
+        <section id="severability">
+            <h2>13. Severability</h2>
+            <p>If any provision of these Terms is found to be illegal, invalid, or unenforceable by a court or arbitrator, that provision shall be modified to the minimum extent necessary to make it enforceable while preserving the intent, or if modification is not possible, the provision shall be severed. All other provisions shall remain in full force and effect. If any provision cannot be severed without materially altering the agreement, the entire agreement may be terminated at the request of either party.</p>
+        </section>
+
+        <section id="entire">
+            <h2>14. Entire Agreement</h2>
+
+            <h3>14.1 Complete Agreement</h3>
+            <p>These Terms, together with any Statement of Work, engagement letter, master service agreement, or other documents incorporated by reference, constitute the complete and exclusive agreement between the parties regarding the services and supersede all prior or contemporaneous agreements, understandings, or negotiations, whether written or oral.</p>
+
+            <h3>14.2 Amendments</h3>
+            <p>These Terms may be amended only by written instrument signed by authorized representatives of both parties. Any purported modification not signed by both parties is void.</p>
+
+            <h3>14.3 Waiver</h3>
+            <p>Failure of either party to enforce any provision of these Terms does not constitute a waiver of that provision or any other provision. Any waiver must be in writing and signed by the waiving party.</p>
+
+            <h3>14.4 Headings</h3>
+            <p>The section headings in these Terms are for convenience only and do not affect interpretation.</p>
+
+            <h3>14.5 Assignment</h3>
+            <p>Neither party may assign these Terms or the engagement without the prior written consent of the other party, except that Collatio may assign to a successor in a merger or acquisition. Any unauthorized assignment is void.</p>
+
+            <h3>14.6 Counterparts</h3>
+            <p>These Terms may be executed in counterparts, each of which shall be deemed an original and all of which together shall constitute one and the same instrument.</p>
+        </section>
+
+        <section id="contact">
+            <h2>15. Contact Information</h2>
+            <p>For questions about these Terms, requests for service agreements, or other business inquiries:</p>
+
+            <div class="contact-info">
+                <p><strong>Collatio Labs LLC</strong></p>
+                <p>Portland, Oregon</p>
+                <p>Email: <a href="mailto:contact@collatiolabs.com">contact@collatiolabs.com</a></p>
+            </div>
+
+            <h3>Notices</h3>
+            <p>Any notice required under these Terms shall be in writing and delivered by: (a) email to the email address provided in the engagement agreement, (b) certified mail to the address of record, or (c) overnight courier service. Notices are effective upon receipt.</p>
+        </section>
+
+        <p class="acknowledgment"><strong>Acknowledgment:</strong> By engaging Collatio Labs LLC, Client acknowledges that it has read and understood these Terms of Service and agrees to be bound by all provisions herein.</p>
+    </main>
+
+    <footer>
+        <div class="footer-container">
+            <div class="footer-top">
+                <div class="footer-col">
+                    <h3>Company</h3>
+                    <a href="index.html">Home</a>
+                    <a href="collatio_labs_landing_v2.html">Consulting</a>
+                    <a href="collatio_labs_research.html">Research</a>
+                </div>
+                <div class="footer-col">
+                    <h3>Legal</h3>
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                </div>
+                <div class="footer-col">
+                    <h3>Connect</h3>
+                    <a href="mailto:contact@collatiolabs.com">Email</a>
+                    <a href="https://linkedin.com/in/stevenlamarmichael" target="_blank">LinkedIn</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Collatio Labs LLC. All rights reserved.</p>
+                <p style="margin-top: 0.75rem;">Enterprise Consulting &middot; Mathematical Research &middot; Portland, Oregon</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        window.addEventListener('scroll', () => {
+            const navbar = document.getElementById('navbar');
+            if (window.scrollY > 0) {
+                navbar.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+            } else {
+                navbar.style.boxShadow = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

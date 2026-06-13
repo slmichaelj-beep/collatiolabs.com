@@ -3,25 +3,780 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collatio Labs</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<title>Collatio Labs - Governed Automation Systems</title>
+<meta name="description" content="Collatio Labs builds governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://collatiolabs.com/">
+<meta property="og:title" content="Collatio Labs - Governed Automation Systems">
+<meta property="og:description" content="Governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://collatiolabs.com/">
+<meta property="og:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Collatio Labs - Governed Automation Systems">
+<meta name="twitter:description" content="Governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<meta name="twitter:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;-webkit-font-smoothing:antialiased}
-a{color:inherit;text-decoration:none}
-.wrap{text-align:center;padding:0 24px}
-h1{font-size:clamp(24px,4vw,40px);font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:#fff}
-p{margin-top:16px;font-size:clamp(13px,1.5vw,15px);font-weight:300;color:#555;letter-spacing:.04em}
-.contact{position:fixed;bottom:32px;right:40px;font-size:13px;font-weight:400;color:#333;letter-spacing:.06em;transition:color .3s;cursor:pointer}
-.contact:hover{color:#888}
-@media(max-width:600px){.contact{bottom:24px;right:24px;font-size:12px}}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink: #0d0d0b;
+  --paper: #f3efe4;
+  --bone: #fffaf0;
+  --line: rgba(13, 13, 11, 0.16);
+  --muted: #6d6a61;
+  --green: #b7d7bb;
+  --blue: #b7d9e8;
+  --clay: #e56f3f;
+  --charcoal: #151515;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  line-height: 1.45;
+}
+
+a { color: inherit; }
+
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border-bottom: 1px solid rgba(255, 250, 240, 0.18);
+  color: var(--bone);
+  background: rgba(13, 13, 11, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.nav-inner {
+  height: 58px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.brand {
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+}
+
+.nav-links a {
+  color: rgba(255, 250, 240, 0.78);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.nav-links a:hover { color: var(--bone); }
+
+.nav-cta {
+  border: 1px solid rgba(255, 250, 240, 0.35);
+  border-radius: 999px;
+  padding: 8px 13px;
+}
+
+.hero {
+  min-height: 92vh;
+  position: relative;
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+  background: var(--charcoal);
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(13, 13, 11, 0.96) 0%, rgba(13, 13, 11, 0.76) 35%, rgba(13, 13, 11, 0.22) 72%),
+    linear-gradient(180deg, rgba(13, 13, 11, 0.22) 0%, rgba(13, 13, 11, 0.7) 100%),
+    url("assets/collatio-hero-ops.png") center right / cover no-repeat;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 132px 24px 56px;
+  color: var(--bone);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 42px;
+  align-items: end;
+}
+
+.kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 250, 240, 0.72);
+  margin-bottom: 22px;
+}
+
+.kicker::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+h1 {
+  max-width: 8.8ch;
+  font-size: clamp(4rem, 13vw, 12.6rem);
+  line-height: 0.78;
+  letter-spacing: -0.08em;
+  font-weight: 800;
+}
+
+.hero-copy {
+  max-width: 510px;
+  margin-top: 30px;
+  color: rgba(255, 250, 240, 0.78);
+  font-size: clamp(1.02rem, 1.4vw, 1.22rem);
+  line-height: 1.55;
+}
+
+.hero-panel {
+  border: 1px solid rgba(255, 250, 240, 0.2);
+  border-radius: 8px;
+  background: rgba(13, 13, 11, 0.55);
+  backdrop-filter: blur(14px);
+}
+
+.hero-panel div {
+  display: grid;
+  grid-template-columns: 136px 1fr;
+  border-bottom: 1px solid rgba(255, 250, 240, 0.16);
+}
+
+.hero-panel div:last-child { border-bottom: 0; }
+
+.metric {
+  padding: 18px 16px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--green);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.metric-copy {
+  padding: 18px 16px;
+  color: rgba(255, 250, 240, 0.72);
+  font-size: 0.86rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 34px;
+}
+
+.button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 10px 17px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.button.light {
+  background: var(--bone);
+  border-color: var(--bone);
+  color: var(--ink);
+}
+
+.button.dark {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bone);
+}
+
+.ticker {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(255, 250, 240, 0.18);
+  color: var(--bone);
+  overflow: hidden;
+}
+
+.ticker-track {
+  display: flex;
+  width: max-content;
+  animation: ticker 34s linear infinite;
+}
+
+.ticker span {
+  display: inline-block;
+  padding: 16px 20px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 250, 240, 0.7);
+}
+
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.section {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 80px 24px;
+}
+
+.section.split {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
+  gap: 56px;
+}
+
+.label {
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.statement {
+  font-size: clamp(2rem, 4.7vw, 5.8rem);
+  line-height: 0.94;
+  letter-spacing: -0.07em;
+  font-weight: 800;
+  max-width: 930px;
+}
+
+.statement em {
+  color: var(--clay);
+  font-style: normal;
+}
+
+.thesis {
+  background: var(--bone);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.thesis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 56px;
+  align-items: end;
+}
+
+.thesis h2 {
+  max-width: 920px;
+  font-size: clamp(2.9rem, 7vw, 8.8rem);
+  line-height: 0.84;
+  letter-spacing: -0.075em;
+  font-weight: 800;
+}
+
+.thesis-copy {
+  display: grid;
+  gap: 18px;
+  color: var(--muted);
+  font-size: clamp(1rem, 1.4vw, 1.24rem);
+  font-weight: 600;
+}
+
+.standard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin-top: 54px;
+}
+
+.standard {
+  min-height: 190px;
+  padding: 22px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.standard strong {
+  display: block;
+  color: var(--clay);
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 36px;
+}
+
+.standard p {
+  max-width: 34ch;
+  color: rgba(13, 13, 11, 0.72);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.work-card {
+  min-height: 315px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 250, 240, 0.38);
+}
+
+.work-card:nth-child(2n) { background: rgba(183, 217, 232, 0.22); }
+.work-card:nth-child(3n) { background: rgba(183, 215, 187, 0.25); }
+
+.work-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.work-card h3 {
+  margin-top: 34px;
+  font-size: clamp(1.6rem, 3vw, 3.1rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.work-card p {
+  max-width: 34ch;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.services {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--line);
+}
+
+.service {
+  min-height: 208px;
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 20px;
+  padding: 28px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.service:nth-child(odd) { padding-right: 24px; border-right: 1px solid var(--line); }
+.service:nth-child(even) { padding-left: 24px; }
+
+.service-num {
+  color: var(--clay);
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+}
+
+.service h3 {
+  font-size: clamp(1.35rem, 2vw, 2.2rem);
+  line-height: 1;
+  letter-spacing: -0.045em;
+  margin-bottom: 12px;
+}
+
+.service p {
+  color: var(--muted);
+  max-width: 48ch;
+  font-size: 0.96rem;
+}
+
+.proof {
+  background: var(--ink);
+  color: var(--bone);
+}
+
+.proof .section {
+  padding-top: 96px;
+  padding-bottom: 96px;
+}
+
+.proof .label { color: rgba(255, 250, 240, 0.54); }
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255, 250, 240, 0.18);
+  margin-top: 40px;
+}
+
+.proof-cell {
+  min-height: 210px;
+  padding: 22px;
+  background: var(--ink);
+}
+
+.proof-cell strong {
+  display: block;
+  color: var(--green);
+  font-size: clamp(1.8rem, 3vw, 3.7rem);
+  line-height: 0.92;
+  letter-spacing: -0.07em;
+  margin-bottom: 14px;
+}
+
+.proof-cell span {
+  color: rgba(255, 250, 240, 0.68);
+  font-size: 0.88rem;
+}
+
+.governed {
+  background: var(--blue);
+}
+
+.governed-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.governed h2 {
+  max-width: 720px;
+  font-size: clamp(2.4rem, 6vw, 7.6rem);
+  line-height: 0.86;
+  letter-spacing: -0.075em;
+  font-weight: 800;
+}
+
+.rules {
+  display: grid;
+  gap: 10px;
+}
+
+.rule {
+  border: 1px solid rgba(13, 13, 11, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 250, 240, 0.35);
+  padding: 18px;
+  color: rgba(13, 13, 11, 0.75);
+  font-size: 0.94rem;
+}
+
+.contact {
+  min-height: 64vh;
+  display: grid;
+  align-items: center;
+  background: var(--clay);
+}
+
+.contact .section {
+  width: 100%;
+}
+
+.contact h2 {
+  max-width: 900px;
+  font-size: clamp(3.6rem, 10vw, 11.8rem);
+  line-height: 0.79;
+  letter-spacing: -0.08em;
+  font-weight: 800;
+}
+
+.contact-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  margin-top: 34px;
+  border-top: 1px solid rgba(13, 13, 11, 0.22);
+  padding-top: 22px;
+}
+
+.contact-row p {
+  max-width: 48ch;
+  color: rgba(13, 13, 11, 0.72);
+  font-weight: 600;
+}
+
+footer {
+  border-top: 1px solid var(--line);
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+footer a {
+  margin-left: 14px;
+  text-decoration: none;
+}
+
+@media (max-width: 980px) {
+  .hero { min-height: 860px; }
+  .hero-grid,
+  .section.split,
+  .thesis-grid,
+  .governed-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .work-grid,
+  .proof-grid,
+  .standard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .services {
+    grid-template-columns: 1fr;
+  }
+
+  .service:nth-child(odd),
+  .service:nth-child(even) {
+    padding-left: 0;
+    padding-right: 0;
+    border-right: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .nav-links a:not(.nav-cta) { display: none; }
+  .nav-inner { padding: 0 16px; }
+  .hero-content { padding: 108px 16px 40px; }
+  h1 { font-size: clamp(3.5rem, 22vw, 6rem); }
+  .section { padding: 58px 16px; }
+  .work-grid,
+  .proof-grid,
+  .standard-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero-panel div { grid-template-columns: 116px 1fr; }
+  .metric { padding: 18px 14px; }
+  .metric-copy { padding-left: 8px; }
+  .contact-row {
+    display: block;
+  }
+  .contact-row .button {
+    margin-top: 20px;
+  }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-<h1>Collatio Labs</h1>
-<p>Mathematical research laboratory</p>
-</div>
-<a href="mailto:contact@collatiolabs.com" class="contact">Contact</a>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html">Collatio Labs</a>
+    <div class="nav-links">
+      <a href="#work">Work</a>
+      <a href="#services">Services</a>
+      <a href="#proof">Proof</a>
+      <a href="mailto:contact@collatiolabs.com" class="nav-cta">Contact</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-grid">
+        <div>
+          <div class="kicker">Automation. Intelligence. Control.</div>
+          <h1>Systems for work that matters.</h1>
+          <p class="hero-copy">Collatio Labs turns document-heavy, operationally sensitive work into governed systems that teams can run, trust, and improve.</p>
+          <div class="actions">
+            <a href="mailto:contact@collatiolabs.com" class="button light">Book a systems review</a>
+            <a href="#work" class="button">View the evidence</a>
+          </div>
+        </div>
+        <aside class="hero-panel" aria-label="Collatio Labs signals">
+          <div><span class="metric">25+</span><span class="metric-copy">years of founder operating history across service, systems, delivery, and enterprise accounts.</span></div>
+          <div><span class="metric">15+</span><span class="metric-copy">years in enterprise, cloud, public-sector, finance, healthcare, and emerging technology environments.</span></div>
+          <div><span class="metric">Built</span><span class="metric-copy">working systems across document operations, data pipelines, security visibility, marketplaces, and governed AI.</span></div>
+          <div><span class="metric">Gated</span><span class="metric-copy">AI-assisted execution with human review before public, financial, legal, or customer-facing action.</span></div>
+        </aside>
+      </div>
+      <div class="ticker" aria-hidden="true">
+        <div class="ticker-track">
+          <span>PDF workflows</span><span>Data cleanup</span><span>Python automation</span><span>Dashboards</span><span>API integration</span><span>Human-reviewed AI</span><span>Document ops</span><span>Governed systems</span>
+          <span>PDF workflows</span><span>Data cleanup</span><span>Python automation</span><span>Dashboards</span><span>API integration</span><span>Human-reviewed AI</span><span>Document ops</span><span>Governed systems</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section split">
+    <div class="label">Position</div>
+    <p class="statement">The best systems do not ask people to work around them. They turn complexity into a path teams can trust.</p>
+  </section>
+
+  <section class="thesis">
+    <div class="section">
+      <div class="thesis-grid">
+        <h2>From workflow to infrastructure.</h2>
+        <div class="thesis-copy">
+          <p>Collatio is built for the work between strategy and execution: the forms, files, approvals, evidence, exceptions, and handoffs that decide whether an operation actually holds.</p>
+          <p>We design the system underneath the task, then make it visible enough to govern and practical enough to use.</p>
+        </div>
+      </div>
+      <div class="standard-grid" aria-label="Collatio operating standards">
+        <article class="standard"><strong>01 Structure</strong><p>Unclear work becomes mapped, named, scoped, and measurable.</p></article>
+        <article class="standard"><strong>02 Evidence</strong><p>Outputs are checked against records, rules, source files, and review gates.</p></article>
+        <article class="standard"><strong>03 Control</strong><p>Automation accelerates the work while humans keep authority over commitments.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="work">
+    <div class="section split" style="padding: 0 0 38px;">
+      <div class="label">Selected Work</div>
+      <p class="statement" style="font-size: clamp(2.4rem, 5vw, 6.8rem); max-width: 1050px;">Operational systems with real depth.</p>
+    </div>
+    <div class="work-grid">
+      <article class="work-card">
+        <div><div class="work-top"><span>Security</span><span>01</span></div><h3>Argus</h3></div>
+        <p>Local-first macOS network and system monitor with traffic interpretation, process forensics, deterministic risk scoring, and executive-ready reports.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>PDF app</span><span>02</span></div><h3>Folia</h3></div>
+        <p>Native macOS PDF workspace built with SwiftUI and PDFKit, including forms, signatures, markup, page tools, local OCR, and packaged distribution.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Documents</span><span>03</span></div><h3>Notis</h3></div>
+        <p>PDF editing and signing workflow with cryptographic sealing, audit-trail architecture, UAT reports, and release-test evidence.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Marketplace</span><span>04</span></div><h3>Praeco</h3></div>
+        <p>Trust-based introduction marketplace prototype with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and test coverage.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>AI OS</span><span>05</span></div><h3>Vera / Anima</h3></div>
+        <p>Local-first governed AI operating system with truth ledger, observation events, certification gates, approval queues, and human-controlled external actions.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Deliverables</span><span>06</span></div><h3>CV + PO demos</h3></div>
+        <p>Runnable document workflows that convert resume and purchase-order PDFs into structured, review-ready Excel outputs.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section split" id="services">
+    <div class="label">Services</div>
+    <div class="services">
+      <article class="service">
+        <div class="service-num">01</div>
+        <div><h3>Document intelligence</h3><p>Extract fields, clean tables, validate records, generate spreadsheets, and make PDF-heavy work auditable.</p></div>
+      </article>
+      <article class="service">
+        <div class="service-num">02</div>
+        <div><h3>Operational command surfaces</h3><p>Build dashboards, scripts, and review surfaces around the exact decisions your team has to make.</p></div>
+      </article>
+      <article class="service">
+        <div class="service-num">03</div>
+        <div><h3>Workflow architecture</h3><p>Connect forms, files, email, databases, APIs, and reporting so operational handoffs become visible, measurable, and reliable.</p></div>
+      </article>
+      <article class="service">
+        <div class="service-num">04</div>
+        <div><h3>Governed AI workflows</h3><p>Use AI to draft, classify, extract, compare, and accelerate work while preserving review, authority, and auditability.</p></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="proof" id="proof">
+    <div class="section">
+      <div class="section split" style="padding: 0;">
+        <div class="label">Proof Points</div>
+        <p class="statement" style="color: var(--bone); font-size: clamp(2.4rem, 5vw, 6.6rem); max-width: 980px;">Credibility earned where systems have to work.</p>
+      </div>
+      <div class="proof-grid">
+        <div class="proof-cell"><strong>25+</strong><span>years of work history since 2001, with a practical operator's view of service, systems, process, delivery, and account accountability.</span></div>
+        <div class="proof-cell"><strong>15+</strong><span>years leading complex delivery across enterprise cloud, finance, healthcare, public-sector, AI, and emerging product environments.</span></div>
+        <div class="proof-cell"><strong>Scale</strong><span>prior leadership work across strategic cloud renewals, infrastructure planning for frontier product groups, $330M+ enterprise account delivery, and public-sector healthcare stabilization.</span></div>
+        <div class="proof-cell"><strong>2</strong><span>runnable document-processing deliverables: CV screener and PO label demo.</span></div>
+        <div class="proof-cell"><strong>Control</strong><span>clear boundary: Collatio prepares, tests, and proves the work; humans approve external commitments.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="governed">
+    <div class="section governed-copy">
+      <h2>Speed with judgment.</h2>
+      <div class="rules">
+        <div class="rule">AI-assisted work is checked by a human before delivery.</div>
+        <div class="rule">Messages, spend, credentials, legal, financial, and public-facing actions stay human-gated.</div>
+        <div class="rule">Every deliverable is built around a live path: capture, structure, validate, use, ship, verify.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="contact" id="contact">
+    <div class="section">
+      <h2>Bring the work.</h2>
+      <div class="contact-row">
+        <p>Show us the process that is high-volume, document-heavy, spreadsheet-bound, compliance-sensitive, or difficult to trust. We will turn it into a scoped system with evidence, controls, and a path to production.</p>
+        <a href="mailto:contact@collatiolabs.com" class="button dark">contact@collatiolabs.com</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>&copy; 2026 Collatio Labs LLC. Portland, Oregon.</span>
+  <span><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="https://www.linkedin.com/in/stevenlamarmichael">LinkedIn</a></span>
+</footer>
 </body>
 </html>
