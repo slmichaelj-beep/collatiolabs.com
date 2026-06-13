@@ -609,11 +609,51 @@ footer a {
 @media (max-width: 620px) {
   .nav-links a:not(.nav-cta) { display: none; }
   .nav-inner { padding: 0 16px; }
-  .hero-content { padding: 108px 16px 40px; }
+  .hero {
+    min-height: auto;
+  }
+  .hero::before {
+    background:
+      linear-gradient(180deg, rgba(13, 13, 11, 0.9) 0%, rgba(13, 13, 11, 0.76) 48%, rgba(13, 13, 11, 0.92) 100%),
+      url("assets/collatio-hero-ops.png") center top / cover no-repeat;
+  }
+  .hero-content {
+    padding: 104px 16px 34px;
+  }
+  .hero-grid {
+    gap: 28px;
+  }
+  .kicker {
+    max-width: 100%;
+    align-items: flex-start;
+    font-size: 0.64rem;
+    line-height: 1.35;
+    white-space: normal;
+  }
   h1 {
-    max-width: 6.5ch;
-    font-size: clamp(3.4rem, 18vw, 5.2rem);
-    line-height: 0.92;
+    max-width: 7.2ch;
+    font-size: clamp(3rem, 15vw, 4.2rem);
+    line-height: 0.98;
+  }
+  .hero-copy {
+    max-width: 100%;
+    margin-top: 24px;
+    font-size: 1rem;
+    line-height: 1.55;
+    overflow-wrap: break-word;
+  }
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 28px;
+  }
+  .button {
+    width: 100%;
+    min-height: 48px;
+    padding: 11px 14px;
+    white-space: normal;
+    text-align: center;
   }
   .section { padding: 58px 16px; }
   .work-grid,
@@ -621,9 +661,19 @@ footer a {
   .standard-grid {
     grid-template-columns: 1fr;
   }
-  .hero-panel div { grid-template-columns: 116px 1fr; }
-  .metric { padding: 18px 14px; }
-  .metric-copy { padding-left: 8px; }
+  .hero-panel div {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+  .metric {
+    padding: 16px 12px;
+    font-size: 1.2rem;
+  }
+  .metric-copy {
+    padding: 16px 12px 16px 4px;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    overflow-wrap: break-word;
+  }
   .contact-row {
     display: block;
   }
