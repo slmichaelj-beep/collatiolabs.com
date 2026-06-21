@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 certify_portrait_memory — the transient turn log + the Portrait, and the privacy posture that
-WITHHOLDS her personal memory of you the instant a cloud brain is active (same as the inbox).
+WITHHOLDS her personal memory of you only for a cloud-routed turn.
 
 Vera keeps two on-device memories of the person: a SHORT-LIVED working log of recent turns (so she
 remembers what was just said this session) and a durable distilled PORTRAIT (a small profile she
@@ -14,13 +14,11 @@ SAME functions the mouth's respond() and the route privacy guard call:
      disk still returns both — the recent-turn context survives reload (it is on disk, not in memory).
   B. THE PORTRAIT ROUND-TRIPS. portrait.save/load round-trips the durable Portrait text — the prose the
      mouth loads as `mem` and injects whole.
-  C. WITHHELD UNDER A CLOUD BRAIN (the inbox posture). We replay the EXACT mouth.respond seam —
-     `mem = portrait.load(name)` then `if cloud.is_cloud(): mem = ""` — with the production functions:
-     on a LOCAL brain `mem` CARRIES the Portrait; after save_cfg('openai', model, key) flips is_cloud()
-     True the SAME seam BLANKS `mem` to "" (her concentrated PII never rides the cloud stream), the same
-     posture as route.route(a reminders read) returning the honest PAUSED note. A never-keyed cloud
-     provider stays local (is_cloud False) and does NOT blank — the guard can't be tricked into
-     withholding a truly-local session.
+  C. WITHHELD ONLY FOR A CLOUD-ROUTED TURN. We replay the EXACT mouth.respond privacy seam with the
+     production Mouth selector: `mem = portrait.load(name)`, select `brain_for_route(route_model)`, and
+     blank `mem` only when that selected brain is a provider-backed cloud brain. On a LOCAL route, even a
+     cloud-capable mouth keeps the Portrait local; on a CLOUD route, the same Portrait is blanked before
+     prompt assembly. A never-keyed provider stays local and does NOT blank a truly-local session.
   D. ISOLATION + ANIMA LAW 001. The transient log path (name.chat.jsonl) is DISTINCT from the durable
      Portrait path (name.portrait.md); clear_log APPENDS the raw turns to the append-only chat archive
      (name.chat.archive.jsonl) BEFORE unlinking the log, and the archive survives the clear — the
@@ -49,19 +47,32 @@ _footprint = _g0pe._footprint
 _FAKE_KEY = "sk-FAKE-DUMMY-portrait-cert-not-a-real-key-000"
 
 
-def _mouth_mem(portrait, cloud, name):
-    """Replay the EXACT mouth.respond() personal-memory seam (anima/mouth.py): load the Portrait as the
-    injected `mem`, then the cloud privacy gate blanks the whole bundle the instant a cloud brain is
-    active. Deterministic, model-free — the SAME two production calls the mouth makes before it ever
-    assembles the prompt. Returns the `mem` string that WOULD be injected into this turn's prompt."""
+class _FakeBrain:
+    def __init__(self, name: str, provider: str | None = None):
+        self.name = name
+        self.provider = provider
+
+
+def _mouth_mem(portrait, mouth, name, *, route_model="local", cloud_default=False):
+    """Replay the exact mouth.respond personal-memory seam model-free.
+
+    The production path loads the Portrait into ``mem``, selects the per-turn brain
+    with ``Mouth.brain_for_route(route_model)``, then blanks the memory bundle only
+    if that selected backend is provider-backed. Returns the ``mem`` string that
+    would be injected into this turn's prompt.
+    """
+    local = _FakeBrain("local")
+    cloud_brain = _FakeBrain("cloud:test", provider="test-provider")
+    m = mouth.Mouth(brain=(cloud_brain if cloud_default else local), local_brain=local)
+    selected = m.brain_for_route(route_model)
     mem = portrait.load(name)                # lasting memory (prose USER profile), injected whole
-    if cloud.is_cloud():                     # her personal memory of you is concentrated PII —
-        mem = ""                             # never send it to a cloud brain (mouth.py L866-869)
+    if m._is_cloud_brain(selected):          # concentrated PII never goes to a provider brain
+        mem = ""
     return mem
 
 
 def main() -> int:
-    from anima import portrait, cloud, route
+    from anima import portrait, cloud, route, mouth
     fails = []
 
     def ck(label, cond):
@@ -112,30 +123,33 @@ def main() -> int:
                portrait.portrait_path(N).exists()
                and portrait.portrait_path(N).name == f"{N}.portrait.md")
 
-            # ---- C. WITHHELD UNDER A CLOUD BRAIN — the inbox posture ---------------------
+            # ---- C. WITHHELD ONLY FOR CLOUD-ROUTED TURNS -------------------------------
             cloud.save_cfg("local", "", "")               # ensure we start on the LOCAL brain
             ck("C0: brain is LOCAL by default (is_cloud False)", cloud.is_cloud() is False)
-            mem_local = _mouth_mem(portrait, cloud, N)
+            mem_local = _mouth_mem(portrait, mouth, N, route_model="local", cloud_default=False)
             ck("C1: on a LOCAL brain the mouth's `mem` CARRIES the Portrait (she knows you)",
                mem_local == PORT and "September 14" in mem_local)
             # flip to a real cloud brain WITH a key — the privacy gate must engage
             cloud.save_cfg("openai", "gpt-4o-mini", _FAKE_KEY, budget=1.0)
             ck("C2: saving a cloud provider WITH a key flips is_cloud() True", cloud.is_cloud() is True)
-            mem_cloud = _mouth_mem(portrait, cloud, N)
-            ck("C3: PRIVACY — under a cloud brain the Portrait is BLANKED to '' (withheld, not streamed)",
+            mem_cloud_local_route = _mouth_mem(portrait, mouth, N, route_model="local", cloud_default=True)
+            ck("C3: a cloud-capable mouth on a LOCAL route still keeps the Portrait local",
+               mem_cloud_local_route == PORT and "September 14" in mem_cloud_local_route)
+            mem_cloud = _mouth_mem(portrait, mouth, N, route_model="cloud:test", cloud_default=True)
+            ck("C4: PRIVACY — on a CLOUD route the Portrait is BLANKED to '' (withheld, not streamed)",
                mem_cloud == "")
-            ck("C4: the Portrait on disk is UNTOUCHED by the blanking (only the egressed copy is withheld)",
+            ck("C5: the Portrait on disk is UNTOUCHED by the blanking (only the egressed copy is withheld)",
                portrait.load(N) == PORT)
             # the inbox mirror: route.route PAUSES a private read under the SAME cloud gate
             r = route.route(N, "what are my reminders?")
-            ck("C5: same posture as the inbox — route.route(a private read) is PAUSED under the cloud brain",
+            ck("C6: same posture as the inbox — route.route(a private read) is PAUSED under the cloud brain",
                "PAUSED" in (r or {}).get("note", ""))
             # a never-keyed cloud provider stays local — the guard can't be tricked into withholding
             cloud.save_cfg("deepseek", "deepseek-chat", "")
-            ck("C6: a never-keyed cloud provider stays LOCAL (is_cloud False) — no false withhold",
+            ck("C7: a never-keyed cloud provider stays LOCAL (is_cloud False) — no false withhold",
                cloud.is_cloud() is False)
-            ck("C7: with the truly-local session the Portrait is injected again (mem not blanked)",
-               _mouth_mem(portrait, cloud, N) == PORT)
+            ck("C8: with the truly-local session the Portrait is injected again (mem not blanked)",
+               _mouth_mem(portrait, mouth, N, route_model="local", cloud_default=False) == PORT)
             cloud.save_cfg("local", "", "")               # leave the brain local
 
             # ---- D. ISOLATION + ANIMA LAW 001 (archive-then-clear) -----------------------

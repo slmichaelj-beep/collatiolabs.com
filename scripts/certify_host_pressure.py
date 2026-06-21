@@ -100,7 +100,7 @@ def main() -> int:
            and hp.prefer_deterministic({"level": "yellow"}) is True)
         mouth_src = (ROOT / "anima" / "mouth.py").read_text()
         ck("5. the turn bounds generation under pressure (mouth caps max_tokens via prefer_deterministic)",
-           "prefer_deterministic()" in mouth_src and "min(int(self.brain.max_tokens), 256)" in mouth_src)
+           "prefer_deterministic()" in mouth_src and "min(int(brain.max_tokens), 256)" in mouth_src)
 
         # ---- 6. RECOVERABLE — GREEN lifts the deferral -------------------------------------
         hp.read_pressure = lambda: dict(_GREEN)

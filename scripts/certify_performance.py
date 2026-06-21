@@ -69,7 +69,7 @@ def main() -> int:
 
     # ---- 3. GENERATION IS BOUNDED ----------------------------------------------------------
     ck("3. the reply is bounded (token floor) and capped to the floor under pressure (no large route)",
-       "self.brain.max_tokens = max(256" in msrc and "min(int(self.brain.max_tokens), 256)" in msrc)
+       "brain.max_tokens = max(256" in msrc and "min(int(brain.max_tokens), 256)" in msrc)
 
     # ---- 4. NO HEAVY WORK ON THE HOT PATH --------------------------------------------------
     # the live turn must not call OCR/STT/audio-decode — those belong to intake-time.

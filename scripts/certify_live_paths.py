@@ -4114,13 +4114,14 @@ def probe_portrait_memory(res: Result) -> None:
     logged turn is RETRIEVABLE + DURABLE (portrait.log_turn -> read_transcript reads the exchange back
     verbatim, ordered, and survives a fresh re-read from disk), that the Portrait round-trips
     (save/load), and — the privacy invariant — that the mouth's personal-memory bundle is BLANKED to
-    '' the instant a cloud brain is active (replaying the exact mouth.respond seam: mem =
-    portrait.load(name); if cloud.is_cloud(): mem = ''), the SAME withheld-under-cloud posture as
-    route.route PAUSING a private inbox read; a never-keyed cloud provider stays local (no false
-    withhold); and clear_log obeys ANIMA LAW 001 (archive-then-clear). We add static no-wallpaper
-    facts: the log/Portrait/clear fns live in portrait.py, the mouth loads the Portrait as `mem` and
-    blanks it under `cloud.is_cloud()` (the live privacy seam), and route.py mirrors that cloud-pause
-    posture for the inbox."""
+    '' when the selected per-turn backend is a provider-backed cloud brain (replaying the exact
+    mouth.respond seam: mem = portrait.load(name); brain = brain_for_route(route_model); if the
+    selected brain is cloud, mem = ''), while a cloud-capable mouth on a LOCAL route keeps the Portrait
+    local; route.route still PAUSES a private inbox read under an active cloud provider; a never-keyed
+    cloud provider stays local (no false withhold); and clear_log obeys ANIMA LAW 001
+    (archive-then-clear). We add static no-wallpaper facts: the log/Portrait/clear fns live in
+    portrait.py, the mouth loads the Portrait as `mem` and blanks it via the selected backend, and
+    route.py mirrors that cloud-pause posture for the inbox."""
     rc, tail = run_subcert([HERE / "certify_portrait_memory.py"])
     cert_ok = (rc == 0) and ("PORTRAIT-MEMORY CERT: CERTIFIED" in tail)
     res.evidence.append("scripts/certify_portrait_memory.py -> exit %d; %s"
@@ -4132,7 +4133,8 @@ def probe_portrait_memory(res: Result) -> None:
     engine = all(s in portrait_src for s in ("def log_turn(", "def read_transcript(",
                                              "def clear_log(", "def load(", "def save("))
     wired = ("mem = portrait.load(heart.name)" in mouth_src
-             and "if cloud.is_cloud():" in mouth_src and 'mem = ""' in mouth_src)
+             and "brain = self.brain_for_route(route_model)" in mouth_src
+             and "if self._is_cloud_brain(brain):" in mouth_src and 'mem = ""' in mouth_src)
     inbox_mirror = "is PAUSED because a cloud brain is active" in route_src
     res.evidence.append("portrait core fns (log_turn/read_transcript/clear_log/load/save)=%s; "
                         "mouth Portrait-blank-under-cloud seam wired=%s; route inbox cloud-pause mirror=%s"
@@ -4147,11 +4149,13 @@ def probe_portrait_memory(res: Result) -> None:
         res.reason = ("Portrait memory is real end-to-end: a logged turn is retrievable + durable "
                       "(portrait.log_turn -> read_transcript reads the exchange back verbatim, "
                       "ordered, surviving a fresh disk re-read), the Portrait round-trips (save/load), "
-                      "and her personal memory of you is WITHHELD the instant a cloud brain is active "
-                      "— the cert replays the exact mouth.respond seam (mem = portrait.load(name); if "
-                      "cloud.is_cloud(): mem = '') to prove the Portrait is blanked to '' under a cloud "
-                      "brain (never streamed), the SAME posture as route.route PAUSING a private inbox "
-                      "read, while a never-keyed cloud provider stays local (no false withhold); "
+                      "and her personal memory of you is WITHHELD only when the selected per-turn brain "
+                      "is cloud — the cert replays the exact mouth.respond seam (mem = "
+                      "portrait.load(name); brain = brain_for_route(route_model); if selected brain is "
+                      "cloud, mem = '') to prove the Portrait is blanked to '' for a cloud route (never "
+                      "streamed), while a cloud-capable mouth on a LOCAL route keeps the Portrait local; "
+                      "route.route still PAUSES a private inbox read under an active cloud provider, and "
+                      "a never-keyed cloud provider stays local (no false withhold); "
                       "clear_log obeys ANIMA LAW 001 (archive-then-clear, source never destroyed); the "
                       "blank-under-cloud seam is wired in mouth.respond and mirrored for the inbox in "
                       "route.py; real .anima byte-unchanged.")
@@ -5641,7 +5645,7 @@ def probe_live_ux(res: Result) -> None:
     body_fix = ("_BodyTooLarge" in srv and "while len(buf) < n" in srv
                 and "self._send(413" in srv and "_free_bytes" in srv
                 and "not enough disk space" in srv)
-    reply_fix = ("_finish_on_sentence" in mou and "self.brain.max_tokens = max(256" in mou)
+    reply_fix = ("_finish_on_sentence" in mou and "brain.max_tokens = max(256" in mou)
     res.evidence.append("server full-body read + 413 guard=%s; mouth sentence-guard + token floor>=256=%s"
                         % (body_fix, reply_fix))
     res.set(UI=cert_ok, Backend=body_fix, Storage=None, Retrieval=None,

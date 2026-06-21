@@ -68,7 +68,7 @@ def main() -> int:
     ck("C2: a short punctuation-less reply is left untouched (never blanks a reply)",
        fos("sure thing") == "sure thing")
     msrc = (ROOT / "anima" / "mouth.py").read_text()
-    m = _re.search(r"self\.brain\.max_tokens = max\((\d+),", msrc)
+    m = _re.search(r"(?:self\.brain|brain)\.max_tokens = max\((\d+),", msrc)
     floor = int(m.group(1)) if m else 0
     ck("C3: the reply token floor is sane (>=256 — not the old 48/160 that cut sentences off)",
        floor >= 256)
