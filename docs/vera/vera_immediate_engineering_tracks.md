@@ -1,0 +1,198 @@
+# Vera Immediate Engineering Tracks
+
+Date: 2026-06-21
+
+This is the implementation translation of the 5-year frontier buildout. It turns the vision into tracks that can be worked, certified, and closed.
+
+## Track 1 - Security And Privacy Foundation
+
+Purpose:
+Make Vera safe enough to trust with private continuity.
+
+Immediate work:
+
+- Block unauthenticated `--expose`.
+- Enforce per-turn local/cloud backend routing.
+- Replace query-token/localStorage auth with pairing/session flow.
+- Add Origin/Host/CSRF checks.
+- Complete WebAuthn or rename current passkey gate honestly.
+- Add zero-egress mode.
+- Add egress ledger.
+- Add per-turn privacy receipts.
+
+Certs:
+
+- `certify_expose_requires_auth.py`
+- `certify_route_backend_enforcement.py`
+- `certify_pairing_session_auth.py`
+- `certify_csrf_origin_host_guards.py`
+- `certify_zero_egress_mode.py`
+
+## Track 2 - Private Storage And Endless Context
+
+Purpose:
+Enable lifelong continuity without plaintext leakage or prompt bloat.
+
+Immediate work:
+
+- Build one encrypted storage substrate.
+- Add encrypted append-only JSONL helpers.
+- Migrate truth ledger.
+- Migrate observation ledger.
+- Migrate company/governance ledgers.
+- Define public/private store taxonomy.
+- Build Memory Rooms v1.
+- Build "what Vera knows about me" explorer.
+- Add forget/export proof.
+
+Certs:
+
+- `certify_private_store_encryption.py`
+- `certify_append_jsonl_encryption.py`
+- `certify_no_raw_secret_in_private_store.py`
+- `certify_memory_room_boundaries.py`
+- `certify_forget_everywhere.py`
+
+## Track 3 - Governance Integrity
+
+Purpose:
+Make Vera powerful without letting authority drift or responsibility blur.
+
+Immediate work:
+
+- Bind approvals to exact action type, subject, amount, vendor, category, and risk.
+- Bind self-evolution approvals to exact proposals.
+- Enforce monthly and category budget invariants.
+- Fix marketplace Connects/resource overspend.
+- Add finite-state machines for marketplace/workflow pipelines.
+- Add human-readable action receipts.
+- Add ambiguity escalation for money, messages, privacy, and commitments.
+
+Certs:
+
+- `certify_approval_binding.py`
+- `certify_self_evolution_approval_binding.py`
+- `certify_budget_invariants.py`
+- `certify_marketplace_resource_invariants.py`
+- `certify_action_receipts.py`
+
+## Track 4 - Base Vera Experience
+
+Purpose:
+Make Vera whole at the base.
+
+Immediate work:
+
+- Define Base Vera feature guarantee.
+- Reframe navigation around Self, Memory, Privacy, Learning, Admin, Kits.
+- Move revenue/company out of the center.
+- Add identity portability manifest.
+- Add identity diff.
+- Add companion honesty modes.
+- Add Learning Studio v1.
+- Add skill tree.
+- Add base verification status.
+
+Certs:
+
+- `certify_base_vera_feature_guarantee.py`
+- `certify_identity_portability_manifest.py`
+- `certify_identity_diff.py`
+- `certify_learning_studio_skill_gap.py`
+- `certify_relational_honesty_modes.py`
+
+## Track 5 - Administration Elimination
+
+Purpose:
+Remove daily administrative burden from human life.
+
+Immediate work:
+
+- Build Administrative Command Center.
+- Track renewals, deadlines, forms, records, and obligations.
+- Build "what needs my attention" view.
+- Add document autoprep.
+- Add inbox triage without hidden external action.
+- Add calendar/reminder summarization with consent.
+- Add recurring admin loops.
+
+Certs:
+
+- `certify_admin_command_center.py`
+- `certify_deadline_renewal_tracker.py`
+- `certify_inbox_triage_no_hidden_action.py`
+- `certify_document_autoprep_receipts.py`
+
+## Track 6 - Revenue Independence
+
+Purpose:
+Help laid-off, overloaded, or independence-seeking users convert skills into income.
+
+Immediate work:
+
+- Build personal skill inventory.
+- Build offer generator.
+- Build proof/portfolio builder.
+- Build proposal drafter.
+- Build lead research with citations.
+- Build honest pipeline board.
+- Build delivery tracker.
+- Build learning loop from outcomes.
+- Add platform policy guardrails.
+
+Certs:
+
+- `certify_skill_to_offer_flow.py`
+- `certify_offer_truth_and_boundaries.py`
+- `certify_proposal_draft_human_submit.py`
+- `certify_revenue_truth_states.py`
+- `certify_delivery_tracker.py`
+- `certify_platform_policy_guardrails.py`
+
+## Track 7 - Add-On Kit Substrate
+
+Purpose:
+Let Vera expand without fragmenting the base.
+
+Immediate work:
+
+- Define kit manifest schema.
+- Add kit registry.
+- Add kit install/enable/disable.
+- Add kit-specific privacy manifests.
+- Add kit-specific cert requirements.
+- Add kit-specific terms/warnings for high-risk domains.
+
+Certs:
+
+- `certify_kit_manifest_schema.py`
+- `certify_kit_enable_disable.py`
+- `certify_kit_privacy_manifest.py`
+- `certify_kit_cannot_disable_base_export_delete.py`
+
+## Build Order
+
+1. Security/privacy blockers.
+2. Private storage.
+3. Governance integrity.
+4. Base Vera experience.
+5. Administration elimination.
+6. Revenue independence.
+7. Add-on kit polish and product packaging.
+
+## Definition Of Done
+
+A track is not done when the code runs.
+
+It is done when:
+
+- the feature works
+- the UI exposes it
+- the privacy scope is clear
+- the receipts exist
+- the positive cert passes
+- the adversarial cert passes
+- the failure mode is documented
+- the claim registry reflects the truth
+- Diamond remains green
+
