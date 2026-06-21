@@ -30,6 +30,7 @@ STACK = [
     ("certify_cert_flake_classification", []),
     ("certify_no_stubs", ["--gate"]),
     ("certify_product_polish", []),
+    ("certify_expose_requires_auth", []),
     # truth + learning
     ("certify_secure_store_no_plaintext", []),
     ("certify_truth_ledger", []),

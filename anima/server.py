@@ -3769,6 +3769,12 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     host = "0.0.0.0" if args.expose else args.host
+    token = os.environ.get("ANIMA_TOKEN", "")
+    if host not in ("127.0.0.1", "localhost", "::1") and not token:
+        raise SystemExit(
+            "\nrefusing to expose Vera without ANIMA_TOKEN.\n"
+            "  set ANIMA_TOKEN to a strong secret before using --expose or a non-loopback --host.\n"
+            "  localhost remains available without a token for local development.\n")
     _ensure(args.name, args.neurons)
     _load_history(args.name)              # bring back her recent conversation across restarts
     try:                                  # verify the key fits before serving
@@ -3781,7 +3787,7 @@ def main(argv=None):
     _DEPLOY = _capture_deploy()          # guarded — never breaks startup; serves /version
     print(f"deploy: running {_DEPLOY['sha']} ({_DEPLOY['branch']}) — "
           f"`python3 scripts/deploy_check.py` confirms git == running (LAW 005)")
-    Handler.token = os.environ.get("ANIMA_TOKEN", "")
+    Handler.token = token
     from . import crypto
     from .mouth import DEFAULT_MODEL
     print(f"brain: {os.environ.get('ANIMA_MODEL', DEFAULT_MODEL)} (Ollama) — "
@@ -3844,7 +3850,7 @@ def main(argv=None):
             f"  free it:  lsof -ti:{args.port} | xargs kill -9   (then start again)\n")
     print(f"{args.name} is listening at http://{host}:{args.port}")
     if host == "0.0.0.0":
-        print("EXPOSED on your LAN (no password). Prefer a private tunnel (Tailscale) for the phone.")
+        print("EXPOSED on your LAN (ANIMA_TOKEN required). Prefer a private tunnel (Tailscale).")
     else:
         print("localhost-only. For your phone, front it with a tunnel (Tailscale/cloudflared).")
     try:
