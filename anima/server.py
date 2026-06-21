@@ -424,12 +424,17 @@ def _lerf_task_first(name, text, route, mouth, cloud_on):
     # Render with the SAME local brain the mouth uses — but with the TASK-EXECUTION prompt,
     # never the persona/self prompt. No history is fed (a task render is self-contained on the
     # skill), which also keeps it off the conversational/self surface entirely.
+    try:
+        task_brain = mouth.brain_for_route("local")
+    except Exception:
+        task_brain = getattr(mouth, "brain", None)
     rendered = ""
     try:
-        rendered = mouth.brain.reply(_LERF_TASK_SYS, user_msg, []) or ""
+        rendered = task_brain.reply(_LERF_TASK_SYS, user_msg, []) or ""
     except Exception as e:
         import sys
-        print(f"[anima lerf] task render failed: {e}", file=sys.stderr)
+        print(f"[anima lerf] task render failed on "
+              f"{getattr(task_brain, 'name', 'unknown')}: {e}", file=sys.stderr)
         rendered = ""
     gen_ms = round((_time.perf_counter() - t0) * 1000.0, 1)
     if not rendered.strip():
@@ -582,15 +587,18 @@ def _turn(name, text, voice=False):
         # Organ 3 (Router): query-aware memory selection — inject ONLY the facts relevant
         # to THIS turn (not the blanket top-N), and decide the cheapest-sufficient path.
         # PII guard: blank the fact block on a cloud brain so private facts never leave.
-        _route_dec, _fact_block, _cloud_on = None, None, False
+        _route_dec, _fact_block, _cloud_on, _route_cloud = None, None, False, False
         try:
             from .organs import router
             from . import cloud as _cl
             _cloud_on = _cl.is_cloud()
+            _cloud_model = _cl.active_model() if _cloud_on else ""
             _rs0 = time.perf_counter()
-            _route_dec = router.route(name, text, {"cloud_on": _cloud_on})
+            _route_dec = router.route(name, text, {"cloud_on": _cloud_on,
+                                                   "cloud_model": _cloud_model})
             _route_sel_ms = (time.perf_counter() - _rs0) * 1000.0
-            if not _cloud_on:
+            _route_cloud = str(getattr(_route_dec, "model", "local") or "local").startswith("cloud")
+            if not _route_cloud:
                 _fact_block = _route_dec.selected_block
         except Exception:
             _route_sel_ms = 0.0
@@ -609,14 +617,15 @@ def _turn(name, text, voice=False):
             _bind_rows = []
         try:
             _sel = [{"id": r.get("id"), "trait": r.get("trait"),
-                     "value": ("<cloud:redacted>" if _cloud_on else str(r.get("value"))[:80])}
+                     "value": ("<cloud:redacted>" if _route_cloud else str(r.get("value"))[:80])}
                     for r in _bind_rows if isinstance(r, dict)][:40]
             _mids = list(getattr(_route_dec, "memory_ids", []) or [])
             _dropped_route = []
-            if _cloud_on and getattr(_route_dec, "selected_block", ""):
+            if _route_cloud and getattr(_route_dec, "selected_block", ""):
                 _dropped_route.append("fact_block(PII: blanked for cloud brain)")
             _stg("route", t_ms=_route_cap_ms + _route_sel_ms,
-                 in_shape={"text_chars": len(text or ""), "cloud_on": _cloud_on},
+                 in_shape={"text_chars": len(text or ""), "cloud_on": _route_cloud,
+                           "cloud_available": _cloud_on},
                  out={"capability": (cap_note[:200] if cap_note else None),
                       "selected_ids": _mids[:40],
                       "selected": _sel,
@@ -678,7 +687,8 @@ def _turn(name, text, voice=False):
         try:
             _memblock = _fact_block if _fact_block else _bound
             _stg("prompt", t_ms=0.0,
-                 in_shape={"history_turns": len(_HISTORY), "cloud_on": _cloud_on},
+                 in_shape={"history_turns": len(_HISTORY), "cloud_on": _route_cloud,
+                           "cloud_available": _cloud_on},
                  out={"mem_block_len": len(_memblock or ""),
                       "mem_block_present": bool(_memblock),
                       "cap_note_present": bool(cap_note),
@@ -689,6 +699,12 @@ def _turn(name, text, voice=False):
             pass
 
         mouth = _mouth()
+        _route_model = getattr(_route_dec, "model", "local") or "local"
+        def _brain_for_turn(model=None):
+            try:
+                return mouth.brain_for_route(model or _route_model)
+            except Exception:
+                return getattr(mouth, "brain", None)
         # ── LERF-FIRST SEAM (ATTACHES: Wave 3) ────────────────────────────────────────────
         # Before the LLM speaks, ask the cognitive substrate to solve this turn. For a TASK-
         # shaped request with a matching ACTIVE skill, LERF retrieves the skill as compact
@@ -717,7 +733,7 @@ def _turn(name, text, voice=False):
                 _stg("capability_check",
                      out={"host_awareness": bool(_ha_on), "wave": "read-only", "kind": _host_match},
                      note="read-only capability gate — no host action available this wave")
-                _raw_host = _ha_live.respond(name, text, cloud_safe=_cloud_on)
+                _raw_host = _ha_live.respond(name, text, cloud_safe=_route_cloud)
                 if _raw_host:
                     _stg("deterministic_host_reply", out={"chars": len(_raw_host)},
                          note="fixed text — no LLM, no curiosity/aside, no model verifier")
@@ -742,7 +758,7 @@ def _turn(name, text, voice=False):
                 if _sa_live.classify_recall(text):
                     _stg("reference_recall_match", in_shape={"text_chars": len(text or "")},
                          out={"matched": True}, note="reference-recall question detected")
-                    _raw_ref = _sa_live.recall(name, text, cloud_safe=_cloud_on)
+                    _raw_ref = _sa_live.recall(name, text, cloud_safe=_route_cloud)
                     if _raw_ref:
                         _stg("deterministic_reference_reply", out={"chars": len(_raw_ref)},
                              note="fixed text FROM the stored reference — no LLM, no verifier/aside")
@@ -773,7 +789,7 @@ def _turn(name, text, voice=False):
                     _stg("repair_correction_detected", in_shape={"text_chars": len(text or "")},
                          out={"old": _rep_plan.get("old"), "new": _rep_plan.get("new")},
                          note="conversation-repair correction detected (reject old, install new)")
-                    _raw_rep = _rp_live.repair(name, text, cloud_safe=_cloud_on)
+                    _raw_rep = _rp_live.repair(name, text, cloud_safe=_route_cloud)
                     if _raw_rep:
                         _stg("deterministic_repair_reply", out={"chars": len(_raw_rep)},
                              note="fixed text — ledger superseded (old->history, new->active), no LLM")
@@ -944,7 +960,7 @@ def _turn(name, text, voice=False):
                 _hints = _deliv(_f_now, 0)
             except Exception:
                 pass
-            _backend = getattr(getattr(mouth, "brain", None), "name", "local")
+            _backend = getattr(_brain_for_turn("local"), "name", "local")
             u = _Utt(text=_lerf_reply, delivery=_hints,
                      backend=f"lerf:{_backend}", feeling="", audio_path=None)
             # Optional voice: synth the served task answer so the phone still gets audio.
@@ -956,7 +972,7 @@ def _turn(name, text, voice=False):
         else:
             u = mouth.respond(heart, text, history=list(_HISTORY),
                               audio_out=audio_out, perception=p, cap_note=cap_note,
-                              fact_block=_fact_block)
+                              fact_block=_fact_block, route_model=_route_model)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         # WHOLE-SYSTEM MRI (Phase 2): 'during' host snapshot — captured right after the reply is
         # generated, at the peak of the turn's work. Read-only /mri; guarded; only when ON.
@@ -971,7 +987,8 @@ def _turn(name, text, voice=False):
         # hand back an exact count here). Recorded immediately so the trace pins the FIRST
         # draft even if the verifier later regenerates/overrides (captured in 'verify').
         try:
-            _tok_s = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+            _gen_brain = _brain_for_turn("local" if _lerf_solved else _route_model)
+            _tok_s = getattr(_gen_brain, "last_tok_s", None)
             _ntok = int(round(_tok_s * gen_s)) if (_tok_s and gen_s) else None
             _stg("generate", t_ms=gen_s * 1000.0,
                  in_shape={"mem_block_len": len((_fact_block if _fact_block else _bound) or "")},
@@ -1025,7 +1042,8 @@ def _turn(name, text, voice=False):
                 try:
                     _u2 = mouth.respond(heart, text, history=list(_HISTORY),
                                         audio_out=None, perception=p, cap_note=cap_note,
-                                        fact_block=_fact_block, hard_bind=True)
+                                        fact_block=_fact_block, route_model=_route_model,
+                                        hard_bind=True)
                 except Exception:
                     _u2 = None
                 if _u2 is not None and getattr(_u2, "text", "").strip():
@@ -1074,7 +1092,8 @@ def _turn(name, text, voice=False):
                     try:
                         _u2 = mouth.respond(heart, text, history=list(_HISTORY),
                                             audio_out=None, perception=p, cap_note=cap_note,
-                                            fact_block=_fact_block, hard_bind=False)
+                                            fact_block=_fact_block, route_model=_route_model,
+                                            hard_bind=False)
                     except Exception:
                         _u2 = None
                     if _u2 is not None and _confab_trait(
@@ -1348,7 +1367,7 @@ def _turn(name, text, voice=False):
                     pass
         except Exception:
             pass
-        tok = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+        tok = getattr(_brain_for_turn("local" if _lerf_solved else _route_model), "last_tok_s", None)
         if tok:
             out["tok_s"] = round(tok)
         if routed and routed.get("send"):          # surface a pending draft for the UI
@@ -1480,7 +1499,8 @@ def _turn(name, text, voice=False):
                     _argus_queries.append("host_awareness.respond")
 
                 # Token estimates (the local brain reports a rate, not an exact count).
-                _w_tok_s = getattr(getattr(mouth, "brain", None), "last_tok_s", None)
+                _w_tok_s = getattr(_brain_for_turn("local" if _lerf_solved else _route_model),
+                                   "last_tok_s", None)
                 _tokens_out = int(round(_w_tok_s * gen_s)) if (_w_tok_s and gen_s) else None
                 _tokens_in = locals().get("_llm_baseline_tokens")
 

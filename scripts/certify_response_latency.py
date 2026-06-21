@@ -78,7 +78,7 @@ def main() -> int:
     msrc = (ROOT / "anima" / "mouth.py").read_text()
     ck("3. the fast path is wired BEFORE the model call (route_classifier.is_simple_chat -> simple_reply)",
        "route_classifier" in msrc and "_rc.is_simple_chat(user_text)" in msrc
-       and msrc.find("_rc.is_simple_chat(user_text)") < msrc.find("self.brain.reply(_sys_prompt"))
+       and msrc.find("_rc.is_simple_chat(user_text)") < msrc.find("brain.reply(_sys_prompt"))
 
     # ---- 4. LIVE BUDGET --------------------------------------------------------------------
     up = "[unreachable" not in _say("ping", 6)[0]

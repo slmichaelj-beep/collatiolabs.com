@@ -22,8 +22,8 @@ Severity:
 ## Executive Weakness Map
 
 Top weaknesses:
-1. `P1 CONFIRMED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
-2. `P1 CONFIRMED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
+1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
+2. `P1 CLOSED IN CODE; CERT/Diamond REQUIRED FOR RELEASE` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 CONFIRMED` at-rest encryption is optional and inconsistently applied; several private ledgers bypass crypto-aware write helpers.
 4. `P1/P2 CONFIRMED` browser token handling uses query tokens and localStorage; no explicit Origin/CSRF boundary was found.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
@@ -74,7 +74,7 @@ Closure update:
 ### W02 - Per-turn local/cloud router does not enforce generation backend
 
 Severity: `P1`
-Status: `CONFIRMED`
+Status: `CLOSED IN CODE; CERT/Diamond REQUIRED FOR RELEASE`
 
 Evidence:
 - `anima/organs/router.py` computes `RouteDecision`.
@@ -90,6 +90,14 @@ Fix direction:
 - Pass route intent into `Mouth.respond()`/`Mouth.assemble()`.
 - Cert: create a fake cloud brain, force a local-only route, and assert no cloud call occurs.
 - Add a per-turn privacy receipt: `local model`, `cloud model`, `facts withheld`, `egress none/scrubbed`.
+
+Closure update:
+- Implemented after this finding: `Mouth` now carries a dedicated `local_brain` beside its default brain and selects the allowed backend with `brain_for_route(RouteDecision.model)`.
+- `server._turn` now passes `_route_model` into the first generated draft and verifier retry drafts.
+- LERF task rendering now forces `mouth.brain_for_route("local")` before rendering a certified skill.
+- Per-turn memory blanking now follows the selected backend, not merely whether a cloud provider is configured.
+- Added `scripts/certify_route_backend_enforcement.py`.
+- Added the cert to `scripts/run_master_cert_stack.py`.
 
 ### W03 - Encryption is optional and not consistently applied
 

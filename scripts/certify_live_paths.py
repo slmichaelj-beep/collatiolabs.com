@@ -4376,7 +4376,7 @@ def probe_lerf_runtime(res: Result) -> None:
     skill is retrieved by keyword/domain match with NO model and NO embeddings. We seed a skill with a
     unique trigger, prove lerf.retrieve_skills surfaces it (retrieved), and confirm the LERF-FIRST seam
     is wired in _turn. The remaining link — RENDERING that skill into the spoken answer — runs the
-    small local model (mouth.brain.reply in _lerf_task_first), so it genuinely needs --live to certify
+    small local model (mouth.brain_for_route("local").reply in _lerf_task_first), so it genuinely needs --live to certify
     and is NOT faked here. Honest verdict: PARTIAL (retrieval proven; render needs --live)."""
     server_src = (ROOT / "anima" / "server.py").read_text()
     wired = ("_lerf_eligible" in server_src) and ("_lerf_task_first" in server_src) and (
@@ -4405,7 +4405,7 @@ def probe_lerf_runtime(res: Result) -> None:
                         "backend lerf:*): %s" % wired)
     res.evidence.append("DETERMINISTIC retrieval proven (no model, no embeddings): %s — %s"
                         % (retrieved, "; ".join(detail)))
-    res.evidence.append("RENDER link (skill -> spoken answer via mouth.brain.reply in "
+    res.evidence.append("RENDER link (skill -> spoken answer via mouth.brain_for_route('local').reply in "
                         "_lerf_task_first) runs the small local model -> requires --live to certify; "
                         "NOT faked here.")
     # The RENDER link — a retrieved skill rendered by the live model and SERVED, grounded-verified —

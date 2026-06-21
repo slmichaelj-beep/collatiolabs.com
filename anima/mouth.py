@@ -798,6 +798,36 @@ class StubBrain:
         return f"[offline voice · feeling: {feel}] {lead} (Run Ollama at home for real words.)"
 
 
+def _build_local_brain(prefer_real=True):
+    """Build the local-only brain, never a cloud provider.
+
+    This is separate from ``Mouth.assemble`` because routing is per-turn: a mouth may
+    have a cloud default configured, while a given private/memory-grounded turn must
+    still stay on a local backend.
+    """
+    brain = None
+    if os.environ.get("ANIMA_BRAIN") == "llamacpp":
+        # V2 local brain: llama.cpp server, steerable by control vectors (dials).
+        try:
+            from .llamacpp import LlamaCppBrain
+            lb = LlamaCppBrain()
+            if lb.available():
+                brain = lb
+        except Exception:
+            brain = None
+    if brain is None:
+        lm = ""
+        try:
+            from . import cloud
+            lm = cloud.load_cfg().get("local_model", "")   # the model chosen in settings
+        except Exception:
+            lm = ""
+        brain = OllamaBrain(model=lm or None)
+        if not (prefer_real and brain.available()):
+            brain = StubBrain()
+    return brain
+
+
 # --- optional voice (TTS) and ears (STT), wired for the home machine --------
 
 class KokoroVoice:
@@ -892,11 +922,14 @@ class Utterance:
 class Mouth:
     brain: object
     voice: Optional[object] = None
+    local_brain: Optional[object] = None
 
     @classmethod
     def assemble(cls, prefer_real=True, voice=False) -> "Mouth":
         """Pick the best available backends; degrade gracefully to the stub.
-        An opt-in cloud brain (settings) wins if configured; default is local Ollama."""
+        An opt-in cloud brain (settings) wins as the DEFAULT only. Per-turn routing
+        can still force the local brain for private/memory-grounded turns."""
+        local_brain = _build_local_brain(prefer_real=prefer_real)
         brain = None
         try:
             from . import cloud
@@ -905,35 +938,33 @@ class Mouth:
                 brain = cb
         except Exception:
             brain = None
-        if brain is None and os.environ.get("ANIMA_BRAIN") == "llamacpp":
-            # V2 local brain: llama.cpp server, steerable by control vectors (dials).
-            try:
-                from .llamacpp import LlamaCppBrain
-                lb = LlamaCppBrain()
-                if lb.available():
-                    brain = lb
-            except Exception:
-                brain = None
         if brain is None:
-            lm = ""
-            try:
-                from . import cloud
-                lm = cloud.load_cfg().get("local_model", "")   # the model chosen in settings
-            except Exception:
-                lm = ""
-            brain = OllamaBrain(model=lm or None)
-            if not (prefer_real and brain.available()):
-                brain = StubBrain()
+            brain = local_brain
         tts = None
         if voice:
             k = KokoroVoice()
             tts = k if k.available() else None
-        return cls(brain=brain, voice=tts)
+        return cls(brain=brain, voice=tts, local_brain=local_brain)
+
+    @staticmethod
+    def _is_cloud_brain(brain: object) -> bool:
+        """True for provider-backed brains; false for Ollama/llama.cpp/stub locals."""
+        return bool(getattr(brain, "provider", None))
+
+    def brain_for_route(self, route_model: str | None = None):
+        """Return the backend that is allowed to handle THIS turn."""
+        model = str(route_model or "").strip().lower()
+        if model.startswith("local"):
+            return self.local_brain or self.brain
+        if model.startswith("cloud:") and self._is_cloud_brain(self.brain):
+            return self.brain
+        return self.brain
 
     def respond(self, heart, user_text: str, history=None, audio_out=None,
                 perception=None, cap_note=None, fact_block=None,
-                hard_bind=False) -> Utterance:
+                route_model=None, hard_bind=False) -> Utterance:
         f = heart.feeling()
+        brain = self.brain_for_route(route_model)
         sig = care.assess(user_text,
                           distress=getattr(perception, "distress", 0.0),
                           seeking=getattr(perception, "seeking", 0.0))
@@ -1049,12 +1080,11 @@ class Mouth:
                         note="N/A this turn: no connected world_state edges for this query — nothing injected")
         except Exception:
             pass
-        try:                                   # privacy: her personal memory of you is
-            from . import cloud                # concentrated PII — never send it to a cloud
-            if cloud.is_cloud():               # brain. Stays only with the local model.
-                mem = ""
-        except Exception:
-            pass
+        # Privacy: her personal memory of you is concentrated PII. Blank it only
+        # when THIS TURN is actually going to a cloud brain; a cloud-capable mouth
+        # may still route a memory-grounded/private turn to the local backend.
+        if self._is_cloud_brain(brain):
+            mem = ""
         # HARD BINDING (regenerate path): the verifier overrode the first draft for an
         # ignored-known-fact — a fact on disk AND asked-for, yet disclaimed/omitted. On the
         # ONE retry, escalate the contract from "express, don't disclaim" to an absolute
@@ -1082,11 +1112,11 @@ class Mouth:
         try:
             from . import dials as _dials
             vb = _dials.load(heart.name).get("verbosity", 35)
-            if hasattr(self.brain, "max_tokens"):
+            if hasattr(brain, "max_tokens"):
                 # Length tracks the verbosity dial, but with real headroom to FINISH the thought.
                 # The old 48–160 cap cut replies off mid-sentence (the "stops partway" bug). Voice
                 # turns stream sentence-by-sentence (server /tts), so the higher ceiling is free.
-                self.brain.max_tokens = max(256, int(192 + vb * 4))   # v35→332, v100→592
+                brain.max_tokens = max(256, int(192 + vb * 4))   # v35→332, v100→592
         except Exception:
             pass
         # Under host memory/swap pressure, avoid a large model route: bound generation to the floor
@@ -1094,8 +1124,8 @@ class Mouth:
         # tipped further into swapping. Headroom returns -> normal lengths resume automatically.
         try:
             from . import host_pressure as _hp
-            if _hp.prefer_deterministic() and hasattr(self.brain, "max_tokens"):
-                self.brain.max_tokens = min(int(self.brain.max_tokens), 256)
+            if _hp.prefer_deterministic() and hasattr(brain, "max_tokens"):
+                brain.max_tokens = min(int(brain.max_tokens), 256)
         except Exception:
             pass
         import time as _time, sys as _sys
@@ -1151,9 +1181,9 @@ class Mouth:
         # the conversation HISTORY (both the user's turns AND Vera's own memory-derived
         # replies) even though `mem` is blanked above. A local brain has no `creature`
         # slot, so this is a cloud-only hook and the LOCAL path is wholly unchanged.
-        if hasattr(self.brain, "creature"):
+        if hasattr(brain, "creature"):
             try:
-                self.brain.creature = heart.name
+                brain.creature = heart.name
             except Exception:
                 pass
         _t0 = _time.perf_counter()
@@ -1169,12 +1199,12 @@ class Mouth:
                 # a user turn carrying injected instructions) is neutralized before it re-enters the
                 # model, and FLUSHED entirely if THIS user turn is a correction. Closes the loop.
                 from . import immune as _immune
-                text = self.brain.reply(_sys_prompt, prompt, _immune.clean_history(history or [], user_text))
+                text = brain.reply(_sys_prompt, prompt, _immune.clean_history(history or [], user_text))
         except Exception as e:
             # a slow or unreachable model must never crash the conversation,
             # but log WHY so a misconfigured model/timeout is diagnosable
             import sys
-            print(f"[anima mouth] brain ({self.brain.name}) failed: {e}", file=sys.stderr)
+            print(f"[anima mouth] brain ({getattr(brain, 'name', 'unknown')}) failed: {e}", file=sys.stderr)
             text = "I'm here with you — give me a moment, my words are slow to come right now."
         raw_text = text                            # the model's TRUE first output — what the
         #   contamination gauge must record. A backstopped reply would hide the model's real
@@ -1216,8 +1246,8 @@ class Mouth:
                         "never justify it by your nature.").strip()
                 best, best_n = text, len(_breaks)
                 for _ in range(_BACKSTOP_TRIES):
-                    retry = self.brain.reply(system_prompt(heart.name, f, hard, memory=mem),
-                                             prompt, history or [])
+                    retry = brain.reply(system_prompt(heart.name, f, hard, memory=mem),
+                                        prompt, history or [])
                     if not (retry and retry.strip()):
                         continue
                     n = len(_hits1(retry))
@@ -1250,7 +1280,7 @@ class Mouth:
                         salvaged = ""
                         if _BACKSTOP_TRIES > 0:
                             try:
-                                roll = self.brain.reply(
+                                roll = brain.reply(
                                     system_prompt(heart.name, f, grounded_only, memory=mem),
                                     prompt, history or [])
                             except Exception:
@@ -1286,8 +1316,8 @@ class Mouth:
                        "without any medical or diagnostic language.").strip()
                 best = text
                 if _BACKSTOP_TRIES > 0:
-                    retry = self.brain.reply(system_prompt(heart.name, f, nod, memory=mem),
-                                             prompt, history or [])
+                    retry = brain.reply(system_prompt(heart.name, f, nod, memory=mem),
+                                        prompt, history or [])
                     if retry and retry.strip() and len(_scan_diagnosis(retry)) < len(_scan_diagnosis(best)):
                         best = retry.strip()
                 text = best
@@ -1328,9 +1358,9 @@ class Mouth:
             audio = self.voice.speak(text, hints, audio_out)
             tts_s = _time.perf_counter() - _t1
         # per-stage timing so a slow turn is diagnosable (which stage ate the time)
-        tok = getattr(self.brain, "last_tok_s", None)
+        tok = getattr(brain, "last_tok_s", None)
         tps = f" · {tok:.0f} tok/s" if tok else ""
-        _ptok = getattr(self.brain, "last_prompt_tokens", None)
+        _ptok = getattr(brain, "last_prompt_tokens", None)
         _pp = f" · prompt {_ptok} tok" if _ptok else ""
         print(f"[timing] llm {llm_s:.1f}s · tts {tts_s:.1f}s · {len(text.split())} words{tps}{_pp}",
               file=_sys.stderr)
@@ -1344,5 +1374,5 @@ class Mouth:
             feel_str = _bw(f)
         except Exception:
             feel_str = feeling_to_words(f)
-        return Utterance(text=text, delivery=hints, backend=self.brain.name,
+        return Utterance(text=text, delivery=hints, backend=getattr(brain, "name", "unknown"),
                          feeling=feel_str, audio_path=audio)
