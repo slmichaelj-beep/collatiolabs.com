@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 
+from anima import secure_store
+
 STORE = Path(".anima")
 
 
@@ -21,10 +23,7 @@ def path_for(name: str, store: Path | None = None) -> Path:
 
 
 def append(name: str, event: dict, store: Path | None = None) -> dict:
-    p = path_for(name, store)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(path_for(name, store), event)
     return event
 
 
@@ -33,7 +32,7 @@ def load(name: str, store: Path | None = None, limit: int = 0) -> list[dict]:
     if not p.exists():
         return []
     out = []
-    for line in p.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(p):
         line = line.strip()
         if not line:
             continue

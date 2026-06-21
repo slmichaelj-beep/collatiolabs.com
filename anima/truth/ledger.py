@@ -10,6 +10,8 @@ import json
 import os
 from pathlib import Path
 
+from anima import secure_store
+
 from . import schema
 
 # Module-level store, so hermetic certs (gate0_prime_experience._temp_store) can redirect the
@@ -32,10 +34,7 @@ def emit(name: str, event: dict, store: Path | None = None) -> dict:
     problems = schema.validate(event)
     if problems:
         raise ValueError("refusing to append invalid event: " + "; ".join(problems))
-    p = path_for(name, store)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(path_for(name, store), event)
     return event
 
 
@@ -52,7 +51,7 @@ def load(name: str, store: Path | None = None) -> list[dict]:
     if not p.exists():
         return []
     out = []
-    for i, line in enumerate(p.read_text(encoding="utf-8").splitlines()):
+    for i, line in enumerate(secure_store.read_jsonl_lines(p)):
         line = line.strip()
         if not line:
             continue

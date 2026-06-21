@@ -31,6 +31,7 @@ STACK = [
     ("certify_no_stubs", ["--gate"]),
     ("certify_product_polish", []),
     # truth + learning
+    ("certify_secure_store_no_plaintext", []),
     ("certify_truth_ledger", []),
     ("certify_memory_truth_and_correction", []),
     ("certify_memory_forget_retraction", []),
