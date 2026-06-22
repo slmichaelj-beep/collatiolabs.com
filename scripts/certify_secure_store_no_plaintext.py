@@ -18,6 +18,7 @@ Exit 0 == CERTIFIED, 1 == FAIL.
 from __future__ import annotations
 
 import os
+import json
 import sys
 import tempfile
 import time
@@ -56,7 +57,7 @@ def main() -> int:
         from anima.observation import store as observation_store
         from anima.company import storage as company_storage
         from anima.consent import policy as consent_policy
-        from anima import curiosity, telemetry, whole_mri
+        from anima import curiosity, telemetry, whole_mri, secure_store
 
         name = "SecureStoreCert"
         secret = "RAW_SECRET_SHOULD_NOT_APPEAR_7b1d7f"
@@ -147,6 +148,82 @@ def main() -> int:
            and telemetry._read_mri(name)[0].get("secret") == secret
            and whole_mri.all(name)[0].get("vera", {}).get("response") == secret)
 
+        matrix_secret = secret + "_MATRIX"
+        matrix_root = store / "matrix"
+        matrix_count = 0
+
+        def raw_bytes(p: Path) -> bytes:
+            return p.read_bytes() if p.exists() else b""
+
+        def sealed(label: str, p: Path, recovered: bool) -> None:
+            nonlocal matrix_count
+            matrix_count += 1
+            raw = raw_bytes(p)
+            ck(f"M{matrix_count:02d}a: {label} raw bytes are encrypted",
+               raw.startswith(b"ANIMAENC1:") and matrix_secret.encode("utf-8") not in raw)
+            ck(f"M{matrix_count:02d}b: {label} load path recovers the secret", recovered)
+
+        def matrix_json(label: str, rel: str) -> None:
+            p = matrix_root / rel
+            secure_store.save_json(p, {"kind": label, "secret": matrix_secret})
+            sealed(label, p, secure_store.load_json(p, {}).get("secret") == matrix_secret)
+
+        def matrix_jsonl(label: str, rel: str) -> None:
+            p = matrix_root / rel
+            secure_store.append_jsonl(p, {"kind": label, "secret": matrix_secret})
+            rows = []
+            for line in secure_store.read_jsonl_lines(p):
+                try:
+                    rows.append(json.loads(line))
+                except Exception:
+                    pass
+            sealed(label, p, any(r.get("secret") == matrix_secret for r in rows))
+
+        def matrix_text(label: str, rel: str) -> None:
+            p = matrix_root / rel
+            secure_store.save_text(p, f"{label}:{matrix_secret}")
+            sealed(label, p, matrix_secret in (secure_store.load_text(p, "") or ""))
+
+        def matrix_bytes(label: str, rel: str) -> None:
+            p = matrix_root / rel
+            payload = (label + ":" + matrix_secret).encode("utf-8")
+            secure_store.save_bytes(p, payload)
+            sealed(label, p, secure_store.load_bytes(p, b"") == payload)
+
+        matrix_json("agency approval queue", f"{name}.agency_queue.json")
+        matrix_jsonl("agency intent ledger", f"{name}.agency_intents.jsonl")
+        matrix_json("teaching queue", f"{name}.teaching.json")
+        matrix_json("auto-learn queue", f"{name}.auto_learn.json")
+        matrix_json("knowledge-pack registry", f"{name}.packs.json")
+        matrix_text("knowledge-pack chunks", f"{name}.packs/pack_cert/chunks.jsonl")
+        matrix_jsonl("rollback ledger", f"{name}.rollbacks.jsonl")
+        matrix_jsonl("incident SOC ledger", "security_events.jsonl")
+        matrix_json("incident lockdown state", "incident_lock.json")
+        matrix_jsonl("metrics ledger", f"{name}.metrics.jsonl")
+        matrix_jsonl("constitution continuity ledger", f"{name}.continuity.jsonl")
+        matrix_jsonl("meaning ledger", f"{name}.meaning.jsonl")
+        matrix_jsonl("reality ledger", f"{name}.reality.jsonl")
+        matrix_jsonl("loops ledger", f"{name}.loops.jsonl")
+        matrix_jsonl("opportunity offers ledger", f"{name}.offers.jsonl")
+        matrix_jsonl("trajectory ledger", f"{name}.trajectory.jsonl")
+        matrix_jsonl("theory observation ledger", f"{name}.theory.jsonl")
+        matrix_jsonl("life-review ledger", f"{name}.review.jsonl")
+        matrix_jsonl("intake MRI ledger", f"{name}.intake.jsonl")
+        matrix_jsonl("intake worker jobs ledger", f"{name}.intake_jobs.jsonl")
+        matrix_jsonl("intake tier ledger", f"{name}.tiers.jsonl")
+        matrix_bytes("intake cold blob", f"{name}.cold/src_cert.json.gz")
+        matrix_jsonl("LERF route ledger", f"{name}.lerf_routes.jsonl")
+        matrix_json("founder-console decisions", f"{name}.console_decisions.json")
+        matrix_jsonl("identity sandbox MRI", f"identity_sandbox/{name}.identity_mri.jsonl")
+        matrix_jsonl("identity sandbox shadow ledger", f"identity_sandbox/{name}.identity_ledger.jsonl")
+        matrix_json("identity sandbox dials restore", f"{name}.identity_restore/{name}.dials.json")
+        matrix_text("identity sandbox persona restore", f"{name}.identity_restore/{name}.persona.md")
+        matrix_json("twin manifest", f"twins/twin_cert/twin.manifest.json")
+        matrix_jsonl("twin snapshot ledger", f"twins/twin_cert/snapshots/ledger.jsonl")
+        matrix_text("twin narrative seed artifact", f"twins/twin_cert/narrative_seed.txt")
+        ck("M99: expanded private-store matrix covered the migrated compartments",
+           matrix_count == 31)
+
         os.chdir(old_cwd)
 
     if old_key is None:
@@ -171,6 +248,30 @@ def main() -> int:
                     "anima/curiosity.py",
                     "anima/telemetry.py",
                     "anima/whole_mri.py",
+                    "anima/agency_approval_queue.py",
+                    "anima/agency_intent_ledger.py",
+                    "anima/teaching/queue.py",
+                    "anima/auto_learn/queue.py",
+                    "anima/knowledge_packs/registry.py",
+                    "anima/knowledge_packs/builder.py",
+                    "anima/rollback/apply.py",
+                    "anima/teaching/rollback.py",
+                    "anima/incident.py",
+                    "anima/metrics.py",
+                    "anima/constitution.py",
+                    "anima/meaning.py",
+                    "anima/reality.py",
+                    "anima/loops.py",
+                    "anima/opportunity.py",
+                    "anima/trajectory.py",
+                    "anima/theory.py",
+                    "anima/review.py",
+                    "anima/intake.py",
+                    "anima/intake_worker.py",
+                    "anima/intake_tiers.py",
+                    "anima/server.py",
+                    "anima/identity_sandbox.py",
+                    "anima/twin.py",
                     "anima/crypto.py",
                 ],
                 duration_sec=time.perf_counter() - t0, failures=fails)

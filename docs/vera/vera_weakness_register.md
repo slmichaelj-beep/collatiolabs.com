@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues, intake staging, and export/training packages; remaining work is full private-store no-plaintext matrix coverage.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, and export/training packages when a vault key is active; remaining product work is mandatory encrypted-vault onboarding/key lifecycle.
 4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST and POST query-token authorization are blocked; browser session/localStorage architecture remains open for the later product-grade pairing and cookie pass.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -155,8 +155,13 @@ Fourth closure update:
 - Focused certification passed: `certify_encrypted_exports`, `certify_private_write_classification`, `python3 -m anima.portable --selftest`, `python3 -m anima.platform --selftest`, `certify_identity_portability`, and `scripts/selftest.py`.
 - Static classification now verifies 37 direct write sites with no pending plaintext export/training surfaces.
 
-Still open before W03 is fully closed:
-- Expand adversarial no-plaintext cert coverage from representative private stores to the full migrated private-store matrix.
+Fifth closure update:
+- Expanded `scripts/certify_secure_store_no_plaintext.py` from representative high-risk stores to a 31-compartment private-store matrix covering agency, teaching, auto-learn, knowledge packs, rollback, incident/SOC, metrics, constitution, meaning, reality, loops, opportunity, trajectory, theory, review, intake, LERF routes, founder console, identity sandbox, twin artifacts, text, bytes, JSON, and JSONL.
+- Focused certification passed: `certify_secure_store_no_plaintext` with every matrix raw file carrying the `ANIMAENC1:` marker and no synthetic secret visible on disk, while normal load paths recovered the secret.
+- The direct-write classification cert remains green with no pending plaintext privacy surfaces.
+
+Residual note before W03 becomes product-closed:
+- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode needs first-run encrypted-vault setup, key lifecycle/recovery UX, and refusal of private companion mode when the vault is not sealed.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
