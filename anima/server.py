@@ -47,6 +47,8 @@ MAX_BODY = 512 * 1024 * 1024         # cap request bodies at 512 MB. Knowledge I
 AUTH_COOKIE = "anima_auth"
 FACE_COOKIE = "anima_face_session"
 AUTH_COOKIE_TTL = 30 * 24 * 3600
+_AUTH_SESSIONS: dict[str, int] = {}
+_AUTH_SESSIONS_LOCK = threading.Lock()
 
 
 class _BodyTooLarge(Exception):
@@ -2860,9 +2862,37 @@ class Handler(BaseHTTPRequestHandler):
         msg = ("auth.%d.%s" % (exp, nonce)).encode()
         return hmac.new(self.token.encode(), msg, hashlib.sha256).hexdigest()
 
+    def _prune_auth_sessions(self, now: float | None = None) -> None:
+        now = time.time() if now is None else now
+        with _AUTH_SESSIONS_LOCK:
+            for nonce, exp in list(_AUTH_SESSIONS.items()):
+                if exp <= now:
+                    _AUTH_SESSIONS.pop(nonce, None)
+
+    def _remember_auth_session(self, nonce: str, exp: int) -> None:
+        self._prune_auth_sessions()
+        with _AUTH_SESSIONS_LOCK:
+            _AUTH_SESSIONS[nonce] = exp
+
+    def _auth_session_active(self, nonce: str, exp: int) -> bool:
+        self._prune_auth_sessions()
+        with _AUTH_SESSIONS_LOCK:
+            return _AUTH_SESSIONS.get(nonce) == exp
+
+    def _revoke_auth_cookie(self, value: str) -> bool:
+        try:
+            version, _exp_s, nonce, _sig = (value or "").split(".", 3)
+            if version != "v1" or not nonce:
+                return False
+        except Exception:
+            return False
+        with _AUTH_SESSIONS_LOCK:
+            return _AUTH_SESSIONS.pop(nonce, None) is not None
+
     def _issue_auth_cookie(self) -> str:
         exp = int(time.time() + AUTH_COOKIE_TTL)
         nonce = secrets.token_urlsafe(18)
+        self._remember_auth_session(nonce, exp)
         sig = self._sign_auth_cookie(exp, nonce)
         return "v1.%d.%s.%s" % (exp, nonce, sig)
 
@@ -2872,7 +2902,8 @@ class Handler(BaseHTTPRequestHandler):
             exp = int(exp_s)
             if version != "v1" or exp <= time.time() or not nonce:
                 return False
-            return hmac.compare_digest(sig, self._sign_auth_cookie(exp, nonce))
+            return (hmac.compare_digest(sig, self._sign_auth_cookie(exp, nonce))
+                    and self._auth_session_active(nonce, exp))
         except Exception:
             return False
 
@@ -3669,6 +3700,13 @@ class Handler(BaseHTTPRequestHandler):
                                   b'{"ok":false,"error":"cross_origin_post_refused"}')
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
+            if path == "/auth/logout":
+                self._revoke_auth_cookie(self._cookie(AUTH_COOKIE))
+                return self._send(200, "application/json", b'{"ok":true}',
+                                  headers=[
+                                      ("Set-Cookie", self._clear_cookie_header(AUTH_COOKIE)),
+                                      ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
+                                  ])
             if path == "/auth/pair":
                 cookie = self._cookie_header(AUTH_COOKIE, self._issue_auth_cookie(), AUTH_COOKIE_TTL)
                 return self._send(200, "application/json", b'{"ok":true}',

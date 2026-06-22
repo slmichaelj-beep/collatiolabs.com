@@ -200,7 +200,10 @@ Closure update:
 
 Residual note:
 - `?k=` remains as a GET/HEAD-only first-pairing convenience so existing local setup links still work. It is no longer accepted for POST state changes.
-- W04 is not fully closed until the browser session architecture gets its later product pass: product-grade one-time pairing, HttpOnly/SameSite cookie storage across all web shells, localStorage retirement, session rotation/revocation, and adversarial replay/migration certs.
+- Browser auth cookies are now server-registered by nonce, so a correctly signed but never-issued cookie is rejected and an issued cookie can be revoked before expiry.
+- Added `/auth/logout` to revoke the current auth nonce and clear both auth and Face-ID browser cookies.
+- Expanded `scripts/certify_browser_session_cookies.py` to prove issued-only cookies, tamper/expiry rejection, revocation, HttpOnly/SameSite headers, logout wiring, and no `anima_token`/`anima_sess` localStorage persistence.
+- W04 is not fully closed until the browser session architecture gets its remaining product pass: true one-time pairing token issuance, session rotation UX, and migration/replay certs across installed/desktop/LAN shells.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 

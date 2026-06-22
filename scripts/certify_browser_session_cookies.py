@@ -3,7 +3,7 @@
 
 This cert closes the remaining W04 browser-session contract:
   * a same-origin browser can pair a token into an HttpOnly/SameSite auth cookie;
-  * the auth cookie is signed, expires, and rejects tampering;
+  * the auth cookie is signed, server-registered, expires, rejects tampering, and can be revoked;
   * Face-ID/passkey sessions can ride an HttpOnly/SameSite cookie;
   * web shells strip `?k=` and do not persist auth/session secrets in localStorage.
 """
@@ -56,15 +56,22 @@ def main() -> int:
     ck("A2: the freshly minted auth cookie validates", h._valid_auth_cookie(cookie_value) is True)
     ck("A3: _authed accepts the valid auth cookie without exposing ANIMA_TOKEN to JS headers",
        _req(headers={"Cookie": server.AUTH_COOKIE + "=" + cookie_value}, token=token)._authed() is True)
-    ck("A4: a tampered auth cookie is rejected",
+    future = int(time.time()) + server.AUTH_COOKIE_TTL
+    unissued = "v1.%d.%s.%s" % (future, "never-issued",
+                                h._sign_auth_cookie(future, "never-issued"))
+    ck("A4: a correctly signed but never-issued auth cookie is rejected",
+       h._valid_auth_cookie(unissued) is False)
+    ck("A5: a tampered auth cookie is rejected",
        h._valid_auth_cookie(cookie_value[:-1] + ("0" if cookie_value[-1] != "0" else "1")) is False)
     past = int(time.time()) - 5
     expired = "v1.%d.%s.%s" % (past, "nonce", h._sign_auth_cookie(past, "nonce"))
-    ck("A5: an expired but correctly signed auth cookie is rejected",
+    ck("A6: an expired but correctly signed auth cookie is rejected",
        h._valid_auth_cookie(expired) is False)
     hdr = h._cookie_header(server.AUTH_COOKIE, cookie_value, server.AUTH_COOKIE_TTL)
-    ck("A6: auth cookie header is HttpOnly, SameSite=Strict, path-scoped, and max-age bounded",
+    ck("A7: auth cookie header is HttpOnly, SameSite=Strict, path-scoped, and max-age bounded",
        all(part in hdr for part in ("HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=")))
+    ck("A8: revoking an issued auth cookie makes it invalid before expiry",
+       h._revoke_auth_cookie(cookie_value) is True and h._valid_auth_cookie(cookie_value) is False)
 
     # ---- B. Face-ID/passkey cookie path -------------------------------------------
     face_session = passkey.issue_session()
@@ -91,10 +98,13 @@ def main() -> int:
        pair_at != -1 and auth_routes_at != -1 and pair_at < auth_routes_at)
     ck("C2: /auth/pair sets the signed auth cookie with Set-Cookie",
        "Set-Cookie" in src and "AUTH_COOKIE" in src and "_issue_auth_cookie()" in src)
-    ck("C3: /auth/login/finish sets the Face-ID session cookie; /auth/disable clears it",
+    ck("C3: /auth/logout revokes auth cookie and clears both browser cookies",
+       'path == "/auth/logout"' in src and "_revoke_auth_cookie" in src
+       and "_clear_cookie_header(AUTH_COOKIE)" in src and "_clear_cookie_header(FACE_COOKIE)" in src)
+    ck("C4: /auth/login/finish sets the Face-ID session cookie; /auth/disable clears it",
        "FACE_COOKIE" in src and 'path == "/auth/login/finish"' in src
        and 'path == "/auth/disable"' in src and "_clear_cookie_header(FACE_COOKIE)" in src)
-    ck("C4: _send supports response headers so cookies are emitted through the normal path",
+    ck("C5: _send supports response headers so cookies are emitted through the normal path",
        "def _send(self, code, ctype, body, headers=None)" in src)
 
     # ---- D. Browser shells do not persist auth/session secrets ----------------------
