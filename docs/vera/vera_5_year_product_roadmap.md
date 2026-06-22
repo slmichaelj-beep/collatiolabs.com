@@ -288,7 +288,7 @@ Build now:
 - Kit manifest and entitlement system.
 - Feature gates tied to kit manifests, not to Vera's core identity.
 - Block unauthenticated `--expose`. CLOSED / CERTIFIED.
-- Enforce per-turn local/cloud routing.
+- Enforce per-turn local/cloud routing. CLOSED / CERTIFIED.
 - Unify private storage and encrypt append-only ledgers. SUBSTANTIALLY CLOSED / CERTIFIED.
 - Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
 - Implement full WebAuthn or rename current passkey honestly.
@@ -447,7 +447,7 @@ Success metrics:
 
 Do not claim yet:
 - "Encrypted by default" until all private stores use the same encrypted substrate.
-- "Local-only by default" until per-turn routing is enforced at generation.
+- "Local-only by default" is now backed by per-turn backend enforcement; privacy receipts and zero-egress mode remain before broader product claims.
 - "Secure LAN access" until expose requires auth and CSRF/origin defenses exist.
 - "Passkey protected" unless full WebAuthn verification is implemented or the phrase is carefully scoped.
 - "Autonomous governance" until approval binding and budget invariants are fixed.
@@ -528,8 +528,8 @@ Weeks 1-2:
 - Define product claims blacklist.
 
 Weeks 3-4:
-- Enforce per-turn backend routing.
-- Add fake-cloud no-egress cert.
+- Enforce per-turn backend routing. CLOSED / CERTIFIED.
+- Add fake-cloud no-egress cert. CLOSED as route-backend enforcement; broader zero-egress mode remains.
 - Add privacy receipt event schema.
 
 Weeks 5-6:

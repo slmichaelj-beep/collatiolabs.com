@@ -195,9 +195,9 @@ Frontier direction:
 
 ### Sprint 1 - Trust Foundation
 
-- Block unauthenticated `--expose`.
-- Enforce per-turn backend routing.
-- Encrypt private stores consistently.
+- Block unauthenticated `--expose`. CLOSED / CERTIFIED.
+- Enforce per-turn backend routing. CLOSED / CERTIFIED.
+- Encrypt private stores consistently. SUBSTANTIALLY CLOSED / CERTIFIED.
 - Add privacy receipt skeleton.
 - Add adversarial cert pack for the weaknesses already reproduced.
 

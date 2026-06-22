@@ -1,9 +1,9 @@
 # Vera Weakness Register
 
-Review pass: 2026-06-21
+Review pass: 2026-06-22
 Repo: `/Users/lamar/Developer/collatiolabs.com`
 Branch: `anima`
-Commit observed: `95675db`
+Commit observed: rolling review through `cd0f143`
 
 This register is intentionally harsher than the certification ledger. The certs prove the designed happy paths are real. This file tracks places where Vera could fail under product pressure, hostile conditions, privacy expectations, local/cloud ambiguity, or scale.
 
@@ -25,7 +25,7 @@ Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, and export/training packages when a vault key is active, and product/private mode refuses plaintext startup; remaining product work is key recovery/rotation UX.
-4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST and POST query-token authorization are blocked; browser session/localStorage architecture remains open for the later product-grade pairing and cookie pass.
+4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, and static pairing replay are blocked; first-launch UX, session rotation, device inventory, and multi-shell replay/migration certs remain.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
@@ -193,7 +193,7 @@ Closure update:
 - The POST boundary rejects hostile/malformed `Origin`, hostile `Referer`, and `Sec-Fetch-Site: cross-site`, while still allowing same-host browser POSTs and native/curl clients that omit browser origin headers.
 - Responses now include `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`, reducing accidental query-token leakage and MIME-sniffing risk.
 - Added `scripts/certify_browser_origin_csrf.py`.
-- Added an initial `scripts/certify_browser_session_cookies.py` cert for the current browser-cookie path, but W04 remains partial until that path is treated as a full product session architecture.
+- Added `scripts/certify_browser_session_cookies.py` for the current browser-cookie path.
 - Added both browser security certs to `scripts/run_master_cert_stack.py`.
 - Updated `scripts/certify_security_baseline.py` so the baseline now proves the stricter contract.
 - Focused certification passed: `certify_browser_session_cookies`, `certify_browser_origin_csrf`, `certify_passkey_auth`, `certify_security_baseline`, `certify_proactive_location`, `certify_audio_serve`, and `certify_expose_requires_auth`.
@@ -202,8 +202,9 @@ Residual note:
 - `?k=` remains as a GET/HEAD-only first-pairing convenience so existing local setup links still work. It is no longer accepted for POST state changes.
 - Browser auth cookies are now server-registered by nonce, so a correctly signed but never-issued cookie is rejected and an issued cookie can be revoked before expiry.
 - Added `/auth/logout` to revoke the current auth nonce and clear both auth and Face-ID browser cookies.
-- Expanded `scripts/certify_browser_session_cookies.py` to prove issued-only cookies, tamper/expiry rejection, revocation, HttpOnly/SameSite headers, logout wiring, and no `anima_token`/`anima_sess` localStorage persistence.
-- W04 is not fully closed until the browser session architecture gets its remaining product pass: true one-time pairing token issuance, session rotation UX, and migration/replay certs across installed/desktop/LAN shells.
+- Added optional `ANIMA_PAIRING_CODE` values for true one-time pairing: first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
+- Expanded `scripts/certify_browser_session_cookies.py` to prove one-time code replay rejection, issued-only cookies, tamper/expiry rejection, revocation, HttpOnly/SameSite headers, logout wiring, and no `anima_token`/`anima_sess` localStorage persistence.
+- W04 is not fully closed until the browser session architecture gets its remaining product pass: first-launch pairing-code UX, session rotation, device/session inventory, logout-all, and migration/replay certs across installed/desktop/LAN shells.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 
@@ -540,9 +541,10 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Block unauthenticated `--expose`.
-2. Enforce per-turn local/cloud routing.
-3. Unify private storage and encrypt append-only ledgers.
-4. Bind approvals to action intent.
-5. Add the first adversarial cert pack from this register.
-6. Reframe revenue/company as optional domain packs in UI and documentation.
+1. Complete encrypted backup/restore/recovery drills.
+2. Add zero-egress mode and per-turn route/privacy receipts.
+3. Finish W04 session rotation/device inventory and multi-shell replay certs.
+4. Complete W05 WebAuthn signature verification or rename the surface honestly.
+5. Bind approvals to action intent.
+6. Strengthen budget and marketplace resource invariants.
+7. Reframe revenue/company as optional domain packs in UI and documentation.

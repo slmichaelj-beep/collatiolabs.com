@@ -96,18 +96,20 @@ VERIFIED:
 
 VERIFIED WITH CAVEAT:
 
-The cloud privacy story is strong for current architecture, but global cloud selection weakens the local-first promise.
+Per-turn local/cloud backend enforcement is now closed and certified:
 
-FINDING P1:
+- `Mouth` carries a dedicated local brain beside the configured default/cloud brain.
+- `Mouth.brain_for_route(RouteDecision.model)` selects the allowed backend for each turn.
+- `server._turn` passes the selected `_route_model` into first drafts and verifier retries.
+- Local routes do not call the cloud brain even when a cloud provider is configured.
+- Cloud routes blank private portrait memory before the provider brain sees the prompt.
+- Certified by `scripts/certify_route_backend_enforcement.py`.
 
-Per-turn router computes local/cloud decisions but the mouth still uses the globally assembled brain. If cloud is configured and available, `Mouth.assemble()` chooses cloud globally. The live turn records the router decision and blanks memory when global cloud is on, but generation does not yet execute `RouteDecision.model`.
+Remaining cloud/privacy product work:
 
-Recommended fix:
-
-- Maintain local and cloud brain objects separately.
-- Make `RouteDecision.model` choose the active brain per turn.
-- Cert "cloud configured but local sufficient -> generation backend remains local."
-- Cert "cloud escalation -> PII blanked/scrubbed and backend is cloud."
+- Add per-turn route/privacy receipts visible to users.
+- Add an egress ledger for provider calls, web/location calls, and connector access.
+- Add zero-egress mode that makes cloud/provider/network egress impossible without an explicit mode change.
 
 FRONTIER:
 
@@ -367,8 +369,8 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P1: Make per-turn local/cloud route decision executable.
-2. P1: Complete encrypted backup/restore/recovery drills for private continuity.
+1. P1: Complete encrypted backup/restore/recovery drills for private continuity.
+2. P1: Add zero-egress mode plus per-turn privacy/route receipts.
 3. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
 4. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
 5. P2: Strengthen budget cumulative invariants and approval-ref validation.

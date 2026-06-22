@@ -253,7 +253,7 @@ Key certs:
 ### Days 0-30 - Trust Floor
 
 - Block unauthenticated `--expose`. CLOSED / CERTIFIED.
-- Enforce per-turn local/cloud backend routing.
+- Enforce per-turn local/cloud backend routing. CLOSED / CERTIFIED.
 - Land secure-store foundation and broaden migration plan. SUBSTANTIALLY CLOSED / CERTIFIED.
 - Define Base Vera guarantee.
 - Define kit manifest schema.
