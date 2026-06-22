@@ -215,7 +215,7 @@ Allowed product:
 Requirements:
 - Auth required for any non-localhost exposure. CLOSED / CERTIFIED.
 - Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; key lifecycle UX remains.
-- One-time pairing and session auth. PARTIALLY CLOSED / CERTIFIED; generated/displayed one-time pairing codes, chat-shell first-launch pairing UX, HttpOnly cookies, session inventory, rotation, single-session revoke, and logout-all are closed; multi-shell replay/migration certs remain.
+- One-time pairing and session auth. CLOSED / CERTIFIED for supported same-origin browser shells; generated/displayed one-time pairing codes, authenticated minting of additional one-time codes, chat-shell first-launch pairing UX, HttpOnly cookies, session inventory, rotation, single-session revoke, logout-all, and desktop/LAN/tunnel/same-origin installed-shell replay/migration certs are closed. Custom-scheme installed wrappers remain a packaging constraint: they must proxy through the same localhost origin or receive a future explicit allowlist.
 - Basic update/recovery story.
 - Crash-safe backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED.
 - Privacy receipt prototype.
@@ -290,7 +290,7 @@ Build now:
 - Block unauthenticated `--expose`. CLOSED / CERTIFIED.
 - Enforce per-turn local/cloud routing. CLOSED / CERTIFIED.
 - Unify private storage and encrypt append-only ledgers. SUBSTANTIALLY CLOSED / CERTIFIED.
-- Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
+- Replace query-token/localStorage auth with pairing/session flow. CLOSED / CERTIFIED for supported same-origin browser shells.
 - Implement full WebAuthn or rename current passkey honestly.
 - Bind approvals to exact actions.
 - Bind self-evolution approvals to exact proposals.
@@ -538,11 +538,12 @@ Weeks 5-6:
 - Add raw-secret absence cert. CLOSED / CERTIFIED for current private-store matrix.
 
 Weeks 7-8:
-- Replace query-token UX with pairing/session. PARTIALLY CLOSED / CERTIFIED.
+- Replace query-token UX with pairing/session. CLOSED / CERTIFIED for supported same-origin browser shells.
 - Add Origin/Host checks. CLOSED / CERTIFIED for same-host browser POST boundary.
 - Add CSRF hostile-origin cert. CLOSED / CERTIFIED.
-- Add first-launch one-time pairing UX. CLOSED / CERTIFIED for generated startup codes and the main chat shell; multi-shell replay/migration certs remain.
+- Add first-launch one-time pairing UX. CLOSED / CERTIFIED for generated startup codes and the main chat shell.
 - Add session rotation and device inventory. CLOSED / CERTIFIED.
+- Add multi-shell replay/migration certs. CLOSED / CERTIFIED for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells.
 
 Weeks 9-10:
 - Bind approvals/actions.

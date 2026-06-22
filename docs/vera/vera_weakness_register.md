@@ -25,7 +25,7 @@ Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; remaining product work is first-run key setup, recovery-code/hardware-key, and rotation UX.
-4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing session inventory, missing rotation, and missing logout-all are blocked; multi-shell replay/migration certs remain.
+4. `P1/P2 CLOSED; CERTIFIED FOR SUPPORTED SHELLS` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are blocked. Custom-scheme installed wrappers remain a packaging constraint.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
@@ -105,7 +105,7 @@ Closure update:
 ### W03 - Encryption is optional and not consistently applied
 
 Severity: `P1`
-Status: `PARTIALLY CLOSED; CERTIFIED`
+Status: `CLOSED; CERTIFIED FOR SUPPORTED SAME-ORIGIN SHELLS`
 
 Evidence:
 - `anima/crypto.py` implements optional Fernet encryption when `ANIMA_KEY` or keychain material exists.
@@ -212,9 +212,11 @@ Residual note:
 - Added optional `ANIMA_PAIRING_CODE` values for true one-time pairing: first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
 - Added authenticated-startup generation/display of a transient one-time browser pairing code when `ANIMA_PAIRING_CODE` is absent.
 - Added a main chat first-launch pairing modal that posts the code to `/auth/pair`, mints the HttpOnly auth cookie, and never writes the code to localStorage.
+- Added `/auth/pairing-code` so an already-authenticated browser can mint one more transient one-time pairing code for another shell/device; the route is auth-gated and honors the Face-ID/passkey layer when required.
 - Added `/auth/sessions`, `/auth/rotate`, `/auth/logout-session`, and `/auth/logout-all` for hashed session inventory, current-session rotation, single-session revoke, and all-device logout.
 - Expanded `scripts/certify_browser_session_cookies.py` to prove one-time code replay rejection, generated startup pairing codes, main-shell pairing UX, issued-only cookies, tamper/expiry rejection, revocation, HttpOnly/SameSite headers, logout wiring, session inventory, hashed IDs/no raw nonces, rotation, single-session revoke, logout-all, and no `anima_token`/`anima_sess` localStorage persistence.
-- W04 is not fully closed until migration/replay certs across installed/desktop/LAN/tunnel shells are finished.
+- Added `scripts/certify_browser_shell_replay_migration.py` to prove additional-code minting, one-time consumption/replay rejection, auth/passkey gating, same-host POST support for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells, and refusal of cross-host/cross-site/custom-scheme replay.
+- Supported installed shells must use a same-origin localhost webview/proxy. Custom-scheme origins such as `tauri://localhost` are intentionally refused by the browser Origin wall unless a future explicit allowlist is designed and certified.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 
@@ -403,7 +405,7 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack currently passes 86/86 live.
+- Master cert stack currently passes 87/87 live.
 - Diamond v2 confirmed 108 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
@@ -563,10 +565,10 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Finish W04 multi-shell replay/migration certs.
-2. Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
-3. Complete W05 WebAuthn signature verification or rename the surface honestly.
-4. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-5. Bind approvals to action intent.
+1. Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
+2. Complete W05 WebAuthn signature verification or rename the surface honestly.
+3. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+4. Bind approvals to action intent.
+5. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
 6. Strengthen budget and marketplace resource invariants.
 7. Reframe revenue/company as optional domain packs in UI and documentation.

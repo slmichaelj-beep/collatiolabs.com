@@ -177,7 +177,8 @@ def main() -> int:
     ck("C8: ANIMA_PAIRING_CODE initializes one-time pairing codes at startup",
        "ANIMA_PAIRING_CODE" in src and "pairing_codes" in src)
     ck("C9: authenticated startup auto-generates a transient one-time pairing code when none is supplied",
-       "generated_pairing_code = secrets.token_urlsafe" in src
+       "def _new_pairing_code()" in src
+       and "generated_pairing_code = _new_pairing_code()" in src
        and "expires after first use or restart" in src
        and "if Handler.token and not pairing_codes" in src)
 

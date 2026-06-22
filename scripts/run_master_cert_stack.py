@@ -34,6 +34,7 @@ STACK = [
     ("certify_vault_requires_encryption", []),
     ("certify_browser_origin_csrf", []),
     ("certify_browser_session_cookies", []),
+    ("certify_browser_shell_replay_migration", []),
     # truth + learning
     ("certify_secure_store_no_plaintext", []),
     ("certify_private_write_classification", []),

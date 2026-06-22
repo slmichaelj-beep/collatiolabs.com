@@ -52,6 +52,10 @@ _AUTH_SESSIONS_LOCK = threading.Lock()
 _PAIRING_CODES_LOCK = threading.Lock()
 
 
+def _new_pairing_code() -> str:
+    return secrets.token_urlsafe(9)
+
+
 class _BodyTooLarge(Exception):
     """Raised by _read_body when Content-Length exceeds MAX_BODY, so the handler can answer 413
     with a clear message instead of half-reading the body and failing to parse truncated JSON."""
@@ -3832,6 +3836,14 @@ class Handler(BaseHTTPRequestHandler):
                                   headers=[("Set-Cookie", cookie)])
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
+            if path == "/auth/pairing-code":
+                if not self._passed():
+                    return self._send(401, "application/json", b'{"need_face_id":true}')
+                code = _new_pairing_code()
+                with _PAIRING_CODES_LOCK:
+                    self.pairing_codes.add(code)
+                return self._send(200, "application/json",
+                                  json.dumps({"ok": True, "pairing_code": code}).encode())
             if path == "/auth/logout":
                 self._revoke_auth_cookie(self._cookie(AUTH_COOKIE))
                 return self._send(200, "application/json", b'{"ok":true}',
@@ -4187,7 +4199,7 @@ def main(argv=None):
     }
     generated_pairing_code = ""
     if Handler.token and not pairing_codes:
-        generated_pairing_code = secrets.token_urlsafe(9)
+        generated_pairing_code = _new_pairing_code()
         pairing_codes.add(generated_pairing_code)
     Handler.pairing_codes = pairing_codes
     from .mouth import DEFAULT_MODEL

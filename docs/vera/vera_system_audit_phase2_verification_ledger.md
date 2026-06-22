@@ -23,7 +23,7 @@ VERIFIED:
 
 Important nuance:
 
-- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 86/86 GREEN.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 87/87 GREEN.
 
 ## Product Identity
 
@@ -66,16 +66,17 @@ UPDATED CLOSURE:
 - Auth cookies are server-registered by nonce and can be revoked through `/auth/logout`.
 - Optional `ANIMA_PAIRING_CODE` values create true one-time browser pairing codes; first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
 - When auth is enabled and no `ANIMA_PAIRING_CODE` is supplied, startup generates and prints a transient one-time browser pairing code; the main chat shell accepts that code through a pairing modal and never stores it.
+- `/auth/pairing-code` lets an already-authenticated browser mint one more transient one-time pairing code for another shell/device; minting is auth-gated and honors the Face-ID/passkey layer when required.
 - Browser auth now has hashed session inventory, current-session rotation, single-session revoke, and logout-all through `/auth/sessions`, `/auth/rotate`, `/auth/logout-session`, and `/auth/logout-all`.
-- Certified by `scripts/certify_expose_requires_auth.py`, `scripts/certify_browser_origin_csrf.py`, and `scripts/certify_browser_session_cookies.py`.
+- Certified by `scripts/certify_expose_requires_auth.py`, `scripts/certify_browser_origin_csrf.py`, `scripts/certify_browser_session_cookies.py`, and `scripts/certify_browser_shell_replay_migration.py`.
 
 VERIFIED WITH CAVEAT:
 
-The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, non-revocable browser auth, missing first-launch pairing entry for the main chat shell, missing startup one-time code generation, missing session inventory, missing rotation, and missing logout-all issues are now closed and certified.
+The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, non-revocable browser auth, missing first-launch pairing entry for the main chat shell, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are now closed and certified for supported same-origin browser shells.
 
-Remaining W04 work:
+W04 packaging caveat:
 
-- Cert migration/replay behavior across installed app, desktop browser, LAN, and tunnel shells.
+- Custom-scheme installed wrappers such as `tauri://localhost` are intentionally refused by the browser Origin wall. Supported installed shells must use a same-origin localhost webview/proxy unless a future explicit custom-origin allowlist is designed and certified.
 - Keep WebAuthn completion as W05; current passkey remains a strong local device-presence gate, not a full cryptographic WebAuthn verifier.
 
 ## Privacy And Local-First Boundary
@@ -377,11 +378,11 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P2: Finish W04 first-launch pairing UX and multi-shell migration/replay certs.
-2. P2: Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
-3. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
-4. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-5. P2: Strengthen budget cumulative invariants and approval-ref validation.
+1. P2: Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
+2. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
+3. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+4. P2: Strengthen budget cumulative invariants and approval-ref validation.
+5. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
 6. P2: Fix Upwork Connects overspend and status transitions.
 7. P2: Add relational-honesty companion modes.
 8. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
