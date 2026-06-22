@@ -233,7 +233,7 @@ ok("forge: detects a file source", forge.source_kind("notes.md") == "file")
 ok("forge: chunking overlaps and respects size", len(forge.chunk(" ".join(["w"] * 500), words=180, overlap=20)) >= 3)
 import tempfile, json as _json
 with tempfile.TemporaryDirectory() as _td:
-    nt, nv = forge.build_dataset([" ".join(["voice"] * 600)], _td)
+    nt, nv = forge.build_dataset([" ".join(["voice"] * 600)], _td, allow_plaintext=True)
     _line = open(os.path.join(_td, "train.jsonl")).readline()
     ok("forge: dataset writes MLX {\"text\"} jsonl", "text" in _json.loads(_line) and nt > 0)
 ok("forge: train command invokes mlx_lm.lora",

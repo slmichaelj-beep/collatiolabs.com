@@ -27,6 +27,7 @@ Design rules (mirror the rest of the substrate):
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -183,11 +184,22 @@ def import_mind(bundle: Dict[str, Any], target: str) -> Dict[str, Any]:
             "traits": sorted({x.get("trait") for x in facts if x.get("trait")})}
 
 
-def save_bundle(bundle: Dict[str, Any], path: Path) -> Path:
+def save_bundle(bundle: Dict[str, Any], path: Path, *, allow_plaintext: bool = False) -> Path:
+    """Write a portable-mind bundle.
+
+    Disk exports are encrypted by default. Pass allow_plaintext=True only when the user
+    intentionally needs a human/tool-readable JSON transfer file.
+    """
+    from . import secure_store
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(bundle, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    secure_store.save_export_json(path, bundle, allow_plaintext=allow_plaintext,
+                                  trailing_newline=True)
     return path
+
+
+def load_bundle(path: Path) -> Dict[str, Any]:
+    from . import secure_store
+    return secure_store.load_export_json(path, {})
 
 
 # --------------------------------------------------------------------------------------------
@@ -211,77 +223,98 @@ def _selftest() -> int:
 
     print("portable — export/import the portable mind (hermetic)")
     print("=" * 60)
-    with g0pe._temp_store():
-        from anima import memory_lirf as ml
+    old_key = os.environ.get("ANIMA_KEY")
+    if old_key is None:
+        os.environ["ANIMA_KEY"] = "portable-selftest-key"
+    try:
+        with g0pe._temp_store() as hermetic_store:
+            from anima import crypto as _crypto
+            old_crypto = (_crypto._STORE, _crypto._fernet, _crypto._resolved)
+            _crypto._STORE = Path(hermetic_store) / ".crypto"
+            _crypto._fernet = None
+            _crypto._resolved = False
+            from anima import memory_lirf as ml
 
-        # an EMPTY mind exports honestly.
-        empty = export_mind("EmptyMind")
-        ck("empty mind exports 0 identity facts (honest)", empty["manifest"]["counts"]["identity_facts"] == 0)
-        ck("empty bundle serialises to plain JSON", isinstance(json.dumps(empty), str))
+            # an EMPTY mind exports honestly.
+            empty = export_mind("EmptyMind")
+            ck("empty mind exports 0 identity facts (honest)", empty["manifest"]["counts"]["identity_facts"] == 0)
+            ck("empty bundle serialises to plain JSON", isinstance(json.dumps(empty), str))
 
-        # seed a real mind in store A — identity facts AND cognitive (how-you-think) objects.
-        from anima import lerf
-        a = "PortableA"
-        for fact in ("my name is Lamar", "my birthday is March 4, 1991",
-                     "I work at Collatio", "my dog's name is Biscuit", "I live in Portland"):
-            ml.capture(a, fact)
-        _v = lerf.make_value("craftsmanship", domain="user",
-                             evidence=["Lamar repeatedly chooses the rigorous path over the quick one"])
-        _v["state"] = "active"
-        lerf.store_object(_v, name=a)
-        _p = lerf.make_preference("terse, concrete writing", domain="user",
-                                  evidence=["prefers short concrete prose to flourish"])
-        _p["state"] = "active"
-        lerf.store_object(_p, name=a)
-        bundle = export_mind(a)
-        ck("export captures the seeded identity facts (>=5)",
-           bundle["manifest"]["counts"]["identity_facts"] >= 5)
-        ck("export captures the cognitive 'how you think' objects (>=2)",
-           bundle["manifest"]["counts"]["cognitive_objects"] >= 2)
-        ck("manifest declares both round-trip layers (identity + cognitive_objects)",
-           "identity" in bundle["manifest"]["round_trip_layers"]
-           and "cognitive_objects" in bundle["manifest"]["round_trip_layers"])
-        ck("bundle is self-describing (manifest schema + version + person)",
-           bundle["manifest"]["schema"] == "vera.portable-mind"
-           and bundle["manifest"]["version"] == BUNDLE_VERSION
-           and bundle["manifest"]["person"] == a)
-        ck("bundle is plain model-agnostic JSON (round-trips through json)",
-           json.loads(json.dumps(bundle))["identity"][0].get("trait") is not None)
+            # seed a real mind in store A — identity facts AND cognitive (how-you-think) objects.
+            from anima import lerf
+            a = "PortableA"
+            for fact in ("my name is Lamar", "my birthday is March 4, 1991",
+                         "I work at Collatio", "my dog's name is Biscuit", "I live in Portland"):
+                ml.capture(a, fact)
+            _v = lerf.make_value("craftsmanship", domain="user",
+                                 evidence=["Lamar repeatedly chooses the rigorous path over the quick one"])
+            _v["state"] = "active"
+            lerf.store_object(_v, name=a)
+            _p = lerf.make_preference("terse, concrete writing", domain="user",
+                                      evidence=["prefers short concrete prose to flourish"])
+            _p["state"] = "active"
+            lerf.store_object(_p, name=a)
+            bundle = export_mind(a)
+            ck("export captures the seeded identity facts (>=5)",
+               bundle["manifest"]["counts"]["identity_facts"] >= 5)
+            ck("export captures the cognitive 'how you think' objects (>=2)",
+               bundle["manifest"]["counts"]["cognitive_objects"] >= 2)
+            ck("manifest declares both round-trip layers (identity + cognitive_objects)",
+               "identity" in bundle["manifest"]["round_trip_layers"]
+               and "cognitive_objects" in bundle["manifest"]["round_trip_layers"])
+            ck("bundle is self-describing (manifest schema + version + person)",
+               bundle["manifest"]["schema"] == "vera.portable-mind"
+               and bundle["manifest"]["version"] == BUNDLE_VERSION
+               and bundle["manifest"]["person"] == a)
+            ck("bundle is plain model-agnostic JSON (round-trips through json)",
+               json.loads(json.dumps(bundle))["identity"][0].get("trait") is not None)
 
-        # serialise + reload (as if carried to another app), then IMPORT into a FRESH store B.
-        wire = json.loads(json.dumps(bundle))
-        b = "PortableB"
-        before_b = ml.Facts.load(b).about(ml.SELF)
-        ck("target B starts empty (clean re-import target)", len(before_b) == 0)
-        res = import_mind(wire, b)
-        ck("import reports the facts it reconstructed (>=5)", res["imported"] >= 5)
-        ck("import reports the cognitive objects it reconstructed (>=2)",
-           res["objects_imported"] >= 2)
+            # serialise + reload (as if carried to another app), then IMPORT into a FRESH store B.
+            wire = json.loads(json.dumps(bundle))
+            b = "PortableB"
+            before_b = ml.Facts.load(b).about(ml.SELF)
+            ck("target B starts empty (clean re-import target)", len(before_b) == 0)
+            res = import_mind(wire, b)
+            ck("import reports the facts it reconstructed (>=5)", res["imported"] >= 5)
+            ck("import reports the cognitive objects it reconstructed (>=2)",
+               res["objects_imported"] >= 2)
 
-        # ROUND-TRIP FIDELITY: B now holds the same traits with the same values as A.
-        fa = {r["trait"]: ml._fmt_value(r["value"]) for r in ml.Facts.load(a).about(ml.SELF)}
-        fb = {r["trait"]: ml._fmt_value(r["value"]) for r in ml.Facts.load(b).about(ml.SELF)}
-        ck("round-trip: B has every identity trait A had", set(fa).issubset(set(fb)))
-        ck("round-trip: B's values match A's exactly (no drift)",
-           all(fb.get(t) == v for t, v in fa.items()))
-        ck("round-trip: the birthday survived verbatim (March 4, 1991)",
-           "March 4, 1991" in (fb.get("birthday") or ""))
+            # ROUND-TRIP FIDELITY: B now holds the same traits with the same values as A.
+            fa = {r["trait"]: ml._fmt_value(r["value"]) for r in ml.Facts.load(a).about(ml.SELF)}
+            fb = {r["trait"]: ml._fmt_value(r["value"]) for r in ml.Facts.load(b).about(ml.SELF)}
+            ck("round-trip: B has every identity trait A had", set(fa).issubset(set(fb)))
+            ck("round-trip: B's values match A's exactly (no drift)",
+               all(fb.get(t) == v for t, v in fa.items()))
+            ck("round-trip: the birthday survived verbatim (March 4, 1991)",
+               "March 4, 1991" in (fb.get("birthday") or ""))
 
-        # ROUND-TRIP the COGNITIVE layer: B holds the same how-you-think objects (by id + subject).
-        ca = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
-              for o in _cognitive_objects(a)}
-        cb = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
-              for o in _cognitive_objects(b)}
-        ck("round-trip: B has every cognitive object A had (same ids)", set(ca).issubset(set(cb)))
-        ck("round-trip: cognitive object type+subject match exactly (how-you-think carried)",
-           all(cb.get(i) == v for i, v in ca.items()))
+            # ROUND-TRIP the COGNITIVE layer: B holds the same how-you-think objects (by id + subject).
+            ca = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
+                  for o in _cognitive_objects(a)}
+            cb = {o.get("id"): (o.get("type"), o.get("subject") or o.get("target") or o.get("name"))
+                  for o in _cognitive_objects(b)}
+            ck("round-trip: B has every cognitive object A had (same ids)", set(ca).issubset(set(cb)))
+            ck("round-trip: cognitive object type+subject match exactly (how-you-think carried)",
+               all(cb.get(i) == v for i, v in ca.items()))
 
-        # save round-trips to disk
-        import tempfile
-        with tempfile.TemporaryDirectory() as td:
-            p = save_bundle(bundle, Path(td) / "mind.json")
-            ck("save writes a valid bundle file",
-               json.loads(p.read_text())["manifest"]["person"] == a)
+            # save round-trips to disk, encrypted by default with an explicit plaintext escape hatch.
+            import tempfile
+            with tempfile.TemporaryDirectory() as td:
+                p = save_bundle(bundle, Path(td) / "mind.json")
+                raw = p.read_text(encoding="utf-8")
+                ck("save writes an encrypted bundle file by default",
+                   raw.startswith("ANIMAENC1:") and a not in raw)
+                ck("load_bundle reads the encrypted bundle back",
+                   load_bundle(p)["manifest"]["person"] == a)
+                plain = save_bundle(bundle, Path(td) / "mind.plain.json", allow_plaintext=True)
+                ck("allow_plaintext=True writes a valid human-readable bundle file",
+                   json.loads(plain.read_text(encoding="utf-8"))["manifest"]["person"] == a)
+            _crypto._STORE, _crypto._fernet, _crypto._resolved = old_crypto
+    finally:
+        if old_key is None:
+            os.environ.pop("ANIMA_KEY", None)
+        else:
+            os.environ["ANIMA_KEY"] = old_key
 
     print("\nPORTABLE MIND SELFTEST: " + ("PASS" if not fails else f"FAIL ({len(fails)})"))
     return 1 if fails else 0

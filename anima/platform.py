@@ -22,6 +22,7 @@ CLI:  python3 -m anima.platform --selftest        # hermetic round-trip + freeze
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -111,11 +112,17 @@ def import_full(bundle: Dict[str, Any], target: str) -> Dict[str, Any]:
             "vault_refused": refused, "vault_skipped": skipped}
 
 
-def save_bundle(bundle: Dict[str, Any], path: Path) -> Path:
-    """Write the bundle to a .full-mind.json file (atomic-ish)."""
+def save_bundle(bundle: Dict[str, Any], path: Path, *, allow_plaintext: bool = False) -> Path:
+    """Write the full-mind bundle, encrypted by default."""
+    from . import secure_store
     path = Path(path)
-    path.write_text(json.dumps(bundle, ensure_ascii=False, indent=2), encoding="utf-8")
+    secure_store.save_export_json(path, bundle, allow_plaintext=allow_plaintext)
     return path
+
+
+def load_bundle(path: Path) -> Dict[str, Any]:
+    from . import secure_store
+    return secure_store.load_export_json(path, {})
 
 
 # ── selftest (hermetic round-trip + freeze proof) ──────────────────────────────────────────
@@ -151,12 +158,21 @@ def _selftest() -> int:
     print("PLATFORM (full portable mind) selftest — hermetic round-trip + freeze")
     print("=" * 66)
 
+    old_key = os.environ.get("ANIMA_KEY")
+    if old_key is None:
+        os.environ["ANIMA_KEY"] = "platform-selftest-key"
+
     real = lerf.STORE if lerf.STORE.is_absolute() else (Path.cwd() / lerf.STORE)
     fp_before = _footprint(real)
 
     td = tempfile.mkdtemp(prefix="platform-self-")
     tp = Path(td)
     saves = []
+    from . import crypto as _crypto
+    old_crypto = (_crypto._STORE, _crypto._fernet, _crypto._resolved)
+    _crypto._STORE = tp / ".crypto"
+    _crypto._fernet = None
+    _crypto._resolved = False
     # Redirect EVERY store-bearing module the export/import path may touch (matches the canonical
     # _temp_store coverage) so the real .anima is provably untouched.
     _STORE_MODS = ["mouth", "portrait", "memory_lirf", "world_state", "world_model", "spine",
@@ -206,6 +222,17 @@ def _selftest() -> int:
            and bundle["manifest"]["counts"]["theories"] >= 1)
         ok("bundle is a model-agnostic vera.full-mind schema",
            bundle["manifest"]["schema"] == SCHEMA)
+        with tempfile.TemporaryDirectory() as btd:
+            p = save_bundle(bundle, Path(btd) / "full-mind.json")
+            raw = p.read_text(encoding="utf-8")
+            ok("save_bundle writes an encrypted full-mind file by default",
+               raw.startswith("ANIMAENC1:") and src not in raw)
+            ok("load_bundle reads the encrypted full-mind file back",
+               load_bundle(p)["manifest"]["schema"] == SCHEMA)
+            plain = save_bundle(bundle, Path(btd) / "full-mind.plain.json",
+                                allow_plaintext=True)
+            ok("allow_plaintext=True writes a human-readable full-mind file",
+               json.loads(plain.read_text(encoding="utf-8"))["manifest"]["schema"] == SCHEMA)
 
         # ROUND-TRIP into a FRESH creature
         res = import_full(bundle, dst)
@@ -235,6 +262,11 @@ def _selftest() -> int:
     finally:
         for m, a, old in saves:
             setattr(m, a, old)
+        _crypto._STORE, _crypto._fernet, _crypto._resolved = old_crypto
+        if old_key is None:
+            os.environ.pop("ANIMA_KEY", None)
+        else:
+            os.environ["ANIMA_KEY"] = old_key
 
     fp_after = _footprint(real)
     ok("HERMETIC: real .anima byte-UNCHANGED across the whole selftest", fp_before == fp_after)

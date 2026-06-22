@@ -8,6 +8,7 @@ Stage 3 (Mac, model):    eval-gate it — accept only if honesty held and person
 
   # 1. drop in anything that embodies the voice you want (files, URLs, YouTube)
   python3 scripts/forge.py build notes.md https://example.com/essay "https://youtu.be/VIDEOID"
+  python3 scripts/forge.py build --plaintext notes.md   # explicit tool-readable dataset
 
   # 2. train on the Mac (needs: pip install mlx-lm ; the model in MLX format)
   MODEL=mlx-community/L3-8B-Stheno-v3.2-4bit python3 scripts/forge.py train
@@ -33,6 +34,10 @@ ADAPTER = os.path.join(WORK, "adapter")
 
 
 def cmd_build(sources):
+    allow_plaintext = False
+    if "--plaintext" in sources:
+        allow_plaintext = True
+        sources = [s for s in sources if s != "--plaintext"]
     if not sources:
         sys.exit("Give me sources: files, URLs, or YouTube links.")
     print(f"Ingesting {len(sources)} source(s)…")
@@ -46,8 +51,12 @@ def cmd_build(sources):
     print("\n".join(got))
     if not docs:
         sys.exit("Nothing readable to train on.")
-    n_train, n_valid = forge.build_dataset(docs, DATA)
-    print(f"\nDataset: {n_train} train / {n_valid} valid chunks  →  {DATA}")
+    try:
+        n_train, n_valid = forge.build_dataset(docs, DATA, allow_plaintext=allow_plaintext)
+    except RuntimeError as exc:
+        sys.exit(str(exc))
+    mode = "plaintext" if allow_plaintext else "encrypted-at-rest"
+    print(f"\nDataset: {n_train} train / {n_valid} valid chunks  →  {DATA} ({mode})")
     if n_train < 40:
         print("  ⚠ small corpus — voice shift will be subtle. More material = stronger,\n"
               "    but keep it BALANCED; one narrow source overfits and degrades her.")
@@ -61,12 +70,16 @@ def cmd_train():
     if not os.path.exists(os.path.join(DATA, "train.jsonl")):
         sys.exit("No dataset — run `forge.py build …` first.")
     iters = int(os.environ.get("FORGE_ITERS", "300"))
-    cmd = forge.train_command(model, DATA, ADAPTER, iters=iters)
-    print("Training:", " ".join(cmd))
     try:
-        subprocess.run(cmd, check=True)
-    except FileNotFoundError:
-        sys.exit("mlx_lm not found. Run: pip install mlx-lm")
+        with forge.materialized_dataset(DATA) as data_dir:
+            cmd = forge.train_command(model, data_dir, ADAPTER, iters=iters)
+            print("Training:", " ".join(cmd))
+            try:
+                subprocess.run(cmd, check=True)
+            except FileNotFoundError:
+                sys.exit("mlx_lm not found. Run: pip install mlx-lm")
+    except RuntimeError as exc:
+        sys.exit(str(exc))
     print(f"\nAdapter → {ADAPTER}\nNext:  MODEL={model} python3 scripts/forge.py gate")
 
 

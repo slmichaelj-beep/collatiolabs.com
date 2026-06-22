@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues and intake staging; remaining pending surfaces are plaintext export/training bundles.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues, intake staging, and export/training packages; remaining work is full private-store no-plaintext matrix coverage.
 4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST and POST query-token authorization are blocked; browser session/localStorage architecture remains open for the later product-grade pairing and cookie pass.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -146,8 +146,16 @@ Third closure update:
 - Focused certification passed: `certify_intake_staging_encryption`, `certify_private_write_classification`, `scripts/test_intake_endpoints.py`, `certify_intake_trace_viewer`, and `python3 -m anima.intake --selftest`.
 - Static classification now verifies 40 direct write sites. The only known pending privacy surfaces are plaintext export/training bundles in `anima/forge.py`, `anima/portable.py`, and `anima/platform.py`.
 
+Fourth closure update:
+- Added encrypted-by-default export helpers in `anima/secure_store.py`; plaintext export now requires an explicit `allow_plaintext=True` escape hatch.
+- Portable mind, full-mind platform bundles, identity bundles, and Forge LoRA training datasets now use sealed export writes by default.
+- Forge training datasets get a short-lived plaintext materialization only for the trainer handoff via `anima.forge.materialized_dataset()`.
+- Explicit plaintext escape hatches and trainer materializations are written with owner-only file permissions.
+- Added `scripts/certify_encrypted_exports.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_encrypted_exports`, `certify_private_write_classification`, `python3 -m anima.portable --selftest`, `python3 -m anima.platform --selftest`, `certify_identity_portability`, and `scripts/selftest.py`.
+- Static classification now verifies 37 direct write sites with no pending plaintext export/training surfaces.
+
 Still open before W03 is fully closed:
-- Add encrypted export/package options for portable mind, full mind, identity bundle, and forge training datasets, with clear user-controlled plaintext export escape hatch if needed.
 - Expand adversarial no-plaintext cert coverage from representative private stores to the full migrated private-store matrix.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product

@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 STORE = Path(".anima")
@@ -101,9 +103,18 @@ def chunk(text: str, words=180, overlap=20):
             if len(toks[i:i + words]) >= min(words // 2, 20)]
 
 
-def build_dataset(docs, out_dir, valid_frac=0.1, words=180):
+def _dataset_text(rows) -> str:
+    return "".join(json.dumps({"text": r}, ensure_ascii=False) + "\n" for r in rows)
+
+
+def build_dataset(docs, out_dir, valid_frac=0.1, words=180, *, allow_plaintext=False):
     """Write MLX-LM LoRA data: train.jsonl / valid.jsonl of {"text": chunk}.
-    `docs` is an iterable of raw strings. Returns (n_train, n_valid)."""
+    `docs` is an iterable of raw strings. Returns (n_train, n_valid).
+
+    The dataset is encrypted by default because corpus text can be deeply personal.
+    Pass allow_plaintext=True only for an intentional tool-readable dataset.
+    """
+    from . import secure_store
     os.makedirs(out_dir, exist_ok=True)
     rows = []
     for d in docs:
@@ -112,13 +123,29 @@ def build_dataset(docs, out_dir, valid_frac=0.1, words=180):
         return (0, 0)
     n_valid = max(1, int(len(rows) * valid_frac)) if len(rows) > 9 else 0
     valid, train = rows[:n_valid], rows[n_valid:]
-    with open(os.path.join(out_dir, "train.jsonl"), "w", encoding="utf-8") as f:
-        for r in train:
-            f.write(json.dumps({"text": r}) + "\n")
-    with open(os.path.join(out_dir, "valid.jsonl"), "w", encoding="utf-8") as f:
-        for r in (valid or train[:1]):                # MLX wants a non-empty valid set
-            f.write(json.dumps({"text": r}) + "\n")
+    secure_store.save_export_text(Path(out_dir) / "train.jsonl", _dataset_text(train),
+                                  allow_plaintext=allow_plaintext)
+    secure_store.save_export_text(Path(out_dir) / "valid.jsonl", _dataset_text(valid or train[:1]),
+                                  allow_plaintext=allow_plaintext)
     return (len(train), len(valid))
+
+
+def load_dataset_file(path: str | Path) -> str:
+    from . import secure_store
+    return secure_store.load_export_text(path, "") or ""
+
+
+@contextmanager
+def materialized_dataset(data_dir: str | Path):
+    """Yield a short-lived plaintext dataset directory for MLX, then delete it."""
+    from . import secure_store
+    src = Path(data_dir)
+    with tempfile.TemporaryDirectory(prefix="anima-forge-data-") as td:
+        tmp = Path(td)
+        for fn in ("train.jsonl", "valid.jsonl"):
+            text = secure_store.load_export_text(src / fn, "") or ""
+            secure_store.save_export_text(tmp / fn, text, allow_plaintext=True)
+        yield str(tmp)
 
 
 # --- commands the Mac runs (pure strings, testable here) ---------------------

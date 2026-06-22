@@ -80,14 +80,21 @@ def export(name: str, model_family: str = "") -> dict:
     }
 
 
-def to_file(name: str, path: str, model_family: str = "") -> str:
+def to_file(name: str, path: str, model_family: str = "", *, allow_plaintext: bool = False) -> str:
+    """Write an identity bundle, encrypted by default.
+
+    Pass allow_plaintext=True only when the user intentionally needs a human-readable,
+    model-agnostic JSON transfer file.
+    """
+    from . import secure_store
     b = export(name, model_family)
-    Path(path).write_text(json.dumps(b, indent=2, ensure_ascii=False), encoding="utf-8")
+    secure_store.save_export_json(path, b, allow_plaintext=allow_plaintext)
     return path
 
 
 def from_file(path: str) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8"))
+    from . import secure_store
+    return secure_store.load_export_json(path, {})
 
 
 def migrate(bundle: dict) -> dict:

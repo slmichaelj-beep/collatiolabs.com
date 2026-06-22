@@ -34,6 +34,58 @@ def load_json(path: str | Path, default=None):
     return util.load_json(path, default)
 
 
+def save_export_text(path: str | Path, text: str, *, allow_plaintext: bool = False) -> None:
+    """Save a user-portable export with encryption by default.
+
+    Exports are meant to leave Vera, so plaintext is a real option. It must be explicit:
+    callers pass allow_plaintext=True when they intentionally need a human/tool-readable
+    JSON/JSONL artifact.
+    """
+    if allow_plaintext:
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(p), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(text)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass
+        except Exception:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            raise
+        return
+    if not crypto.enabled():
+        raise RuntimeError(
+            "encrypted export requires ANIMA_KEY or the macOS Keychain item 'anima'; "
+            "pass allow_plaintext=True only for an intentional plaintext export")
+    save_text(path, text)
+
+
+def save_export_json(path: str | Path, obj, *, allow_plaintext: bool = False,
+                     trailing_newline: bool = False) -> None:
+    text = json.dumps(obj, indent=2, ensure_ascii=False)
+    if trailing_newline:
+        text += "\n"
+    save_export_text(path, text, allow_plaintext=allow_plaintext)
+
+
+def load_export_text(path: str | Path, default=None):
+    return load_text(path, default)
+
+
+def load_export_json(path: str | Path, default=None):
+    text = load_export_text(path, None)
+    if text is None:
+        return default
+    return json.loads(text)
+
+
 def save_bytes(path: str | Path, data: bytes) -> None:
     """Save bytes through the text crypto layer without exposing raw binary at rest."""
     payload = _BYTES_MARKER + base64.b64encode(bytes(data or b"")).decode("ascii")
