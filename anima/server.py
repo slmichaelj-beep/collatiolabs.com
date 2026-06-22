@@ -2788,16 +2788,58 @@ class Handler(BaseHTTPRequestHandler):
     def _authed(self) -> bool:
         if not self.token:
             return True
-        q = parse_qs(urlparse(self.path).query)
-        given = q.get("k", [""])[0] or self.headers.get("X-Anima-Key", "")
+        given = self.headers.get("X-Anima-Key", "")
         auth = self.headers.get("Authorization", "")
         if not given and auth.startswith("Bearer "):
             given = auth[7:]
+        if not given and self._query_auth_allowed():
+            q = parse_qs(urlparse(self.path).query)
+            given = q.get("k", [""])[0]
         return hmac.compare_digest(given, self.token)   # constant-time
+
+    def _query_auth_allowed(self) -> bool:
+        method = str(getattr(self, "command", "GET") or "GET").upper()
+        return method in ("GET", "HEAD")
 
     def _origin(self):
         host = self.headers.get("Host", "")
         return host.split(":")[0], f"https://{host}"     # (rp_id, origin) for WebAuthn
+
+    @staticmethod
+    def _normalized_netloc(netloc: str) -> str:
+        netloc = (netloc or "").strip().lower()
+        if netloc.endswith(":80") or netloc.endswith(":443"):
+            return netloc.rsplit(":", 1)[0]
+        return netloc
+
+    def _same_host_url(self, raw: str) -> bool:
+        host = self._normalized_netloc(self.headers.get("Host", ""))
+        if not host:
+            return False
+        try:
+            u = urlparse((raw or "").strip())
+        except Exception:
+            return False
+        if u.scheme not in ("http", "https") or not u.netloc:
+            return False
+        return self._normalized_netloc(u.netloc) == host
+
+    def _post_origin_ok(self) -> bool:
+        """Fail closed for browser cross-site POSTs while still allowing native/curl clients.
+
+        Browsers send Origin/Referer/Fetch-Metadata on state-changing requests. Native clients may
+        omit them, so absence alone is not a failure; a hostile or malformed value is.
+        """
+        fetch_site = (self.headers.get("Sec-Fetch-Site", "") or "").strip().lower()
+        if fetch_site and fetch_site not in ("same-origin", "same-site", "none"):
+            return False
+        origin = self.headers.get("Origin", "")
+        if origin:
+            return self._same_host_url(origin)
+        referer = self.headers.get("Referer", "")
+        if referer:
+            return self._same_host_url(referer)
+        return True
 
     def _passed(self) -> bool:
         """Second layer: when a passkey (Face ID) is required, a valid Face-ID session is
@@ -2810,6 +2852,8 @@ class Handler(BaseHTTPRequestHandler):
     def _send(self, code, ctype, body):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -3520,9 +3564,12 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            path = urlparse(self.path).path
+            if not self._post_origin_ok():
+                return self._send(403, "application/json",
+                                  b'{"ok":false,"error":"cross_origin_post_refused"}')
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
-            path = urlparse(self.path).path
             if path.startswith("/auth/"):
                 from . import passkey
                 rp_id, origin = self._origin()

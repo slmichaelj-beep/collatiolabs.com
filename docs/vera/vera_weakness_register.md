@@ -25,7 +25,7 @@ Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 CONFIRMED` at-rest encryption is optional and inconsistently applied; several private ledgers bypass crypto-aware write helpers.
-4. `P1/P2 CONFIRMED` browser token handling uses query tokens and localStorage; no explicit Origin/CSRF boundary was found.
+4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` browser token handling still needs product pairing/session work, but unsafe cross-origin POST and POST query-token authorization are now blocked.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
@@ -130,7 +130,7 @@ Fix direction:
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
 Severity: `P2`
-Status: `CONFIRMED`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
 Evidence:
 - Server accepts auth through URL query `?k=`, `X-Anima-Key`, or `Authorization: Bearer`.
@@ -145,6 +145,21 @@ Fix direction:
 - Store session tokens in HttpOnly/SameSite cookies where browser-hosted.
 - Reject unsafe `Origin`/`Host` combinations on state-changing requests.
 - Cert CSRF and hostile-origin POST attempts.
+
+Closure update:
+- Implemented after this finding: `Handler._authed()` now treats `?k=` as a GET/HEAD-only legacy credential; POST state changes require `X-Anima-Key` or `Authorization: Bearer`.
+- `Handler.do_POST()` now rejects unsafe browser-origin state changes before token auth or body parsing.
+- The POST boundary rejects hostile/malformed `Origin`, hostile `Referer`, and `Sec-Fetch-Site: cross-site`, while still allowing same-host browser POSTs and native/curl clients that omit browser origin headers.
+- Responses now include `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`, reducing accidental query-token leakage and MIME-sniffing risk.
+- Added `scripts/certify_browser_origin_csrf.py`.
+- Added the cert to `scripts/run_master_cert_stack.py`.
+- Updated `scripts/certify_security_baseline.py` so the baseline now proves the stricter contract.
+- Focused certification passed: `certify_browser_origin_csrf`, `certify_security_baseline`, `certify_proactive_location`, `certify_audio_serve`, and `certify_expose_requires_auth`.
+
+Still open before full productization:
+- Replace localStorage token retention with a pairing/session design.
+- Prefer HttpOnly/SameSite cookies for browser-hosted sessions.
+- Remove or further quarantine `?k=` once a first-launch/pairing flow can replace it without breaking local setup.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 

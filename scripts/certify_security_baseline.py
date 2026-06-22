@@ -8,8 +8,10 @@ a socket:
                            default-OFF; a fresh creature has zero privileges until the user opts in.
   2. IDENTITY/AGENCY OFF — the held identity_agency switch is OFF by default (the freeze posture).
   3. AUTH WALL           — with ANIMA_TOKEN set, _authed() REFUSES a missing/wrong credential and
-                           ACCEPTS the correct one, via constant-time hmac.compare_digest; open only
-                           in dev (no token). The 401 'unauthorized' guard precedes the POST dispatch.
+                           ACCEPTS the correct header/Bearer credential, via constant-time
+                           hmac.compare_digest; open only in dev (no token). Legacy ?k= auth is
+                           GET-only and cannot authorize POST. The browser Origin/CSRF guard and
+                           401 'unauthorized' guard precede the POST dispatch.
   4. FACE/PASSKEY GATE   — a second layer (_passed / need_face_id 401) exists above the token.
   5. NO SECRET IN OUTPUT — the token VALUE is never printed/logged (only its ON/OFF status).
   6. SOURCE != POLICY    — re-assert the AI-security floor: an ingested source cannot flip a capability
@@ -56,26 +58,36 @@ def main() -> int:
     H = server.Handler
 
     class _Req:
-        def __init__(self, token, path, headers=None):
+        _query_auth_allowed = H._query_auth_allowed
+
+        def __init__(self, token, path, headers=None, command="GET"):
             self.token = token
             self.path = path
             self.headers = headers or {}
+            self.command = command
     ck("3. with a token set, a NO-credential request is refused",
        H._authed(_Req("s3cret", "/loc")) is False)
     ck("3. with a token set, a WRONG credential is refused",
        H._authed(_Req("s3cret", "/loc?k=nope")) is False
        and H._authed(_Req("s3cret", "/loc", {"Authorization": "Bearer nope"})) is False)
-    ck("3. with a token set, the CORRECT credential (?k= and Bearer) is accepted",
+    ck("3. with a token set, the CORRECT credential (?k= for GET and Bearer) is accepted",
        H._authed(_Req("s3cret", "/loc?k=s3cret")) is True
        and H._authed(_Req("s3cret", "/loc", {"Authorization": "Bearer s3cret"})) is True)
+    ck("3. ?k= is legacy GET-only and cannot authorize POST state changes",
+       H._authed(_Req("s3cret", "/loc?k=s3cret", command="POST")) is False
+       and H._authed(_Req("s3cret", "/loc", {"X-Anima-Key": "s3cret"}, command="POST")) is True)
     ck("3. open only in DEV (no token set -> auth disabled, documented)",
        H._authed(_Req("", "/loc")) is True)
     src = (ROOT / "anima" / "server.py").read_text()
     ck("3. the credential check is CONSTANT-TIME (hmac.compare_digest, no timing leak)",
        "hmac.compare_digest(given, self.token)" in src)
-    ck("3. a 401 'unauthorized' guard precedes the request dispatch",
+    post_at = src.find("def do_POST")
+    origin_at = src.find("if not self._post_origin_ok():", post_at)
+    auth_at = src.find("if not self._authed():", post_at)
+    talk_at = src.find('if path == "/talk"', post_at)
+    ck("3. a browser Origin/CSRF guard and 401 'unauthorized' guard precede the request dispatch",
        'self._send(401, "text/plain", b"unauthorized")' in src
-       and 0 <= src.find("if not self._authed():") < src.find('if path == "/talk"'))
+       and 0 <= post_at < origin_at < auth_at < talk_at)
 
     # ---- 4. FACE/PASSKEY GATE --------------------------------------------------------------
     ck("4. a second-layer Face-ID/passkey gate exists above the token (need_face_id 401)",
