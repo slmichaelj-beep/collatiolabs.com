@@ -996,7 +996,7 @@ def _make_chunks(source_id: str, parsed: dict, *, confidence: float, rights: str
     return chunks, sample_dicts
 
 
-def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
+def ingest(input: str, *, name: str = "Vera", input_ref: str | None = None) -> IntakeResult:
     """Run the Wave-1 spine on one input (a file path, directory, or URL string) and return
     the inspectable PLAN. detect -> parse -> classify -> route, emitting one Intake MRI
     trace. Produces NO durable storage (``IntakeResult.committed`` is always False).
@@ -1005,6 +1005,7 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
     folder's own result summarises the batch. Everything is guarded — a single bad file
     becomes a recorded failure, never a crashed ingest."""
     input = str(input)
+    display_ref = str(input_ref or input)
     fmt = P.detect_format(input)
 
     # ---- folder: walk + per-member ingest -----------------------------------
@@ -1012,11 +1013,12 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
         return _ingest_folder(input, name=name)
 
     source_id = _new_id("src")
-    tr = IntakeTrace(name, source_id, input_ref=input)
+    tr = IntakeTrace(name, source_id, input_ref=display_ref)
 
     # 1) detect + the title hint (uploaded).
-    title = P._title_from_path(input) if not input.lower().startswith(("http://", "https://", "www.")) else input
-    tr.stage("uploaded", out={"detected_format": fmt, "title": title, "input_ref": input})
+    title_src = display_ref if not input.lower().startswith(("http://", "https://", "www.")) else input
+    title = P._title_from_path(title_src) if not input.lower().startswith(("http://", "https://", "www.")) else input
+    tr.stage("uploaded", out={"detected_format": fmt, "title": title, "input_ref": display_ref})
 
     # 2) parse. Under RED host memory/swap pressure, DEFER the memory-heavy parsers (OCR for
     #    images/scanned PDFs, speech-to-text for audio/audiobook/video) rather than tip an already
@@ -1060,7 +1062,7 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
                           f"quarantined as DATA, never executed")
 
     # 3) classify.
-    cls = classify_source(parsed, name_hint=name, source_ref=input)
+    cls = classify_source(parsed, name_hint=name, source_ref=display_ref)
     detected = cls["detected_type"]
     cls["safety"] = safety
     tr.stage("classified", out={"type": detected, "suggested_use": cls["suggested_use"],
@@ -1072,7 +1074,7 @@ def ingest(input: str, *, name: str = "Vera") -> IntakeResult:
 
     # 4) build the Source header + route.
     provenance = {
-        "input_ref": input,
+        "input_ref": display_ref,
         "detected_format": fmt,
         "parse_status": status,
         "ingested_at": tr.doc["at"],

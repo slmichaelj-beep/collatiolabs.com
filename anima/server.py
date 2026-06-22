@@ -1845,8 +1845,11 @@ def _free_bytes(path):
 
 
 def _write_staging(name: str, source_id: str, kind: str, data: dict) -> Path:
-    """Write raw bytes/text to the staging path and return the path. The staging path
-    is .anima/{name}.intake_staging/{source_id}.* — one file per ingest attempt."""
+    """Write encrypted-at-rest bytes/text to staging and return the durable path.
+
+    Parsers receive a short-lived decrypted materialization via _materialized_staging();
+    the durable staging file itself is not raw user content.
+    """
     import base64
     sd = _staging_dir(name)
     sd.mkdir(parents=True, exist_ok=True)
@@ -1856,17 +1859,54 @@ def _write_staging(name: str, source_id: str, kind: str, data: dict) -> Path:
         p = sd / f"{source_id}{ext}"
         raw_b64 = data.get("bytes_b64") or ""
         if raw_b64:
-            p.write_bytes(base64.b64decode(raw_b64))
+            secure_store.save_bytes(p, base64.b64decode(raw_b64))
         else:
-            p.write_bytes(b"")
+            secure_store.save_bytes(p, b"")
     elif kind == "url":
         p = sd / f"{source_id}.url"
-        p.write_text(str(data.get("input") or ""), encoding="utf-8")
+        secure_store.save_bytes(p, str(data.get("input") or "").encode("utf-8"))
     else:
         # text or code
         p = sd / f"{source_id}.txt"
-        p.write_text(str(data.get("text") or data.get("input") or ""), encoding="utf-8")
+        secure_store.save_bytes(p, str(data.get("text") or data.get("input") or "").encode("utf-8"))
     return p
+
+
+def _staging_bytes(path: Path) -> bytes:
+    """Return staged bytes, supporting both new sealed files and legacy raw staging files."""
+    return secure_store.load_bytes(path, b"") or b""
+
+
+def _staging_text(path: Path) -> str:
+    return _staging_bytes(path).decode("utf-8", errors="replace")
+
+
+class _MaterializedStaging:
+    """Context manager for a parser-readable temp copy of a sealed staging file."""
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self.tmp: Path | None = None
+
+    def __enter__(self) -> Path:
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix="anima-stage-", suffix=self.path.suffix or ".bin")
+        try:
+            os.write(fd, _staging_bytes(self.path))
+        finally:
+            os.close(fd)
+        self.tmp = Path(tmp)
+        return self.tmp
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self.tmp is not None:
+            try:
+                self.tmp.unlink()
+            except OSError:
+                pass
+
+
+def _materialized_staging(path: Path) -> _MaterializedStaging:
+    return _MaterializedStaging(path)
 
 
 def _read_staging(name: str, source_id: str) -> tuple:
@@ -1921,9 +1961,10 @@ def _intake_plan(name: str, data: dict) -> dict:
     try:
         if kind == "url":
             ingest_input = str(data.get("input") or "")
+            result = _int.ingest(ingest_input, name=name, input_ref=str(stage_path))
         else:
-            ingest_input = str(stage_path)
-        result = _int.ingest(ingest_input, name=name)
+            with _materialized_staging(stage_path) as parse_path:
+                result = _int.ingest(str(parse_path), name=name, input_ref=str(stage_path))
         # capture the real trace_id (the id ingest() used when committing to the MRI trace)
         # BEFORE overriding source_id so /intake/trace lookups work.
         real_trace_id = str(result.trace_id or result.source.source_id)
@@ -1979,13 +2020,16 @@ def _intake_approve(name: str, data: dict) -> dict:
     # re-parse from staging
     try:
         if stage_path.suffix == ".url":
-            ingest_input = stage_path.read_text(encoding="utf-8").strip()
+            ingest_input = _staging_text(stage_path).strip()
+            result = _int.ingest(ingest_input, name=name, input_ref=str(stage_path))
+            parsed = _ip.parse(ingest_input)
         else:
-            ingest_input = str(stage_path)
-        result = _int.ingest(ingest_input, name=name)
+            with _materialized_staging(stage_path) as parse_path:
+                ingest_input = str(parse_path)
+                result = _int.ingest(ingest_input, name=name, input_ref=str(stage_path))
+                parsed = _ip.parse(ingest_input)
         result.source.source_id = source_id
         result.trace_id = source_id
-        parsed = _ip.parse(ingest_input)
     except Exception as e:
         return {"ok": False, "error": f"re-parse failed: {e!r}"}
     # commit

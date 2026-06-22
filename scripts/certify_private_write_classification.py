@@ -125,12 +125,10 @@ def _classify(s: WriteSite) -> tuple[str, str]:
 
     if p == "anima/server.py" and f in {"_transcribe", "_tts", "_warm"}:
         return ("private_temp_audio", "short-lived temp audio bridge, deleted after use where applicable")
+    if p == "anima/server.py" and f == "__enter__":
+        return ("private_temp_materialization", "short-lived decrypted parser handoff for sealed intake staging")
     if p == "anima/call_loop.py":
         return ("private_temp_audio", "short-lived call-loop audio temp files")
-    if p == "anima/server.py" and f == "_write_staging":
-        return ("PENDING_private_raw_staging", "raw parser handoff; needs transparent encrypted staging")
-    if p == "anima/server.py" and f == "_intake_plan":
-        return ("private_staging_metadata", "sidecar now writes through secure_store; AST line may lag only if changed")
 
     if p == "anima/portrait.py" and f == "log_turn":
         return ("crypto_aware_legacy", "manual crypto.maybe_encrypt per JSONL line")
@@ -219,7 +217,7 @@ def main() -> int:
              failures=fails,
              warnings=[f"{len(pending)} pending privacy write surfaces are classified"]
              if pending else [],
-             next_action=("Build encrypted export + transparent encrypted intake staging"
+             next_action=("Build encrypted export/package options"
                           if pending else ""),
              duration_sec=time.perf_counter() - t0)
     except Exception as e:

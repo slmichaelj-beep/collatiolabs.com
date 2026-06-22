@@ -24,8 +24,8 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues broadly; remaining pending surfaces are raw intake staging and plaintext export/training bundles.
-4. `P1/P2 CLOSED; CERTIFIED` browser auth now uses same-origin pairing plus HttpOnly/SameSite cookies; unsafe cross-origin POST and POST query-token authorization are blocked.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues and intake staging; remaining pending surfaces are plaintext export/training bundles.
+4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST and POST query-token authorization are blocked; browser session/localStorage architecture remains open for the later product-grade pairing and cookie pass.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
@@ -139,15 +139,21 @@ Second closure update:
 - Static classification cert currently verifies 43 direct write sites: crypto substrate, crypto-aware legacy chat archive, temp audio, installer config, public reports, backup/restore temp files, isolation fallbacks, and synthetic fixtures are classified.
 - Known pending privacy surfaces are explicitly named, not hidden: raw intake staging in `anima/server.py::_write_staging` needs transparent encrypted parser handoff; plaintext user-chosen export/training bundles in `anima/identity.py`, `anima/portable.py`, `anima/platform.py`, and `anima/forge.py` need encrypted export options.
 
+Third closure update:
+- Raw intake staging is no longer a durable plaintext surface. `anima/server.py::_write_staging` now stores staged text, URL, and uploaded-file bytes through `secure_store.save_bytes()`.
+- Parsers receive a short-lived decrypted temp materialization via `_materialized_staging()`; the temp file is deleted immediately after the parser handoff, while Intake MRI/provenance keeps the durable staging reference instead of exposing the temp path.
+- Added `scripts/certify_intake_staging_encryption.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_intake_staging_encryption`, `certify_private_write_classification`, `scripts/test_intake_endpoints.py`, `certify_intake_trace_viewer`, and `python3 -m anima.intake --selftest`.
+- Static classification now verifies 40 direct write sites. The only known pending privacy surfaces are plaintext export/training bundles in `anima/forge.py`, `anima/portable.py`, and `anima/platform.py`.
+
 Still open before W03 is fully closed:
-- Build transparent encrypted intake staging so parsers receive decrypted temp views without raw durable staging files.
 - Add encrypted export/package options for portable mind, full mind, identity bundle, and forge training datasets, with clear user-controlled plaintext export escape hatch if needed.
 - Expand adversarial no-plaintext cert coverage from representative private stores to the full migrated private-store matrix.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
 Severity: `P2`
-Status: `CLOSED; CERTIFIED`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
 Evidence:
 - Original review found server auth accepted URL query `?k=`, `X-Anima-Key`, or `Authorization: Bearer`.
@@ -169,17 +175,14 @@ Closure update:
 - The POST boundary rejects hostile/malformed `Origin`, hostile `Referer`, and `Sec-Fetch-Site: cross-site`, while still allowing same-host browser POSTs and native/curl clients that omit browser origin headers.
 - Responses now include `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`, reducing accidental query-token leakage and MIME-sniffing risk.
 - Added `scripts/certify_browser_origin_csrf.py`.
-- Added `POST /auth/pair`: a same-origin browser can exchange the pairing token for a signed `anima_auth` cookie.
-- The `anima_auth` cookie is `HttpOnly`, `SameSite=Strict`, path-scoped, max-age bounded, signed, expiring, and tamper-rejecting.
-- Face-ID/passkey sessions now set an HttpOnly/SameSite `anima_face_session` cookie from `/auth/login/finish`; `_passed()` accepts the cookie path while retaining `X-Anima-Sess` for API/backward compatibility.
-- Web shells now strip `?k=` from the URL, call `/auth/pair`, and remove old `anima_token` / `anima_sess` localStorage values instead of persisting them.
-- Added `scripts/certify_browser_session_cookies.py`.
+- Added an initial `scripts/certify_browser_session_cookies.py` cert for the current browser-cookie path, but W04 remains partial until that path is treated as a full product session architecture.
 - Added both browser security certs to `scripts/run_master_cert_stack.py`.
 - Updated `scripts/certify_security_baseline.py` so the baseline now proves the stricter contract.
 - Focused certification passed: `certify_browser_session_cookies`, `certify_browser_origin_csrf`, `certify_passkey_auth`, `certify_security_baseline`, `certify_proactive_location`, `certify_audio_serve`, and `certify_expose_requires_auth`.
 
 Residual note:
-- `?k=` remains as a GET/HEAD-only first-pairing convenience so existing local setup links still work. It is no longer accepted for POST state changes, is stripped from browser URLs, and is not retained in browser storage.
+- `?k=` remains as a GET/HEAD-only first-pairing convenience so existing local setup links still work. It is no longer accepted for POST state changes.
+- W04 is not fully closed until the browser session architecture gets its later product pass: product-grade one-time pairing, HttpOnly/SameSite cookie storage across all web shells, localStorage retirement, session rotation/revocation, and adversarial replay/migration certs.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 
