@@ -97,9 +97,11 @@
 <script>
 (function(){
   var _u=new URL(location.href);
-  var TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
-  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var TOKEN=_u.searchParams.get('k')||'';
+  if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+  try{localStorage.removeItem('anima_token');}catch(e){}
   var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function pillClass(s){s=(s||'').toLowerCase();

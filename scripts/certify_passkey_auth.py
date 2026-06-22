@@ -3,10 +3,11 @@
 certify_passkey_auth — the opt-in Face ID (WebAuthn passkey) second gate + the session-security FLOOR.
 
 Vera is local-first and gated. On top of the private tailnet + the API token, an opt-in Face ID /
-Touch ID layer can be REQUIRED to open the app. Once a Face ID passes, the server hands the client a
-short-lived SIGNED session; the second gate (server.Handler._passed) then admits a request ONLY if its
-X-Anima-Sess session VALIDATES — and ANY tampering with that session is REJECTED. This certifies that
-FLOOR deterministically, through the SAME passkey API the gate calls, with NO hardware and NO network:
+Touch ID layer can be REQUIRED to open the app. Once a Face ID passes, the server hands the browser a
+short-lived SIGNED session in an HttpOnly/SameSite cookie; API clients may still send that session in
+X-Anima-Sess. The second gate (server.Handler._passed) admits a request ONLY if that session VALIDATES
+— and ANY tampering with that session is REJECTED. This certifies that FLOOR deterministically, through
+the SAME passkey API the gate calls, with NO hardware and NO network:
 
   A. A FRESH SESSION VALIDATES — passkey.issue_session() mints a token and valid_session() accepts it.
   B. THE TAMPER FLOOR — every forgery is rejected: a flipped signature byte, a truncated token, a

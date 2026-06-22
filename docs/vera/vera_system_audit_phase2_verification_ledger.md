@@ -56,11 +56,12 @@ VERIFIED:
 - POST body size is capped by `MAX_BODY`; oversized bodies return 413 instead of partial JSON failure.
 - Mutations are centralized under `do_POST`, including teaching, packs, console decisions, security actions, consent, verification, talk/say/stt/tts, persona/values/dials, brain/model control, mail/message draft/send/read, web fetch, personal memory edit/forget, intake, search, library edit.
 
-VERIFIED WITH CAVEAT:
+UPDATED CLOSURE:
 
-- Token auth supports query param `?k=`, `X-Anima-Key`, and `Authorization: Bearer`.
-- Web UI stores token in localStorage and sends `X-Anima-Key` headers after first launch.
-- This is workable for localhost/home-screen use. For the next privacy frontier, query-token onboarding should be reduced or replaced with a one-time pairing flow to avoid URLs carrying long-lived secrets.
+- Token auth now treats query param `?k=` as GET/HEAD-only legacy pairing input; POST state changes require `X-Anima-Key`, `Authorization: Bearer`, or a valid signed auth cookie.
+- Browser UI now strips `?k=` from the URL, calls `/auth/pair`, and uses an `HttpOnly; SameSite=Strict` `anima_auth` cookie instead of storing `anima_token` in localStorage.
+- Face-ID/passkey browser sessions now ride an `HttpOnly; SameSite=Strict` cookie; `X-Anima-Sess` remains only as an API/backward-compatibility path.
+- Certified by `scripts/certify_browser_origin_csrf.py` and `scripts/certify_browser_session_cookies.py`.
 
 FINDING P1:
 
@@ -391,4 +392,3 @@ Vera's next frontier is not more automation for its own sake. It is private cont
 - Vera becomes more herself through shared history, but her growth is inspectable and reversible.
 - Domain powers are optional packs, never identity.
 - The relationship is warm, alive, useful, and honest.
-

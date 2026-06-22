@@ -14,6 +14,7 @@ a tunnel in front of it (Tailscale, or `cloudflared tunnel`) — no app to insta
 from __future__ import annotations
 
 import argparse
+import hashlib
 import hmac
 import json
 import logging
@@ -27,6 +28,7 @@ from datetime import datetime, timezone
 warnings.filterwarnings("ignore")                       # quiet torch/HF startup noise
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 from collections import deque
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
@@ -42,6 +44,9 @@ WEB = Path(__file__).parent / "web"
 MAX_BODY = 512 * 1024 * 1024         # cap request bodies at 512 MB. Knowledge Intake sends a file as
                                      # base64 JSON (~1.35x inflation), so 512 MB ≈ a ~370 MB file.
                                      # Over the cap -> an honest 413, never a silently truncated parse.
+AUTH_COOKIE = "anima_auth"
+FACE_COOKIE = "anima_face_session"
+AUTH_COOKIE_TTL = 30 * 24 * 3600
 
 
 class _BodyTooLarge(Exception):
@@ -2788,6 +2793,8 @@ class Handler(BaseHTTPRequestHandler):
     def _authed(self) -> bool:
         if not self.token:
             return True
+        if self._valid_auth_cookie(self._cookie(AUTH_COOKIE)):
+            return True
         given = self.headers.get("X-Anima-Key", "")
         auth = self.headers.get("Authorization", "")
         if not given and auth.startswith("Bearer "):
@@ -2800,6 +2807,56 @@ class Handler(BaseHTTPRequestHandler):
     def _query_auth_allowed(self) -> bool:
         method = str(getattr(self, "command", "GET") or "GET").upper()
         return method in ("GET", "HEAD")
+
+    def _cookie(self, name: str) -> str:
+        try:
+            jar = SimpleCookie()
+            jar.load(self.headers.get("Cookie", "") or "")
+            morsel = jar.get(name)
+            return morsel.value if morsel else ""
+        except Exception:
+            return ""
+
+    def _sign_auth_cookie(self, exp: int, nonce: str) -> str:
+        msg = ("auth.%d.%s" % (exp, nonce)).encode()
+        return hmac.new(self.token.encode(), msg, hashlib.sha256).hexdigest()
+
+    def _issue_auth_cookie(self) -> str:
+        exp = int(time.time() + AUTH_COOKIE_TTL)
+        nonce = secrets.token_urlsafe(18)
+        sig = self._sign_auth_cookie(exp, nonce)
+        return "v1.%d.%s.%s" % (exp, nonce, sig)
+
+    def _valid_auth_cookie(self, value: str) -> bool:
+        try:
+            version, exp_s, nonce, sig = (value or "").split(".", 3)
+            exp = int(exp_s)
+            if version != "v1" or exp <= time.time() or not nonce:
+                return False
+            return hmac.compare_digest(sig, self._sign_auth_cookie(exp, nonce))
+        except Exception:
+            return False
+
+    def _cookie_header(self, name: str, value: str, max_age: int) -> str:
+        parts = [
+            "%s=%s" % (name, value),
+            "Path=/",
+            "HttpOnly",
+            "SameSite=Strict",
+            "Max-Age=%d" % max_age,
+        ]
+        if self._request_is_https():
+            parts.append("Secure")
+        return "; ".join(parts)
+
+    def _clear_cookie_header(self, name: str) -> str:
+        return self._cookie_header(name, "", 0)
+
+    def _request_is_https(self) -> bool:
+        if (self.headers.get("X-Forwarded-Proto", "") or "").lower() == "https":
+            return True
+        forwarded = (self.headers.get("Forwarded", "") or "").lower()
+        return "proto=https" in forwarded
 
     def _origin(self):
         host = self.headers.get("Host", "")
@@ -2847,13 +2904,16 @@ class Handler(BaseHTTPRequestHandler):
         from . import passkey
         if not passkey.required():
             return True
-        return passkey.valid_session(self.headers.get("X-Anima-Sess", ""))
+        return passkey.valid_session(self.headers.get("X-Anima-Sess", "")
+                                     or self._cookie(FACE_COOKIE))
 
-    def _send(self, code, ctype, body):
+    def _send(self, code, ctype, body, headers=None):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
+        for k, v in (headers or []):
+            self.send_header(k, v)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -3570,10 +3630,15 @@ class Handler(BaseHTTPRequestHandler):
                                   b'{"ok":false,"error":"cross_origin_post_refused"}')
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
+            if path == "/auth/pair":
+                cookie = self._cookie_header(AUTH_COOKIE, self._issue_auth_cookie(), AUTH_COOKIE_TTL)
+                return self._send(200, "application/json", b'{"ok":true}',
+                                  headers=[("Set-Cookie", cookie)])
             if path.startswith("/auth/"):
                 from . import passkey
                 rp_id, origin = self._origin()
                 data = json.loads(self._read_body() or b"{}")
+                extra_headers = []
                 if path == "/auth/register/begin":
                     out = passkey.register_begin(rp_id)
                 elif path == "/auth/register/finish":
@@ -3581,12 +3646,18 @@ class Handler(BaseHTTPRequestHandler):
                 elif path == "/auth/login/begin":
                     out = passkey.auth_begin(rp_id) or '{"error":"not enrolled"}'
                 elif path == "/auth/login/finish":
-                    out = json.dumps(passkey.auth_finish(data.get("cred") or {}, rp_id, origin))
+                    result = passkey.auth_finish(data.get("cred") or {}, rp_id, origin)
+                    if result.get("ok") and result.get("session"):
+                        extra_headers.append(("Set-Cookie",
+                                              self._cookie_header(FACE_COOKIE, result["session"],
+                                                                  passkey.SESSION_TTL)))
+                    out = json.dumps(result)
                 elif path == "/auth/disable" and self._passed():
                     out = json.dumps(passkey.disable())
+                    extra_headers.append(("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)))
                 else:
                     out = '{"ok":false,"error":"bad auth request"}'
-                return self._send(200, "application/json", out.encode())
+                return self._send(200, "application/json", out.encode(), headers=extra_headers)
             if not self._passed():
                 return self._send(401, "application/json", b'{"need_face_id":true}')
             if path == "/auto_learn/decide":

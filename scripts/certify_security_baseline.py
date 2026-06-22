@@ -65,6 +65,12 @@ def main() -> int:
             self.path = path
             self.headers = headers or {}
             self.command = command
+
+        def _cookie(self, name):
+            return ""
+
+        def _valid_auth_cookie(self, value):
+            return False
     ck("3. with a token set, a NO-credential request is refused",
        H._authed(_Req("s3cret", "/loc")) is False)
     ck("3. with a token set, a WRONG credential is refused",

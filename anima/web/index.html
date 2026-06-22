@@ -810,16 +810,14 @@ form{padding:10px 12px;border-top:1px solid #141414;
 
 
 <script>
-// token comes from ?k= on the FIRST visit, then is remembered in localStorage — so a
-// home-screen/saved app keeps working without the key in the URL every launch.
+// Token comes from ?k= on the FIRST visit only. The browser immediately pairs it for a
+// HttpOnly SameSite cookie, strips it from the URL, and forgets any older localStorage copy.
 const _u=new URL(location.href);
-let TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||"";
-if(TOKEN) localStorage.setItem('anima_token',TOKEN);
-// keep ?k= IN the url: iOS home-screen apps have their own storage, so the key in the
-// saved URL is what makes a standalone (added-to-home-screen) app keep working.
-// mutable so the Face-ID session can be added live after unlock (every fetch spreads ...HDR)
+let TOKEN=_u.searchParams.get('k')||"";
+if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+try{localStorage.removeItem('anima_token');localStorage.removeItem('anima_sess');}catch(e){}
 const HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
-let SESS=localStorage.getItem('anima_sess')||''; if(SESS) HDR['X-Anima-Sess']=SESS;
+if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(r=>{if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(()=>{});
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
       titleEl=document.getElementById('title'),bar=document.getElementById('bar');
@@ -1851,7 +1849,7 @@ async function unlockFace(){
       response:{authenticatorData:bufToB64u(c.response.authenticatorData),clientDataJSON:bufToB64u(c.response.clientDataJSON),
         signature:bufToB64u(c.response.signature),userHandle:c.response.userHandle?bufToB64u(c.response.userHandle):null}};
     const r=await (await fetch('/auth/login/finish',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({cred})})).json();
-    if(r.ok&&r.session){ SESS=r.session; HDR['X-Anima-Sess']=SESS; localStorage.setItem('anima_sess',SESS); gate.classList.remove('show'); }
+    if(r.ok){ try{localStorage.removeItem('anima_sess');}catch(e){} gate.classList.remove('show'); }
     else flash('unlock failed');
   }catch(e){ flash('Face ID cancelled'); }
 }

@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""certify_browser_session_cookies — browser auth uses pairing cookies, not localStorage secrets.
+
+This cert closes the remaining W04 browser-session contract:
+  * a same-origin browser can pair a token into an HttpOnly/SameSite auth cookie;
+  * the auth cookie is signed, expires, and rejects tampering;
+  * Face-ID/passkey sessions can ride an HttpOnly/SameSite cookie;
+  * web shells strip `?k=` and do not persist auth/session secrets in localStorage.
+"""
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+class _Headers(dict):
+    def get(self, key, default=""):
+        return dict.get(self, key, default)
+
+
+def _req(path="/say", headers=None, command="POST", token="cookie-cert-token"):
+    from anima import server
+    h = server.Handler.__new__(server.Handler)
+    h.token = token
+    h.path = path
+    h.command = command
+    h.headers = _Headers(headers or {})
+    return h
+
+
+def main() -> int:
+    from anima import passkey, server
+
+    fails: list[str] = []
+
+    def ck(label: str, cond: bool):
+        print(("  ok   " if cond else "  XX   ") + label)
+        if not cond:
+            fails.append(label)
+
+    print("BROWSER SESSION COOKIES — pairing, HttpOnly/SameSite, no localStorage secrets")
+    print("=" * 92)
+    t0 = time.perf_counter()
+    token = "cookie-cert-token"
+
+    # ---- A. Main auth cookie: signed, expiring, HttpOnly/SameSite ------------------
+    h = _req(token=token)
+    cookie_value = h._issue_auth_cookie()
+    ck("A1: auth pairing mints a versioned signed cookie value",
+       isinstance(cookie_value, str) and cookie_value.startswith("v1.") and cookie_value.count(".") == 3)
+    ck("A2: the freshly minted auth cookie validates", h._valid_auth_cookie(cookie_value) is True)
+    ck("A3: _authed accepts the valid auth cookie without exposing ANIMA_TOKEN to JS headers",
+       _req(headers={"Cookie": server.AUTH_COOKIE + "=" + cookie_value}, token=token)._authed() is True)
+    ck("A4: a tampered auth cookie is rejected",
+       h._valid_auth_cookie(cookie_value[:-1] + ("0" if cookie_value[-1] != "0" else "1")) is False)
+    past = int(time.time()) - 5
+    expired = "v1.%d.%s.%s" % (past, "nonce", h._sign_auth_cookie(past, "nonce"))
+    ck("A5: an expired but correctly signed auth cookie is rejected",
+       h._valid_auth_cookie(expired) is False)
+    hdr = h._cookie_header(server.AUTH_COOKIE, cookie_value, server.AUTH_COOKIE_TTL)
+    ck("A6: auth cookie header is HttpOnly, SameSite=Strict, path-scoped, and max-age bounded",
+       all(part in hdr for part in ("HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=")))
+
+    # ---- B. Face-ID/passkey cookie path -------------------------------------------
+    face_session = passkey.issue_session()
+    face_req = _req(headers={"Cookie": server.FACE_COOKIE + "=" + face_session}, token=token)
+    saved_required = passkey.required
+    try:
+        passkey.required = lambda: True
+        ck("B1: _passed accepts a valid Face-ID session from the HttpOnly cookie path",
+           face_req._passed() is True)
+        bad_req = _req(headers={"Cookie": server.FACE_COOKIE + "=" + face_session[:-1] + "x"},
+                       token=token)
+        ck("B2: _passed rejects a tampered Face-ID cookie session", bad_req._passed() is False)
+    finally:
+        passkey.required = saved_required
+    face_hdr = h._cookie_header(server.FACE_COOKIE, face_session, passkey.SESSION_TTL)
+    ck("B3: Face-ID session cookie header is HttpOnly and SameSite=Strict",
+       "HttpOnly" in face_hdr and "SameSite=Strict" in face_hdr)
+
+    # ---- C. Static server wiring ---------------------------------------------------
+    src = (ROOT / "anima" / "server.py").read_text()
+    pair_at = src.find('path == "/auth/pair"')
+    auth_routes_at = src.find('path.startswith("/auth/")')
+    ck("C1: /auth/pair is wired before generic /auth passkey dispatch",
+       pair_at != -1 and auth_routes_at != -1 and pair_at < auth_routes_at)
+    ck("C2: /auth/pair sets the signed auth cookie with Set-Cookie",
+       "Set-Cookie" in src and "AUTH_COOKIE" in src and "_issue_auth_cookie()" in src)
+    ck("C3: /auth/login/finish sets the Face-ID session cookie; /auth/disable clears it",
+       "FACE_COOKIE" in src and 'path == "/auth/login/finish"' in src
+       and 'path == "/auth/disable"' in src and "_clear_cookie_header(FACE_COOKIE)" in src)
+    ck("C4: _send supports response headers so cookies are emitted through the normal path",
+       "def _send(self, code, ctype, body, headers=None)" in src)
+
+    # ---- D. Browser shells do not persist auth/session secrets ----------------------
+    html_files = sorted((ROOT / "anima" / "web").glob("*.html"))
+    combined = "\n".join(p.read_text(encoding="utf-8") for p in html_files)
+    forbidden = [
+        "localStorage.getItem('anima_token')",
+        'localStorage.getItem("anima_token")',
+        "localStorage.setItem('anima_token'",
+        'localStorage.setItem("anima_token"',
+        "localStorage.getItem('anima_sess')",
+        'localStorage.getItem("anima_sess")',
+        "localStorage.setItem('anima_sess'",
+        'localStorage.setItem("anima_sess"',
+        "keep ?k= IN",
+    ]
+    ck("D1: no web shell reads or stores anima_token/anima_sess in localStorage",
+       all(s not in combined for s in forbidden))
+    token_pages = [p for p in html_files if "searchParams.get('k')" in p.read_text(encoding="utf-8")]
+    ck("D2: every ?k-aware shell strips k from the URL and calls /auth/pair",
+       token_pages and all(("history.replaceState" in p.read_text(encoding="utf-8")
+                            and "/auth/pair" in p.read_text(encoding="utf-8"))
+                           for p in token_pages))
+    idx = (ROOT / "anima" / "web" / "index.html").read_text(encoding="utf-8")
+    ck("D3: main chat no longer sends Face-ID sessions through X-Anima-Sess from localStorage",
+       "X-Anima-Sess" not in idx and "localStorage.removeItem('anima_sess')" in idx)
+
+    green = not fails
+    try:
+        from anima.verification import cert_result as cr
+        cr.emit("certify_browser_session_cookies", "green" if green else "red",
+                files_observed=["anima/server.py", "anima/web/index.html", "anima/web/*.html"],
+                duration_sec=time.perf_counter() - t0, failures=fails)
+    except Exception as e:
+        print("  (emit failed: %r)" % e)
+
+    print("\nBROWSER-SESSION-COOKIES CERT: " + ("CERTIFIED" if green else f"FAIL ({len(fails)})"))
+    return 0 if green else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1446,7 +1446,8 @@ def probe_passkey_auth(res: Result) -> None:
                                              "def required(", "hmac.compare_digest"))
     gate = ("def _passed" in server_src and "passkey.valid_session" in server_src
             and '"/auth/login/finish"' in server_src)
-    ui = ('id="gate"' in idx and "unlockFace" in idx and "X-Anima-Sess" in idx)
+    ui = ('id="gate"' in idx and "unlockFace" in idx and '"/auth/login/finish"' in idx
+          and "X-Anima-Sess" not in idx and "localStorage.setItem('anima_sess'" not in idx)
     res.evidence.append("passkey session primitives (issue/valid/required/compare_digest)=%s; "
                         "server _passed gate + /auth routes=%s; #gate Face-ID UI=%s"
                         % (backend, gate, ui))

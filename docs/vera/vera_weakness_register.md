@@ -25,7 +25,7 @@ Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 CONFIRMED` at-rest encryption is optional and inconsistently applied; several private ledgers bypass crypto-aware write helpers.
-4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` browser token handling still needs product pairing/session work, but unsafe cross-origin POST and POST query-token authorization are now blocked.
+4. `P1/P2 CLOSED; CERTIFIED` browser auth now uses same-origin pairing plus HttpOnly/SameSite cookies; unsafe cross-origin POST and POST query-token authorization are blocked.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
@@ -130,12 +130,12 @@ Fix direction:
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
 Severity: `P2`
-Status: `PARTIALLY CLOSED; CERTIFIED`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
-- Server accepts auth through URL query `?k=`, `X-Anima-Key`, or `Authorization: Bearer`.
-- Browser UI stores token material in localStorage.
-- No explicit Origin/CSRF boundary was confirmed in the POST path during this pass.
+- Original review found server auth accepted URL query `?k=`, `X-Anima-Key`, or `Authorization: Bearer`.
+- Original review found browser UI stored token material in localStorage.
+- Original review found no explicit Origin/CSRF boundary in the POST path.
 
 Risk:
 This is acceptable-ish for localhost experiments, but weak for LAN, tunnels, installed desktop wrappers, or a personal OS that may hold sensitive history.
@@ -152,14 +152,17 @@ Closure update:
 - The POST boundary rejects hostile/malformed `Origin`, hostile `Referer`, and `Sec-Fetch-Site: cross-site`, while still allowing same-host browser POSTs and native/curl clients that omit browser origin headers.
 - Responses now include `Referrer-Policy: no-referrer` and `X-Content-Type-Options: nosniff`, reducing accidental query-token leakage and MIME-sniffing risk.
 - Added `scripts/certify_browser_origin_csrf.py`.
-- Added the cert to `scripts/run_master_cert_stack.py`.
+- Added `POST /auth/pair`: a same-origin browser can exchange the pairing token for a signed `anima_auth` cookie.
+- The `anima_auth` cookie is `HttpOnly`, `SameSite=Strict`, path-scoped, max-age bounded, signed, expiring, and tamper-rejecting.
+- Face-ID/passkey sessions now set an HttpOnly/SameSite `anima_face_session` cookie from `/auth/login/finish`; `_passed()` accepts the cookie path while retaining `X-Anima-Sess` for API/backward compatibility.
+- Web shells now strip `?k=` from the URL, call `/auth/pair`, and remove old `anima_token` / `anima_sess` localStorage values instead of persisting them.
+- Added `scripts/certify_browser_session_cookies.py`.
+- Added both browser security certs to `scripts/run_master_cert_stack.py`.
 - Updated `scripts/certify_security_baseline.py` so the baseline now proves the stricter contract.
-- Focused certification passed: `certify_browser_origin_csrf`, `certify_security_baseline`, `certify_proactive_location`, `certify_audio_serve`, and `certify_expose_requires_auth`.
+- Focused certification passed: `certify_browser_session_cookies`, `certify_browser_origin_csrf`, `certify_passkey_auth`, `certify_security_baseline`, `certify_proactive_location`, `certify_audio_serve`, and `certify_expose_requires_auth`.
 
-Still open before full productization:
-- Replace localStorage token retention with a pairing/session design.
-- Prefer HttpOnly/SameSite cookies for browser-hosted sessions.
-- Remove or further quarantine `?k=` once a first-launch/pairing flow can replace it without breaking local setup.
+Residual note:
+- `?k=` remains as a GET/HEAD-only first-pairing convenience so existing local setup links still work. It is no longer accepted for POST state changes, is stripped from browser URLs, and is not retained in browser storage.
 
 ### W05 - Passkey is not full WebAuthn signature verification
 
