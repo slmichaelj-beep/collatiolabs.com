@@ -215,7 +215,7 @@ Allowed product:
 Requirements:
 - Auth required for any non-localhost exposure. CLOSED / CERTIFIED.
 - Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; key lifecycle UX remains.
-- One-time pairing and session auth. PARTIALLY CLOSED / CERTIFIED; pairing codes, HttpOnly cookies, session inventory, rotation, single-session revoke, and logout-all are closed; first-launch UX and multi-shell replay/migration certs remain.
+- One-time pairing and session auth. PARTIALLY CLOSED / CERTIFIED; generated/displayed one-time pairing codes, chat-shell first-launch pairing UX, HttpOnly cookies, session inventory, rotation, single-session revoke, and logout-all are closed; multi-shell replay/migration certs remain.
 - Basic update/recovery story.
 - Crash-safe backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED.
 - Privacy receipt prototype.
@@ -541,7 +541,8 @@ Weeks 7-8:
 - Replace query-token UX with pairing/session. PARTIALLY CLOSED / CERTIFIED.
 - Add Origin/Host checks. CLOSED / CERTIFIED for same-host browser POST boundary.
 - Add CSRF hostile-origin cert. CLOSED / CERTIFIED.
-- Add first-launch one-time pairing UX; session rotation and device inventory are CLOSED / CERTIFIED.
+- Add first-launch one-time pairing UX. CLOSED / CERTIFIED for generated startup codes and the main chat shell; multi-shell replay/migration certs remain.
+- Add session rotation and device inventory. CLOSED / CERTIFIED.
 
 Weeks 9-10:
 - Bind approvals/actions.

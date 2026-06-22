@@ -3146,8 +3146,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             u = urlparse(self.path)
             # the app SHELL is public (it holds no secrets); every DATA route below
-            # still requires the token. The page remembers the token in localStorage,
-            # so a saved/home-screen app keeps working without ?k= on every launch.
+            # still requires auth. The browser pairs a launch key/code into an
+            # HttpOnly/SameSite cookie and does not store auth secrets in localStorage.
             if u.path in ("/", "/index.html"):
                 html = ((WEB / "index.html").read_text(encoding="utf-8")
                         .replace("__NAME__", self.name).replace("__TOKEN__", ""))
@@ -4182,14 +4182,24 @@ def main(argv=None):
     print(f"deploy: running {_DEPLOY['sha']} ({_DEPLOY['branch']}) — "
           f"`python3 scripts/deploy_check.py` confirms git == running (LAW 005)")
     Handler.token = token
-    Handler.pairing_codes = {
+    pairing_codes = {
         c.strip() for c in os.environ.get("ANIMA_PAIRING_CODE", "").split(",") if c.strip()
     }
+    generated_pairing_code = ""
+    if Handler.token and not pairing_codes:
+        generated_pairing_code = secrets.token_urlsafe(9)
+        pairing_codes.add(generated_pairing_code)
+    Handler.pairing_codes = pairing_codes
     from .mouth import DEFAULT_MODEL
     print(f"brain: {os.environ.get('ANIMA_MODEL', DEFAULT_MODEL)} (Ollama) — "
           f"make sure `ollama list` shows it")
     print(f"security: auth {'ON (token required)' if Handler.token else 'OFF (no token)'} · "
           f"files {'ENCRYPTED' if crypto.enabled() else 'plaintext'}")
+    if Handler.token and generated_pairing_code:
+        print(f"pairing: one-time browser code {generated_pairing_code} "
+              "(expires after first use or restart)")
+    elif Handler.token and Handler.pairing_codes:
+        print("pairing: one-time browser code(s) loaded from ANIMA_PAIRING_CODE")
     from . import passkey
     if os.environ.get("ANIMA_NO_PASSKEY") == "1":
         print("face id: BYPASSED (ANIMA_NO_PASSKEY=1)")

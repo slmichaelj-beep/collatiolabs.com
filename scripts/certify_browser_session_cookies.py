@@ -176,6 +176,10 @@ def main() -> int:
        "def _send(self, code, ctype, body, headers=None)" in src)
     ck("C8: ANIMA_PAIRING_CODE initializes one-time pairing codes at startup",
        "ANIMA_PAIRING_CODE" in src and "pairing_codes" in src)
+    ck("C9: authenticated startup auto-generates a transient one-time pairing code when none is supplied",
+       "generated_pairing_code = secrets.token_urlsafe" in src
+       and "expires after first use or restart" in src
+       and "if Handler.token and not pairing_codes" in src)
 
     # ---- D. Browser shells do not persist auth/session secrets ----------------------
     html_files = sorted((ROOT / "anima" / "web").glob("*.html"))
@@ -201,6 +205,14 @@ def main() -> int:
     idx = (ROOT / "anima" / "web" / "index.html").read_text(encoding="utf-8")
     ck("D3: main chat no longer sends Face-ID sessions through X-Anima-Sess from localStorage",
        "X-Anima-Sess" not in idx and "localStorage.removeItem('anima_sess')" in idx)
+    ck("D4: main chat offers a first-launch pairing-code gate instead of a ?k= recovery message",
+       all(s in idx for s in ("id=\"pairGate\"", "id=\"pairCode\"", "id=\"pairSubmit\"",
+                              "X-Anima-Pairing-Code", "showPairGate()", "submitPairCode()"))
+       and "vera2026" not in idx and "Open your link with ?k=" not in idx)
+    ck("D5: pairing-code UX posts only to /auth/pair and never writes the code to localStorage",
+       "fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Pairing-Code':code}})" in idx
+       and "localStorage.setItem('pair" not in idx
+       and "localStorage.setItem(\"pair" not in idx)
 
     green = not fails
     try:

@@ -333,6 +333,21 @@ form{padding:10px 12px;border-top:1px solid #141414;
 #gate-name{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;font-weight:400}
 #gate-btn{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:13px 26px;border-radius:24px}
 #faceRow .mbtn{margin-top:2px}
+#pairGate{display:none;position:fixed;inset:0;z-index:31;background:rgba(8,8,10,.86);
+  backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  align-items:center;justify-content:center;padding:22px}
+#pairGate.show{display:flex}
+#pairBox{width:min(360px,100%);background:#0f1117;border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.72)}
+#pairName{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#9a9aa2;margin-bottom:14px}
+#pairCode{width:100%;background:#0a0c11;border:1px solid rgba(255,255,255,.14);color:#e8e8ec;
+  border-radius:12px;padding:12px 13px;font-size:16px;outline:none}
+#pairCode:focus{border-color:rgba(47,127,255,.45);box-shadow:0 0 0 2px rgba(47,127,255,.12)}
+.pairActions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.pairActions button{width:auto;height:auto;border-radius:18px;padding:9px 16px;font-size:13px;cursor:pointer}
+#pairSubmit{background:#1f4ed8;color:#fff}
+#pairCancel{background:#1a1d26;color:#c4c4c8;border:1px solid rgba(255,255,255,.12)}
+#pairStatus{min-height:16px;font-size:12px;color:#d6a23a;margin-top:10px}
 /* search input inside panel */
 #searchInput{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
   color:#e4e4e7;border-radius:12px;padding:11px 14px;font-size:15px;outline:none}
@@ -350,6 +365,17 @@ form{padding:10px 12px;border-top:1px solid #141414;
   <div id="gate-face">🔒</div>
   <div id="gate-name">__NAME__</div>
   <button type="button" id="gate-btn">Unlock with Face ID</button>
+</div>
+<div id="pairGate" role="dialog" aria-modal="true" aria-label="Pair browser">
+  <div id="pairBox">
+    <div id="pairName">Pair __NAME__</div>
+    <input id="pairCode" autocomplete="one-time-code" autocapitalize="off" spellcheck="false" placeholder="Pairing code">
+    <div class="pairActions">
+      <button type="button" id="pairCancel">Cancel</button>
+      <button type="button" id="pairSubmit">Pair</button>
+    </div>
+    <div id="pairStatus"></div>
+  </div>
 </div>
 <header>
   <button id="mute" aria-label="voice on/off"></button>
@@ -821,18 +847,51 @@ if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then
 const log=document.getElementById('log'),input=document.getElementById('t'),
       stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
       titleEl=document.getElementById('title'),bar=document.getElementById('bar');
+const pairGate=document.getElementById('pairGate'),pairCode=document.getElementById('pairCode'),
+      pairStatus=document.getElementById('pairStatus'),pairSubmit=document.getElementById('pairSubmit'),
+      pairCancel=document.getElementById('pairCancel');
 // gently animate her NAME while something's actually happening (listening / thinking /
 // speaking) — ref-counted so overlapping stages keep it on; no claimed-state text.
 let busyN=0;
 function setBusy(on){ busyN=Math.max(0,busyN+(on?1:-1)); titleEl.classList.toggle('busy',busyN>0); }
 function flash(msg){ stateEl.textContent=msg; clearTimeout(flash._t);
   flash._t=setTimeout(()=>{ stateEl.textContent=''; },2600); }   // transient, auto-clears
+function showPairGate(){
+  if(!pairGate) return;
+  pairGate.classList.add('show');
+  if(pairStatus) pairStatus.textContent='';
+  setTimeout(()=>{ try{pairCode.focus();}catch(e){} },30);
+}
+function hidePairGate(){ if(pairGate) pairGate.classList.remove('show'); }
+async function submitPairCode(){
+  const code=(pairCode&&pairCode.value||'').trim();
+  if(!code){ if(pairStatus) pairStatus.textContent='Enter the pairing code.'; return; }
+  if(pairSubmit) pairSubmit.disabled=true;
+  if(pairStatus) pairStatus.textContent='Pairing...';
+  try{
+    const r=await fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Pairing-Code':code}});
+    if(r.ok){
+      if(pairCode) pairCode.value='';
+      hidePairGate();
+      flash('Browser paired');
+      return;
+    }
+    if(pairStatus) pairStatus.textContent='Pairing code was refused.';
+  }catch(e){
+    if(pairStatus) pairStatus.textContent='Could not reach Vera.';
+  }finally{
+    if(pairSubmit) pairSubmit.disabled=false;
+  }
+}
+if(pairSubmit) pairSubmit.onclick=submitPairCode;
+if(pairCancel) pairCancel.onclick=hidePairGate;
+if(pairCode) pairCode.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submitPairCode(); }});
 // one place to surface auth failures: 401 = either Face ID gate or a missing key
 async function authMiss(r){
   if(!r || r.status!==401) return false;
   let b={}; try{ b=await r.clone().json(); }catch(e){}
   if(b.need_face_id){ const g=document.getElementById('gate'); if(g) g.classList.add('show'); }
-  else flash(TOKEN?'Not signed in — reopen your ?k=… link once':'Open your link with ?k=vera2026 to sign in');
+  else{ showPairGate(); flash('Pair this browser to continue'); }
   return true;
 }
 

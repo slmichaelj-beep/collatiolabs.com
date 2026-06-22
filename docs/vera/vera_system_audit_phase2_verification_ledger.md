@@ -65,16 +65,16 @@ UPDATED CLOSURE:
 - Face-ID/passkey browser sessions now ride an `HttpOnly; SameSite=Strict` cookie; `X-Anima-Sess` remains only as an API/backward-compatibility path.
 - Auth cookies are server-registered by nonce and can be revoked through `/auth/logout`.
 - Optional `ANIMA_PAIRING_CODE` values create true one-time browser pairing codes; first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
+- When auth is enabled and no `ANIMA_PAIRING_CODE` is supplied, startup generates and prints a transient one-time browser pairing code; the main chat shell accepts that code through a pairing modal and never stores it.
 - Browser auth now has hashed session inventory, current-session rotation, single-session revoke, and logout-all through `/auth/sessions`, `/auth/rotate`, `/auth/logout-session`, and `/auth/logout-all`.
 - Certified by `scripts/certify_expose_requires_auth.py`, `scripts/certify_browser_origin_csrf.py`, and `scripts/certify_browser_session_cookies.py`.
 
 VERIFIED WITH CAVEAT:
 
-The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, non-revocable browser auth, missing session inventory, missing rotation, and missing logout-all issues are now closed and certified.
+The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, non-revocable browser auth, missing first-launch pairing entry for the main chat shell, missing startup one-time code generation, missing session inventory, missing rotation, and missing logout-all issues are now closed and certified.
 
 Remaining W04 work:
 
-- Add first-launch/pairing UX that generates and displays one-time codes without exposing durable secrets.
 - Cert migration/replay behavior across installed app, desktop browser, LAN, and tunnel shells.
 - Keep WebAuthn completion as W05; current passkey remains a strong local device-presence gate, not a full cryptographic WebAuthn verifier.
 
