@@ -978,7 +978,8 @@ def _turn(name, text, voice=False):
         else:
             u = mouth.respond(heart, text, history=list(_HISTORY),
                               audio_out=audio_out, perception=p, cap_note=cap_note,
-                              fact_block=_fact_block, route_model=_route_model)
+                              fact_block=_fact_block, route_model=_route_model,
+                              turn_id=_turn_id)
         gen_s = time.perf_counter() - _g0      # generation time (no TTS — that's streamed)
         # WHOLE-SYSTEM MRI (Phase 2): 'during' host snapshot — captured right after the reply is
         # generated, at the peak of the turn's work. Read-only /mri; guarded; only when ON.
@@ -1049,7 +1050,7 @@ def _turn(name, text, voice=False):
                     _u2 = mouth.respond(heart, text, history=list(_HISTORY),
                                         audio_out=None, perception=p, cap_note=cap_note,
                                         fact_block=_fact_block, route_model=_route_model,
-                                        hard_bind=True)
+                                        hard_bind=True, turn_id=_turn_id)
                 except Exception:
                     _u2 = None
                 if _u2 is not None and getattr(_u2, "text", "").strip():
@@ -1099,7 +1100,7 @@ def _turn(name, text, voice=False):
                         _u2 = mouth.respond(heart, text, history=list(_HISTORY),
                                             audio_out=None, perception=p, cap_note=cap_note,
                                             fact_block=_fact_block, route_model=_route_model,
-                                            hard_bind=False)
+                                            hard_bind=False, turn_id=_turn_id)
                     except Exception:
                         _u2 = None
                     if _u2 is not None and _confab_trait(
@@ -1354,6 +1355,35 @@ def _turn(name, text, voice=False):
             # Truth Ledger: the displayed claims' provenance handles (trace via /truth/trace).
             "truth_events": list(_truth_events or []),
         }
+        try:
+            from . import privacy_receipts as _prec
+            _receipt = _prec.record_turn(
+                name,
+                turn_id=_turn_id or "",
+                route_model=_route_model,
+                backend=getattr(u, "backend", ""),
+                cloud_available=bool(_cloud_on),
+                cloud_selected=bool(_route_cloud),
+                facts_selected=len(_bind_rows or []),
+                facts_sent_to_model=bool(_fact_block),
+                facts_withheld_from_model=bool(
+                    _route_cloud and (getattr(_route_dec, "selected_block", "") or _bind_rows)
+                ),
+                memory_ids=list(getattr(_route_dec, "memory_ids", []) or []),
+                route_reason=getattr(_route_dec, "reason", ""),
+            )
+            out["privacy_receipt"] = {
+                "turn_id": _receipt.get("turn_id", ""),
+                "route_model": _receipt.get("route_model", "local"),
+                "backend": _receipt.get("backend", ""),
+                "actual_egress": _receipt.get("actual_egress", "none"),
+                "facts_withheld_from_model": bool(_receipt.get("facts_withheld_from_model")),
+                "zero_egress": bool(_receipt.get("zero_egress")),
+            }
+            _stg("privacy_receipt", out=out["privacy_receipt"],
+                 note="sanitized route/backend/egress receipt; no prompt text or raw target")
+        except Exception:
+            pass
         # SOURCE-AWARE ATTRIBUTION (Intake Wave 3, Q — safe layer): surface which uploaded
         # REFERENCE sources are relevant to this question, labeled and distinct from personal
         # memory. This NEVER touches u.text (the reply is byte-for-byte unchanged) — it only adds
@@ -1632,7 +1662,7 @@ def _web_fetch(name, data):
     if not caps.enabled(name, "web"):
         return json.dumps({"ok": False, "error": "web access is off in settings"})
     c = caps.load(name)
-    return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"]))
+    return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"], name=name))
 
 
 # --- Personal Intelligence ("Learn Lamar") — see + control your own learned model ----------

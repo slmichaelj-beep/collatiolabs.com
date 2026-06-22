@@ -23,7 +23,7 @@ VERIFIED:
 
 Important nuance:
 
-- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 85/85 GREEN.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 86/86 GREEN.
 
 ## Product Identity
 
@@ -105,11 +105,19 @@ Per-turn local/cloud backend enforcement is now closed and certified:
 - Cloud routes blank private portrait memory before the provider brain sees the prompt.
 - Certified by `scripts/certify_route_backend_enforcement.py`.
 
+Updated closure:
+
+- Per-turn route/privacy receipts are now emitted in the turn response and appended to `.anima/privacy/<name>.privacy_receipts.jsonl`.
+- Egress ledger rows are appended for cloud provider calls, cloud key verification, allow-listed web fetches, and weather lookup.
+- Receipt/ledger rows store route/backend/egress facts and sanitized scheme+host targets only; no prompt text, API key, query token, or raw URL path/query is persisted.
+- Zero-egress hard switch is closed for cloud provider calls, cloud key verification, allow-listed web fetches, and weather lookup via `ANIMA_ZERO_EGRESS=1`.
+- Certified by `scripts/certify_privacy_receipts.py`, `scripts/certify_zero_egress_mode.py`, `scripts/certify_route_backend_enforcement.py`, `scripts/certify_web_allowlist.py`, and `scripts/certify_context_gather.py`.
+
 Remaining cloud/privacy product work:
 
-- Add per-turn route/privacy receipts visible to users.
-- Add an egress ledger for provider calls, web/location calls, and connector access.
-- Zero-egress hard switch is closed for cloud provider calls, cloud key verification, allow-listed web fetches, and weather lookup via `ANIMA_ZERO_EGRESS=1`; broaden it next to receipt-ledger coverage and connector policy.
+- Add a normal-user privacy receipt viewer/filter UI.
+- Add connector receipt policy for future Gmail/GitHub/etc. connectors.
+- Add coarse-location UX for weather/location calls.
 
 FRONTIER:
 
@@ -369,8 +377,8 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P1: Add per-turn privacy/route receipts plus egress ledger coverage.
-2. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
+1. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
+2. P2: Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
 3. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
 4. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 5. P2: Strengthen budget cumulative invariants and approval-ref validation.

@@ -24,7 +24,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from . import egress
+from . import egress, privacy_receipts
 from .util import load_json, save_json
 
 # --- PII scrub: hash structured PII before anything leaves the Mac for the cloud ----
@@ -399,6 +399,7 @@ class _CloudBrain:
     def __init__(self, model, key, name, provider):
         self.model, self.key, self.name, self.provider = model, key, name, provider
         self.last_tok_s = None
+        self.turn_id = ""
         self.max_tokens = int(os.environ.get("ANIMA_MAX_TOKENS", "160"))
         # The creature whose conversation this is. Set by the mouth each turn (it knows
         # heart.name); used ONLY to fetch that creature's KNOWN personal names so they
@@ -420,11 +421,47 @@ class _CloudBrain:
             return None
 
     def _post(self, url, headers, payload):
-        egress.require("cloud provider call", url)
+        try:
+            egress.require("cloud provider call", url)
+        except egress.EgressBlocked as exc:
+            try:
+                privacy_receipts.record_egress(
+                    self.creature, kind="cloud_provider", target=url,
+                    decision="blocked", turn_id=getattr(self, "turn_id", ""),
+                    reason=str(exc), metadata={"provider": self.provider, "model": self.model})
+            except Exception:
+                pass
+            raise
+        try:
+            privacy_receipts.record_egress(
+                self.creature, kind="cloud_provider", target=url,
+                decision="attempt", turn_id=getattr(self, "turn_id", ""),
+                metadata={"provider": self.provider, "model": self.model})
+        except Exception:
+            pass
         body = json.dumps(payload).encode()
         req = urllib.request.Request(url, body, headers)
-        with urllib.request.urlopen(req, timeout=120) as r:
-            return json.loads(r.read())
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                out = json.loads(r.read())
+            try:
+                privacy_receipts.record_egress(
+                    self.creature, kind="cloud_provider", target=url,
+                    decision="completed", turn_id=getattr(self, "turn_id", ""),
+                    metadata={"provider": self.provider, "model": self.model})
+            except Exception:
+                pass
+            return out
+        except Exception as exc:
+            try:
+                privacy_receipts.record_egress(
+                    self.creature, kind="cloud_provider", target=url,
+                    decision="failed", turn_id=getattr(self, "turn_id", ""),
+                    reason=exc.__class__.__name__,
+                    metadata={"provider": self.provider, "model": self.model})
+            except Exception:
+                pass
+            raise
 
 
 class OpenAICompatBrain(_CloudBrain):
@@ -436,6 +473,13 @@ class OpenAICompatBrain(_CloudBrain):
 
     def reply(self, system: str, user: str, history) -> str:
         if egress.zero_enabled():
+            try:
+                privacy_receipts.record_egress(
+                    self.creature, kind="cloud_provider", target=self.base,
+                    decision="blocked", turn_id=getattr(self, "turn_id", ""),
+                    reason="zero-egress", metadata={"provider": self.provider, "model": self.model})
+            except Exception:
+                pass
             return _ZERO_EGRESS
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
@@ -465,6 +509,13 @@ class AnthropicBrain(_CloudBrain):
 
     def reply(self, system: str, user: str, history) -> str:
         if egress.zero_enabled():
+            try:
+                privacy_receipts.record_egress(
+                    self.creature, kind="cloud_provider", target=self.base,
+                    decision="blocked", turn_id=getattr(self, "turn_id", ""),
+                    reason="zero-egress", metadata={"provider": self.provider, "model": self.model})
+            except Exception:
+                pass
             return _ZERO_EGRESS
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
@@ -495,6 +546,13 @@ def verify_key(provider: str, key: str, model: str = "", base: str = "") -> tupl
     if not preset:
         return False, f"unknown provider '{provider}'", []
     if egress.zero_enabled():
+        try:
+            privacy_receipts.record_egress(
+                None, kind="cloud_key_verification",
+                target=(base or preset["base"]), decision="blocked",
+                reason="zero-egress", metadata={"provider": provider})
+        except Exception:
+            pass
         return False, "zero-egress mode is on; cloud key verification is blocked", []
     key = (key or "").strip()
     if not key:
@@ -505,12 +563,30 @@ def verify_key(provider: str, key: str, model: str = "", base: str = "") -> tupl
     else:
         url, headers = b + "/models", {"Authorization": "Bearer " + key}
     try:
+        try:
+            privacy_receipts.record_egress(
+                None, kind="cloud_key_verification", target=url,
+                decision="attempt", metadata={"provider": provider})
+        except Exception:
+            pass
         with urllib.request.urlopen(urllib.request.Request(url, headers=headers, method="GET"), timeout=15) as r:
             data = json.load(r)
         ids = [m.get("id") for m in (data.get("data") or data.get("models") or [])
                if isinstance(m, dict) and m.get("id")]
+        try:
+            privacy_receipts.record_egress(
+                None, kind="cloud_key_verification", target=url,
+                decision="completed", metadata={"provider": provider, "models_seen": len(ids)})
+        except Exception:
+            pass
         return True, "", ids
     except urllib.error.HTTPError as e:
+        try:
+            privacy_receipts.record_egress(
+                None, kind="cloud_key_verification", target=url,
+                decision="failed", reason=f"HTTP {e.code}", metadata={"provider": provider})
+        except Exception:
+            pass
         body = ""
         try:
             body = e.read()[:300].decode("utf-8", "ignore")
@@ -529,6 +605,12 @@ def verify_key(provider: str, key: str, model: str = "", base: str = "") -> tupl
             pass
         return False, f"HTTP {e.code}: {msg}".strip()[:300], []
     except Exception as e:
+        try:
+            privacy_receipts.record_egress(
+                None, kind="cloud_key_verification", target=url,
+                decision="failed", reason=e.__class__.__name__, metadata={"provider": provider})
+        except Exception:
+            pass
         return False, f"could not reach {provider}: {e}"[:200], []
 
 

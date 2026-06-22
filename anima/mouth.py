@@ -962,7 +962,7 @@ class Mouth:
 
     def respond(self, heart, user_text: str, history=None, audio_out=None,
                 perception=None, cap_note=None, fact_block=None,
-                route_model=None, hard_bind=False) -> Utterance:
+                route_model=None, hard_bind=False, turn_id=None) -> Utterance:
         f = heart.feeling()
         brain = self.brain_for_route(route_model)
         sig = care.assess(user_text,
@@ -1184,6 +1184,11 @@ class Mouth:
         if hasattr(brain, "creature"):
             try:
                 brain.creature = heart.name
+            except Exception:
+                pass
+        if hasattr(brain, "turn_id"):
+            try:
+                brain.turn_id = turn_id or ""
             except Exception:
                 pass
         _t0 = _time.perf_counter()

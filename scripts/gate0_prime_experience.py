@@ -292,6 +292,7 @@ _STORE_MODULES = (
     "identity", "opportunity", "live",
     "server", "lerf", "lerf_router",
     "whole_mri",                        # Whole-System MRI recorder (append-only trace store)
+    "privacy_receipts",                 # per-turn route/egress receipts + egress ledger
     "models",                           # model-usage ledger (models.touch writes model-usage.json)
     "intake",                           # intake + reference stores (intake_queue reads intake.STORE)
     "incident",                         # security lockdown marker + SOC event trail

@@ -37,7 +37,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
-from . import egress
+from . import egress, privacy_receipts
 
 # Calendar.app scanned via AppleScript is O(events) PER calendar, and the `whose
 # start date ≥ …` predicate is slow — a machine with many subscribed calendars
@@ -89,13 +89,20 @@ class Weather:
         return ", ".join(bits)
 
 
-def weather(lat: float, lon: float, timeout: float = 8.0) -> Weather:
+def weather(lat: float, lon: float, timeout: float = 8.0, *,
+            name: str | None = None, turn_id: str = "") -> Weather:
     """Current conditions + today's high/low for a coordinate, via Open-Meteo.
 
     No API key. Returns Weather(ok=False, note=...) on any failure — the caller
     decides how to speak about a missing forecast; we never guess one.
     """
     if egress.zero_enabled():
+        try:
+            privacy_receipts.record_egress(
+                name, kind="weather_lookup", target="https://api.open-meteo.com",
+                decision="blocked", turn_id=turn_id, reason="zero-egress")
+        except Exception:
+            pass
         return Weather(ok=False, note="zero-egress mode is on; blocked weather lookup")
     try:
         lat = float(lat)
@@ -113,9 +120,22 @@ def weather(lat: float, lon: float, timeout: float = 8.0) -> Weather:
     })
     url = "https://api.open-meteo.com/v1/forecast?" + params
     try:
+        try:
+            privacy_receipts.record_egress(
+                name, kind="weather_lookup", target=url, decision="attempt",
+                turn_id=turn_id, metadata={"provider": "open-meteo"})
+        except Exception:
+            pass
         with urllib.request.urlopen(url, timeout=timeout) as r:
             data = json.loads(r.read())
     except Exception as e:                       # network down, rate-limited, etc.
+        try:
+            privacy_receipts.record_egress(
+                name, kind="weather_lookup", target=url, decision="failed",
+                turn_id=turn_id, reason=e.__class__.__name__,
+                metadata={"provider": "open-meteo"})
+        except Exception:
+            pass
         return Weather(ok=False, note=f"weather lookup failed: {e}")
     cur = data.get("current") or {}
     daily = data.get("daily") or {}
@@ -125,6 +145,12 @@ def weather(lat: float, lon: float, timeout: float = 8.0) -> Weather:
     def _first(seq):
         return seq[0] if isinstance(seq, list) and seq else None
 
+    try:
+        privacy_receipts.record_egress(
+            name, kind="weather_lookup", target=url, decision="completed",
+            turn_id=turn_id, metadata={"provider": "open-meteo"})
+    except Exception:
+        pass
     return Weather(
         ok=True,
         temp_f=cur.get("temperature_2m"),

@@ -100,6 +100,7 @@ Closure update:
 - Added the cert to `scripts/run_master_cert_stack.py`.
 - Closure certified on commit `9e4604d`: deploy proof GREEN, master stack `77/77 GREEN`, Diamond v2 repeatability CONFIRMED (`108 COMPLETE / 1 HONEST PARTIAL`, 0 product reds, 0 unclassified flakes).
 - Remote verified: `origin/anima` points to `9e4604d20c99a9b986fa2b4e5bfa03dbc86139fd`.
+- Later closure update: `server._turn` now emits a per-turn `privacy_receipt` and appends the same route/backend/egress facts to the encrypted-store-compatible receipt ledger; certified by `scripts/certify_privacy_receipts.py`.
 
 ### W03 - Encryption is optional and not consistently applied
 
@@ -267,10 +268,13 @@ Closure update:
 - Added `anima/egress.py` with hard zero-egress mode via `ANIMA_ZERO_EGRESS=1`.
 - Wired zero-egress into cloud provider activation, cloud key verification, direct cloud brain calls, allow-listed web fetches, and weather lookup before any socket is opened.
 - Added `scripts/certify_zero_egress_mode.py` and wired it into `scripts/run_master_cert_stack.py`.
-- Focused certification passed: `certify_zero_egress_mode`, `certify_web_allowlist`, `certify_context_gather`, `certify_model_management`, `certify_route_backend_enforcement`, and `certify_proactive_location`.
+- Added `anima/privacy_receipts.py` for append-only per-turn privacy receipts and sanitized egress ledger rows.
+- Wired turn receipts into `server._turn`, cloud provider calls, cloud key verification, allow-listed web fetches, and weather lookup.
+- Added `scripts/certify_privacy_receipts.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_privacy_receipts`, `certify_zero_egress_mode`, `certify_web_allowlist`, `certify_context_gather`, `certify_model_management`, `certify_route_backend_enforcement`, `certify_browser_session_cookies`, and `certify_privacy`.
 
 Residual note:
-- This closes the hard off switch for current cloud/web/weather egress surfaces. The visible egress ledger, per-turn privacy receipts, coarse-location UX, and connector receipt policy remain open.
+- This closes the hard off switch plus receipt/ledger coverage for current cloud/web/weather/key-verification egress surfaces. A normal-user receipt viewer, coarse-location UX, and connector receipt policy remain open.
 
 ## Governance And Autonomy
 
@@ -396,7 +400,7 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack currently passes 85/85 live.
+- Master cert stack currently passes 86/86 live.
 - Diamond v2 confirmed 108 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
@@ -556,8 +560,8 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Add per-turn route/privacy receipts and egress ledger coverage.
-2. Finish W04 session rotation/device inventory and multi-shell replay certs.
+1. Finish W04 session rotation/device inventory and multi-shell replay certs.
+2. Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
 3. Complete W05 WebAuthn signature verification or rename the surface honestly.
 4. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 5. Bind approvals to action intent.

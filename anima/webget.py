@@ -17,7 +17,7 @@ import urllib.request
 from urllib.parse import urlparse
 
 from .caps import _norm_host
-from . import egress
+from . import egress, privacy_receipts
 
 
 def host_allowed(url: str, allowlist) -> bool:
@@ -63,12 +63,31 @@ def _strip_html(html: str) -> str:
     return _WS.sub("\n\n", text).strip()
 
 
-def fetch(url: str, allowlist, max_bytes: int = 2_000_000, max_chars: int = 20_000) -> dict:
+def fetch(url: str, allowlist, max_bytes: int = 2_000_000, max_chars: int = 20_000,
+          *, name: str | None = None, turn_id: str = "") -> dict:
     """Fetch an allow-listed URL and return stripped text. Never raises."""
     if egress.zero_enabled():
+        try:
+            privacy_receipts.record_egress(
+                name, kind="web_fetch", target=url, decision="blocked",
+                turn_id=turn_id, reason="zero-egress")
+        except Exception:
+            pass
         return egress.blocked_result("web fetch", url)
     if not host_allowed(url, allowlist):
+        try:
+            privacy_receipts.record_egress(
+                name, kind="web_fetch", target=url, decision="blocked",
+                turn_id=turn_id, reason="host-not-allowlisted")
+        except Exception:
+            pass
         return {"ok": False, "error": "host is not on your allow-list"}
+    try:
+        privacy_receipts.record_egress(
+            name, kind="web_fetch", target=url, decision="attempt",
+            turn_id=turn_id, metadata={"allowlisted": True})
+    except Exception:
+        pass
     opener = urllib.request.build_opener(_AllowlistRedirect(allowlist))
     # a realistic browser identity so article/reference sites serve the real page
     # instead of 403-ing a non-browser fetch (these are pages YOU allow-listed)
@@ -82,9 +101,27 @@ def fetch(url: str, allowlist, max_bytes: int = 2_000_000, max_chars: int = 20_0
         with opener.open(req, timeout=15) as r:
             final = r.geturl()
             if not host_allowed(final, allowlist):          # belt-and-suspenders
+                try:
+                    privacy_receipts.record_egress(
+                        name, kind="web_fetch", target=final, decision="blocked",
+                        turn_id=turn_id, reason="redirect-off-allowlist")
+                except Exception:
+                    pass
                 return {"ok": False, "error": "redirected off your allow-list"}
             raw = r.read(max_bytes)
         text = _strip_html(raw.decode("utf-8", "ignore"))
+        try:
+            privacy_receipts.record_egress(
+                name, kind="web_fetch", target=final, decision="completed",
+                turn_id=turn_id, metadata={"chars": min(len(text), max_chars)})
+        except Exception:
+            pass
         return {"ok": True, "url": final, "text": text[:max_chars]}
     except Exception as e:
+        try:
+            privacy_receipts.record_egress(
+                name, kind="web_fetch", target=url, decision="failed",
+                turn_id=turn_id, reason=e.__class__.__name__)
+        except Exception:
+            pass
         return {"ok": False, "error": str(e)}

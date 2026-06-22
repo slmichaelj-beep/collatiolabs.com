@@ -11,8 +11,8 @@ folder and this file first.
 | HEAD | Use `git rev-parse --short HEAD`; certified slices are pushed to `origin/anima` |
 | Language | Python 3.12 (venv at `.venv/`) |
 | Run the server | `source .venv/bin/activate && python3 -m anima.server --name Vera --port 8765` → http://127.0.0.1:8765 |
-| Verify everything | `python3 scripts/run_master_cert_stack.py` (85/85 GREEN) then `python3 scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
-| Size | 346 Python modules · 221 cert scripts · 36 web surfaces · ~93 reports |
+| Verify everything | `python3 scripts/run_master_cert_stack.py` (86/86 GREEN) then `python3 scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
+| Size | 347 Python modules · 223 cert scripts · 36 web surfaces · ~91 reports |
 
 `reports/` is git-ignored (local evidence/state). Everything else is committed. The browser UI is
 served by `anima/server.py` (a stdlib `ThreadingHTTPServer`); each page has a `.json` data route and
@@ -65,6 +65,6 @@ Autonomous marketplace bidding or multi-account use is a ban risk and is refused
 ## For another service picking this up
 1. `cd ~/Developer/collatiolabs.com && source .venv/bin/activate`
 2. Read this file + `reports/financial_milestone_16000_plan.md` + `reports/offer_and_customer_acquisition_plan.md`.
-3. `python3 scripts/run_master_cert_stack.py` to confirm 85/85 GREEN, then `run_diamond_v2.py --gate`.
+3. `python3 scripts/run_master_cert_stack.py` to confirm 86/86 GREEN, then `run_diamond_v2.py --gate`.
 4. Start the server and open `/pipeline` and `/revenue/cash` to see live state.
 5. The deliverables in `deliverables/` are the proven, reusable work samples.

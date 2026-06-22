@@ -10,7 +10,8 @@ Updated closure note, 2026-06-22:
 - Private stores, high-risk ledgers, intake staging, portable exports, dataset/export bundles, and product-mode vault enforcement now have W03 encryption coverage.
 - Encrypted off-device backup bundles and restore drills are closed and certified by `scripts/certify_encrypted_backup_restore.py`; first-run key setup, recovery-code/hardware-key, and rotation UX remain.
 - Per-turn local/cloud backend enforcement is closed and certified by `scripts/certify_route_backend_enforcement.py`.
-- Zero-egress hard switch is closed and certified for cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_zero_egress_mode.py`; privacy receipts/egress ledger remain.
+- Zero-egress hard switch is closed and certified for cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_zero_egress_mode.py`.
+- Per-turn privacy receipts plus sanitized egress ledger coverage are closed and certified for turns, cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_privacy_receipts.py`; viewer/connector/coarse-location UX remain.
 - Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, and supports optional one-time `ANIMA_PAIRING_CODE` pairing codes.
 - W04 remains intentionally partial until first-launch pairing UX, session rotation/device inventory, and multi-shell migration/replay certs are finished.
 
@@ -27,9 +28,10 @@ Immediate work:
 - Add Origin/Host/CSRF checks. CLOSED / CERTIFIED for same-host browser POST boundary.
 - Add one-time pairing-code UX and device/session rotation.
 - Complete WebAuthn or rename current passkey gate honestly.
-- Add zero-egress mode. PARTIALLY CLOSED / CERTIFIED for cloud, web, and weather egress.
-- Add egress ledger.
-- Add per-turn privacy receipts.
+- Add zero-egress mode. CLOSED / CERTIFIED for cloud, web, and weather egress.
+- Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
+- Add per-turn privacy receipts. CLOSED / CERTIFIED for turn responses and append-only receipt ledger.
+- Add privacy receipt viewer, connector policy, and coarse-location UX.
 
 Certs:
 
@@ -38,6 +40,7 @@ Certs:
 - `certify_browser_session_cookies.py`
 - `certify_browser_origin_csrf.py`
 - `certify_zero_egress_mode.py`
+- `certify_privacy_receipts.py`
 
 ## Track 2 - Private Storage And Endless Context
 

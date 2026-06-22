@@ -566,8 +566,8 @@ Integrity:
 - Replace query-token auth with pairing/session flow.
 - Add Origin/Host/CSRF defenses.
 - Clarify or complete passkey/WebAuthn.
-- Add per-turn privacy receipt.
-- Add egress ledger.
+- Add per-turn privacy receipt. CLOSED / CERTIFIED for turn responses and append-only receipt ledger.
+- Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
 - Add receipt viewer UI.
 
 ### Month 4 - Governance Integrity

@@ -56,7 +56,7 @@ Owns:
 - no-plaintext certs
 - encrypted backups
 - recovery without Collatio custody
-- zero-egress mode (cloud/web/weather hard switch CLOSED / CERTIFIED; ledger coverage remains)
+- zero-egress mode plus privacy receipts (cloud/web/weather hard switch and ledger coverage CLOSED / CERTIFIED for current surfaces; connector policy/viewer UX remains)
 
 Immediate focus:
 - broaden `secure_store.py` from truth/observation to the whole private surface
@@ -276,8 +276,8 @@ Key certs:
 - Add Origin/Host/CSRF guards. CLOSED / CERTIFIED for same-host browser POST boundary.
 - Add first-launch one-time pairing UX, session rotation/device inventory, logout-all, and multi-shell replay/migration certs.
 - Complete WebAuthn or rename the current passkey gate honestly.
-- Add per-turn route receipts.
-- Add egress ledger.
+- Add per-turn route receipts. CLOSED / CERTIFIED for turn responses.
+- Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
 - Add privacy receipt viewer.
 
 ### Days 91-120 - Rooms, Governance, And Learning
