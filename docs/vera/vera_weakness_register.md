@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 CONFIRMED` at-rest encryption is optional and inconsistently applied; several private ledgers bypass crypto-aware write helpers.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers the named high-risk private ledger cluster; remaining direct writers need public/private classification.
 4. `P1/P2 CLOSED; CERTIFIED` browser auth now uses same-origin pairing plus HttpOnly/SameSite cookies; unsafe cross-origin POST and POST query-token authorization are blocked.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -104,28 +104,38 @@ Closure update:
 ### W03 - Encryption is optional and not consistently applied
 
 Severity: `P1`
-Status: `CONFIRMED BY ADVERSARIAL PROBE`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/crypto.py` implements optional Fernet encryption when `ANIMA_KEY` or keychain material exists.
 - `anima/util.py:54-82` has crypto-aware `save_json`, `save_text`, and load helpers.
-- `anima/truth/ledger.py:35-38` appends plaintext JSONL directly.
-- `anima/observation/store.py:23-28` appends plaintext JSONL directly.
-- `anima/company/storage.py:41-47` writes JSON directly.
-- Static direct-write sweep found additional production direct writes in telemetry, consent, curiosity, whole MRI, verification, and other store modules.
+- Original adversarial probe found Truth Ledger and Observation Store writing raw sensitive JSONL under `ANIMA_KEY`.
+- Static direct-write sweep found additional production direct writes in company storage, telemetry, consent, curiosity, whole MRI, verification, and other store modules.
 
 Risk:
 The project has the ingredients for private encrypted memory, but users will reasonably assume “private local companion” means sensitive ledgers are encrypted at rest. Today many durable memory/truth/observation files can remain plaintext.
 
 Probe result:
-- With `ANIMA_KEY=temporary-review-key`, a synthetic secret written through `truth.ledger.emit()` was visible in the raw `.truth.jsonl`.
-- With the same key, a synthetic secret written through `observation.store.append()` was visible in the raw `.observation.jsonl`.
+- Historical: with `ANIMA_KEY=temporary-review-key`, a synthetic secret written through `truth.ledger.emit()` was visible in the raw `.truth.jsonl`.
+- Historical: with the same key, a synthetic secret written through `observation.store.append()` was visible in the raw `.observation.jsonl`.
 
 Fix direction:
 - Introduce one storage substrate for JSON, text, and append-only JSONL.
 - Add `append_jsonl_encrypted()` and `load_jsonl_encrypted()` helpers.
 - Define public vs private store classes explicitly.
 - Cert: set `ANIMA_KEY`, perform a representative turn, then assert private `.anima` files do not contain raw user text.
+
+Closure update:
+- `anima/secure_store.py` is now the shared private persistence substrate for JSON, text, and append-only JSONL.
+- Truth Ledger and Observation Store now append through `secure_store.append_jsonl()` and read through `secure_store.read_jsonl_lines()`.
+- This slice migrated the named high-risk private/governance cluster to `secure_store`: `anima/company/storage.py`, `anima/consent/policy.py`, `anima/curiosity.py`, `anima/telemetry.py`, and `anima/whole_mri.py`.
+- Expanded `scripts/certify_secure_store_no_plaintext.py` to write synthetic secrets through Truth, Observation, Company, Consent, Curiosity, Telemetry, Telemetry MRI, and Whole-System MRI paths under `ANIMA_KEY`, inspect raw disk bytes, and prove the secrets are not present while normal load paths recover them.
+- Focused certification passed: `certify_secure_store_no_plaintext`, company canon, decision ledger, company state trackers, consent boundaries, curiosity invariants, telemetry selftest, and whole-MRI selftest.
+
+Still open before W03 is fully closed:
+- Classify every remaining direct write as `private`, `public report`, `temporary/binary`, or `test fixture`.
+- Migrate any remaining `private` direct writers to `secure_store`.
+- Add a static cert that fails on unclassified private direct writes.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 

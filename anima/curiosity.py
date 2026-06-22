@@ -61,6 +61,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
+
 # ---------------------------------------------------------------------------
 # Substrate reuse, isolation-safe. Prefer the live primitives; fall back to
 # contract-faithful locals so this module + its self-test run with nothing built.
@@ -802,10 +804,10 @@ def asked_keys(name: str) -> set:
         return set()
     out: set = set()
     try:
-        raw = p.read_text(encoding="utf-8")
-    except OSError:
+        lines = secure_store.read_jsonl_lines(p)
+    except Exception:
         return out
-    for line in raw.splitlines():
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -842,12 +844,7 @@ def mark_asked(name: str, gap: dict) -> Optional[dict]:
         "question": (gap.get("_question") or "")[:500],
     }
     try:
-        p = ledger_path(name)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+        secure_store.append_jsonl(ledger_path(name), rec)
     except Exception:
         return None
     return rec

@@ -22,7 +22,6 @@ CLI:
 from __future__ import annotations
 
 import json
-import os
 import re
 import secrets
 import string
@@ -30,6 +29,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+from . import secure_store
 
 # ---------------------------------------------------------------------------
 # Store root — module-level, redirectable for tests (mirrors telemetry.STORE /
@@ -418,16 +419,9 @@ def record(name: str, trace: UnifiedTrace) -> str:
     except (TypeError, ValueError) as exc:
         raise ValueError(f"record() refused: trace is not JSON-safe: {exc}") from exc
 
-    # Write — O_APPEND guarantees every call extends the file; never truncates
+    # Write — secure_store keeps append-only JSONL while honoring ANIMA_KEY at rest.
     path = _trace_path(name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
-    try:
-        os.write(fd, (line + "\n").encode("utf-8"))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    secure_store.append_jsonl(path, json.loads(line))
 
     return str(path.resolve())
 
@@ -440,16 +434,9 @@ def _read_all(name: str) -> list[dict]:
     if not p.exists():
         return rows
     try:
-        for line in p.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                if isinstance(obj, dict):
-                    rows.append(obj)
-            except Exception:
-                pass
+        for obj in secure_store.load_jsonl(p, skip_bad=True):
+            if isinstance(obj, dict):
+                rows.append(obj)
     except Exception:
         pass
     return rows

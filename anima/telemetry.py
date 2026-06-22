@@ -44,6 +44,8 @@ import threading
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
+
 # Reuse the ledger's canonical timestamp so a telemetry line stamps the SAME
 # ISO8601-Z shape as every other .anima artifact. Byte-identical fallback when the
 # module is exercised in isolation (e.g. python3 anima/telemetry.py --selftest).
@@ -87,9 +89,7 @@ def _append(name: str, row: dict) -> None:
     """Append one committed trace as a single jsonl line. Mirrors metrics._append
     exactly — including the blanket guard: a diagnostic must NEVER break a turn."""
     try:
-        STORE.mkdir(exist_ok=True)
-        with open(_path(name), "a") as f:
-            f.write(json.dumps(row) + "\n")
+        secure_store.append_jsonl(_path(name), row)
     except Exception:
         pass  # a diagnostic must NEVER break a turn
 
@@ -100,7 +100,7 @@ def _read(name: str) -> list:
     rows, p = [], _path(name)
     if p.exists():
         try:
-            for line in p.read_text().splitlines():
+            for line in secure_store.read_jsonl_lines(p):
                 try:
                     rows.append(json.loads(line))
                 except Exception:
@@ -703,10 +703,8 @@ def _append_mri(name: str, row: dict) -> None:
     ``default=str`` as a final serialisation backstop so an exotic value that slipped
     past ``_jsonable`` still can't raise."""
     try:
-        STORE.mkdir(exist_ok=True)
         line = json.dumps(row, default=lambda o: repr(o)[:120])
-        with open(_mri_path(name), "a") as f:
-            f.write(line + "\n")
+        secure_store.append_jsonl(_mri_path(name), json.loads(line))
     except Exception:
         pass
 
@@ -717,7 +715,7 @@ def _read_mri(name: str) -> list:
     rows, p = [], _mri_path(name)
     if p.exists():
         try:
-            for line in p.read_text().splitlines():
+            for line in secure_store.read_jsonl_lines(p):
                 try:
                     rows.append(json.loads(line))
                 except Exception:

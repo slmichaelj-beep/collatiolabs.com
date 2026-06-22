@@ -8,10 +8,11 @@ truth schema, full traceability.
 """
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+
+from anima import secure_store
 
 
 STORE = Path(".anima")  # redirectable by hermetic certs (see truth.ledger)
@@ -32,19 +33,13 @@ def company_dir(name: str, store: Path | None = None) -> Path:
 
 def load(name: str, kind: str, store: Path | None = None, default=None):
     p = company_dir(name, store) / f"{kind}.json"
-    try:
-        return json.loads(p.read_text())
-    except Exception:
-        return default if default is not None else {}
+    return secure_store.load_json(p, default if default is not None else {})
 
 
 def save(name: str, kind: str, data, store: Path | None = None) -> None:
     d = company_dir(name, store)
     d.mkdir(parents=True, exist_ok=True)
-    p = d / f"{kind}.json"
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, indent=1, ensure_ascii=False))
-    tmp.replace(p)
+    secure_store.save_json(d / f"{kind}.json", data)
 
 
 def emit_truth(name: str, kind: str, subject: str, claim: str, *, evidence_refs=None,

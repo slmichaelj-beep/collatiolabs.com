@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import datetime
 import hashlib
-import json
 from pathlib import Path
+
+from anima import secure_store
 
 from . import schema, classifier
 
@@ -32,16 +33,12 @@ def _pending_path(name: str) -> Path:
 
 
 def load(name: str) -> dict:
-    try:
-        return json.loads(_path(name).read_text())
-    except Exception:
-        return {}
+    return secure_store.load_json(_path(name), {}) or {}
 
 
 def _save(name: str, data: dict) -> None:
     try:
-        STORE.mkdir(exist_ok=True)
-        _path(name).write_text(json.dumps(data, indent=2))
+        secure_store.save_json(_path(name), data)
     except Exception:
         pass
 
@@ -169,16 +166,13 @@ def gate_memory_candidates(name: str, cands: list):
 
 
 def _load_pending(name: str) -> list:
-    try:
-        return json.loads(_pending_path(name).read_text()) or []
-    except Exception:
-        return []
+    data = secure_store.load_json(_pending_path(name), []) or []
+    return data if isinstance(data, list) else []
 
 
 def _save_pending(name: str, items: list) -> None:
     try:
-        STORE.mkdir(exist_ok=True)
-        _pending_path(name).write_text(json.dumps(items, indent=2))
+        secure_store.save_json(_pending_path(name), items)
     except Exception:
         pass
 
