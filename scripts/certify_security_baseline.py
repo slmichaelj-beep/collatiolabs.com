@@ -27,14 +27,26 @@ import os
 import re
 import sys
 import tempfile
+import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+_spec = importlib.util.spec_from_file_location(
+    "g0pe", str(ROOT / "scripts" / "gate0_prime_experience.py"))
+_g0pe = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_g0pe)
+_temp_store = _g0pe._temp_store
+
 
 def main() -> int:
+    with _temp_store():
+        return _main_impl()
+
+
+def _main_impl() -> int:
     from anima import caps, server, intake
     fails = []
 

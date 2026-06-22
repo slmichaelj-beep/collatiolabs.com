@@ -21,11 +21,30 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+_spec = importlib.util.spec_from_file_location(
+    "g0pe", str(ROOT / "scripts" / "gate0_prime_experience.py"))
+_g0pe = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_g0pe)
+_temp_store = _g0pe._temp_store
+
+
+def _run_isolated(script: str, *args: str, timeout: int):
+    """Run a delegated cert with a throwaway ANIMA_STORE, leaving reports/ writes intact."""
+    with _temp_store():
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / script), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(ROOT),
+        )
 
 
 def main() -> int:
@@ -74,8 +93,7 @@ def main() -> int:
     crit = [s for s in matrix["scenarios"] if s["kind"] == "critical"]
     rover_ok = False
     try:
-        r = subprocess.run([sys.executable, str(ROOT / "scripts" / "vera_rover.py"), "--selftest"],
-                           capture_output=True, text=True, timeout=180, cwd=str(ROOT))
+        r = _run_isolated("vera_rover.py", "--selftest", timeout=180)
         rover_ok = (r.returncode == 0)
     except Exception:
         rover_ok = False
@@ -93,8 +111,7 @@ def main() -> int:
        detected_gap and "__fake__.button.ghost" in (fake_ids - scen_ctrl))
 
     # ---- 7 matrix persists ----------------------------------------------------------------------
-    rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "generate_total_scenario_matrix.py")],
-                        capture_output=True, text=True, timeout=60, cwd=str(ROOT)).returncode
+    rc = _run_isolated("generate_total_scenario_matrix.py", timeout=60).returncode
     bundle = all((ROOT / "reports" / f).exists() for f in
                  ("scenario_matrix.json", "scenario_coverage.md", "user_surface_inventory.json",
                   "control_inventory.json", "api_inventory.json", "feature_to_scenario_matrix.json"))
@@ -104,64 +121,55 @@ def main() -> int:
     from anima import server
     srv = (ROOT / "anima" / "server.py").read_text()
     html = (ROOT / "anima" / "web" / "reality.html").read_text() if (ROOT / "anima" / "web" / "reality.html").exists() else ""
-    d = server._total_reality_data("Vera")
+    with _temp_store():
+        d = server._total_reality_data("TotalRealityCert")
     ck("8. the coverage rides through _total_reality_data + GET /reality serves the Control Room page",
        isinstance(d.get("inventory"), dict) and "/reality" in srv and "reality.json" in srv
        and "Total Reality" in html and "realityView" in html)
 
     # ---- PHASE 2 — Level-2 Rover execution + Observation Harness (delegated certs) --------------
-    re_rc, re_t = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_rover_execution.py")],
-                                 capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode, ""
-    ob_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_observation_bundle_complete.py")],
-                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    re_rc, re_t = _run_isolated("certify_rover_execution.py", timeout=180).returncode, ""
+    ob_rc = _run_isolated("certify_observation_bundle_complete.py", timeout=180).returncode
     ck("9. PHASE 2 — the Rover EXECUTES the Level-2 matrix against real backing paths (rover-execution cert)",
        re_rc == 0)
     ck("10. PHASE 2 — every executed scenario has an evidence record correlated by run_id (bundle cert)",
        ob_rc == 0)
 
     # ---- LEVEL 7 — Renegade integrated stress chains (delegated cert) ---------------------------
-    rn_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_renegade_chains.py")],
-                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    rn_rc = _run_isolated("certify_renegade_chains.py", timeout=180).returncode
     ck("11. LEVEL 7 — the Renegade integrated stress chains HOLD (renegade-chains cert)", rn_rc == 0)
 
     # ---- LEVEL 3 — permission / consent matrix coverage (delegated cert) ------------------------
-    pc_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_permission_consent_coverage.py")],
-                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    pc_rc = _run_isolated("certify_permission_consent_coverage.py", timeout=180).returncode
     ck("12. LEVEL 3 — the permission/consent matrix is executed + discriminates (perm-consent cert)",
        pc_rc == 0)
 
     # ---- LEVEL 4 — data-type / class coverage (delegated cert) ----------------------------------
-    dt_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_data_type_coverage.py")],
-                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    dt_rc = _run_isolated("certify_data_type_coverage.py", timeout=120).returncode
     ck("13. LEVEL 4 — every data class is classified + handled correctly (data-type cert)", dt_rc == 0)
 
     # ---- LEVELS 5 + 6 — state coverage + pairwise combinatorial (delegated cert) ----------------
-    sp_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_state_pairwise_coverage.py")],
-                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    sp_rc = _run_isolated("certify_state_pairwise_coverage.py", timeout=120).returncode
     ck("14. LEVELS 5+6 — states reflected + meaningful axis pairs execute and discriminate (state-pairwise cert)",
        sp_rc == 0)
 
     # ---- LEVEL 8 — long-session / soak (delegated cert) -----------------------------------------
-    sk_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_soak_coverage.py")],
-                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    sk_rc = _run_isolated("certify_soak_coverage.py", timeout=120).returncode
     ck("15. LEVEL 8 — long session stays bounded + healthy + safe; the soak keystones BITE (soak cert)",
        sk_rc == 0)
 
     # ---- LEVEL 9 — randomised seeded fuzz of the safety pipeline (delegated cert) ----------------
-    fz_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_fuzz_coverage.py")],
-                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    fz_rc = _run_isolated("certify_fuzz_coverage.py", timeout=120).returncode
     ck("16. LEVEL 9 — seeded fuzz holds the floor (0 P0 over the corpus) + the oracle BITES (fuzz cert)",
        fz_rc == 0)
 
     # ---- PER-PERSONA — the safety floor holds for every persona; the personas diverge (delegated) --
-    pp_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_persona_coverage.py")],
-                           capture_output=True, text=True, timeout=120, cwd=str(ROOT)).returncode
+    pp_rc = _run_isolated("certify_persona_coverage.py", timeout=120).returncode
     ck("17. PER-PERSONA — the safety floor holds for every persona + the personas BITE (persona cert)",
        pp_rc == 0)
 
     # ---- DEEP OBSERVATION STREAMS — per-scenario deep record + per-run host snapshot (delegated) ---
-    do_rc = subprocess.run([sys.executable, str(ROOT / "scripts" / "certify_deep_observation_streams.py")],
-                           capture_output=True, text=True, timeout=180, cwd=str(ROOT)).returncode
+    do_rc = _run_isolated("certify_deep_observation_streams.py", timeout=180).returncode
     ck("18. DEEP OBSERVATION STREAMS — every obs carries a deep record + host snapshot; deep BITES (deep cert)",
        do_rc == 0)
 

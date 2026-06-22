@@ -199,7 +199,8 @@ def run_subcert(args: list[str], retries: int = 1, backoff: float = 0.0) -> tupl
         if i and backoff:
             time.sleep(backoff)                       # let a momentary CPU/socket spike clear
         try:
-            cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
+            with g0pe._temp_store():
+                cp = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=600)
             tail = (cp.stdout or "")[-1500:] + (("\n[stderr]\n" + cp.stderr[-500:]) if cp.stderr else "")
             if cp.returncode == 0:
                 if i:                                 # recovered after a retry — a BOUNDED, LOGGED flake
@@ -4982,7 +4983,8 @@ def probe_performance(res: Result) -> None:
 def probe_response_latency(res: Result) -> None:
     """Performance — simple turns fast (route classifier + deterministic fast path), safety preserved.
     Cert: scripts/certify_response_latency.py --gate (classifier + fast-reply safety + wired-before-model
-    + live simple/known turns under the < 5s hard budget; the 8B model on normal chat is honestly warned)."""
+    + temp-store live simple/known turns under the < 5s hard budget; the 8B model on normal chat is
+    honestly warned)."""
     rc_, tail = run_subcert([HERE / "certify_response_latency.py", "--gate"])
     cert_ok = (rc_ == 0) and ("RESPONSE-LATENCY CERT: CERTIFIED" in tail)
     # PROMPT BUDGET (perf, measure-first): the self-narrative carried into the prompt is capped to a
@@ -5675,11 +5677,12 @@ def probe_live_ux(res: Result) -> None:
     """The real browser-facing UX paths the hermetic certs missed — the two live failures the gate
     was green through: a large file upload truncated by the 25 MB body cap (surfaced as 'Intake
     unavailable: could not reach the server'), and replies cut off mid-sentence by a too-low token
-    cap. scripts/certify_live_ux.py proves over REAL HTTP (skip-not-fail when the server is down):
+    cap. scripts/certify_live_ux.py proves over isolated REAL HTTP (temporary loopback server with
+    redirected stores):
     (A) a >25 MB body PARSES; (B) an over-cap body returns an honest 413; (C, hermetic) the
     _finish_on_sentence guard trims a mid-sentence reply to its last complete sentence and the token
-    floor is >=256. COMPLETE iff CERTIFIED + LIVE REAL; PARTIAL if the live legs SKIPPED (server
-    down) with reply-completion still proven; WALLPAPER never (no UI claims this beyond working)."""
+    floor is >=256. COMPLETE iff CERTIFIED + isolated HTTP REAL; WALLPAPER never (no UI claims this
+    beyond working)."""
     rc, tail = run_subcert([HERE / "certify_live_ux.py"])
     cert_ok = (rc == 0) and ("LIVE-UX CERT: CERTIFIED" in tail)
     live_real = "LIVE: REAL" in tail
@@ -5700,17 +5703,18 @@ def probe_live_ux(res: Result) -> None:
     if cert_ok and body_fix and reply_fix and live_real:
         res.status = COMPLETE
         res.proven_links = ["real_http_upload", "honest_overcap_413", "reply_completion"]
-        res.reason = ("Live UX integrity proven over real HTTP: a >25 MB upload PARSES (the 25 MB cap "
-                      "that truncated the base64 body into 'could not reach the server' is fixed — full "
-                      "body read, 512 MB cap), an over-cap body returns an honest 413, and replies never "
-                      "end mid-sentence (token floor 256 + _finish_on_sentence). END-TO-END: REAL.")
+        res.reason = ("Live UX integrity proven over isolated real HTTP: a >25 MB upload PARSES (the "
+                      "25 MB cap that truncated the base64 body into 'could not reach the server' is "
+                      "fixed — full body read, 512 MB cap), an over-cap body returns an honest 413, and "
+                      "replies never end mid-sentence (token floor 256 + _finish_on_sentence). The "
+                      "temporary server uses the production Handler with stores redirected, so the proof "
+                      "does not touch real Vera state.")
     elif cert_ok and reply_fix and skipped:
         res.status = PARTIAL
         res.proven_links = ["reply_completion"]
-        res.missing_links = ["real_http_upload (server not on :8765 during the cert — the large-upload "
-                             "and 413 legs need the live server; reply-completion proven hermetically)"]
-        res.reason = ("PARTIAL — reply-completion proven, but the large-upload + 413 legs need the live "
-                      "server on :8765 (it was down during the cert). Start it and re-run to close.")
+        res.missing_links = ["real_http_upload (isolated HTTP leg did not report LIVE: REAL)"]
+        res.reason = ("PARTIAL — reply-completion proven, but the isolated large-upload + 413 HTTP "
+                      "legs did not report LIVE: REAL.")
     else:
         res.status = STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("body_fix", body_fix),

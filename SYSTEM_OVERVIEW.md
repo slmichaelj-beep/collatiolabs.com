@@ -11,8 +11,8 @@ folder and this file first.
 | HEAD | Use `git rev-parse --short HEAD`; certified slices are pushed to `origin/anima` |
 | Language | Python 3.12 (venv at `.venv/`) |
 | Run the server | `source .venv/bin/activate && python3 -m anima.server --name Vera --port 8765` → http://127.0.0.1:8765 |
-| Verify everything | `python3 scripts/run_master_cert_stack.py` (88/88 GREEN) then `python3 scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
-| Size | 347 Python modules · 224 cert scripts · 37 web surfaces · ~91 reports |
+| Verify everything | `python3 scripts/run_master_cert_stack.py` (89/89 GREEN) then `python3 scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
+| Size | 347 Python modules · 225 cert scripts · 37 web surfaces · ~91 reports |
 
 `reports/` is git-ignored (local evidence/state). Everything else is committed. The browser UI is
 served by `anima/server.py` (a stdlib `ThreadingHTTPServer`); each page has a `.json` data route and
@@ -26,6 +26,13 @@ built to a strict bar: implemented · reachable in the UI · browser-proven (rov
 emitted · evidence/report written · governance-visible · certified · Diamond-repeatable. Core doctrine,
 enforced in code and certs: **no fake green, no unsupported claims, no autonomous external action,
 financial/legal/account actions are human-only, no raw credentials stored.**
+
+## Visibility layer rule
+Every build slice must ship with its visibility layer: code, cert, report/ledger evidence, weakness-register
+update, and a clear honest status for any partial. A feature or hardening change is not complete until the
+operator can see what changed, what stores/routes/certs it touched, which report proves it, and what remains
+deferred. Certification must be byte-clean against real `.anima` state except for explicitly classified
+volatile logs.
 
 ## The spine (every subsystem rides these)
 - **`anima/truth/`** — Truth Ledger: append-only, provenance for every claim.
@@ -65,6 +72,6 @@ Autonomous marketplace bidding or multi-account use is a ban risk and is refused
 ## For another service picking this up
 1. `cd ~/Developer/collatiolabs.com && source .venv/bin/activate`
 2. Read this file + `reports/financial_milestone_16000_plan.md` + `reports/offer_and_customer_acquisition_plan.md`.
-3. `python3 scripts/run_master_cert_stack.py` to confirm 88/88 GREEN, then `run_diamond_v2.py --gate`.
+3. `python3 scripts/run_master_cert_stack.py` to confirm 89/89 GREEN, then `run_diamond_v2.py --gate`.
 4. Start the server and open `/pipeline` and `/revenue/cash` to see live state.
 5. The deliverables in `deliverables/` are the proven, reusable work samples.

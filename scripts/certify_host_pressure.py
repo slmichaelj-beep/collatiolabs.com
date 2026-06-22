@@ -24,6 +24,7 @@ Exit 0 == CERTIFIED; 1 == FAIL.
 from __future__ import annotations
 
 import base64
+import importlib.util
 import os
 import shutil
 import sys
@@ -34,6 +35,12 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+_spec = importlib.util.spec_from_file_location(
+    "g0pe", str(ROOT / "scripts" / "gate0_prime_experience.py"))
+_g0pe = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_g0pe)
+_temp_store = _g0pe._temp_store
+
 _RED = {"level": "red", "reason": "swap 92% used", "mem_available_pct": 27.0,
         "swap_used_pct": 92.0, "swap_used_mb": 8449, "free_disk_gb": 50.0}
 _GREEN = {"level": "green", "reason": "headroom is fine", "mem_available_pct": 55.0,
@@ -41,6 +48,11 @@ _GREEN = {"level": "green", "reason": "headroom is fine", "mem_available_pct": 5
 
 
 def main() -> int:
+    with _temp_store():
+        return _main_impl()
+
+
+def _main_impl() -> int:
     from anima import intake, host_pressure as hp, server
     fails = []
 

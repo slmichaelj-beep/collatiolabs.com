@@ -15,15 +15,21 @@ Branch/head reviewed: `anima` / rolling W03/W04 security hardening series
 
 VERIFIED:
 
-- `scripts/run_master_cert_stack.py --json` passes 83/83 when Vera is running.
+- `scripts/run_master_cert_stack.py` passes 89/89 when Vera is running.
 - `scripts/run_diamond_v2.py --gate` confirms Diamond v2 repeatability.
-- Claim registry reports 108 `claimed_green`, 1 `claimed_amber`, 1 `deferred_visible`, 1 `enterprise_only`.
+- The live-path visibility pass reports byte-identical real `.anima` state and classifies `109 COMPLETE / 1 HONEST PARTIAL / 1 DEFERRED-NOT-CLAIMED`.
+- Claim registry reports all claimed product paths as classified, with partial/deferred items visible instead of hidden.
 - Route registry reports 27 linked-active operator routes and 1 intentionally not-claimed route (`/board`).
 - Working tree was clean during review.
 
 Important nuance:
 
-- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 88/88 GREEN.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 89/89 GREEN.
+
+Visibility rule:
+
+- Every build slice must expose what changed, which routes/stores/certs it touched, which report proves it, and what remains partial.
+- The cert/live-path harness now treats unclassified real `.anima` mutation as a product-trust failure even when feature classification is green.
 
 ## Product Identity
 
@@ -380,14 +386,13 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P2: Clean remaining cert fixture writes so live-path verification is byte-clean against real `.anima`.
-2. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
-3. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-4. P2: Strengthen budget cumulative invariants and approval-ref validation.
-5. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-6. P2: Fix Upwork Connects overspend and status transitions.
-7. P2: Add relational-honesty companion modes.
-8. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
+1. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
+2. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+3. P2: Strengthen budget cumulative invariants and approval-ref validation.
+4. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+5. P2: Fix Upwork Connects overspend and status transitions.
+6. P2: Add relational-honesty companion modes.
+7. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
 9. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
 
 ## North Star

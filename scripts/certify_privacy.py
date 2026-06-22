@@ -33,6 +33,11 @@ _temp_store = _g0pe._temp_store
 
 
 def main() -> int:
+    with _temp_store():
+        return _main_impl()
+
+
+def _main_impl() -> int:
     from anima import intake_queue, source_aware as sa, memory_lirf, cloud, portable, identity, server
     fails = []
 

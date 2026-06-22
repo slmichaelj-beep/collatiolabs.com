@@ -12,8 +12,8 @@ Two capabilities, one module:
     events (lockdowns, restores, and any source that calls security_event) so the posture is reviewable
     after the fact. Local-only; never leaves the Mac.
 
-State lives next to the rest of the creature state under .anima (CWD-relative, like caps/server), so a
-hermetic test harness that redirects .anima gets an isolated incident store automatically.
+State lives next to the rest of the creature state under .anima by default, and honors ANIMA_STORE so
+hermetic test harnesses can redirect the incident store automatically.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pathlib import Path
 
 from . import secure_store
 
-STORE = Path(".anima")
+STORE = Path(os.environ.get("ANIMA_STORE", ".anima"))
 
 
 def _now() -> str:

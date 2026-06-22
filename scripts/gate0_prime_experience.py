@@ -291,6 +291,10 @@ _STORE_MODULES = (
     "meaning", "curiosity", "trajectory", "reminders", "proactive", "caps",
     "identity", "opportunity", "live",
     "server", "lerf", "lerf_router",
+    "reliability",                       # DEFAULT_STORE guarded backups
+    "cloud", "personal", "world_model", "theory", "reality",
+    "identity_sandbox", "twin", "forge", "living_map.graph",
+    "archetypal_patterns.detector",
     "whole_mri",                        # Whole-System MRI recorder (append-only trace store)
     "privacy_receipts",                 # per-turn route/egress receipts + egress ledger
     "models",                           # model-usage ledger (models.touch writes model-usage.json)
@@ -304,6 +308,7 @@ _STORE_MODULES = (
     "company.storage",                  # Company/Foundry layer store
     "observation.store",                # Observation event log
 )
+_STORE_ATTRS = ("STORE", "DEFAULT_STORE", "_STORE")
 
 
 @contextlib.contextmanager
@@ -316,7 +321,13 @@ def _temp_store():
             mods.append(importlib.import_module("anima." + name))
         except Exception:
             pass
-    saved = [(m, getattr(m, "STORE", None)) for m in mods]
+    saved = [
+        (m, attr, getattr(m, attr))
+        for m in mods
+        for attr in _STORE_ATTRS
+        if hasattr(m, attr)
+    ]
+    old_env_store = os.environ.get("ANIMA_STORE")
     try:
         srv = importlib.import_module("anima.server")
     except Exception:
@@ -326,9 +337,9 @@ def _temp_store():
 
     with tempfile.TemporaryDirectory(prefix="anima-g0p-exp-") as td:
         p = Path(td)
-        for m in mods:
-            if hasattr(m, "STORE"):
-                m.STORE = p
+        os.environ["ANIMA_STORE"] = str(p)
+        for m, attr, _old in saved:
+            setattr(m, attr, p)
         if srv is not None:
             try:
                 saved_hist = list(getattr(srv, "_HISTORY"))
@@ -343,9 +354,12 @@ def _temp_store():
         try:
             yield p
         finally:
-            for m, old in saved:
-                if old is not None:
-                    m.STORE = old
+            for m, attr, old in saved:
+                setattr(m, attr, old)
+            if old_env_store is None:
+                os.environ.pop("ANIMA_STORE", None)
+            else:
+                os.environ["ANIMA_STORE"] = old_env_store
             if srv is not None:
                 try:
                     srv._HISTORY.clear()

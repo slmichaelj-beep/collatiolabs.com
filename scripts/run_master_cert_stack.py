@@ -28,6 +28,7 @@ STACK = [
     ("certify_verification_dashboard", []),
     ("certify_cert_freshness", []),
     ("certify_cert_flake_classification", []),
+    ("certify_cert_fixture_hermeticity", []),
     ("certify_no_stubs", ["--gate"]),
     ("certify_product_polish", []),
     ("certify_expose_requires_auth", []),

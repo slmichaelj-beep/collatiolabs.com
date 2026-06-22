@@ -30,7 +30,7 @@ Top weaknesses:
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
 8. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
-9. `P2 CONFIRMED` some older cert fixtures can dirty real `.anima` during live-path verification unless their stores are redirected or classified.
+9. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
 10. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
 11. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
 
@@ -415,7 +415,7 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack currently passes 88/88 live after the Privacy Flight Recorder slice.
+- Master cert stack currently passes 89/89 live after the cert-fixture hermeticity slice.
 - Diamond v2 confirmed 109 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
@@ -569,20 +569,35 @@ Fix direction:
 ### W21 - Some cert fixtures can dirty real `.anima` during verification
 
 Severity: `P2`
-Status: `CONFIRMED; PARTIALLY MITIGATED`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
 - A standalone `scripts/certify_live_paths.py --gate` run after the Privacy Flight Recorder slice classified the new feature as `COMPLETE`, but reported `hermetic (byte-identical): NO - LEAK`.
 - Recent real-store fixture writes included `.anima/SecBaseCert.intake.jsonl`, `.anima/HPCert.intake.jsonl`, `.anima/AiSecCert.intake.jsonl`, `.anima/PrivPortCopy.*`, `.anima/security_events.jsonl`, `.anima/Vera.meaning.jsonl`, and `.anima/Vera.trajectory.jsonl`.
-- The adjacent privacy/weather cert family also could append to `.anima/privacy/global.egress.jsonl`; this slice fixed `scripts/certify_zero_egress_mode.py` and `scripts/certify_context_gather.py` to redirect `privacy_receipts.STORE` into temp stores.
+- A deeper live-path diagnostic also found `certify_live_ux.py` mutating real `Vera.*` state through direct `_intake_plan("Vera")` calls and POSTs to the running server when it was up; a follow-up diagnostic found `certify_response_latency.py --gate` still POSTing to real `/say`.
+- Final W21 diagnostics found `probe_total_reality` mutating the real SOC trail and then `Vera.continuity.jsonl`; both are now covered by the focused guard and the full live-path fingerprint.
+- The adjacent privacy/weather cert family also could append to `.anima/privacy/global.egress.jsonl`; the Privacy Flight Recorder slice fixed `scripts/certify_zero_egress_mode.py` and `scripts/certify_context_gather.py` to redirect `privacy_receipts.STORE` into temp stores.
 
 Risk:
 Diamond repeatability can still confirm feature classification, but a privacy product should not let certification fixtures pollute a real user vault. Verification must be byte-clean or explicitly classify every allowed volatile artifact.
 
-Fix direction:
-- Redirect every store-bearing module in older certs that call intake, incident/security, identity import, meaning, trajectory, or egress paths.
-- Add a cert that fails when any synthetic cert creature writes to real `.anima`.
-- Keep volatile runtime logs excluded, but do not hide durable state pollution under the volatile umbrella.
+Closure:
+- Broadened `scripts/gate0_prime_experience.py` so the shared hermetic context redirects `STORE`, `DEFAULT_STORE`, `_STORE`, and `ANIMA_STORE` for the legacy/live-path module family.
+- Wrapped `scripts/certify_security_baseline.py`, `scripts/certify_host_pressure.py`, `scripts/certify_ai_security.py`, and `scripts/certify_privacy.py` in that hermetic context before they touch synthetic creatures.
+- Moved `scripts/certify_live_ux.py` off the user's running Vera server; it now starts an isolated loopback HTTP server using the production Handler with stores redirected, so the large-upload and 413 proofs remain real HTTP without mutating real `Vera.*` state.
+- Moved `scripts/certify_response_latency.py --gate` off the user's `/say` endpoint; it now drives `server._turn` inside the shared temp store with seeded synthetic memory, preserving the fast-path proof without mutating real turn state.
+- Made `anima/incident.py` honor `ANIMA_STORE`, so SOC/security events from child certs follow the hermetic store instead of hardcoded `.anima`.
+- Moved `scripts/certify_total_reality.py` delegated cert and rover subprocesses under isolated temp `ANIMA_STORE` contexts.
+- Wrapped `scripts/certify_live_paths.py::run_subcert` in the shared hermetic context so subprocess certs inherit an isolated store by default, rather than relying on each child cert to remember the redirect.
+- Disabled the AI-security live `/say` model-echo advisory by default; it now runs only with `ANIMA_CERT_LIVE_MODEL_ADVISORY=1`, so certification does not talk to a real live Vera server.
+- Added `scripts/certify_cert_fixture_hermeticity.py`, which snapshots the known synthetic-fixture, SOC, continuity, and `Vera.*` live-UX footprint in real `.anima`, runs the formerly leaky cert family, and fails if any fixture file is created or mutated.
+- Wired `certify_cert_fixture_hermeticity` into `scripts/run_master_cert_stack.py`.
+- Added the build-slice visibility rule to `SYSTEM_OVERVIEW.md`: each slice must include code, cert, report/ledger evidence, weakness-register update, and an honest status for partials.
+
+Certification:
+- Focused certs passed: `certify_security_baseline`, `certify_host_pressure`, `certify_ai_security`, `certify_privacy`, `certify_live_ux`, `certify_response_latency`, and `certify_total_reality`.
+- New adversarial guard passed: `certify_cert_fixture_hermeticity` proved the real `.anima` synthetic-fixture/SOC/continuity footprint was byte-identical before/after.
+- Full live-path visibility pass passed: `scripts/certify_live_paths.py --gate` returned `hermetic (byte-identical): YES`, `109 COMPLETE / 1 HONEST PARTIAL / 1 DEFERRED-NOT-CLAIMED`, `0 WALLPAPER`, `0 PRODUCT PARTIAL`, and `0 UNCLASSIFIED`.
 
 ## Closure Criteria
 
@@ -593,10 +608,9 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Clean the remaining cert fixture writes so live-path verification is byte-clean against real `.anima`.
-2. Complete W05 WebAuthn signature verification or rename the surface honestly.
-3. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-4. Bind approvals to action intent.
-5. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-6. Strengthen budget and marketplace resource invariants.
-7. Reframe revenue/company as optional domain packs in UI and documentation.
+1. Complete W05 WebAuthn signature verification or rename the surface honestly.
+2. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+3. Bind approvals to action intent.
+4. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+5. Strengthen budget and marketplace resource invariants.
+6. Reframe revenue/company as optional domain packs in UI and documentation.

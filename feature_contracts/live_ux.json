@@ -1,6 +1,6 @@
 {
   "feature": "live_ux",
-  "claim": "The REAL browser->server->model UX paths that the hermetic certs missed, proven over live HTTP: (1) a file upload LARGER than the old 25 MB request-body cap PARSES end-to-end — the cap plus a single rfile.read() used to silently truncate the base64 body into invalid JSON, which surfaced in the UI as the misleading 'Intake unavailable: could not reach the server'; _read_body now reads the FULL declared body in a loop and the cap is 512 MB. (2) A genuinely over-cap body returns an HONEST 413 with an actionable message (file too large, max ~N MB) instead of a truncated parse or a connection error. (3) A generated reply NEVER ends mid-sentence: the reply token floor was raised off the old 48-160 cap that cut replies off partway (the 'Vera stops at half-finished sentences' bug), and _finish_on_sentence trims any reply that still hits the ceiling back to its last complete sentence (never blanking or over-trimming a clean/short reply).",
+  "claim": "The REAL browser->server->model UX paths that the hermetic certs missed, proven over isolated real HTTP: (1) a file upload LARGER than the old 25 MB request-body cap PARSES end-to-end — the cap plus a single rfile.read() used to silently truncate the base64 body into invalid JSON, which surfaced in the UI as the misleading 'Intake unavailable: could not reach the server'; _read_body now reads the FULL declared body in a loop and the cap is 512 MB. (2) A genuinely over-cap body returns an HONEST 413 with an actionable message (file too large, max ~N MB) instead of a truncated parse or a connection error. (3) A generated reply NEVER ends mid-sentence: the reply token floor was raised off the old 48-160 cap that cut replies off partway (the 'Vera stops at half-finished sentences' bug), and _finish_on_sentence trims any reply that still hits the ceiling back to its last complete sentence (never blanking or over-trimming a clean/short reply).",
   "owner": "anima/server.py (MAX_BODY=512MB, _BodyTooLarge, _read_body full-loop read, do_POST 413 handler), anima/mouth.py (respond max_tokens floor 256, _finish_on_sentence guard applied after final_output_gate), scripts/certify_live_ux.py",
   "user_visible_entry": true,
   "durable": false,
@@ -11,13 +11,13 @@
   ],
   "killer_test": {
     "name": "large_upload_parses_overcap_413_replies_finish_on_sentence",
-    "setup": "scripts/certify_live_ux.py: (C, hermetic) _finish_on_sentence trims a real mid-sentence fragment back to its last complete sentence, leaves a clean reply and a short punctuation-less reply untouched, and the mouth.py reply token floor is >=256. (A/B, live against the running server on :8765, skip-not-fail) a ~30-40 MB base64 body POSTs to /intake/plan and PARSES (ok:true), and a body declaring >512 MB via Content-Length returns an honest 413 containing 'too large'.",
+    "setup": "scripts/certify_live_ux.py: (C, hermetic) _finish_on_sentence trims a real mid-sentence fragment back to its last complete sentence, leaves a clean reply and a short punctuation-less reply untouched, and the mouth.py reply token floor is >=256. (A/B, isolated real HTTP) the cert starts a temporary loopback server using the production Handler with all stores redirected, then a ~30-40 MB base64 body POSTs to /intake/plan and PARSES (ok:true), and a body declaring >512 MB via Content-Length returns an honest 413 containing 'too large'.",
     "prompt": "upload a big file / read a long answer",
     "must_contain": [],
     "must_not_contain": []
   },
   "known_gaps": [
-    "The large-upload and 413 legs require the live server on :8765; without it the cert is honestly PARTIAL (reply-completion still proven hermetically). Very large books (hundreds of MB) are still base64-in-JSON; a streaming binary upload endpoint would be the next improvement, but real PDFs/audiobooks up to ~370 MB now ingest and anything larger is refused with an honest message."
+    "Very large books (hundreds of MB) are still base64-in-JSON; a streaming binary upload endpoint would be the next improvement, but real PDFs/audiobooks up to ~370 MB now ingest and anything larger is refused with an honest message."
   ],
   "status": "UNKNOWN"
 }
