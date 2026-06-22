@@ -66,6 +66,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
+
 # ---------------------------------------------------------------------------
 # Substrate reuse, isolation-safe. We read (never write) ONE store: the meaning
 # significance ledger, via ``meaning.snapshots(name)``. The clean-gate banned-term list
@@ -789,11 +791,7 @@ def snapshot_trajectory(name: str) -> Optional[dict]:
     }
     try:
         path = ledger_path(name)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+        secure_store.append_jsonl(path, entry)
     except Exception:
         return None
     return entry
@@ -807,7 +805,7 @@ def trajectory_snapshots(name: str) -> list:
         return []
     out: list = []
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in secure_store.read_jsonl_lines(path):
             line = line.strip()
             if not line:
                 continue

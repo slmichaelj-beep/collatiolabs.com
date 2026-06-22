@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import json
 import os
+import base64
 from pathlib import Path
 
 from . import crypto, util
+
+_BYTES_MARKER = "ANIMABYTES1:"
 
 
 def save_text(path: str | Path, text: str) -> None:
@@ -29,6 +32,28 @@ def save_json(path: str | Path, obj) -> None:
 
 def load_json(path: str | Path, default=None):
     return util.load_json(path, default)
+
+
+def save_bytes(path: str | Path, data: bytes) -> None:
+    """Save bytes through the text crypto layer without exposing raw binary at rest."""
+    payload = _BYTES_MARKER + base64.b64encode(bytes(data or b"")).decode("ascii")
+    util.save_text(path, payload)
+
+
+def load_bytes(path: str | Path, default=None):
+    """Load bytes saved by save_bytes, while tolerating legacy plaintext binary files."""
+    p = Path(path)
+    if not p.exists():
+        return default
+    raw = p.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw
+    text = crypto.maybe_decrypt(text)
+    if not text.startswith(_BYTES_MARKER):
+        return raw
+    return base64.b64decode(text[len(_BYTES_MARKER):].encode("ascii"))
 
 
 def append_jsonl(path: str | Path, obj) -> None:
@@ -81,4 +106,3 @@ def load_jsonl(path: str | Path, *, skip_bad: bool = False) -> list[dict]:
             if not skip_bad:
                 raise
     return out
-

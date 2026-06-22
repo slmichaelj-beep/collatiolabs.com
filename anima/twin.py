@@ -84,6 +84,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from . import secure_store
+
 # Redirectable store root — IDENTICAL discipline to every engine (lerf.STORE, reality.STORE,
 # memory_lirf.STORE...). Tests redirect this; twins live under STORE/twins/. The real .anima
 # is the default. Honour ANIMA_STORE like identity_sandbox so a redirected store relocates the
@@ -405,15 +407,14 @@ def manifest_path(twin_id: str, root: Optional[Path] = None) -> Path:
 
 def _write_manifest(twin_id: str, manifest: dict, root: Optional[Path] = None) -> None:
     p = manifest_path(twin_id, root)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    secure_store.save_json(p, manifest)
 
 
 def read_manifest(twin_id: str, root: Optional[Path] = None) -> dict:
     p = manifest_path(twin_id, root)
     try:
         if p.is_file():
-            return json.loads(p.read_text(encoding="utf-8"))
+            return secure_store.load_json(p, {}) or {}
     except Exception:
         pass
     return {}
@@ -643,7 +644,7 @@ def snapshot_ledger(twin_id: str, root: Optional[Path] = None) -> List[dict]:
     if not p.is_file():
         return []
     out = []
-    for line in p.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(p):
         line = line.strip()
         if not line:
             continue
@@ -685,9 +686,7 @@ def snapshot(twin: dict | str, *, label: str = "", root: Optional[Path] = None) 
         # entry_hash chains content_hash + prev — append-only integrity.
         entry["entry_hash"] = hashlib.sha256(
             (content_hash + prev_hash + str(version)).encode()).hexdigest()
-        with open(_snap_ledger_path(tid, base), "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-            f.flush(); os.fsync(f.fileno())
+        secure_store.append_jsonl(_snap_ledger_path(tid, base), entry)
         # record on the manifest too (convenience index).
         man = read_manifest(tid, base)
         man.setdefault("snapshots", []).append({"version": version, "at": entry["at"],
@@ -1004,7 +1003,7 @@ def _change_enable_identity_evolution(creature: str) -> dict:
     grounded = _grounded_narrative_rewrite()
     npath = identity_sandbox.STORE / f"{creature}.narrative.txt"
     try:
-        npath.write_text(grounded, encoding="utf-8")
+        secure_store.save_text(npath, grounded)
     except Exception:
         pass
 
@@ -1577,7 +1576,7 @@ def record_identity_seed(*, source: str = "Vera", root: Optional[Path] = None,
         }
         fp = seed_fixture_path(base)
         fp.parent.mkdir(parents=True, exist_ok=True)
-        fp.write_text(json.dumps(fixture, indent=2, ensure_ascii=False), encoding="utf-8")
+        secure_store.save_json(fp, fixture)
 
     debt = None
     if write_debt:

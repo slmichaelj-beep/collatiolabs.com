@@ -34,7 +34,7 @@ import anima.mouth as mouth        # noqa: E402
 _STORE_MODULES = [
     "server", "portrait", "memory_lirf", "constitution", "reliability", "world_state",
     "telemetry", "metrics", "curiosity", "loops", "opportunity", "world_model", "meaning",
-    "dials", "whole_mri",
+    "dials", "whole_mri", "truth.ledger",
 ]
 
 
@@ -153,7 +153,8 @@ def main() -> int:
            bool(reply) and "offline voice" not in reply.lower())
 
         led = server._routes_path(name)
-        recs = ([json.loads(l) for l in led.read_text().splitlines() if l.strip()]
+        from anima import secure_store
+        recs = ([json.loads(l) for l in secure_store.read_jsonl_lines(led) if l.strip()]
                 if led.exists() else [])
         verified = [r for r in recs if r.get("outcome") == "verified_local" and r.get("grounded")]
         ok("C1: mri_trace — the route ledger recorded a GROUNDED verified_local LERF solve",

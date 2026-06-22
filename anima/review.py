@@ -68,6 +68,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
+
 # ---------------------------------------------------------------------------
 # Substrate reuse, isolation-safe. We READ five things and prefer the live
 # primitives, falling back to harmless no-ops so this module + its self-test run
@@ -1073,11 +1075,7 @@ def _append(name: str, state: dict) -> bool:
     returns False rather than raising into the sleep cycle. The module's only write."""
     try:
         path = ledger_path(name)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(state, ensure_ascii=False) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+        secure_store.append_jsonl(path, state)
         return True
     except Exception:
         return False
@@ -1091,7 +1089,7 @@ def all_states(name: str) -> list:
         return []
     out: list = []
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in secure_store.read_jsonl_lines(path):
             line = line.strip()
             if not line:
                 continue

@@ -28,6 +28,8 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import secure_store
+
 # Where the creature's life is kept. Mirrors anima.portrait / anima.memory_lirf so
 # the continuity ledger sits beside the things it protects. Overridable for tests.
 STORE = Path(os.environ.get("ANIMA_STORE", ".anima"))
@@ -280,10 +282,7 @@ def approved_loss(
     # whole-file pattern here — the ledger of losses must itself obey Archived>Deleted.
     path = continuity_log_path(name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        f.flush()
-        os.fsync(f.fileno())
+    secure_store.append_jsonl(path, entry)
     return entry
 
 
@@ -294,7 +293,7 @@ def approved_losses(name: str = "Vera") -> list[dict]:
     if not path.exists():
         return []
     out: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(path):
         line = line.strip()
         if not line:
             continue

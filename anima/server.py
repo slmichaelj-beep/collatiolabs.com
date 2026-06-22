@@ -37,7 +37,7 @@ from .heart import Heart
 from .memory import Memory
 from .mouth import Mouth
 from .util import label, save_json, load_json
-from . import senses, portrait
+from . import senses, portrait, secure_store
 
 STORE = Path(".anima")
 WEB = Path(__file__).parent / "web"
@@ -276,11 +276,9 @@ def _record_route(name, record):
     """Append ONE structured route decision for THIS turn. Fully guarded: a ledger hiccup
     can NEVER change a reply or break a turn (it runs after the reply is in hand)."""
     try:
-        STORE.mkdir(exist_ok=True)
         record = dict(record or {})
         record.setdefault("ts", datetime.now(timezone.utc).isoformat(timespec="seconds"))
-        with open(_routes_path(name), "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        secure_store.append_jsonl(_routes_path(name), record)
     except Exception:
         pass
 
@@ -1935,10 +1933,8 @@ def _intake_plan(name: str, data: dict) -> dict:
         # persist a tiny sidecar so approve() can re-locate the real trace_id if needed
         try:
             meta_path = stage_path.parent / f"{source_id}.meta"
-            import json as _json2
-            meta_path.write_text(_json2.dumps({"staging_id": source_id,
-                                               "real_trace_id": real_trace_id}),
-                                 encoding="utf-8")
+            secure_store.save_json(meta_path, {"staging_id": source_id,
+                                               "real_trace_id": real_trace_id})
         except Exception:
             pass
     except Exception as e:
@@ -2318,7 +2314,7 @@ def _console_data(name: str) -> dict:
 
     # decisions (founder approve/reject, persisted)
     try:
-        decisions = json.loads(_console_decisions_path(name).read_text())
+        decisions = secure_store.load_json(_console_decisions_path(name), {}) or {}
     except Exception:
         decisions = {}
 
@@ -2424,14 +2420,13 @@ def _console_decide(name: str, data: dict) -> dict:
     if action not in ("approve", "reject") or not iid:
         return {"ok": False, "error": "need improvement_id + action in {approve,reject}"}
     try:
-        d = json.loads(_console_decisions_path(name).read_text())
+        d = secure_store.load_json(_console_decisions_path(name), {}) or {}
     except Exception:
         d = {}
     d[iid] = {"approval_status": "approved" if action == "approve" else "rejected",
               "by": "founder", "at": _now_iso_safe()}
     try:
-        STORE.mkdir(exist_ok=True)
-        _console_decisions_path(name).write_text(json.dumps(d, indent=2))
+        secure_store.save_json(_console_decisions_path(name), d)
     except Exception:
         pass
     try:

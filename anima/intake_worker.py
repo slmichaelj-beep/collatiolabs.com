@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+from . import secure_store
 from . import intake as I
 from . import intake_queue as Q
 
@@ -56,9 +57,7 @@ def _jobs_path(name: str) -> Path:
 
 def _append(name: str, event: dict) -> dict:
     path = _jobs_path(name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(path, event)
     return event
 
 
@@ -67,7 +66,7 @@ def _events(name: str) -> list:
     if not path.exists():
         return []
     out = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(path):
         line = line.strip()
         if not line:
             continue

@@ -11,6 +11,8 @@ import os
 import re
 from pathlib import Path
 
+from anima import secure_store
+
 from . import schema
 
 # inputs Auto Learn must NEVER learn from (the directive's hard list)
@@ -36,18 +38,13 @@ def path_for(name: str, store: Path | None = None) -> Path:
 
 
 def load(name: str, store: Path | None = None) -> list[dict]:
-    try:
-        return json.loads(path_for(name, store).read_text()).get("suggestions", [])
-    except Exception:
-        return []
+    data = secure_store.load_json(path_for(name, store), {}) or {}
+    return data.get("suggestions", []) if isinstance(data, dict) else []
 
 
 def _save(name: str, recs: list[dict], store: Path | None = None) -> None:
     p = path_for(name, store)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": 1, "suggestions": recs}, indent=1, ensure_ascii=False))
-    tmp.replace(p)
+    secure_store.save_json(p, {"version": 1, "suggestions": recs})
 
 
 def forbidden_input(text: str, *, from_assistant_output: bool = False,

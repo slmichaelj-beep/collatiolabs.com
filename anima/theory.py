@@ -36,6 +36,7 @@ import re
 import time
 from pathlib import Path
 
+from . import secure_store
 from . import lerf
 
 STORE = Path(".anima")
@@ -106,9 +107,7 @@ def observe(name: str, claim: str, *, confirmed: bool, evidence: str = "", at: s
                 "detail": "a theory about Vera herself is refused — theories model the world/user only"}
     rec = {"claim": claim, "key": _key(claim), "confirmed": bool(confirmed),
            "evidence": (evidence or claim)[:400], "when": at or _now()}
-    STORE.mkdir(exist_ok=True)
-    with _obs_path(name).open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(_obs_path(name), rec)
     return {"ok": True, **rec}
 
 
@@ -118,7 +117,7 @@ def observations(name: str) -> list:
     if not p.exists():
         return []
     out = []
-    for line in p.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(p):
         line = line.strip()
         if not line:
             continue

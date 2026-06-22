@@ -71,6 +71,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
+
 # ---------------------------------------------------------------------------
 # Substrate reuse, isolation-safe. We READ the live engines when importable and
 # degrade to empty otherwise — this module never hard-depends on them, never
@@ -880,11 +882,7 @@ def _append(name: str, rec: dict) -> Optional[dict]:
         return None
     try:
         p = ledger_path(name)
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
+        secure_store.append_jsonl(p, rec)
     except Exception:
         return None
     return rec
@@ -899,10 +897,10 @@ def read_ledger(name: str) -> list:
         return []
     out: list = []
     try:
-        raw = p.read_text(encoding="utf-8")
-    except OSError:
+        lines = secure_store.read_jsonl_lines(p)
+    except Exception:
         return out
-    for line in raw.splitlines():
+    for line in lines:
         line = line.strip()
         if not line:
             continue

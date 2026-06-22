@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 
+from anima import secure_store
+
 from . import schema
 
 
@@ -19,10 +21,7 @@ def _store(store: Path | None) -> Path:
 
 
 def _log(name: str, rec: dict, store: Path | None) -> None:
-    p = _store(store) / f"{name}.rollbacks.jsonl"
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(_store(store) / f"{name}.rollbacks.jsonl", rec)
 
 
 def _truth(name: str, kind: str, target_id: str, reason: str, supersede: str | None,

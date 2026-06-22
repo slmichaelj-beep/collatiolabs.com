@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import secure_store
+
 STORE = Path(".anima")
 
 
@@ -19,9 +21,7 @@ def _path(name: str) -> Path:
 def log_intent(name: str, suggestion: dict) -> dict:
     """Append a proposed intent to the per-creature ledger. Returns the suggestion unchanged."""
     try:
-        STORE.mkdir(exist_ok=True)
-        with _path(name).open("a", encoding="utf-8") as f:
-            f.write(json.dumps(suggestion, ensure_ascii=False) + "\n")
+        secure_store.append_jsonl(_path(name), suggestion)
     except Exception:
         pass
     return suggestion
@@ -30,7 +30,7 @@ def log_intent(name: str, suggestion: dict) -> dict:
 def entries(name: str, n: int = 50) -> list:
     """The most recent proposed intents (newest last). Never raises."""
     try:
-        lines = _path(name).read_text(encoding="utf-8").splitlines()
+        lines = secure_store.read_jsonl_lines(_path(name))
     except Exception:
         return []
     out = []

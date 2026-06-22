@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Optional
 
+from . import secure_store
 from . import intake as I
 from . import intake_queue as Q
 
@@ -99,9 +100,7 @@ def _ledger_path(name: str) -> Path:
 
 def _append(name: str, event: dict) -> dict:
     p = _ledger_path(name)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    with p.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+    secure_store.append_jsonl(p, event)
     return event
 
 
@@ -110,7 +109,7 @@ def tier_events(name: str) -> list:
     if not p.exists():
         return []
     out = []
-    for line in p.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(p):
         line = line.strip()
         if line:
             try:
@@ -137,8 +136,7 @@ def archive_cold(name: str, item: dict, *, at: Optional[str] = None) -> dict:
     raw = _item_payload(item)
     blob = gzip.compress(raw, compresslevel=9)
     path = _cold_path(name, sid)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(blob)
+    secure_store.save_bytes(path, blob)
     return _append(name, {"source_id": sid, "tier": COLD, "at": at or _now_ts(),
                           "raw_bytes": len(raw), "stored_bytes": len(blob),
                           "saved_bytes": max(0, len(raw) - len(blob)),
@@ -152,7 +150,7 @@ def restore_cold(name: str, source_id: str) -> Optional[list]:
     if not path.exists():
         return None
     try:
-        raw = gzip.decompress(path.read_bytes())
+        raw = gzip.decompress(secure_store.load_bytes(path, b"") or b"")
         return json.loads(raw.decode("utf-8"))
     except Exception:
         return None

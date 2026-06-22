@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from anima import secure_store
+
 from . import quarantine, registry, schema
 
 
@@ -50,8 +52,8 @@ def index(name: str, pack_id: str, source_texts: list[dict], *, store: Path | No
         for c in _chunk(str(src.get("text") or "")):
             chunks.append({"text": c, "title": src.get("title") or "untitled",
                            "ref": src.get("ref") or src.get("title") or "untitled"})
-    (d / "chunks.jsonl").write_text(
-        "\n".join(json.dumps(c, ensure_ascii=False) for c in chunks) + "\n")
+    secure_store.save_text(d / "chunks.jsonl",
+                           "\n".join(json.dumps(c, ensure_ascii=False) for c in chunks) + "\n")
     registry.transition(name, pack_id, "indexed", by="builder", store=store,
                         patch={"last_indexed_at": schema.now()})
     return {"ok": True, "chunks": len(chunks)}
@@ -61,7 +63,8 @@ def load_chunks(name: str, pack_id: str, store: Path | None = None) -> list[dict
     f = registry.content_dir(name, pack_id, store) / "chunks.jsonl"
     if not f.exists():
         return []
-    return [json.loads(ln) for ln in f.read_text().splitlines() if ln.strip()]
+    text = secure_store.load_text(f, "") or ""
+    return [json.loads(ln) for ln in text.splitlines() if ln.strip()]
 
 
 def evaluate(name: str, pack_id: str, store: Path | None = None) -> dict:

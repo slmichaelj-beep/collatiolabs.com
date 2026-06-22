@@ -42,6 +42,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from anima import secure_store  # noqa: E402
 
 STORE = Path(".anima")
 
@@ -62,17 +63,16 @@ def _read_ledger(path: Path) -> list[dict]:
     if not path.is_file():
         return rows
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    if isinstance(obj, dict):
-                        rows.append(obj)
-                except (json.JSONDecodeError, ValueError):
-                    continue
+        for line in secure_store.read_jsonl_lines(path):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                if isinstance(obj, dict):
+                    rows.append(obj)
+            except (json.JSONDecodeError, ValueError):
+                continue
     except OSError:
         return rows
     return rows

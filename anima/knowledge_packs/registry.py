@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 
+from anima import secure_store
+
 from . import schema
 
 
@@ -27,18 +29,13 @@ def content_dir(name: str, pack_id: str, store: Path | None = None) -> Path:
 
 
 def load(name: str, store: Path | None = None) -> list[dict]:
-    try:
-        return json.loads(reg_path(name, store).read_text()).get("packs", [])
-    except Exception:
-        return []
+    data = secure_store.load_json(reg_path(name, store), {}) or {}
+    return data.get("packs", []) if isinstance(data, dict) else []
 
 
 def _save(name: str, packs: list[dict], store: Path | None = None) -> None:
     p = reg_path(name, store)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": 1, "packs": packs}, indent=1, ensure_ascii=False))
-    tmp.replace(p)
+    secure_store.save_json(p, {"version": 1, "packs": packs})
 
 
 def add(name: str, pack: dict, store: Path | None = None) -> dict:

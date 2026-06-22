@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers the named high-risk private ledger cluster; remaining direct writers need public/private classification.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now covers private ledgers/queues broadly; remaining pending surfaces are raw intake staging and plaintext export/training bundles.
 4. `P1/P2 CLOSED; CERTIFIED` browser auth now uses same-origin pairing plus HttpOnly/SameSite cookies; unsafe cross-origin POST and POST query-token authorization are blocked.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -132,10 +132,17 @@ Closure update:
 - Expanded `scripts/certify_secure_store_no_plaintext.py` to write synthetic secrets through Truth, Observation, Company, Consent, Curiosity, Telemetry, Telemetry MRI, and Whole-System MRI paths under `ANIMA_KEY`, inspect raw disk bytes, and prove the secrets are not present while normal load paths recover them.
 - Focused certification passed: `certify_secure_store_no_plaintext`, company canon, decision ledger, company state trackers, consent boundaries, curiosity invariants, telemetry selftest, and whole-MRI selftest.
 
+Second closure update:
+- Added byte sealing helpers to `anima/secure_store.py` for private binary blobs that can be read through Vera's own loaders.
+- Migrated additional private/governance/cognition persistence to `secure_store`: agency approval and intent ledgers, incident/SOC and lockdown state, teaching and auto-learn queues, knowledge-pack registry/chunks, rollback ledgers, metrics, continuity loss ledger, meaning, reality, loops, opportunity, trajectory, theory observations, Life Review, intake MRI/job/tier ledgers, cold intake blobs, LERF route ledger, founder-console decisions, identity sandbox shadow ledgers/restores, and twin manifests/snapshot ledgers/identity-seed artifacts.
+- Added `scripts/certify_private_write_classification.py` and wired it into `scripts/run_master_cert_stack.py`. It statically scans `anima/` and fails on any unclassified direct writer.
+- Static classification cert currently verifies 43 direct write sites: crypto substrate, crypto-aware legacy chat archive, temp audio, installer config, public reports, backup/restore temp files, isolation fallbacks, and synthetic fixtures are classified.
+- Known pending privacy surfaces are explicitly named, not hidden: raw intake staging in `anima/server.py::_write_staging` needs transparent encrypted parser handoff; plaintext user-chosen export/training bundles in `anima/identity.py`, `anima/portable.py`, `anima/platform.py`, and `anima/forge.py` need encrypted export options.
+
 Still open before W03 is fully closed:
-- Classify every remaining direct write as `private`, `public report`, `temporary/binary`, or `test fixture`.
-- Migrate any remaining `private` direct writers to `secure_store`.
-- Add a static cert that fails on unclassified private direct writes.
+- Build transparent encrypted intake staging so parsers receive decrypted temp views without raw durable staging files.
+- Add encrypted export/package options for portable mind, full mind, identity bundle, and forge training datasets, with clear user-controlled plaintext export escape hatch if needed.
+- Expand adversarial no-plaintext cert coverage from representative private stores to the full migrated private-store matrix.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 

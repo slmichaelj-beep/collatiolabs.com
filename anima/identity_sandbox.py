@@ -72,6 +72,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from . import secure_store
+
 # The real creature store. The SANDBOX never writes a real identity file in here; it
 # writes only under SANDBOX_DIR (a subtree). Overridable for tests via the env var the
 # rest of anima honours, so a redirected store fully relocates the sandbox too.
@@ -170,11 +172,7 @@ def _append_jsonl(path: Path, entry: dict) -> None:
     """Append one JSON object as a line, durably (O_APPEND + fsync). Creates the shadow
     subtree on demand. This is the ONLY write primitive in the module, and it writes ONLY
     under the sandbox subtree (mri_path / ledger_path) — never a real identity file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        f.flush()
-        os.fsync(f.fileno())
+    secure_store.append_jsonl(path, entry)
 
 
 def _read_jsonl_healing(path: Path) -> List[dict]:
@@ -184,7 +182,7 @@ def _read_jsonl_healing(path: Path) -> List[dict]:
     if not path.exists():
         return []
     out: List[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in secure_store.read_jsonl_lines(path):
         line = line.strip()
         if not line:
             continue
@@ -259,7 +257,7 @@ def read_identity_state(name: str, store: Optional[Path] = None) -> dict:
 def _read_json(path: Path):
     try:
         if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
+            return secure_store.load_json(path, None)
     except Exception:
         pass
     return None
@@ -268,7 +266,7 @@ def _read_json(path: Path):
 def _read_text(path: Path):
     try:
         if path.exists():
-            t = path.read_text(encoding="utf-8")
+            t = secure_store.load_text(path, "")
             return t if t.strip() else None
     except Exception:
         pass
@@ -573,15 +571,15 @@ def _write_synthetic_identity(name: str, state: dict, store: Optional[Path]) -> 
     base.mkdir(parents=True, exist_ok=True)
     s = _normalize_state(state)
     if s.get("dials") is not None:
-        (base / f"{name}.dials.json").write_text(_canon(s["dials"]), encoding="utf-8")
+        secure_store.save_json(base / f"{name}.dials.json", s["dials"])
     if s.get("persona") is not None:
-        (base / f"{name}.persona.md").write_text(str(s["persona"]), encoding="utf-8")
+        secure_store.save_text(base / f"{name}.persona.md", str(s["persona"]))
     if s.get("values") is not None:
-        (base / f"{name}.values.json").write_text(_canon(s["values"]), encoding="utf-8")
+        secure_store.save_json(base / f"{name}.values.json", s["values"])
     if s.get("portrait") is not None:
-        (base / f"{name}.portrait.md").write_text(str(s["portrait"]), encoding="utf-8")
+        secure_store.save_text(base / f"{name}.portrait.md", str(s["portrait"]))
     if s.get("narrative") is not None:
-        (base / f"{name}.narrative.txt").write_text(str(s["narrative"]), encoding="utf-8")
+        secure_store.save_text(base / f"{name}.narrative.txt", str(s["narrative"]))
 
 
 # =====================================================================================

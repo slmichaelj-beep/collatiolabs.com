@@ -28,6 +28,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import secure_store
+
 STORE = Path(".anima")
 
 # Constitutional identity violations — the SAME markers the narrative gate rejects on, so a
@@ -345,9 +347,7 @@ def _path(name):
 
 def _append(name, row: dict) -> None:
     try:
-        STORE.mkdir(exist_ok=True)
-        with open(_path(name), "a") as f:
-            f.write(json.dumps(row) + "\n")
+        secure_store.append_jsonl(_path(name), row)
     except Exception:
         pass        # a diagnostic must NEVER break a turn
 
@@ -355,7 +355,7 @@ def _append(name, row: dict) -> None:
 def _read(name) -> list:
     rows, p = [], _path(name)
     if p.exists():
-        for line in p.read_text().splitlines():
+        for line in secure_store.read_jsonl_lines(p):
             try:
                 rows.append(json.loads(line))
             except Exception:

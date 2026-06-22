@@ -11,10 +11,10 @@ its own preview->approve->execute->audit->undo gate. The queue persists across r
 """
 from __future__ import annotations
 
-import json
 from collections import Counter
 from pathlib import Path
 
+from . import secure_store
 from . import agency_intent_ledger as _ledger
 
 STORE = Path(".anima")
@@ -25,16 +25,13 @@ def _path(name: str) -> Path:
 
 
 def _load(name: str) -> list:
-    try:
-        return json.loads(_path(name).read_text(encoding="utf-8"))
-    except Exception:
-        return []
+    data = secure_store.load_json(_path(name), []) or []
+    return data if isinstance(data, list) else []
 
 
 def _save(name: str, items: list) -> None:
     try:
-        STORE.mkdir(exist_ok=True)
-        _path(name).write_text(json.dumps(items, indent=2, ensure_ascii=False), encoding="utf-8")
+        secure_store.save_json(_path(name), items)
     except Exception:
         pass
 

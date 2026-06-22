@@ -22,6 +22,8 @@ import json
 import os
 from pathlib import Path
 
+from . import secure_store
+
 STORE = Path(".anima")
 
 
@@ -45,9 +47,7 @@ def security_event(kind: str, detail: str = "", **extra) -> dict:
     if extra:
         ev.update({k: v for k, v in extra.items()})
     try:
-        STORE.mkdir(exist_ok=True)
-        with _events_path().open("a", encoding="utf-8") as f:
-            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        secure_store.append_jsonl(_events_path(), ev)
     except Exception:
         pass
     return ev
@@ -56,7 +56,7 @@ def security_event(kind: str, detail: str = "", **extra) -> dict:
 def recent_events(n: int = 20) -> list:
     """The most recent security events (newest last). Never raises."""
     try:
-        lines = _events_path().read_text(encoding="utf-8").splitlines()
+        lines = secure_store.read_jsonl_lines(_events_path())
     except Exception:
         return []
     out = []
@@ -107,8 +107,7 @@ def lockdown(reason: str = "manual", *, by: str = "user") -> dict:
     just refreshes the marker). Audited. Returns the lockdown record."""
     rec = {"reason": str(reason), "at": _now(), "by": str(by)}
     try:
-        STORE.mkdir(exist_ok=True)
-        _lock_path().write_text(json.dumps(rec, indent=2), encoding="utf-8")
+        secure_store.save_json(_lock_path(), rec)
     except Exception:
         pass
     security_event("lockdown", "Vera entered safe state (all outward capabilities held OFF)",

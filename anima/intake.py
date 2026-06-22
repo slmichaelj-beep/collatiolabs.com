@@ -53,6 +53,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from . import secure_store
 from . import intake_parsers as P
 
 # Reuse the package's canonical ISO8601-Z timestamp so an intake line stamps the SAME
@@ -638,9 +639,8 @@ def _append_intake(name: str, row: dict) -> None:
     """Append one committed intake trace as a single jsonl line. Mirrors telemetry._append
     exactly — including the blanket guard: a diagnostic must NEVER break an ingest."""
     try:
-        STORE.mkdir(exist_ok=True)
-        with open(_intake_path(name), "a") as f:
-            f.write(json.dumps(row, default=lambda o: repr(o)[:120]) + "\n")
+        line = json.dumps(row, default=lambda o: repr(o)[:120])
+        secure_store.append_jsonl(_intake_path(name), json.loads(line))
     except Exception:
         pass
 
@@ -649,7 +649,7 @@ def _read_intake(name: str) -> list:
     rows, p = [], _intake_path(name)
     if p.exists():
         try:
-            for line in p.read_text().splitlines():
+            for line in secure_store.read_jsonl_lines(p):
                 try:
                     rows.append(json.loads(line))
                 except Exception:

@@ -53,7 +53,7 @@ def ok(label: str, cond: bool) -> None:
 _STORE_MODULES = [
     "server", "portrait", "memory_lirf", "constitution", "reliability", "world_state",
     "telemetry", "metrics", "curiosity", "loops", "opportunity", "world_model", "meaning",
-    "dials",
+    "dials", "whole_mri", "truth.ledger",
 ]
 
 
@@ -241,7 +241,8 @@ def run() -> int:
            str(out_a.get("backend", "")).startswith("lerf:"))
         # the ledger recorded a LERF-solved route for this turn.
         led = server._routes_path(name)
-        recs = [json.loads(l) for l in led.read_text().splitlines() if l.strip()]
+        from anima import secure_store
+        recs = [json.loads(l) for l in secure_store.read_jsonl_lines(led) if l.strip()]
         ok("(a) ledger: a route line was written for the turn", len(recs) >= 1)
         ok("(a) ledger: the task turn is recorded solver=lerf_skill, solved=True",
            recs[-1].get("solver") == "lerf_skill" and recs[-1].get("solved") is True
