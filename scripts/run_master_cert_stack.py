@@ -40,6 +40,7 @@ STACK = [
     ("certify_intake_staging_encryption", []),
     ("certify_encrypted_exports", []),
     ("certify_encrypted_backup_restore", []),
+    ("certify_zero_egress_mode", []),
     ("certify_route_backend_enforcement", []),
     ("certify_truth_ledger", []),
     ("certify_memory_truth_and_correction", []),

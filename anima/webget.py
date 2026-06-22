@@ -17,6 +17,7 @@ import urllib.request
 from urllib.parse import urlparse
 
 from .caps import _norm_host
+from . import egress
 
 
 def host_allowed(url: str, allowlist) -> bool:
@@ -64,6 +65,8 @@ def _strip_html(html: str) -> str:
 
 def fetch(url: str, allowlist, max_bytes: int = 2_000_000, max_chars: int = 20_000) -> dict:
     """Fetch an allow-listed URL and return stripped text. Never raises."""
+    if egress.zero_enabled():
+        return egress.blocked_result("web fetch", url)
     if not host_allowed(url, allowlist):
         return {"ok": False, "error": "host is not on your allow-list"}
     opener = urllib.request.build_opener(_AllowlistRedirect(allowlist))

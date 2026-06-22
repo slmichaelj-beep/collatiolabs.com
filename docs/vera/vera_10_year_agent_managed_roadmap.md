@@ -56,7 +56,7 @@ Owns:
 - no-plaintext certs
 - encrypted backups
 - recovery without Collatio custody
-- zero-egress mode
+- zero-egress mode (cloud/web/weather hard switch CLOSED / CERTIFIED; ledger coverage remains)
 
 Immediate focus:
 - broaden `secure_store.py` from truth/observation to the whole private surface

@@ -24,6 +24,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+from . import egress
 from .util import load_json, save_json
 
 # --- PII scrub: hash structured PII before anything leaves the Mac for the cloud ----
@@ -366,6 +367,7 @@ def public(cfg: dict = None) -> dict:
         system = {}
     return {"provider": cfg["provider"], "model": cfg["model"], "budget": cfg["budget"],
             "has_key": bool(cfg["key"]), "is_cloud": cfg["provider"] != "local",
+            "zero_egress": egress.zero_enabled(),
             "configured": sorted(cfg.get("keys", {}).keys()),   # which providers have a saved key
             "spent_today": round(spent_today(), 4),
             "honesty_verified": honesty_verified(), "eval_cmd": eval_command(), "system": system,
@@ -380,11 +382,15 @@ def is_cloud() -> bool:
     A provider chosen without a key falls back to local, so guards keyed on this won't
     pause inbox reading or drop the Portrait on what is really a local session."""
     c = load_cfg()
+    if egress.zero_enabled():
+        return False
     return c["provider"] != "local" and bool(c["key"])
 
 
 _CAPPED = ("(I've reached today's cloud spending cap, so I'm pausing the cloud brain. "
            "You can raise the daily limit or switch back to Local in settings.)")
+_ZERO_EGRESS = ("(Zero-egress mode is on, so I will not contact a cloud provider. "
+                "Switch off zero-egress mode before using cloud cognition.)")
 
 
 class _CloudBrain:
@@ -401,7 +407,7 @@ class _CloudBrain:
         self.creature = None
 
     def available(self) -> bool:
-        return bool(self.key)
+        return bool(self.key) and not egress.zero_enabled()
 
     def _name_pat(self):
         """Compiled pattern of the active creature's KNOWN personal names, for the egress
@@ -414,6 +420,7 @@ class _CloudBrain:
             return None
 
     def _post(self, url, headers, payload):
+        egress.require("cloud provider call", url)
         body = json.dumps(payload).encode()
         req = urllib.request.Request(url, body, headers)
         with urllib.request.urlopen(req, timeout=120) as r:
@@ -428,6 +435,8 @@ class OpenAICompatBrain(_CloudBrain):
         self.base = base.rstrip("/")
 
     def reply(self, system: str, user: str, history) -> str:
+        if egress.zero_enabled():
+            return _ZERO_EGRESS
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
         _np = self._name_pat()                                  # known-name scrub (history PII)
@@ -455,6 +464,8 @@ class AnthropicBrain(_CloudBrain):
         self.base = base.rstrip("/")
 
     def reply(self, system: str, user: str, history) -> str:
+        if egress.zero_enabled():
+            return _ZERO_EGRESS
         if spent_today() >= load_cfg()["budget"]:
             return _CAPPED
         _np = self._name_pat()                                  # known-name scrub (history PII)
@@ -483,6 +494,8 @@ def verify_key(provider: str, key: str, model: str = "", base: str = "") -> tupl
     preset = PRESETS.get(provider)
     if not preset:
         return False, f"unknown provider '{provider}'", []
+    if egress.zero_enabled():
+        return False, "zero-egress mode is on; cloud key verification is blocked", []
     key = (key or "").strip()
     if not key:
         return False, "no API key provided", []
@@ -540,6 +553,8 @@ def pick_default(provider: str, models) -> str:
 
 def build_cloud_brain():
     """Return the configured cloud brain, or None to fall back to local Ollama."""
+    if egress.zero_enabled():
+        return None
     cfg = load_cfg()
     if cfg["provider"] == "local":
         return None

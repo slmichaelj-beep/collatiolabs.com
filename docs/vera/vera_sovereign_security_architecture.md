@@ -501,7 +501,7 @@ Claim only what we can prove:
 - tamper-evident ledgers
 - encrypted backups
 - no-plaintext certs
-- zero-egress mode
+- zero-egress hard switch for cloud/web/weather
 - privacy receipts
 
 ## North Star

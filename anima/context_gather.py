@@ -37,6 +37,8 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import Optional
 
+from . import egress
+
 # Calendar.app scanned via AppleScript is O(events) PER calendar, and the `whose
 # start date ≥ …` predicate is slow — a machine with many subscribed calendars
 # (Birthdays, Holidays, CalDAV/Gmail accounts, Siri Suggestions) can take 30-70s
@@ -93,6 +95,8 @@ def weather(lat: float, lon: float, timeout: float = 8.0) -> Weather:
     No API key. Returns Weather(ok=False, note=...) on any failure — the caller
     decides how to speak about a missing forecast; we never guess one.
     """
+    if egress.zero_enabled():
+        return Weather(ok=False, note="zero-egress mode is on; blocked weather lookup")
     try:
         lat = float(lat)
         lon = float(lon)

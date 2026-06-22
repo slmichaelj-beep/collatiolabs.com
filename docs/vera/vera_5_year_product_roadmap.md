@@ -447,7 +447,7 @@ Success metrics:
 
 Do not claim yet:
 - "Encrypted by default" until all private stores use the same encrypted substrate.
-- "Local-only by default" is now backed by per-turn backend enforcement; privacy receipts and zero-egress mode remain before broader product claims.
+- "Local-only by default" is now backed by per-turn backend enforcement and a zero-egress hard switch for cloud/web/weather; privacy receipts and egress ledger coverage remain before broader product claims.
 - "Secure LAN access" until expose requires auth and CSRF/origin defenses exist.
 - "Passkey protected" unless full WebAuthn verification is implemented or the phrase is carefully scoped.
 - "Autonomous governance" until approval binding and budget invariants are fixed.
@@ -529,7 +529,7 @@ Weeks 1-2:
 
 Weeks 3-4:
 - Enforce per-turn backend routing. CLOSED / CERTIFIED.
-- Add fake-cloud no-egress cert. CLOSED as route-backend enforcement; broader zero-egress mode remains.
+- Add fake-cloud no-egress cert. CLOSED as route-backend enforcement; zero-egress hard switch for cloud/web/weather also CLOSED / CERTIFIED.
 - Add privacy receipt event schema.
 
 Weeks 5-6:

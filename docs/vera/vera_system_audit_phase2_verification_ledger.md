@@ -23,7 +23,7 @@ VERIFIED:
 
 Important nuance:
 
-- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 84/84 GREEN.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 85/85 GREEN.
 
 ## Product Identity
 
@@ -109,7 +109,7 @@ Remaining cloud/privacy product work:
 
 - Add per-turn route/privacy receipts visible to users.
 - Add an egress ledger for provider calls, web/location calls, and connector access.
-- Add zero-egress mode that makes cloud/provider/network egress impossible without an explicit mode change.
+- Zero-egress hard switch is closed for cloud provider calls, cloud key verification, allow-listed web fetches, and weather lookup via `ANIMA_ZERO_EGRESS=1`; broaden it next to receipt-ledger coverage and connector policy.
 
 FRONTIER:
 
@@ -369,7 +369,7 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P1: Add zero-egress mode plus per-turn privacy/route receipts.
+1. P1: Add per-turn privacy/route receipts plus egress ledger coverage.
 2. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
 3. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
 4. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.

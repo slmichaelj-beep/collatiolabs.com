@@ -250,7 +250,7 @@ Fix direction:
 ### W07 - Location/weather egress needs a visible privacy receipt
 
 Severity: `P2`
-Status: `CONFIRMED`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/context_gather.py` can call Open-Meteo with latitude/longitude for proactive briefing context.
@@ -262,6 +262,15 @@ Location is intimate data. Even “harmless weather” calls should be visible i
 Fix direction:
 - Add an egress ledger for every network call containing destination, purpose, fields sent, retention assumption, and local/cloud status.
 - Give users zero-egress and coarse-location modes.
+
+Closure update:
+- Added `anima/egress.py` with hard zero-egress mode via `ANIMA_ZERO_EGRESS=1`.
+- Wired zero-egress into cloud provider activation, cloud key verification, direct cloud brain calls, allow-listed web fetches, and weather lookup before any socket is opened.
+- Added `scripts/certify_zero_egress_mode.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_zero_egress_mode`, `certify_web_allowlist`, `certify_context_gather`, `certify_model_management`, `certify_route_backend_enforcement`, and `certify_proactive_location`.
+
+Residual note:
+- This closes the hard off switch for current cloud/web/weather egress surfaces. The visible egress ledger, per-turn privacy receipts, coarse-location UX, and connector receipt policy remain open.
 
 ## Governance And Autonomy
 
@@ -387,7 +396,7 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack currently passes 84/84 live.
+- Master cert stack currently passes 85/85 live.
 - Diamond v2 confirmed 108 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
@@ -547,7 +556,7 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Add zero-egress mode and per-turn route/privacy receipts.
+1. Add per-turn route/privacy receipts and egress ledger coverage.
 2. Finish W04 session rotation/device inventory and multi-shell replay certs.
 3. Complete W05 WebAuthn signature verification or rename the surface honestly.
 4. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
