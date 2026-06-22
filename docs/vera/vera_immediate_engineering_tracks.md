@@ -12,8 +12,8 @@ Updated closure note, 2026-06-22:
 - Per-turn local/cloud backend enforcement is closed and certified by `scripts/certify_route_backend_enforcement.py`.
 - Zero-egress hard switch is closed and certified for cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_zero_egress_mode.py`.
 - Per-turn privacy receipts plus sanitized egress ledger coverage are closed and certified for turns, cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_privacy_receipts.py`; viewer/connector/coarse-location UX remain.
-- Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, and supports optional one-time `ANIMA_PAIRING_CODE` pairing codes.
-- W04 remains intentionally partial until first-launch pairing UX, session rotation/device inventory, and multi-shell migration/replay certs are finished.
+- Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, session inventory, session rotation, logout-all, and optional one-time `ANIMA_PAIRING_CODE` pairing codes.
+- W04 remains intentionally partial until first-launch pairing UX and multi-shell migration/replay certs are finished.
 
 ## Track 1 - Security And Privacy Foundation
 
@@ -26,7 +26,8 @@ Immediate work:
 - Enforce per-turn local/cloud backend routing. CLOSED / CERTIFIED.
 - Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
 - Add Origin/Host/CSRF checks. CLOSED / CERTIFIED for same-host browser POST boundary.
-- Add one-time pairing-code UX and device/session rotation.
+- Add one-time pairing-code UX.
+- Add device/session inventory, session rotation, single-session revoke, and logout-all. CLOSED / CERTIFIED.
 - Complete WebAuthn or rename current passkey gate honestly.
 - Add zero-egress mode. CLOSED / CERTIFIED for cloud, web, and weather egress.
 - Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.

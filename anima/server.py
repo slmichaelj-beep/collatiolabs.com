@@ -47,7 +47,7 @@ MAX_BODY = 512 * 1024 * 1024         # cap request bodies at 512 MB. Knowledge I
 AUTH_COOKIE = "anima_auth"
 FACE_COOKIE = "anima_face_session"
 AUTH_COOKIE_TTL = 30 * 24 * 3600
-_AUTH_SESSIONS: dict[str, int] = {}
+_AUTH_SESSIONS: dict[str, object] = {}
 _AUTH_SESSIONS_LOCK = threading.Lock()
 _PAIRING_CODES_LOCK = threading.Lock()
 
@@ -2907,27 +2907,105 @@ class Handler(BaseHTTPRequestHandler):
     def _prune_auth_sessions(self, now: float | None = None) -> None:
         now = time.time() if now is None else now
         with _AUTH_SESSIONS_LOCK:
-            for nonce, exp in list(_AUTH_SESSIONS.items()):
+            for nonce, rec in list(_AUTH_SESSIONS.items()):
+                exp = rec.get("exp", 0) if isinstance(rec, dict) else rec
                 if exp <= now:
                     _AUTH_SESSIONS.pop(nonce, None)
 
     def _remember_auth_session(self, nonce: str, exp: int) -> None:
         self._prune_auth_sessions()
+        now = int(time.time())
+        ua = str(self.headers.get("User-Agent", "") or "")[:160]
+        client = ""
+        try:
+            client = str(getattr(self, "client_address", [""])[0] or "")[:80]
+        except Exception:
+            client = ""
         with _AUTH_SESSIONS_LOCK:
-            _AUTH_SESSIONS[nonce] = exp
+            _AUTH_SESSIONS[nonce] = {
+                "exp": exp,
+                "issued_at": now,
+                "last_seen": now,
+                "user_agent": ua,
+                "client": client,
+            }
 
     def _auth_session_active(self, nonce: str, exp: int) -> bool:
         self._prune_auth_sessions()
         with _AUTH_SESSIONS_LOCK:
-            return _AUTH_SESSIONS.get(nonce) == exp
+            rec = _AUTH_SESSIONS.get(nonce)
+            if isinstance(rec, dict) and rec.get("exp") == exp:
+                rec["last_seen"] = int(time.time())
+                return True
+            return rec == exp
+
+    def _auth_cookie_parts(self, value: str) -> tuple[str, int, str, str] | None:
+        try:
+            version, exp_s, nonce, sig = (value or "").split(".", 3)
+            exp = int(exp_s)
+            if version != "v1" or not nonce:
+                return None
+            return version, exp, nonce, sig
+        except Exception:
+            return None
+
+    def _session_id(self, nonce: str) -> str:
+        return hashlib.sha256(("auth-session." + nonce).encode()).hexdigest()[:16]
+
+    def _current_auth_nonce(self) -> str:
+        parts = self._auth_cookie_parts(self._cookie(AUTH_COOKIE))
+        return parts[2] if parts else ""
+
+    def _auth_sessions_public(self) -> list[dict]:
+        self._prune_auth_sessions()
+        current = self._current_auth_nonce()
+        out = []
+        with _AUTH_SESSIONS_LOCK:
+            rows = list(_AUTH_SESSIONS.items())
+        for nonce, rec in rows:
+            if isinstance(rec, dict):
+                exp = int(rec.get("exp", 0) or 0)
+                issued_at = int(rec.get("issued_at", 0) or 0)
+                last_seen = int(rec.get("last_seen", 0) or 0)
+                ua = str(rec.get("user_agent", "") or "")[:160]
+                client = str(rec.get("client", "") or "")[:80]
+            else:
+                exp = int(rec or 0)
+                issued_at = 0
+                last_seen = 0
+                ua = ""
+                client = ""
+            out.append({
+                "id": self._session_id(nonce),
+                "current": nonce == current,
+                "expires_at": exp,
+                "issued_at": issued_at,
+                "last_seen": last_seen,
+                "user_agent": ua,
+                "client": client,
+            })
+        return sorted(out, key=lambda r: (not r["current"], -(r.get("last_seen") or 0), r["id"]))
+
+    def _revoke_auth_session_id(self, sid: str) -> bool:
+        sid = str(sid or "")
+        with _AUTH_SESSIONS_LOCK:
+            for nonce in list(_AUTH_SESSIONS):
+                if self._session_id(nonce) == sid:
+                    _AUTH_SESSIONS.pop(nonce, None)
+                    return True
+        return False
+
+    def _revoke_all_auth_sessions(self) -> int:
+        with _AUTH_SESSIONS_LOCK:
+            n = len(_AUTH_SESSIONS)
+            _AUTH_SESSIONS.clear()
+        return n
 
     def _revoke_auth_cookie(self, value: str) -> bool:
-        try:
-            version, _exp_s, nonce, _sig = (value or "").split(".", 3)
-            if version != "v1" or not nonce:
-                return False
-        except Exception:
+        parts = self._auth_cookie_parts(value)
+        if not parts:
             return False
+        _version, _exp, nonce, _sig = parts
         with _AUTH_SESSIONS_LOCK:
             return _AUTH_SESSIONS.pop(nonce, None) is not None
 
@@ -2939,15 +3017,18 @@ class Handler(BaseHTTPRequestHandler):
         return "v1.%d.%s.%s" % (exp, nonce, sig)
 
     def _valid_auth_cookie(self, value: str) -> bool:
-        try:
-            version, exp_s, nonce, sig = (value or "").split(".", 3)
-            exp = int(exp_s)
-            if version != "v1" or exp <= time.time() or not nonce:
-                return False
-            return (hmac.compare_digest(sig, self._sign_auth_cookie(exp, nonce))
-                    and self._auth_session_active(nonce, exp))
-        except Exception:
+        parts = self._auth_cookie_parts(value)
+        if not parts:
             return False
+        _version, exp, nonce, sig = parts
+        if exp <= time.time():
+            return False
+        return (hmac.compare_digest(sig, self._sign_auth_cookie(exp, nonce))
+                and self._auth_session_active(nonce, exp))
+
+    def _rotate_auth_cookie(self) -> str:
+        self._revoke_auth_cookie(self._cookie(AUTH_COOKIE))
+        return self._issue_auth_cookie()
 
     def _cookie_header(self, name: str, value: str, max_age: int) -> str:
         parts = [
@@ -3302,6 +3383,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, "application/json", json.dumps(passkey.status()).encode())
             if not self._passed():               # Face ID required but not unlocked this session
                 return self._send(401, "application/json", b'{"need_face_id":true}')
+            if u.path == "/auth/sessions":
+                return self._send(200, "application/json",
+                                  json.dumps({"ok": True, "sessions": self._auth_sessions_public()}).encode())
             if u.path == "/observatory.json":
                 # the one honest JSON behind the Observatory page: what's real (audit), what kind of
                 # mind (system shape), what Vera knows about you (twin), the latest turn (activity/proof),
@@ -3755,6 +3839,44 @@ class Handler(BaseHTTPRequestHandler):
                                       ("Set-Cookie", self._clear_cookie_header(AUTH_COOKIE)),
                                       ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
                                   ])
+            if path == "/auth/logout-all":
+                if not self._passed():
+                    return self._send(401, "application/json", b'{"need_face_id":true}')
+                revoked = self._revoke_all_auth_sessions()
+                return self._send(200, "application/json",
+                                  json.dumps({"ok": True, "revoked": revoked}).encode(),
+                                  headers=[
+                                      ("Set-Cookie", self._clear_cookie_header(AUTH_COOKIE)),
+                                      ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
+                                  ])
+            if path == "/auth/rotate":
+                if not self._passed():
+                    return self._send(401, "application/json", b'{"need_face_id":true}')
+                cookie = self._cookie_header(AUTH_COOKIE, self._rotate_auth_cookie(), AUTH_COOKIE_TTL)
+                return self._send(200, "application/json", b'{"ok":true}',
+                                  headers=[
+                                      ("Set-Cookie", cookie),
+                                      ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
+                                  ])
+            if path == "/auth/logout-session":
+                if not self._passed():
+                    return self._send(401, "application/json", b'{"need_face_id":true}')
+                data = json.loads(self._read_body() or b"{}")
+                sid = str(data.get("id", ""))
+                current_id = ""
+                cur = self._current_auth_nonce()
+                if cur:
+                    current_id = self._session_id(cur)
+                revoked = self._revoke_auth_session_id(sid)
+                headers = []
+                if revoked and sid == current_id:
+                    headers = [
+                        ("Set-Cookie", self._clear_cookie_header(AUTH_COOKIE)),
+                        ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
+                    ]
+                return self._send(200, "application/json",
+                                  json.dumps({"ok": bool(revoked), "revoked": bool(revoked)}).encode(),
+                                  headers=headers)
             if path.startswith("/auth/"):
                 from . import passkey
                 rp_id, origin = self._origin()

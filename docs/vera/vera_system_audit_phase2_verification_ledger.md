@@ -65,16 +65,16 @@ UPDATED CLOSURE:
 - Face-ID/passkey browser sessions now ride an `HttpOnly; SameSite=Strict` cookie; `X-Anima-Sess` remains only as an API/backward-compatibility path.
 - Auth cookies are server-registered by nonce and can be revoked through `/auth/logout`.
 - Optional `ANIMA_PAIRING_CODE` values create true one-time browser pairing codes; first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
+- Browser auth now has hashed session inventory, current-session rotation, single-session revoke, and logout-all through `/auth/sessions`, `/auth/rotate`, `/auth/logout-session`, and `/auth/logout-all`.
 - Certified by `scripts/certify_expose_requires_auth.py`, `scripts/certify_browser_origin_csrf.py`, and `scripts/certify_browser_session_cookies.py`.
 
 VERIFIED WITH CAVEAT:
 
-The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, and non-revocable browser auth issues are now closed and certified.
+The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, non-revocable browser auth, missing session inventory, missing rotation, and missing logout-all issues are now closed and certified.
 
 Remaining W04 work:
 
 - Add first-launch/pairing UX that generates and displays one-time codes without exposing durable secrets.
-- Add session rotation, device/session inventory, and "log out all devices."
 - Cert migration/replay behavior across installed app, desktop browser, LAN, and tunnel shells.
 - Keep WebAuthn completion as W05; current passkey remains a strong local device-presence gate, not a full cryptographic WebAuthn verifier.
 
@@ -377,7 +377,7 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
+1. P2: Finish W04 first-launch pairing UX and multi-shell migration/replay certs.
 2. P2: Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
 3. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
 4. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.

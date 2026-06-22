@@ -5,6 +5,7 @@ This cert closes the remaining W04 browser-session contract:
   * a same-origin browser can pair a token into an HttpOnly/SameSite auth cookie;
   * optional one-time pairing codes are consumed on first use and reject replay;
   * the auth cookie is signed, server-registered, expires, rejects tampering, and can be revoked;
+  * session inventory, current-session rotation, single-session revoke, and logout-all work;
   * Face-ID/passkey sessions can ride an HttpOnly/SameSite cookie;
   * web shells strip `?k=` and do not persist auth/session secrets in localStorage.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import sys
 import time
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -48,6 +50,8 @@ def main() -> int:
     print("=" * 92)
     t0 = time.perf_counter()
     token = "cookie-cert-token"
+    with server._AUTH_SESSIONS_LOCK:
+        server._AUTH_SESSIONS.clear()
 
     # ---- 0. One-time pairing codes -------------------------------------------------
     pair_req = _req(path="/auth/pair", headers={"X-Anima-Pairing-Code": "pair-once"},
@@ -88,6 +92,47 @@ def main() -> int:
     ck("A8: revoking an issued auth cookie makes it invalid before expiry",
        h._revoke_auth_cookie(cookie_value) is True and h._valid_auth_cookie(cookie_value) is False)
 
+    # ---- A2. Session inventory / rotation / revoke-all -----------------------------
+    h1 = _req(headers={"User-Agent": "CookieCert Safari"}, token=token)
+    c1 = h1._issue_auth_cookie()
+    h2 = _req(headers={"User-Agent": "CookieCert Chrome"}, token=token)
+    c2 = h2._issue_auth_cookie()
+    inv_req = _req(headers={"Cookie": server.AUTH_COOKIE + "=" + c2}, token=token)
+    sessions = inv_req._auth_sessions_public()
+    sid2 = next((s["id"] for s in sessions if s.get("current")), "")
+    raw_nonce_2 = c2.split(".", 3)[2]
+    ck("A9: session inventory lists active sessions and marks the current cookie",
+       len(sessions) == 2 and sum(1 for s in sessions if s.get("current")) == 1
+       and any("CookieCert Chrome" in s.get("user_agent", "") for s in sessions))
+    ck("A10: session inventory exposes hashed ids, not raw cookie nonces",
+       sid2 and raw_nonce_2 not in json.dumps(sessions))
+
+    rotate_req = _req(headers={"Cookie": server.AUTH_COOKIE + "=" + c2,
+                               "User-Agent": "CookieCert Rotated"}, token=token)
+    rotated = rotate_req._rotate_auth_cookie()
+    ck("A11: session rotation invalidates the old cookie and issues a valid replacement",
+       rotate_req._valid_auth_cookie(c2) is False and rotate_req._valid_auth_cookie(rotated) is True)
+
+    inv_after_rotate = _req(headers={"Cookie": server.AUTH_COOKIE + "=" + rotated}, token=token)
+    old_sid = sid2
+    rotated_sessions = inv_after_rotate._auth_sessions_public()
+    current_sid = next((s["id"] for s in rotated_sessions if s.get("current")), "")
+    non_current_sid = next((s["id"] for s in rotated_sessions if not s.get("current")), "")
+    ck("A12: single-session revoke by hashed id can revoke a non-current session without killing current",
+       inv_after_rotate._revoke_auth_session_id(old_sid) is False
+       and inv_after_rotate._revoke_auth_session_id(non_current_sid) is True
+       and inv_after_rotate._valid_auth_cookie(c1) is False
+       and inv_after_rotate._valid_auth_cookie(rotated) is True)
+    ck("A13: single-session revoke can revoke the current session",
+       inv_after_rotate._revoke_auth_session_id(current_sid) is True
+       and inv_after_rotate._valid_auth_cookie(rotated) is False)
+
+    c3 = h1._issue_auth_cookie()
+    c4 = h2._issue_auth_cookie()
+    nrev = h1._revoke_all_auth_sessions()
+    ck("A14: logout-all revokes every issued auth cookie",
+       nrev >= 2 and h1._valid_auth_cookie(c3) is False and h2._valid_auth_cookie(c4) is False)
+
     # ---- B. Face-ID/passkey cookie path -------------------------------------------
     face_session = passkey.issue_session()
     face_req = _req(headers={"Cookie": server.FACE_COOKIE + "=" + face_session}, token=token)
@@ -116,12 +161,20 @@ def main() -> int:
     ck("C3: /auth/logout revokes auth cookie and clears both browser cookies",
        'path == "/auth/logout"' in src and "_revoke_auth_cookie" in src
        and "_clear_cookie_header(AUTH_COOKIE)" in src and "_clear_cookie_header(FACE_COOKIE)" in src)
-    ck("C4: /auth/login/finish sets the Face-ID session cookie; /auth/disable clears it",
+    ck("C4: /auth/sessions, /auth/rotate, /auth/logout-all, and /auth/logout-session are wired",
+       'u.path == "/auth/sessions"' in src and 'path == "/auth/rotate"' in src
+       and 'path == "/auth/logout-all"' in src and 'path == "/auth/logout-session"' in src)
+    ck("C5: session inventory/management routes honor the Face-ID/passkey layer when required",
+       'if u.path == "/auth/sessions":' in src
+       and 'path == "/auth/logout-all":\n                if not self._passed()' in src
+       and 'path == "/auth/rotate":\n                if not self._passed()' in src
+       and 'path == "/auth/logout-session":\n                if not self._passed()' in src)
+    ck("C6: /auth/login/finish sets the Face-ID session cookie; /auth/disable clears it",
        "FACE_COOKIE" in src and 'path == "/auth/login/finish"' in src
        and 'path == "/auth/disable"' in src and "_clear_cookie_header(FACE_COOKIE)" in src)
-    ck("C5: _send supports response headers so cookies are emitted through the normal path",
+    ck("C7: _send supports response headers so cookies are emitted through the normal path",
        "def _send(self, code, ctype, body, headers=None)" in src)
-    ck("C6: ANIMA_PAIRING_CODE initializes one-time pairing codes at startup",
+    ck("C8: ANIMA_PAIRING_CODE initializes one-time pairing codes at startup",
        "ANIMA_PAIRING_CODE" in src and "pairing_codes" in src)
 
     # ---- D. Browser shells do not persist auth/session secrets ----------------------
