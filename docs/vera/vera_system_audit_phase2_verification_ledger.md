@@ -1,8 +1,8 @@
 # Vera / Collatio System Audit - Phase 2 Verification Ledger
 
-Date: 2026-06-21
+Date: 2026-06-22
 Repo: `/Users/lamar/Developer/collatiolabs.com`
-Branch/head reviewed: `anima` / `95675db`
+Branch/head reviewed: `anima` / rolling W03/W04 security hardening series
 
 ## Status Tags
 
@@ -15,7 +15,7 @@ Branch/head reviewed: `anima` / `95675db`
 
 VERIFIED:
 
-- `scripts/run_master_cert_stack.py --json` passes 74/74 when Vera is running.
+- `scripts/run_master_cert_stack.py --json` passes 83/83 when Vera is running.
 - `scripts/run_diamond_v2.py --gate` confirms Diamond v2 repeatability.
 - Claim registry reports 108 `claimed_green`, 1 `claimed_amber`, 1 `deferred_visible`, 1 `enterprise_only`.
 - Route registry reports 27 linked-active operator routes and 1 intentionally not-claimed route (`/board`).
@@ -54,6 +54,8 @@ VERIFIED:
 - Data routes and mutation routes go through `_authed()` after public shell dispatch.
 - Non-auth POST routes go through `_passed()` passkey/session gate after token auth.
 - POST body size is capped by `MAX_BODY`; oversized bodies return 413 instead of partial JSON failure.
+- Non-loopback startup through `--expose` or `--host 0.0.0.0` refuses to start unless `ANIMA_TOKEN` is set.
+- Browser POSTs are guarded by same-host Origin/Referer/Sec-Fetch-Site checks before request bodies are read.
 - Mutations are centralized under `do_POST`, including teaching, packs, console decisions, security actions, consent, verification, talk/say/stt/tts, persona/values/dials, brain/model control, mail/message draft/send/read, web fetch, personal memory edit/forget, intake, search, library edit.
 
 UPDATED CLOSURE:
@@ -61,27 +63,20 @@ UPDATED CLOSURE:
 - Token auth now treats query param `?k=` as GET/HEAD-only legacy pairing input; POST state changes require `X-Anima-Key`, `Authorization: Bearer`, or a valid signed auth cookie.
 - Browser UI now strips `?k=` from the URL, calls `/auth/pair`, and uses an `HttpOnly; SameSite=Strict` `anima_auth` cookie instead of storing `anima_token` in localStorage.
 - Face-ID/passkey browser sessions now ride an `HttpOnly; SameSite=Strict` cookie; `X-Anima-Sess` remains only as an API/backward-compatibility path.
-- Certified by `scripts/certify_browser_origin_csrf.py` and `scripts/certify_browser_session_cookies.py`.
+- Auth cookies are server-registered by nonce and can be revoked through `/auth/logout`.
+- Optional `ANIMA_PAIRING_CODE` values create true one-time browser pairing codes; first use mints the HttpOnly auth cookie, replay is rejected, and `X-Anima-Key` pairing remains as a compatibility bridge.
+- Certified by `scripts/certify_expose_requires_auth.py`, `scripts/certify_browser_origin_csrf.py`, and `scripts/certify_browser_session_cookies.py`.
 
-FINDING P1:
+VERIFIED WITH CAVEAT:
 
-`--expose` still allows LAN binding with no token when `ANIMA_TOKEN` is unset. The server warns, but warning is not an access control. This must be hardened before Vera is positioned as private life infrastructure.
+The dangerous unauthenticated LAN bind, query-token POST, localStorage token/session persistence, cross-site browser POST, unregistered cookie minting, and non-revocable browser auth issues are now closed and certified.
 
-Recommended fix:
+Remaining W04 work:
 
-- Refuse `--expose` unless `ANIMA_TOKEN` is set or passkey is required.
-- Add a cert for startup refusal under unauthenticated exposed mode.
-- Allow an explicit break-glass override only with a loud name such as `ANIMA_ALLOW_UNAUTH_EXPOSE=1`.
-
-FINDING P2:
-
-The app has no explicit Origin/CSRF protection layer. The primary defense is token/passkey. On localhost this is mostly acceptable; for tunnels/LAN/private cloud mode, mutation requests should additionally check Origin/Host/session mode and avoid query tokens.
-
-Recommended fix:
-
-- Add strict `Origin`/`Host` validation for POST when token auth is enabled.
-- Move the default UI path toward header/session auth and away from URL tokens.
-- Add `SameSite`/cookie or signed session option if Vera becomes more browser-app-like.
+- Add first-launch/pairing UX that generates and displays one-time codes without exposing durable secrets.
+- Add session rotation, device/session inventory, and "log out all devices."
+- Cert migration/replay behavior across installed app, desktop browser, LAN, and tunnel shells.
+- Keep WebAuthn completion as W05; current passkey remains a strong local device-presence gate, not a full cryptographic WebAuthn verifier.
 
 ## Privacy And Local-First Boundary
 
@@ -372,14 +367,15 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P1: Refuse unauthenticated `--expose`.
-2. P1: Make per-turn local/cloud route decision executable.
-3. P2: Add Origin/Host/session hardening for non-local/tunnel modes.
-4. P2: Strengthen budget cumulative invariants and approval-ref validation.
-5. P2: Fix Upwork Connects overspend and status transitions.
-6. P2: Add relational-honesty companion modes.
-7. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
-8. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
+1. P1: Make per-turn local/cloud route decision executable.
+2. P1: Complete encrypted backup/restore/recovery drills for private continuity.
+3. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
+4. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
+5. P2: Strengthen budget cumulative invariants and approval-ref validation.
+6. P2: Fix Upwork Connects overspend and status transitions.
+7. P2: Add relational-honesty companion modes.
+8. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
+9. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
 
 ## North Star
 

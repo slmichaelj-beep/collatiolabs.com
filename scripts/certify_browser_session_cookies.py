@@ -3,6 +3,7 @@
 
 This cert closes the remaining W04 browser-session contract:
   * a same-origin browser can pair a token into an HttpOnly/SameSite auth cookie;
+  * optional one-time pairing codes are consumed on first use and reject replay;
   * the auth cookie is signed, server-registered, expires, rejects tampering, and can be revoked;
   * Face-ID/passkey sessions can ride an HttpOnly/SameSite cookie;
   * web shells strip `?k=` and do not persist auth/session secrets in localStorage.
@@ -47,6 +48,20 @@ def main() -> int:
     print("=" * 92)
     t0 = time.perf_counter()
     token = "cookie-cert-token"
+
+    # ---- 0. One-time pairing codes -------------------------------------------------
+    pair_req = _req(path="/auth/pair", headers={"X-Anima-Pairing-Code": "pair-once"},
+                    token=token)
+    pair_req.pairing_codes = {"pair-once"}
+    ck("P1: a configured one-time pairing code is accepted exactly once",
+       pair_req._pairing_authed() is True and "pair-once" not in pair_req.pairing_codes)
+    replay_req = _req(path="/auth/pair", headers={"X-Anima-Pairing-Code": "pair-once"},
+                      token=token)
+    replay_req.pairing_codes = pair_req.pairing_codes
+    ck("P2: replaying the same one-time pairing code is rejected",
+       replay_req._pairing_authed() is False)
+    ck("P3: the existing X-Anima-Key pairing path remains accepted for compatibility",
+       _req(path="/auth/pair", headers={"X-Anima-Key": token}, token=token)._pairing_authed() is True)
 
     # ---- A. Main auth cookie: signed, expiring, HttpOnly/SameSite ------------------
     h = _req(token=token)
@@ -106,6 +121,8 @@ def main() -> int:
        and 'path == "/auth/disable"' in src and "_clear_cookie_header(FACE_COOKIE)" in src)
     ck("C5: _send supports response headers so cookies are emitted through the normal path",
        "def _send(self, code, ctype, body, headers=None)" in src)
+    ck("C6: ANIMA_PAIRING_CODE initializes one-time pairing codes at startup",
+       "ANIMA_PAIRING_CODE" in src and "pairing_codes" in src)
 
     # ---- D. Browser shells do not persist auth/session secrets ----------------------
     html_files = sorted((ROOT / "anima" / "web").glob("*.html"))

@@ -213,9 +213,9 @@ Allowed product:
 - No external action.
 
 Requirements:
-- Auth required for any non-localhost exposure.
-- Encryption consistently applied to private stores.
-- One-time pairing and session auth.
+- Auth required for any non-localhost exposure. CLOSED / CERTIFIED.
+- Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; backup/recovery drills remain.
+- One-time pairing and session auth. PARTIALLY CLOSED / CERTIFIED; first-launch UX, rotation, and device inventory remain.
 - Basic update/recovery story.
 - Crash-safe backup/restore.
 - Privacy receipt prototype.
@@ -287,10 +287,10 @@ Turn Vera from an impressive internal system into a defensible, narrow, sellable
 Build now:
 - Kit manifest and entitlement system.
 - Feature gates tied to kit manifests, not to Vera's core identity.
-- Block unauthenticated `--expose`.
+- Block unauthenticated `--expose`. CLOSED / CERTIFIED.
 - Enforce per-turn local/cloud routing.
-- Unify private storage and encrypt append-only ledgers.
-- Replace query-token/localStorage auth with pairing/session flow.
+- Unify private storage and encrypt append-only ledgers. SUBSTANTIALLY CLOSED / CERTIFIED.
+- Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
 - Implement full WebAuthn or rename current passkey honestly.
 - Bind approvals to exact actions.
 - Bind self-evolution approvals to exact proposals.
@@ -522,8 +522,8 @@ Weeks 1-2:
 - Define Base Vera feature guarantee.
 - Define add-on kit manifest format.
 - Add kit gate skeleton to capabilities/domain packs.
-- Fix unauthenticated expose.
-- Add cert for expose refusal.
+- Fix unauthenticated expose. CLOSED / CERTIFIED.
+- Add cert for expose refusal. CLOSED / CERTIFIED.
 - Write threat model v1.
 - Define product claims blacklist.
 
@@ -535,12 +535,13 @@ Weeks 3-4:
 Weeks 5-6:
 - Build unified encrypted private store.
 - Migrate truth/observation/company direct writes.
-- Add raw-secret absence cert.
+- Add raw-secret absence cert. CLOSED / CERTIFIED for current private-store matrix.
 
 Weeks 7-8:
-- Replace query-token UX with pairing/session.
-- Add Origin/Host checks.
-- Add CSRF hostile-origin cert.
+- Replace query-token UX with pairing/session. PARTIALLY CLOSED / CERTIFIED.
+- Add Origin/Host checks. CLOSED / CERTIFIED for same-host browser POST boundary.
+- Add CSRF hostile-origin cert. CLOSED / CERTIFIED.
+- Add first-launch one-time pairing UX, session rotation, and device inventory.
 
 Weeks 9-10:
 - Bind approvals/actions.

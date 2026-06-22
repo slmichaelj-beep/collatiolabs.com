@@ -4,6 +4,13 @@ Date: 2026-06-21
 
 This is the implementation translation of the 5-year frontier buildout. It turns the vision into tracks that can be worked, certified, and closed.
 
+Updated closure note, 2026-06-22:
+
+- `--expose`/non-loopback startup now refuses without `ANIMA_TOKEN`; certified by `scripts/certify_expose_requires_auth.py`.
+- Private stores, high-risk ledgers, intake staging, portable exports, dataset/export bundles, and product-mode vault enforcement now have W03 encryption coverage.
+- Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, and supports optional one-time `ANIMA_PAIRING_CODE` pairing codes.
+- W04 remains intentionally partial until first-launch pairing UX, session rotation/device inventory, and multi-shell migration/replay certs are finished.
+
 ## Track 1 - Security And Privacy Foundation
 
 Purpose:
@@ -11,10 +18,11 @@ Make Vera safe enough to trust with private continuity.
 
 Immediate work:
 
-- Block unauthenticated `--expose`.
+- Block unauthenticated `--expose`. CLOSED / CERTIFIED.
 - Enforce per-turn local/cloud backend routing.
-- Replace query-token/localStorage auth with pairing/session flow.
-- Add Origin/Host/CSRF checks.
+- Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
+- Add Origin/Host/CSRF checks. CLOSED / CERTIFIED for same-host browser POST boundary.
+- Add one-time pairing-code UX and device/session rotation.
 - Complete WebAuthn or rename current passkey gate honestly.
 - Add zero-egress mode.
 - Add egress ledger.
@@ -24,8 +32,8 @@ Certs:
 
 - `certify_expose_requires_auth.py`
 - `certify_route_backend_enforcement.py`
-- `certify_pairing_session_auth.py`
-- `certify_csrf_origin_host_guards.py`
+- `certify_browser_session_cookies.py`
+- `certify_browser_origin_csrf.py`
 - `certify_zero_egress_mode.py`
 
 ## Track 2 - Private Storage And Endless Context
@@ -195,4 +203,3 @@ It is done when:
 - the failure mode is documented
 - the claim registry reflects the truth
 - Diamond remains green
-

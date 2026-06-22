@@ -49,6 +49,7 @@ FACE_COOKIE = "anima_face_session"
 AUTH_COOKIE_TTL = 30 * 24 * 3600
 _AUTH_SESSIONS: dict[str, int] = {}
 _AUTH_SESSIONS_LOCK = threading.Lock()
+_PAIRING_CODES_LOCK = threading.Lock()
 
 
 class _BodyTooLarge(Exception):
@@ -2830,6 +2831,7 @@ class Handler(BaseHTTPRequestHandler):
     name = "Vera"
     voice = False
     token = ""        # set from ANIMA_TOKEN; "" disables auth
+    pairing_codes: set[str] = set()
 
     def _authed(self) -> bool:
         if not self.token:
@@ -2848,6 +2850,16 @@ class Handler(BaseHTTPRequestHandler):
     def _query_auth_allowed(self) -> bool:
         method = str(getattr(self, "command", "GET") or "GET").upper()
         return method in ("GET", "HEAD")
+
+    def _pairing_authed(self) -> bool:
+        code = (self.headers.get("X-Anima-Pairing-Code", "") or "").strip()
+        if code:
+            with _PAIRING_CODES_LOCK:
+                if code in self.pairing_codes:
+                    self.pairing_codes.remove(code)
+                    return True
+            return False
+        return self._authed()
 
     def _cookie(self, name: str) -> str:
         try:
@@ -3698,6 +3710,12 @@ class Handler(BaseHTTPRequestHandler):
             if not self._post_origin_ok():
                 return self._send(403, "application/json",
                                   b'{"ok":false,"error":"cross_origin_post_refused"}')
+            if path == "/auth/pair":
+                if not self._pairing_authed():
+                    return self._send(401, "text/plain", b"unauthorized")
+                cookie = self._cookie_header(AUTH_COOKIE, self._issue_auth_cookie(), AUTH_COOKIE_TTL)
+                return self._send(200, "application/json", b'{"ok":true}',
+                                  headers=[("Set-Cookie", cookie)])
             if not self._authed():
                 return self._send(401, "text/plain", b"unauthorized")
             if path == "/auth/logout":
@@ -3707,10 +3725,6 @@ class Handler(BaseHTTPRequestHandler):
                                       ("Set-Cookie", self._clear_cookie_header(AUTH_COOKIE)),
                                       ("Set-Cookie", self._clear_cookie_header(FACE_COOKIE)),
                                   ])
-            if path == "/auth/pair":
-                cookie = self._cookie_header(AUTH_COOKIE, self._issue_auth_cookie(), AUTH_COOKIE_TTL)
-                return self._send(200, "application/json", b'{"ok":true}',
-                                  headers=[("Set-Cookie", cookie)])
             if path.startswith("/auth/"):
                 from . import passkey
                 rp_id, origin = self._origin()
@@ -4016,6 +4030,9 @@ def main(argv=None):
     print(f"deploy: running {_DEPLOY['sha']} ({_DEPLOY['branch']}) — "
           f"`python3 scripts/deploy_check.py` confirms git == running (LAW 005)")
     Handler.token = token
+    Handler.pairing_codes = {
+        c.strip() for c in os.environ.get("ANIMA_PAIRING_CODE", "").split(",") if c.strip()
+    }
     from .mouth import DEFAULT_MODEL
     print(f"brain: {os.environ.get('ANIMA_MODEL', DEFAULT_MODEL)} (Ollama) — "
           f"make sure `ollama list` shows it")

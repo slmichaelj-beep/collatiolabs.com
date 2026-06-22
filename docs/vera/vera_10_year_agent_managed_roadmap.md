@@ -252,9 +252,9 @@ Key certs:
 
 ### Days 0-30 - Trust Floor
 
-- Block unauthenticated `--expose`.
+- Block unauthenticated `--expose`. CLOSED / CERTIFIED.
 - Enforce per-turn local/cloud backend routing.
-- Land secure-store foundation and broaden migration plan.
+- Land secure-store foundation and broaden migration plan. SUBSTANTIALLY CLOSED / CERTIFIED.
 - Define Base Vera guarantee.
 - Define kit manifest schema.
 - Freeze unsafe public claims.
@@ -272,8 +272,9 @@ Key certs:
 
 ### Days 61-90 - Auth, Routing, And Receipts
 
-- Replace query-token/localStorage auth with pairing/session flow.
-- Add Origin/Host/CSRF guards.
+- Replace query-token/localStorage auth with pairing/session flow. PARTIALLY CLOSED / CERTIFIED.
+- Add Origin/Host/CSRF guards. CLOSED / CERTIFIED for same-host browser POST boundary.
+- Add first-launch one-time pairing UX, session rotation/device inventory, logout-all, and multi-shell replay/migration certs.
 - Complete WebAuthn or rename the current passkey gate honestly.
 - Add per-turn route receipts.
 - Add egress ledger.
