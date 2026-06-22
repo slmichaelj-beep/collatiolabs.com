@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Back up the creature — her weights, memory, and Portrait — to an external drive.
-# Everything that *is* her lives in .anima/; this is her life insurance.
+# Back up Vera's private vault to an encrypted, restorable bundle on an external drive.
 #   ./scripts/backup-anima.sh [/Volumes/LaCie]
 #
-# Makes a timestamped snapshot (keeps history, so a bad day can't overwrite a good
-# backup). If ANIMA_KEY encryption is on, the backed-up files are encrypted too.
+# Requires ANIMA_KEY or the macOS Keychain item "anima". The bundle carries its
+# own public KDF salt, but Collatio never has the key and cannot decrypt it.
 
-set -u
+set -eu
 DRIVE="${1:-/Volumes/LaCie}"
-SRC="$HOME/collatiolabs.com/.anima"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SRC="${ANIMA_STORE:-$ROOT/.anima}"
+PY="${PYTHON:-python3}"
 
 if [ ! -d "$SRC" ]; then
-  echo "No creature found at $SRC — nothing to back up."; exit 1
+  echo "No Vera vault found at $SRC — nothing to back up."; exit 1
 fi
 if [ ! -d "$DRIVE" ]; then
   echo "Drive not found: $DRIVE"
@@ -20,9 +21,10 @@ if [ ! -d "$DRIVE" ]; then
 fi
 
 STAMP="$(date +%Y%m%d-%H%M%S)"
-DEST="$DRIVE/anima-backup/$STAMP"
-mkdir -p "$DEST"
-rsync -a "$SRC/" "$DEST/"
-echo "Backed up -> $DEST"
+DEST_DIR="$DRIVE/anima-backup"
+DEST="$DEST_DIR/$STAMP.vera.vab"
+mkdir -p "$DEST_DIR"
+(cd "$ROOT" && "$PY" -m anima.vault_backup create --store "$SRC" --out "$DEST" --name "${ANIMA_NAME:-Vera}")
+echo "Encrypted backup -> $DEST"
 echo "Snapshots so far:"
-ls -1 "$DRIVE/anima-backup" | tail -5
+ls -1 "$DEST_DIR" | tail -5

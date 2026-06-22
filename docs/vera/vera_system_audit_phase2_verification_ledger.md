@@ -23,7 +23,7 @@ VERIFIED:
 
 Important nuance:
 
-- The cert stack has live-route checks. Running it without the server produced 51/74; running it with `python3 -m anima.server --port 8765` produced 74/74.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 84/84 GREEN.
 
 ## Product Identity
 
@@ -369,10 +369,10 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P1: Complete encrypted backup/restore/recovery drills for private continuity.
-2. P1: Add zero-egress mode plus per-turn privacy/route receipts.
-3. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
-4. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
+1. P1: Add zero-egress mode plus per-turn privacy/route receipts.
+2. P2: Finish W04 session rotation UX and multi-shell migration/replay certs.
+3. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
+4. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 5. P2: Strengthen budget cumulative invariants and approval-ref validation.
 6. P2: Fix Upwork Connects overspend and status transitions.
 7. P2: Add relational-honesty companion modes.

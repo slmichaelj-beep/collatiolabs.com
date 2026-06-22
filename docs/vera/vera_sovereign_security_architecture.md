@@ -450,8 +450,8 @@ Optional user-controlled inheritance/export workflow. Must be extremely careful 
 
 ### Phase 5 - Backup And Recovery
 
-- Encrypted backup bundles.
-- Restore drill.
+- Encrypted backup bundles. CLOSED / CERTIFIED in `anima/vault_backup.py`.
+- Restore drill. CLOSED / CERTIFIED by `scripts/certify_encrypted_backup_restore.py`.
 - Recovery code.
 - Wrong-key detection.
 - No Collatio custody mode.

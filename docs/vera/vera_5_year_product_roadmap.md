@@ -214,10 +214,10 @@ Allowed product:
 
 Requirements:
 - Auth required for any non-localhost exposure. CLOSED / CERTIFIED.
-- Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; backup/recovery drills remain.
+- Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; key lifecycle UX remains.
 - One-time pairing and session auth. PARTIALLY CLOSED / CERTIFIED; first-launch UX, rotation, and device inventory remain.
 - Basic update/recovery story.
-- Crash-safe backup/restore.
+- Crash-safe backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED.
 - Privacy receipt prototype.
 
 ### Gate 2 - Paid Design Partners
@@ -362,7 +362,7 @@ Build:
 - Pack-specific privacy and action receipts.
 - Pack-specific cert requirements.
 - Local appliance packaging.
-- Advanced backup/restore.
+- Advanced backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED; recovery-code/hardware-key UX remains.
 - Multi-device sync option with end-to-end encryption.
 - Stronger model committee orchestration.
 

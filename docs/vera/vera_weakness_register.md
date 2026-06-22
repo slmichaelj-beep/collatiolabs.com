@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, and export/training packages when a vault key is active, and product/private mode refuses plaintext startup; remaining product work is key recovery/rotation UX.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; remaining product work is first-run key setup, recovery-code/hardware-key, and rotation UX.
 4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, and static pairing replay are blocked; first-launch UX, session rotation, device inventory, and multi-shell replay/migration certs remain.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -153,7 +153,7 @@ Fourth closure update:
 - Explicit plaintext escape hatches and trainer materializations are written with owner-only file permissions.
 - Added `scripts/certify_encrypted_exports.py` and wired it into `scripts/run_master_cert_stack.py`.
 - Focused certification passed: `certify_encrypted_exports`, `certify_private_write_classification`, `python3 -m anima.portable --selftest`, `python3 -m anima.platform --selftest`, `certify_identity_portability`, and `scripts/selftest.py`.
-- Static classification now verifies 37 direct write sites with no pending plaintext export/training surfaces.
+- Static classification now verifies 38 direct write sites with no pending plaintext export/training surfaces after adding the classified encrypted-backup writer.
 
 Fifth closure update:
 - Expanded `scripts/certify_secure_store_no_plaintext.py` from representative high-risk stores to a 31-compartment private-store matrix covering agency, teaching, auto-learn, knowledge packs, rollback, incident/SOC, metrics, constitution, meaning, reality, loops, opportunity, trajectory, theory, review, intake, LERF routes, founder console, identity sandbox, twin artifacts, text, bytes, JSON, and JSONL.
@@ -165,8 +165,14 @@ Sixth closure update:
 - Added deterministic keychain bypass for certs via `ANIMA_DISABLE_KEYCHAIN=1`.
 - Added `scripts/certify_vault_requires_encryption.py` and wired it into `scripts/run_master_cert_stack.py`.
 
+Seventh closure update:
+- Added `anima/vault_backup.py` for encrypted off-device vault backup bundles with a bundle-local public KDF salt, minimal public wrapper metadata, encrypted payload, per-file SHA-256 integrity, dry-run restore, confirm-gated restore, overwrite refusal, wrong-key refusal, tamper detection, and path-traversal rejection.
+- Updated `scripts/backup-anima.sh` to create `.vera.vab` encrypted vault bundles instead of raw `rsync` snapshots.
+- Added `scripts/certify_encrypted_backup_restore.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_encrypted_backup_restore`, `certify_encrypted_exports`, `certify_vault_requires_encryption`, compile checks, and backup script syntax.
+
 Residual note before W03 becomes product-closed:
-- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode now refuses plaintext startup, but first-run setup, recovery, rotation, and hardware-backed key lifecycle UX remain open.
+- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode now refuses plaintext startup and encrypted backup/restore is certified, but first-run key setup, recovery-code/hardware-key, and key rotation UX remain open.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
@@ -381,7 +387,7 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack passed 74/74 live.
+- Master cert stack currently passes 84/84 live.
 - Diamond v2 confirmed 108 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
@@ -541,10 +547,10 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Complete encrypted backup/restore/recovery drills.
-2. Add zero-egress mode and per-turn route/privacy receipts.
-3. Finish W04 session rotation/device inventory and multi-shell replay certs.
-4. Complete W05 WebAuthn signature verification or rename the surface honestly.
+1. Add zero-egress mode and per-turn route/privacy receipts.
+2. Finish W04 session rotation/device inventory and multi-shell replay certs.
+3. Complete W05 WebAuthn signature verification or rename the surface honestly.
+4. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 5. Bind approvals to action intent.
 6. Strengthen budget and marketplace resource invariants.
 7. Reframe revenue/company as optional domain packs in UI and documentation.

@@ -292,8 +292,8 @@ Key certs:
 
 ### Days 121-150 - Backup, Recovery, Admin
 
-- Build encrypted backup bundles.
-- Build restore drill.
+- Build encrypted backup bundles. CLOSED / CERTIFIED.
+- Build restore drill. CLOSED / CERTIFIED.
 - Add recovery code/hardware-key recovery design.
 - Build Administrative Command Center.
 - Build deadline/renewal tracker.

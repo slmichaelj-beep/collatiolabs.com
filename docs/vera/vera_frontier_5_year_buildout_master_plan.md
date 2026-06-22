@@ -559,7 +559,7 @@ Integrity:
 - Migrate truth and observation ledgers.
 - Migrate company/governance ledgers.
 - Add raw-secret absence cert.
-- Add backup/restore encryption cert.
+- Add backup/restore encryption cert. CLOSED / CERTIFIED.
 
 ### Month 3 - Auth And Receipts
 
@@ -641,4 +641,3 @@ Every increase in Vera's power must come with an equal or greater increase in:
 - verification
 
 That is how we build something 10,000,000x more frontier without betraying the human it exists to protect.
-
