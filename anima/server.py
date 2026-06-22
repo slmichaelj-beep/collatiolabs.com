@@ -3942,6 +3942,8 @@ def main(argv=None):
                     help="default localhost-only (safe). Use --expose to allow the LAN.")
     ap.add_argument("--expose", action="store_true",
                     help="bind 0.0.0.0 so other devices on your WiFi can reach it")
+    ap.add_argument("--require-encryption", action="store_true",
+                    help="refuse startup unless the private vault is encrypted")
     ap.add_argument("--voice", action="store_true", help="synthesize speech with Kokoro")
     args = ap.parse_args(argv)
 
@@ -3952,6 +3954,17 @@ def main(argv=None):
             "\nrefusing to expose Vera without ANIMA_TOKEN.\n"
             "  set ANIMA_TOKEN to a strong secret before using --expose or a non-loopback --host.\n"
             "  localhost remains available without a token for local development.\n")
+    from . import crypto
+    require_encryption = (
+        args.require_encryption
+        or os.environ.get("ANIMA_REQUIRE_ENCRYPTION") == "1"
+        or os.environ.get("ANIMA_PRODUCT_MODE") == "1"
+    )
+    if require_encryption and not crypto.enabled():
+        raise SystemExit(
+            "\nrefusing to start Vera in private/product mode without an encrypted vault.\n"
+            "  set ANIMA_KEY or the macOS Keychain item 'anima', then restart.\n"
+            "  for local development only, omit --require-encryption and unset ANIMA_REQUIRE_ENCRYPTION.\n")
     _ensure(args.name, args.neurons)
     _load_history(args.name)              # bring back her recent conversation across restarts
     try:                                  # verify the key fits before serving
@@ -3965,7 +3978,6 @@ def main(argv=None):
     print(f"deploy: running {_DEPLOY['sha']} ({_DEPLOY['branch']}) — "
           f"`python3 scripts/deploy_check.py` confirms git == running (LAW 005)")
     Handler.token = token
-    from . import crypto
     from .mouth import DEFAULT_MODEL
     print(f"brain: {os.environ.get('ANIMA_MODEL', DEFAULT_MODEL)} (Ollama) — "
           f"make sure `ollama list` shows it")

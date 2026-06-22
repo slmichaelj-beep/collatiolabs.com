@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, and export/training packages when a vault key is active; remaining product work is mandatory encrypted-vault onboarding/key lifecycle.
+3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, and export/training packages when a vault key is active, and product/private mode refuses plaintext startup; remaining product work is key recovery/rotation UX.
 4. `P1/P2 PARTIALLY CLOSED; CERTIFIED` unsafe cross-origin POST and POST query-token authorization are blocked; browser session/localStorage architecture remains open for the later product-grade pairing and cookie pass.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
@@ -160,8 +160,13 @@ Fifth closure update:
 - Focused certification passed: `certify_secure_store_no_plaintext` with every matrix raw file carrying the `ANIMAENC1:` marker and no synthetic secret visible on disk, while normal load paths recovered the secret.
 - The direct-write classification cert remains green with no pending plaintext privacy surfaces.
 
+Sixth closure update:
+- Added product/private-mode vault enforcement: `--require-encryption`, `ANIMA_REQUIRE_ENCRYPTION=1`, and `ANIMA_PRODUCT_MODE=1` refuse server startup unless `ANIMA_KEY` or the macOS Keychain item `anima` is active.
+- Added deterministic keychain bypass for certs via `ANIMA_DISABLE_KEYCHAIN=1`.
+- Added `scripts/certify_vault_requires_encryption.py` and wired it into `scripts/run_master_cert_stack.py`.
+
 Residual note before W03 becomes product-closed:
-- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode needs first-run encrypted-vault setup, key lifecycle/recovery UX, and refusal of private companion mode when the vault is not sealed.
+- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode now refuses plaintext startup, but first-run setup, recovery, rotation, and hardware-backed key lifecycle UX remain open.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 

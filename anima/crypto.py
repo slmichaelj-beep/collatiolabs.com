@@ -42,6 +42,8 @@ def _passphrase():
     pw = os.environ.get("ANIMA_KEY")
     if pw:
         return pw
+    if os.environ.get("ANIMA_DISABLE_KEYCHAIN") == "1":
+        return None
     import sys
     if sys.platform != "darwin":
         return None

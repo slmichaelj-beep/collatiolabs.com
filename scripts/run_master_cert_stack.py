@@ -31,6 +31,7 @@ STACK = [
     ("certify_no_stubs", ["--gate"]),
     ("certify_product_polish", []),
     ("certify_expose_requires_auth", []),
+    ("certify_vault_requires_encryption", []),
     ("certify_browser_origin_csrf", []),
     ("certify_browser_session_cookies", []),
     # truth + learning
