@@ -23,7 +23,7 @@ Severity:
 
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
-2. `P1 CLOSED IN CODE; CERT/Diamond REQUIRED FOR RELEASE` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
+2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 CONFIRMED` at-rest encryption is optional and inconsistently applied; several private ledgers bypass crypto-aware write helpers.
 4. `P1/P2 CONFIRMED` browser token handling uses query tokens and localStorage; no explicit Origin/CSRF boundary was found.
 5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
@@ -45,7 +45,7 @@ Adversarial probes run on 2026-06-21 confirmed live behavior for:
 ### W01 - LAN expose can be unauthenticated
 
 Severity: `P1`
-Status: `CLOSED IN CODE; CERT/Diamond REQUIRED FOR RELEASE`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/server.py:2766-2770` treats an empty token as authenticated.
@@ -74,7 +74,7 @@ Closure update:
 ### W02 - Per-turn local/cloud router does not enforce generation backend
 
 Severity: `P1`
-Status: `CLOSED IN CODE; CERT/Diamond REQUIRED FOR RELEASE`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/organs/router.py` computes `RouteDecision`.
@@ -98,6 +98,8 @@ Closure update:
 - Per-turn memory blanking now follows the selected backend, not merely whether a cloud provider is configured.
 - Added `scripts/certify_route_backend_enforcement.py`.
 - Added the cert to `scripts/run_master_cert_stack.py`.
+- Closure certified on commit `9e4604d`: deploy proof GREEN, master stack `77/77 GREEN`, Diamond v2 repeatability CONFIRMED (`108 COMPLETE / 1 HONEST PARTIAL`, 0 product reds, 0 unclassified flakes).
+- Remote verified: `origin/anima` points to `9e4604d20c99a9b986fa2b4e5bfa03dbc86139fd`.
 
 ### W03 - Encryption is optional and not consistently applied
 
