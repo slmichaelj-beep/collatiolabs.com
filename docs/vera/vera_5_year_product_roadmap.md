@@ -328,7 +328,7 @@ Build:
 - What Vera knows about me explorer.
 - Forget everywhere with proof.
 - Learning Studio v1.
-- Privacy receipt history.
+- Privacy receipt history. CLOSED / CERTIFIED with `/privacy` Privacy Flight Recorder, filters, connector policy, zero-egress state, and weather location precision.
 - Human-readable action receipts.
 - Cloud ask-every-time mode.
 - Local model ladder.
@@ -447,7 +447,7 @@ Success metrics:
 
 Do not claim yet:
 - "Encrypted by default" until all private stores use the same encrypted substrate.
-- "Local-only by default" is now backed by per-turn backend enforcement, a zero-egress hard switch, and certified privacy receipt/egress ledger coverage for cloud/web/weather/key-verification surfaces; connector receipt policy and normal-user viewer polish remain before broader product claims.
+- "Local-only by default" is now backed by per-turn backend enforcement, a zero-egress hard switch, certified privacy receipt/egress ledger coverage for cloud/web/weather/key-verification surfaces, the `/privacy` Privacy Flight Recorder, default-deny connector receipt policy, and coarse weather-location egress by default.
 - "Secure LAN access" until expose requires auth and CSRF/origin defenses exist.
 - "Passkey protected" unless full WebAuthn verification is implemented or the phrase is carefully scoped.
 - "Autonomous governance" until approval binding and budget invariants are fixed.
@@ -531,6 +531,7 @@ Weeks 3-4:
 - Enforce per-turn backend routing. CLOSED / CERTIFIED.
 - Add fake-cloud no-egress cert. CLOSED as route-backend enforcement; zero-egress hard switch for cloud/web/weather also CLOSED / CERTIFIED.
 - Add privacy receipt event schema. CLOSED / CERTIFIED for per-turn receipts and current cloud/web/weather/key-verification egress ledger.
+- Add Privacy Flight Recorder, connector receipt policy, and coarse-location UX. CLOSED / CERTIFIED.
 
 Weeks 5-6:
 - Build unified encrypted private store.

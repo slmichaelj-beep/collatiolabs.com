@@ -39,13 +39,15 @@ def main() -> int:
     opened: list[str] = []
 
     with tempfile.TemporaryDirectory(prefix="zero-egress-cert-") as td:
-        from anima import cloud, context_gather, webget
+        from anima import cloud, context_gather, privacy_receipts, webget
         import urllib.request as _ureq
 
         old_store = cloud.STORE
+        old_privacy_store = privacy_receipts.STORE
         old_urlopen = _ureq.urlopen
         old_build_opener = _ureq.build_opener
         cloud.STORE = Path(td)
+        privacy_receipts.STORE = Path(td)
         os.environ["ANIMA_ZERO_EGRESS"] = "1"
 
         class _TripwireOpener:
@@ -90,6 +92,7 @@ def main() -> int:
             _ureq.urlopen = old_urlopen
             _ureq.build_opener = old_build_opener
             cloud.STORE = old_store
+            privacy_receipts.STORE = old_privacy_store
             if old_zero is None:
                 os.environ.pop("ANIMA_ZERO_EGRESS", None)
             else:

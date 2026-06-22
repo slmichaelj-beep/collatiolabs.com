@@ -5552,6 +5552,52 @@ def probe_privacy(res: Result) -> None:
         res.reason = "Privacy guarantees did not fully hold (cert FAIL)."
 
 
+# --- privacy_receipt_viewer ------------------------------------------------------------------
+def probe_privacy_receipt_viewer(res: Result) -> None:
+    """Privacy Flight Recorder: user-visible receipts, connector policy, and location precision."""
+    rc, tail = run_subcert([HERE / "certify_privacy_receipt_viewer.py"])
+    cert_ok = (rc == 0) and ("PRIVACY RECEIPT VIEWER CERT: CERTIFIED" in tail)
+    res.evidence.append("scripts/certify_privacy_receipt_viewer.py -> exit %d; %s"
+                        % (rc, "CERTIFIED" if cert_ok else "FAIL"))
+
+    server_src = (ROOT / "anima" / "server.py").read_text()
+    pr_src = (ROOT / "anima" / "privacy_receipts.py").read_text()
+    cg_src = (ROOT / "anima" / "context_gather.py").read_text()
+    caps_src = (ROOT / "anima" / "caps.py").read_text()
+    idx_src = (ROOT / "anima" / "web" / "index.html").read_text()
+    page = (ROOT / "anima" / "web" / "privacy.html").read_text()
+    endpoint = '"/privacy/receipts.json"' in server_src and "receipt_history" in server_src
+    ui = 'href="/privacy"' in idx_src and "Privacy Flight Recorder" in page
+    backend = all(s in pr_src for s in ("def receipt_history(", "def connector_policy(",
+                                        "def record_connector_egress("))
+    location = ('"location_precision"' in caps_src and "prepare_location_for_egress" in pr_src
+                and "prepare_location_for_egress" in cg_src
+                and 'data-enum="location_precision"' in idx_src)
+    auth = "/auth/pair" in page and "localStorage.setItem" not in page
+    res.evidence.append("GET /privacy/receipts.json=%s; viewer UI=%s; receipt backend=%s; "
+                        "location precision=%s; no browser auth storage=%s"
+                        % (endpoint, ui, backend, location, auth))
+    res.set(UI=ui, Backend=cert_ok and backend, Storage=cert_ok, Retrieval=cert_ok,
+            Use=cert_ok, MRI=None, Restart=cert_ok)
+    if cert_ok and endpoint and ui and backend and location and auth:
+        res.status = COMPLETE
+        res.proven_links = ["normal_user_surface", "receipt_history", "egress_feed",
+                            "connector_policy", "location_precision_mode",
+                            "restart_survival"]
+        res.reason = ("Privacy Flight Recorder is live: /privacy renders the normal-user viewer, "
+                      "/privacy/receipts.json returns sanitized turn receipts + egress feed + connector "
+                      "policy + location precision, named weather egress defaults coarse, exact is "
+                      "explicit, off blocks before socket, connector events are receipt-required and "
+                      "raw payload/API key/query-token/path data is not persisted; real .anima untouched.")
+    else:
+        res.status = PARTIAL if cert_ok else STUB
+        res.missing_links = [k for k, v in (("live_cert", cert_ok), ("endpoint", endpoint),
+                             ("ui", ui), ("backend", backend), ("location_precision", location),
+                             ("auth_storage", auth)) if not v]
+        res.reason = "Privacy receipt viewer did not fully hold (missing: %s)." % (
+            ", ".join(res.missing_links) or "none")
+
+
 # --- host_pressure ---------------------------------------------------------------------------
 def probe_host_pressure(res: Result) -> None:
     """Vera defers HEAVY work under host memory/swap/disk pressure, honestly. The executable cert
@@ -5885,6 +5931,7 @@ def classify_all() -> dict:
         "security_baseline": probe_security_baseline,
         "permissions": probe_permissions,
         "privacy": probe_privacy,
+        "privacy_receipt_viewer": probe_privacy_receipt_viewer,
         "observatory": probe_observatory,
         "patterns_dashboard": probe_patterns_dashboard,
         "security_surface": probe_security_surface,

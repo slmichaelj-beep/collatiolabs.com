@@ -30,8 +30,9 @@ Top weaknesses:
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
 8. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
-9. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
-10. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
+9. `P2 CONFIRMED` some older cert fixtures can dirty real `.anima` during live-path verification unless their stores are redirected or classified.
+10. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
+11. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
 
 Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Approval mismatch authorizing the wrong action.
@@ -105,7 +106,7 @@ Closure update:
 ### W03 - Encryption is optional and not consistently applied
 
 Severity: `P1`
-Status: `CLOSED; CERTIFIED FOR SUPPORTED SAME-ORIGIN SHELLS`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/crypto.py` implements optional Fernet encryption when `ANIMA_KEY` or keychain material exists.
@@ -178,7 +179,7 @@ Residual note before W03 becomes product-closed:
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
 Severity: `P2`
-Status: `PARTIALLY CLOSED; CERTIFIED`
+Status: `CLOSED; CERTIFIED FOR SUPPORTED SAME-ORIGIN SHELLS`
 
 Evidence:
 - Original review found server auth accepted URL query `?k=`, `X-Anima-Key`, or `Authorization: Bearer`.
@@ -256,7 +257,7 @@ Fix direction:
 ### W07 - Location/weather egress needs a visible privacy receipt
 
 Severity: `P2`
-Status: `PARTIALLY CLOSED; CERTIFIED`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/context_gather.py` can call Open-Meteo with latitude/longitude for proactive briefing context.
@@ -279,7 +280,16 @@ Closure update:
 - Focused certification passed: `certify_privacy_receipts`, `certify_zero_egress_mode`, `certify_web_allowlist`, `certify_context_gather`, `certify_model_management`, `certify_route_backend_enforcement`, `certify_browser_session_cookies`, and `certify_privacy`.
 
 Residual note:
-- This closes the hard off switch plus receipt/ledger coverage for current cloud/web/weather/key-verification egress surfaces. A normal-user receipt viewer, coarse-location UX, and connector receipt policy remain open.
+- This closes the hard off switch plus receipt/ledger coverage for current cloud/web/weather/key-verification egress surfaces.
+
+Second closure update:
+- Added `receipt_history()`, `privacy_summary()`, `connector_policy()`, `record_connector_egress()`, `location_precision()`, and `prepare_location_for_egress()` to `anima/privacy_receipts.py`.
+- Added `/privacy` plus `/privacy/receipts.json` as the normal-user Privacy Flight Recorder: turn receipts, egress feed, blocked events, connector feed, connector policy, zero-egress state, and location precision.
+- Added `location_precision` to `anima/caps.py` with privacy-first default `coarse`; weather egress now rounds named-user coordinates by default, uses exact coordinates only when explicitly selected, and `off` blocks weather before any socket.
+- Added the Settings link and weather precision control to `anima/web/index.html`.
+- Added `feature_contracts/privacy_receipt_viewer.json` and `scripts/certify_privacy_receipt_viewer.py`, then wired the cert into `scripts/run_master_cert_stack.py` and the live-path Diamond matrix.
+- Focused certification passed: `certify_privacy_receipt_viewer`, `certify_privacy_receipts`, `certify_zero_egress_mode`, and `certify_context_gather`.
+- Live-path gate classified `privacy_receipt_viewer` as `COMPLETE`.
 
 ## Governance And Autonomy
 
@@ -405,8 +415,8 @@ Severity: `P2`
 Status: `CONFIRMED`
 
 Evidence:
-- Master cert stack currently passes 87/87 live.
-- Diamond v2 confirmed 108 complete / 1 honest partial.
+- Master cert stack currently passes 88/88 live after the Privacy Flight Recorder slice.
+- Diamond v2 confirmed 109 complete / 1 honest partial.
 - Current gaps above were found by adversarial reading, not by the green cert stack.
 
 Risk:
@@ -496,14 +506,14 @@ Status: `FRONTIER IMPROVEMENT`
 
 Evidence:
 - Local-first pieces exist: route ledger, cloud scrubbing, caps, optional encryption, truth ledger, consent gates.
-- The user still has to infer much of the privacy boundary from implementation.
+- `/privacy` now makes turn/egress/location/connector receipts visible, but memory/source/action receipts are not yet unified into one human privacy story.
 
 Risk:
 Privacy that is only implemented, not experienced, will not feel like a new frontier to users.
 
 Fix direction:
-- Per-turn privacy receipt.
-- Zero-egress mode.
+- Per-turn privacy receipt. CLOSED / CERTIFIED for turn/backend/egress.
+- Zero-egress mode. CLOSED / CERTIFIED for cloud/web/weather/key checks.
 - Memory rooms: sealed, private, shareable, temporary, and erasable.
 - “What does Vera know about me?” explorer.
 - “Why did Vera remember this?” and “forget this everywhere” controls.
@@ -556,6 +566,24 @@ Fix direction:
 - Add a health check that confirms configured models exist before advertising cloud readiness.
 - Treat cloud fallback as optional, explicit, and receipt-bearing.
 
+### W21 - Some cert fixtures can dirty real `.anima` during verification
+
+Severity: `P2`
+Status: `CONFIRMED; PARTIALLY MITIGATED`
+
+Evidence:
+- A standalone `scripts/certify_live_paths.py --gate` run after the Privacy Flight Recorder slice classified the new feature as `COMPLETE`, but reported `hermetic (byte-identical): NO - LEAK`.
+- Recent real-store fixture writes included `.anima/SecBaseCert.intake.jsonl`, `.anima/HPCert.intake.jsonl`, `.anima/AiSecCert.intake.jsonl`, `.anima/PrivPortCopy.*`, `.anima/security_events.jsonl`, `.anima/Vera.meaning.jsonl`, and `.anima/Vera.trajectory.jsonl`.
+- The adjacent privacy/weather cert family also could append to `.anima/privacy/global.egress.jsonl`; this slice fixed `scripts/certify_zero_egress_mode.py` and `scripts/certify_context_gather.py` to redirect `privacy_receipts.STORE` into temp stores.
+
+Risk:
+Diamond repeatability can still confirm feature classification, but a privacy product should not let certification fixtures pollute a real user vault. Verification must be byte-clean or explicitly classify every allowed volatile artifact.
+
+Fix direction:
+- Redirect every store-bearing module in older certs that call intake, incident/security, identity import, meaning, trajectory, or egress paths.
+- Add a cert that fails when any synthetic cert creature writes to real `.anima`.
+- Keep volatile runtime logs excluded, but do not hide durable state pollution under the volatile umbrella.
+
 ## Closure Criteria
 
 A weakness should be marked closed only when:
@@ -565,7 +593,7 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Add privacy receipt viewer, connector receipt policy, and coarse-location UX.
+1. Clean the remaining cert fixture writes so live-path verification is byte-clean against real `.anima`.
 2. Complete W05 WebAuthn signature verification or rename the surface honestly.
 3. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 4. Bind approvals to action intent.

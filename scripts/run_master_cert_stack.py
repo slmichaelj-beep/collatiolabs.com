@@ -43,6 +43,7 @@ STACK = [
     ("certify_encrypted_backup_restore", []),
     ("certify_zero_egress_mode", []),
     ("certify_privacy_receipts", []),
+    ("certify_privacy_receipt_viewer", []),
     ("certify_route_backend_enforcement", []),
     ("certify_truth_ledger", []),
     ("certify_memory_truth_and_correction", []),

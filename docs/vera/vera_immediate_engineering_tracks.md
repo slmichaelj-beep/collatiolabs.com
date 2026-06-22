@@ -11,7 +11,8 @@ Updated closure note, 2026-06-22:
 - Encrypted off-device backup bundles and restore drills are closed and certified by `scripts/certify_encrypted_backup_restore.py`; first-run key setup, recovery-code/hardware-key, and rotation UX remain.
 - Per-turn local/cloud backend enforcement is closed and certified by `scripts/certify_route_backend_enforcement.py`.
 - Zero-egress hard switch is closed and certified for cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_zero_egress_mode.py`.
-- Per-turn privacy receipts plus sanitized egress ledger coverage are closed and certified for turns, cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_privacy_receipts.py`; viewer/connector/coarse-location UX remain.
+- Per-turn privacy receipts plus sanitized egress ledger coverage are closed and certified for turns, cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_privacy_receipts.py`.
+- Privacy Flight Recorder viewer, default-deny connector receipt policy, and coarse-location weather UX are closed and certified by `scripts/certify_privacy_receipt_viewer.py`.
 - Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, session inventory, session rotation, logout-all, optional `ANIMA_PAIRING_CODE` pairing codes, generated startup one-time codes, authenticated minting of additional one-time codes, a main-chat first-launch pairing modal, and multi-shell replay/migration certs for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells.
 - W04 is closed for supported same-origin browser shells. Custom-scheme installed wrappers remain a packaging constraint: they must proxy through the same localhost origin or receive a future explicit allowlist.
 
@@ -31,9 +32,9 @@ Immediate work:
 - Add multi-shell replay/migration certs. CLOSED / CERTIFIED for supported same-origin shells.
 - Complete WebAuthn or rename current passkey gate honestly.
 - Add zero-egress mode. CLOSED / CERTIFIED for cloud, web, and weather egress.
-- Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
+- Add egress ledger. CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, weather lookup, and connector-policy receipts.
 - Add per-turn privacy receipts. CLOSED / CERTIFIED for turn responses and append-only receipt ledger.
-- Add privacy receipt viewer, connector policy, and coarse-location UX.
+- Add privacy receipt viewer, connector policy, and coarse-location UX. CLOSED / CERTIFIED.
 
 Certs:
 
@@ -43,6 +44,7 @@ Certs:
 - `certify_browser_origin_csrf.py`
 - `certify_zero_egress_mode.py`
 - `certify_privacy_receipts.py`
+- `certify_privacy_receipt_viewer.py`
 
 ## Track 2 - Private Storage And Endless Context
 

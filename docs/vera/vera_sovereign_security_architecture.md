@@ -502,7 +502,7 @@ Claim only what we can prove:
 - encrypted backups
 - no-plaintext certs
 - zero-egress hard switch for cloud/web/weather
-- certified per-turn privacy receipts and sanitized egress ledger for current cloud/web/weather/key-verification surfaces
+- certified per-turn privacy receipts, `/privacy` Privacy Flight Recorder, default-deny connector policy, coarse-location weather egress, and sanitized egress ledger for current cloud/web/weather/key-verification surfaces
 
 ## North Star
 

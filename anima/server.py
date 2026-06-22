@@ -1669,6 +1669,17 @@ def _web_fetch(name, data):
     return json.dumps(webget.fetch(str(data.get("url", ""))[:2000], c["allowlist"], name=name))
 
 
+def _privacy_data(name, query=""):
+    from . import privacy_receipts
+    qs = parse_qs(query or "")
+    kind = (qs.get("kind", ["all"])[0] or "all").strip().lower()
+    try:
+        limit = int(qs.get("limit", ["80"])[0])
+    except Exception:
+        limit = 80
+    return json.dumps(privacy_receipts.receipt_history(name, limit=limit, kind=kind))
+
+
 # --- Personal Intelligence ("Learn Lamar") — see + control your own learned model ----------
 # The model is built from CAPTURED data only (no inference); every claim is source-labeled,
 # confidence-scored, and sensitive-flagged. The user can distill on demand, relabel, or remove a
@@ -1830,9 +1841,16 @@ def _store_location(name, data):
         ts = float(data.get("ts"))
     except (TypeError, ValueError):
         ts = time.time()
+    try:
+        from . import privacy_receipts as _prec
+        precision = _prec.location_precision(name)
+    except Exception:
+        precision = "coarse"
     STORE.mkdir(exist_ok=True)
-    save_json(_loc_path(name), {"lat": lat, "lon": lon, "ts": ts, "stored": time.time()})
-    return json.dumps({"ok": True, "lat": lat, "lon": lon, "ts": ts})
+    save_json(_loc_path(name), {"lat": lat, "lon": lon, "ts": ts, "stored": time.time(),
+                                "weather_egress_precision": precision})
+    return json.dumps({"ok": True, "lat": lat, "lon": lon, "ts": ts,
+                       "weather_egress_precision": precision})
 
 
 def _store_device(name, data):
@@ -3179,6 +3197,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, "text/html; charset=utf-8",
                                       sec.read_text(encoding="utf-8").encode())
                 return self._send(404, "text/plain", b"security console not built")
+            if u.path in ("/privacy", "/privacy.html", "/privacy/receipts"):
+                # Privacy Flight Recorder page SHELL — public like the others (it holds no secrets;
+                # /privacy/receipts.json below is token-gated).
+                pv = (WEB / "privacy.html")
+                if pv.exists():
+                    return self._send(200, "text/html; charset=utf-8",
+                                      pv.read_text(encoding="utf-8").encode())
+                return self._send(404, "text/plain", b"privacy surface not built")
             if u.path in ("/consent", "/consent.html", "/privacy/consent"):
                 # Consent & Boundaries page SHELL — public like the others (data is token-gated).
                 cn = (WEB / "consent.html")
@@ -3406,6 +3432,11 @@ class Handler(BaseHTTPRequestHandler):
                 # quarantine catches, the SOC trail, caps posture. Token-gated. Read-only; honest.
                 return self._send(200, "application/json",
                                   json.dumps(_security_data(self.name)).encode())
+            if u.path in ("/privacy/receipts.json", "/privacy.json"):
+                # Privacy Flight Recorder data — per-turn receipts, egress ledger, connector policy,
+                # and location precision. Token-gated. Read-only; sanitized by construction.
+                return self._send(200, "application/json",
+                                  _privacy_data(self.name, u.query).encode())
             if u.path in ("/consent.json", "/privacy/consent.json"):
                 # Consent & Boundaries data — per-domain consent + held sensitive memories. Token-gated.
                 return self._send(200, "application/json",

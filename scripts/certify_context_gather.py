@@ -58,7 +58,7 @@ class _Tripwire(Exception):
 
 
 def main() -> int:
-    from anima import context_gather as cg
+    from anima import context_gather as cg, privacy_receipts
     import urllib.request as _urlreq
     fails = []
 
@@ -85,14 +85,16 @@ def main() -> int:
 
     saved_urlopen = _urlreq.urlopen
     saved_run_osa = cg._run_osa
+    saved_privacy_store = privacy_receipts.STORE
     # default osascript tripwire (per-check we swap in synthetic outputs explicitly)
     def _osa_tripwire(script, timeout=25.0):
         tripped["osa"] += 1
         raise _Tripwire("osascript reached (_run_osa) — not allowed in this offline cert")
 
-    with _temp_store():
+    with _temp_store() as td:
         _urlreq.urlopen = _net_tripwire
         cg._run_osa = _osa_tripwire
+        privacy_receipts.STORE = Path(td)
         try:
             # ---- A. WEATHER DEGRADES HONESTLY, NEVER FABRICATES -------------------------------
             net0 = tripped["net"]
@@ -248,6 +250,7 @@ def main() -> int:
         finally:
             _urlreq.urlopen = saved_urlopen
             cg._run_osa = saved_run_osa
+            privacy_receipts.STORE = saved_privacy_store
 
     fp_after = _footprint(real_anima)
     ck("H1: real .anima is byte-identical after the cert (context_gather writes nothing)",

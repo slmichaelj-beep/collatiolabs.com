@@ -141,7 +141,7 @@ def compose_briefing(name: str = "Vera", ctx=None, *,
     from . import context_gather
     if ctx is None:
         ctx = context_gather.gather(lat=lat, lon=lon, location_label=location_label,
-                                    unread_count=unread_count)
+                                    unread_count=unread_count, name=name)
     facts = ctx.fact_sheet()
     has_real_ctx = bool(ctx.weather.ok or (ctx.calendar.ok and ctx.calendar.events))
 

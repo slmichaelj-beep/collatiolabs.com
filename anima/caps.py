@@ -68,9 +68,14 @@ BOOL_KEYS = ("imessage", "mail", "web", "imessage_read", "mail_read", "identity_
 # freeze is independent and absolute (no mode can ever grow who Vera is). The legacy
 # grow_intelligence boolean still works (it gates the master ON/OFF); grow_mode refines the
 # intensity once ON. Default "off" keeps the whole engine default-OFF.
+#
+# location_precision — the weather/location egress precision. "coarse" is the privacy-first default:
+# Vera can get useful weather while sending only a rounded coordinate bucket to the weather provider.
+# "exact" is explicit; "off" blocks weather lookup before any socket.
 ENUM_KEYS = {
     "curiosity": (("minimal", "balanced", "deep"), "balanced"),
     "grow_mode": (("off", "low", "medium", "high", "research"), "off"),
+    "location_precision": (("off", "coarse", "exact"), "coarse"),
 }
 # capability sub-permissions default to the safe subset; UI can widen them
 DEFAULT = {

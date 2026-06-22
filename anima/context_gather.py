@@ -90,7 +90,8 @@ class Weather:
 
 
 def weather(lat: float, lon: float, timeout: float = 8.0, *,
-            name: str | None = None, turn_id: str = "") -> Weather:
+            name: str | None = None, turn_id: str = "",
+            precision: str | None = None) -> Weather:
     """Current conditions + today's high/low for a coordinate, via Open-Meteo.
 
     No API key. Returns Weather(ok=False, note=...) on any failure — the caller
@@ -109,6 +110,25 @@ def weather(lat: float, lon: float, timeout: float = 8.0, *,
         lon = float(lon)
     except (TypeError, ValueError):
         return Weather(ok=False, note="no/!invalid coordinates for weather")
+    loc = privacy_receipts.prepare_location_for_egress(
+        lat, lon, name=name, precision=precision)
+    if not loc.get("ok"):
+        try:
+            privacy_receipts.record_egress(
+                name, kind="weather_lookup", target="https://api.open-meteo.com",
+                decision="blocked", turn_id=turn_id,
+                reason="location sharing is off",
+                metadata={"provider": "open-meteo", "location_precision": "off"})
+        except Exception:
+            pass
+        return Weather(ok=False, note="location sharing is off; blocked weather lookup")
+    lat = float(loc["lat"])
+    lon = float(loc["lon"])
+    loc_meta = {
+        "provider": "open-meteo",
+        "location_precision": loc.get("precision", "coarse"),
+        "location_label": loc.get("label", ""),
+    }
     params = urllib.parse.urlencode({
         "latitude": f"{lat:.4f}",
         "longitude": f"{lon:.4f}",
@@ -123,7 +143,7 @@ def weather(lat: float, lon: float, timeout: float = 8.0, *,
         try:
             privacy_receipts.record_egress(
                 name, kind="weather_lookup", target=url, decision="attempt",
-                turn_id=turn_id, metadata={"provider": "open-meteo"})
+                turn_id=turn_id, metadata=loc_meta)
         except Exception:
             pass
         with urllib.request.urlopen(url, timeout=timeout) as r:
@@ -133,7 +153,7 @@ def weather(lat: float, lon: float, timeout: float = 8.0, *,
             privacy_receipts.record_egress(
                 name, kind="weather_lookup", target=url, decision="failed",
                 turn_id=turn_id, reason=e.__class__.__name__,
-                metadata={"provider": "open-meteo"})
+                metadata=loc_meta)
         except Exception:
             pass
         return Weather(ok=False, note=f"weather lookup failed: {e}")
@@ -148,7 +168,7 @@ def weather(lat: float, lon: float, timeout: float = 8.0, *,
     try:
         privacy_receipts.record_egress(
             name, kind="weather_lookup", target=url, decision="completed",
-            turn_id=turn_id, metadata={"provider": "open-meteo"})
+            turn_id=turn_id, metadata=loc_meta)
     except Exception:
         pass
     return Weather(
@@ -371,12 +391,12 @@ class DayContext:
 
 def gather(lat: Optional[float] = None, lon: Optional[float] = None,
            location_label: str = "", unread_count: Optional[int] = None,
-           now: Optional[float] = None) -> DayContext:
+           now: Optional[float] = None, name: str | None = None) -> DayContext:
     """Build the full day context from local sources. Every piece degrades on its own;
     a missing coordinate simply means no weather, not a failure of the whole sheet."""
     now = time.time() if now is None else now
     if lat is not None and lon is not None:
-        w = weather(lat, lon)
+        w = weather(lat, lon, name=name)
     else:
         w = Weather(ok=False, note="no location provided (POST one from the phone, or pass --lat/--lon)")
     cal = calendar_today()

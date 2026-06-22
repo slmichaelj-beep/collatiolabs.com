@@ -198,7 +198,7 @@ Frontier direction:
 - Block unauthenticated `--expose`. CLOSED / CERTIFIED.
 - Enforce per-turn backend routing. CLOSED / CERTIFIED.
 - Encrypt private stores consistently. SUBSTANTIALLY CLOSED / CERTIFIED.
-- Add privacy receipt skeleton.
+- Add privacy receipt skeleton plus normal-user Privacy Flight Recorder. CLOSED / CERTIFIED for current receipt/egress surfaces.
 - Add adversarial cert pack for the weaknesses already reproduced.
 
 ### Sprint 2 - Governance Integrity

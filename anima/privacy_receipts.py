@@ -16,11 +16,18 @@ from . import egress, secure_store
 
 STORE = Path(".anima")
 SCHEMA_VERSION = 1
+CONNECTOR_POLICY_VERSION = 1
 
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9_.-]+")
 _URL = re.compile(r"https?://[^\s)]+", re.I)
+_SAFE_ID = re.compile(r"[^A-Za-z0-9_.:-]+")
 _PROVIDER_PREFIXES = ("openai:", "anthropic:", "deepseek:", "mistral:", "grok:")
 _LOCAL_PREFIXES = ("host:", "reference:", "repair:", "memory:", "lerf:")
+_LOCATION_PRECISIONS = {"off", "coarse", "exact"}
+_CONNECTOR_DENIED_METADATA = {
+    "api_key", "authorization", "body", "content", "message", "password",
+    "payload", "prompt", "raw_body", "secret", "text", "token",
+}
 
 
 def _name(name: str | None) -> str:
@@ -75,6 +82,18 @@ def _clean_reason(reason: str | None) -> str:
     return s[:240]
 
 
+def _safe_id(value: str | None, fallback: str = "unknown") -> str:
+    s = _SAFE_ID.sub("_", str(value or "").strip().lower())[:80].strip("._:-")
+    return s or fallback
+
+
+def _event_sort_key(row: dict) -> float:
+    try:
+        return float(row.get("at") or 0.0)
+    except Exception:
+        return 0.0
+
+
 def model_egress(route_model: str | None, backend: str | None) -> str:
     """Classify actual model egress from route intent + backend label."""
     b = str(backend or "").strip().lower()
@@ -114,6 +133,64 @@ def record_egress(
     }
     secure_store.append_jsonl(egress_path(name), row)
     return row
+
+
+def connector_policy() -> dict:
+    """The receipt contract future host/cloud connectors must satisfy."""
+    return {
+        "v": CONNECTOR_POLICY_VERSION,
+        "default": "deny_until_enabled",
+        "receipt_required": True,
+        "raw_payloads_allowed": False,
+        "secrets_allowed": False,
+        "target_shape": "scheme_and_host_only",
+        "required_fields": ["connector", "action", "decision", "purpose"],
+        "decisions": ["blocked", "attempt", "completed", "failed"],
+        "denied_metadata_keys": sorted(_CONNECTOR_DENIED_METADATA),
+    }
+
+
+def record_connector_egress(
+    name: str | None,
+    *,
+    connector: str,
+    action: str,
+    decision: str,
+    purpose: str,
+    target: str = "",
+    turn_id: str = "",
+    metadata: dict | None = None,
+) -> dict:
+    """Record a future connector's egress without allowing raw payload capture."""
+    conn = _safe_id(connector, "")
+    act = _safe_id(action, "")
+    dec = _safe_id(decision, "")
+    if not conn or not act or dec not in set(connector_policy()["decisions"]):
+        raise ValueError("connector, action, and a valid decision are required")
+    why = _clean_reason(purpose)
+    if not why:
+        raise ValueError("connector egress requires a human-readable purpose")
+    safe_meta = {}
+    for k, v in (metadata or {}).items():
+        key = str(k).strip().lower()[:60]
+        if not key or key in _CONNECTOR_DENIED_METADATA:
+            continue
+        safe_meta[key] = v
+    safe_meta.update({
+        "connector": conn,
+        "action": act,
+        "purpose": why,
+        "policy_version": CONNECTOR_POLICY_VERSION,
+    })
+    return record_egress(
+        name,
+        kind=f"connector:{conn}",
+        target=target,
+        decision=dec,
+        turn_id=turn_id,
+        reason=why,
+        metadata=safe_meta,
+    )
 
 
 def record_turn(
@@ -160,3 +237,94 @@ def latest_receipt(name: str) -> dict | None:
 
 def egress_events(name: str | None = None) -> list[dict]:
     return secure_store.load_jsonl(egress_path(name), skip_bad=True)
+
+
+def location_precision(name: str | None = None, requested: str | None = None) -> str:
+    """Return the weather/location egress precision, defaulting to coarse."""
+    req = str(requested or "").strip().lower()
+    if req in _LOCATION_PRECISIONS:
+        return req
+    if name:
+        try:
+            from . import caps
+            val = str(caps.load(name).get("location_precision", "")).strip().lower()
+            if val in _LOCATION_PRECISIONS:
+                return val
+        except Exception:
+            pass
+    return "coarse"
+
+
+def prepare_location_for_egress(
+    lat: float,
+    lon: float,
+    *,
+    name: str | None = None,
+    precision: str | None = None,
+) -> dict:
+    """Apply the user-visible location precision before a weather lookup."""
+    mode = location_precision(name, precision)
+    if mode == "off":
+        return {"ok": False, "precision": "off", "lat": None, "lon": None,
+                "label": "location off"}
+    if mode == "coarse":
+        clat = round(float(lat), 1)
+        clon = round(float(lon), 1)
+        return {"ok": True, "precision": "coarse", "lat": clat, "lon": clon,
+                "label": f"{clat:.1f},{clon:.1f}"}
+    elat = round(float(lat), 4)
+    elon = round(float(lon), 4)
+    return {"ok": True, "precision": "exact", "lat": elat, "lon": elon,
+            "label": "exact coordinates"}
+
+
+def receipt_history(name: str | None, *, limit: int = 80, kind: str = "all") -> dict:
+    """Return a normal-user-safe privacy history view."""
+    try:
+        limit = max(1, min(int(limit or 80), 250))
+    except Exception:
+        limit = 80
+    receipts = secure_store.load_jsonl(receipt_path(name), skip_bad=True)
+    egress_rows = secure_store.load_jsonl(egress_path(name), skip_bad=True)
+    if kind == "turns":
+        egress_rows = []
+    elif kind == "egress":
+        receipts = []
+    elif kind == "blocked":
+        receipts = []
+        egress_rows = [r for r in egress_rows if r.get("decision") == "blocked"]
+    elif kind == "connectors":
+        receipts = []
+        egress_rows = [r for r in egress_rows if str(r.get("egress_kind", "")).startswith("connector:")]
+
+    receipts = sorted(receipts, key=_event_sort_key, reverse=True)[:limit]
+    egress_rows = sorted(egress_rows, key=_event_sort_key, reverse=True)[:limit]
+    all_events = sorted(receipts + egress_rows, key=_event_sort_key, reverse=True)[:limit]
+    return {
+        "ok": True,
+        "name": str(name or "global")[:80],
+        "summary": privacy_summary(name),
+        "location": {"precision": location_precision(name),
+                     "modes": ["off", "coarse", "exact"]},
+        "connector_policy": connector_policy(),
+        "receipts": receipts,
+        "egress": egress_rows,
+        "events": all_events,
+    }
+
+
+def privacy_summary(name: str | None) -> dict:
+    receipts = secure_store.load_jsonl(receipt_path(name), skip_bad=True)
+    egress_rows = secure_store.load_jsonl(egress_path(name), skip_bad=True)
+    return {
+        "turn_receipts": len(receipts),
+        "local_turns": sum(1 for r in receipts if r.get("actual_egress") == "none"),
+        "cloud_turns": sum(1 for r in receipts if r.get("actual_egress") == "cloud_provider"),
+        "egress_events": len(egress_rows),
+        "completed_egress": sum(1 for r in egress_rows if r.get("decision") == "completed"),
+        "blocked_egress": sum(1 for r in egress_rows if r.get("decision") == "blocked"),
+        "connector_events": sum(
+            1 for r in egress_rows if str(r.get("egress_kind", "")).startswith("connector:")
+        ),
+        "zero_egress": egress.zero_enabled(),
+    }
