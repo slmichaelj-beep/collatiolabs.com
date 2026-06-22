@@ -34,7 +34,7 @@ import anima.mouth as mouth        # noqa: E402
 _STORE_MODULES = [
     "server", "portrait", "memory_lirf", "constitution", "reliability", "world_state",
     "telemetry", "metrics", "curiosity", "loops", "opportunity", "world_model", "meaning",
-    "dials", "whole_mri", "truth.ledger",
+    "dials", "whole_mri", "privacy_receipts", "truth.ledger",
 ]
 
 
