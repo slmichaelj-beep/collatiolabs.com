@@ -11,8 +11,10 @@ folder and this file first.
 | HEAD | Use `git rev-parse --short HEAD`; certified slices are pushed to `origin/anima` |
 | Language | Python 3.12 (venv at `.venv/`) |
 | Run the server | `source .venv/bin/activate && python3 -m anima.server --name Vera --port 8765` → http://127.0.0.1:8765 |
-| Verify everything | `python3 scripts/run_master_cert_stack.py` (89/89 GREEN) then `python3 scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
-| Size | 347 Python modules · 225 cert scripts · 37 web surfaces · ~91 reports |
+| Verify everything | `.venv/bin/python scripts/run_master_cert_stack.py` (94/94 GREEN on W12) then `.venv/bin/python scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
+| Last certified runtime build | `dec1a8b4b31980710ad74865fd30ec3c0a58197f` - W12 exception safety taxonomy |
+| New Mac handoff | `NEW_MAC_HANDOFF_2026_06_23.md` |
+| Size | 347 Python modules · 230 cert scripts · 37 web surfaces · generated `reports/` ignored by Git |
 
 `reports/` is git-ignored (local evidence/state). Everything else is committed. The browser UI is
 served by `anima/server.py` (a stdlib `ThreadingHTTPServer`); each page has a `.json` data route and
@@ -21,11 +23,16 @@ an HTML view in `anima/web/`.
 ---
 
 ## What it is
-A **local-first, governed AI operating system** for Lamar's work and companies. Every capability is
-built to a strict bar: implemented · reachable in the UI · browser-proven (rover) · observation-event
-emitted · evidence/report written · governance-visible · certified · Diamond-repeatable. Core doctrine,
-enforced in code and certs: **no fake green, no unsupported claims, no autonomous external action,
-financial/legal/account actions are human-only, no raw credentials stored.**
+A **local-first, governed AI operating system and private personality companion** for Lamar's life,
+memory, work, companies, and recovery of agency. Vera is not primarily a revenue-ops workspace.
+Revenue matters because survival matters, but Vera's center is continuity, protection, truthful
+companionship, privacy, and governed capability.
+
+Every capability is built to a strict bar: implemented · reachable in the UI · browser-proven
+(rover) · observation-event emitted · evidence/report written · governance-visible · certified ·
+Diamond-repeatable. Core doctrine, enforced in code and certs: **no fake green, no unsupported
+claims, no autonomous external action, financial/legal/account actions are human-only, no raw
+credentials stored.**
 
 ## Visibility layer rule
 Every build slice must ship with its visibility layer: code, cert, report/ledger evidence, weakness-register
