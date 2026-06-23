@@ -48,7 +48,10 @@ def can_send(name, message_rec, *, approval_ref="", authority_level=0, store: Pa
     from anima.company_operator import approvals as aq
     if authority_level >= 3 and message_rec.get("type") in ("support_reply", "follow_up"):
         return {"allowed": True, "reason": "approved-category send at L%d" % authority_level}
-    if not approval_ref or not aq.is_approved(name, approval_ref, store):
+    msg_subject = message_rec.get("message_id", "")
+    verdict = aq.validate_for_action(name, approval_ref, "send_message", subject=msg_subject,
+                                     store=store) if approval_ref else {"ok": False}
+    if not verdict["ok"]:
         return {"allowed": False, "reason": "sending requires an approved packet (or L3+ for "
                                             "approved categories)"}
     return {"allowed": True}
@@ -112,6 +115,7 @@ def discount_allowed(plan, *, proposed_price) -> dict:
 def can_close(name, *, approval_ref="", store: Path | None = None) -> dict:
     """A binding offer/contract requires approval — never auto-bound."""
     from anima.company_operator import approvals as aq
-    if not approval_ref or not aq.is_approved(name, approval_ref, store):
+    verdict = aq.validate_for_action(name, approval_ref, "legal_prepare", store=store) if approval_ref else {"ok": False}
+    if not verdict["ok"]:
         return {"allowed": False, "reason": "a binding offer/contract requires an approved packet"}
     return {"allowed": True}

@@ -118,14 +118,14 @@ Owns:
 - human responsibility boundary
 
 Immediate focus:
-- bind approvals to exact action type, target, amount, vendor, category, risk, and expiry
+- bind approvals to exact action type, target, amount, vendor, category, risk, and expiry. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution
 - bind self-evolution approvals to exact proposals
 - enforce monthly/category budget invariants
 - add human-readable action receipts
 - classify broad exceptions into fail-open/fail-closed domains
 
 Key certs:
-- `certify_approval_binding.py`
+- `certify_approval_scope_binding.py`
 - `certify_self_evolution_approval_binding.py`
 - `certify_budget_invariants.py`
 - `certify_action_receipts.py`
@@ -285,7 +285,7 @@ Key certs:
 
 - Build Memory Rooms v1.
 - Add vault manifest and room policies.
-- Bind approvals to exact actions.
+- Bind approvals to exact actions. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals.
 - Enforce budget invariants.
 - Build Learning Studio v1.

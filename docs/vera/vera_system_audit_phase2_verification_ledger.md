@@ -280,6 +280,8 @@ VERIFIED:
 - It checks authority, approval, kill switch via authority policy, and budget for spend.
 - v1 deliberately records governed intent/result; real external integrations are not wired for company external actions.
 - Approval packets can be pending/approved/rejected/revised/executed.
+- Approval packets are now scoped through `approvals.validate_for_action(...)` before approval-gated company actions, sales engagement sends/closes, and foundry paid/vendor paths.
+- Scoped validation checks status, expiry, action class/aliases, cost ceiling, vendor, category, subject, and risk ceiling; successful governed actions consume the packet as `executed`.
 - Collatio legal/filing/contract modules prepare packets and require approval/review for legal acts.
 - Foundry/vendor/experiment paths include approval, kill/pivot criteria, and safety policies.
 
@@ -388,14 +390,14 @@ Vera's verification system itself can become a consumer trust feature:
 
 ## Current Top Fix List
 
-1. P2: Complete W05 WebAuthn cryptographic assertion verification or rename the product surface honestly.
-2. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-3. P2: Strengthen budget cumulative invariants and approval-ref validation.
+1. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+2. P2: Bind self-evolution approvals to exact proposals.
+3. P2: Strengthen budget cumulative invariants and direct approval-ref validation.
 4. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
 5. P2: Fix Upwork Connects overspend and status transitions.
 6. P2: Add relational-honesty companion modes.
 7. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
-9. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
+8. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
 
 ## North Star
 

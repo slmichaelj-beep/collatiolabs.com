@@ -27,7 +27,7 @@ Top weaknesses:
 3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; remaining product work is first-run key setup, recovery-code/hardware-key, and rotation UX.
 4. `P1/P2 CLOSED; CERTIFIED FOR SUPPORTED SHELLS` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are blocked. Custom-scheme installed wrappers remain a packaging constraint.
 5. `P2 CLOSED; CERTIFIED` passkey/WebAuthn now stores credential public keys and verifies assertion signatures, flags, origin/RP-ID, challenge, and sign counters.
-6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
+6. `P2 CLOSED; CERTIFIED` approval packets now bind to action type, cost, vendor, category, subject, risk, expiry, and single-use execution.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
 8. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
 9. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
@@ -307,9 +307,9 @@ Second closure update:
 ### W08 - Approval packets are not strongly bound to the action performed
 
 Severity: `P2`
-Status: `CONFIRMED BY ADVERSARIAL PROBE`
+Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/company_operator/approvals.py:23-32` stores action type, cost, budget ref, risk, and evidence.
 - `anima/company_operator/approvals.py:63-65` only checks that the approval exists and status is `approved`.
 - `anima/company_operator/action_ledger.py:66-68` accepts any approved approval ref for approval-gated action types.
@@ -326,6 +326,18 @@ Fix direction:
 - Add `approvals.validate_for_action(...)` that checks action type, cost ceiling, vendor, category, risk, subject, and expiry.
 - Make approvals single-use and scoped.
 - Cert mismatched approval attempts.
+
+Closure:
+- Added `approvals.validate_for_action(...)`, treating an approval packet as a scoped action envelope rather than a bearer token.
+- Validation now checks approved status, expiry, action type scope/aliases, cost ceiling, vendor, category, subject, and risk ceiling.
+- `action_ledger.perform()` now calls the scoped validator before any approval-gated action and records refused mismatches as blocked action-ledger events.
+- Sales engagement and foundry execution direct approval checks now use the scoped validator instead of plain `is_approved()`.
+- Successful governed actions consume the approval by marking it `executed`; replay is refused.
+
+Certification:
+- Added `scripts/certify_approval_scope_binding.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused cert passed: `certify_approval_scope_binding` proved wrong action type, over-cost, wrong vendor, wrong category, wrong subject, higher-risk action, and replay-after-execution are all refused and logged.
+- Compatibility certs passed: `certify_company_operator_governance`, `certify_sales_engagement`, and `certify_foundry_execution`.
 
 ### W09 - Self-evolution high-risk approval only checks non-empty text
 
@@ -620,7 +632,7 @@ A weakness should be marked closed only when:
 
 Recommended immediate next sprint:
 1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. Bind approvals to action intent.
+2. Bind self-evolution approvals to exact proposals.
 3. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
 4. Strengthen budget and marketplace resource invariants.
 5. Reframe revenue/company as optional domain packs in UI and documentation.

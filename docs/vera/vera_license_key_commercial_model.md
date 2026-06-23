@@ -245,7 +245,7 @@ Adds:
 Boundaries:
 - human-only legal, financial, account, and external commitments
 - action receipts required
-- stronger approval binding required before sale
+- company-operator approval binding is certified for action ledger, sales engagement, and foundry execution; self-evolution and budget direct-call binding remain required before sale
 
 ### Connector Kits
 
@@ -392,4 +392,3 @@ Keep services separate from the core product to avoid implying Collatio operates
 > Sell Vera whole. Sell kits for specialized powers.
 
 That preserves the magic and still gives us clean business boundaries.
-

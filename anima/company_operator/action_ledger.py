@@ -35,7 +35,7 @@ def _save(name, a, store): storage.save(name, "action_ledger", {"actions": a}, s
 
 def perform(name: str, action_type: str, description: str, *, approval_ref: str = "",
             cost: float = 0.0, category: str = "", vendor: str = "", risk: str = "low",
-            performed_by: str = "vera", store: Path | None = None) -> dict:
+            subject: str = "", performed_by: str = "vera", store: Path | None = None) -> dict:
     """Attempt a governed external action. Returns {ok, action} on success, {ok:False, blocked, reason}
     otherwise. Always writes an Action Ledger record (success OR blocked)."""
     aid = "act_" + uuid.uuid4().hex[:12]
@@ -46,7 +46,7 @@ def perform(name: str, action_type: str, description: str, *, approval_ref: str 
                "performed_by": performed_by, "auth_type": auth_type,
                "authority_ref": "L%d" % authority.current_level(name, store),
                "approval_ref": approval_ref, "cost": float(cost), "category": category,
-               "vendor": vendor, "risk": risk, "result": result, "reason": reason,
+               "vendor": vendor, "subject": subject, "risk": risk, "result": result, "reason": reason,
                "rollback_ref": None, "created_at": storage.now(),
                "gates": {"authority": authority_ok, "approval": approval_ok, "budget": budget_ok}}
         a = _all(name, store); a.append(rec); _save(name, a, store)
@@ -64,8 +64,16 @@ def perform(name: str, action_type: str, description: str, *, approval_ref: str 
     # 3. approval
     approval_ok = None
     if action_type in _NEEDS_APPROVAL:
-        if not approval_ref or not approvals.is_approved(name, approval_ref, store):
-            r = "requires an APPROVED approval packet (got %r)" % (approval_ref or "none")
+        if not approval_ref:
+            r = "requires an APPROVED approval packet (got none)"
+            return {"ok": False, "blocked": True, "reason": r,
+                    "action": _record("blocked", r, True, False, None)}
+        verdict = approvals.validate_for_action(
+            name, approval_ref, action_type, cost=cost, category=category, vendor=vendor,
+            risk=risk, subject=subject, store=store,
+        )
+        if not verdict["ok"]:
+            r = "approval rejected: " + verdict["reason"]
             return {"ok": False, "blocked": True, "reason": r,
                     "action": _record("blocked", r, True, False, None)}
         approval_ok = True

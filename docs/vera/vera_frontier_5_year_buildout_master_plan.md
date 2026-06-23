@@ -375,7 +375,7 @@ Must fix:
 - inconsistent encrypted storage
 - query-token/localStorage auth
 - passkey/WebAuthn signature verification closure; real-device ceremony smoke testing remains for packaging
-- approval/action mismatch
+- approval/action mismatch. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution
 - fake self-evolution approvals
 - weak budget invariants
 - marketplace overspend
@@ -506,7 +506,7 @@ Integrity:
 
 - no autonomous legal/financial/account commitments
 - action receipts for every external commitment
-- budget gates and approval binding fully certified
+- company-operator approval binding certified; budget invariants remain on the hardening queue
 
 ### Year 4-5 - Personal Sovereignty Platform
 
@@ -572,7 +572,7 @@ Integrity:
 
 ### Month 4 - Governance Integrity
 
-- Bind approvals to exact actions.
+- Bind approvals to exact actions. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals.
 - Enforce monthly/category budget invariants.
 - Fix marketplace resource invariants.

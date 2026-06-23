@@ -45,7 +45,11 @@ def run_experiment(name: str, venture_id: str, experiment_id: str, *, approval_r
         return {"ok": False, "error": "no such experiment"}
     if rec["budget"] > 0:
         from anima.company_operator import budget as bl, approvals as aq
-        if not approval_ref or not aq.is_approved(name, approval_ref, store):
+        verdict = aq.validate_for_action(
+            name, approval_ref, "spend", cost=rec["budget"], category="experiment",
+            subject=experiment_id, store=store,
+        ) if approval_ref else {"ok": False}
+        if not verdict["ok"]:
             return {"ok": False, "error": "a PAID experiment needs an approved approval packet"}
         if not bl.can_spend(name, rec["budget"], category="experiment", store=store)["allowed"]:
             return {"ok": False, "error": "a PAID experiment needs an approved budget covering it"}
@@ -139,6 +143,9 @@ def vendor_sow(name: str, venture_id: str, role: str, scope: str, *, store: Path
 def can_contact_vendor(name: str, vendor_rec: dict, *, approval_ref: str = "",
                        store: Path | None = None) -> dict:
     from anima.company_operator import approvals as aq
-    if not approval_ref or not aq.is_approved(name, approval_ref, store):
+    subject = vendor_rec.get("vendor_id", "")
+    verdict = aq.validate_for_action(name, approval_ref, "vendor_contact", subject=subject,
+                                     store=store) if approval_ref else {"ok": False}
+    if not verdict["ok"]:
         return {"allowed": False, "reason": "contacting a vendor requires an approved packet"}
     return {"allowed": True}

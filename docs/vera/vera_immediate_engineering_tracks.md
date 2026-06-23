@@ -83,7 +83,7 @@ Make Vera powerful without letting authority drift or responsibility blur.
 
 Immediate work:
 
-- Bind approvals to exact action type, subject, amount, vendor, category, and risk.
+- Bind approvals to exact action type, subject, amount, vendor, category, and risk. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals.
 - Enforce monthly and category budget invariants.
 - Fix marketplace Connects/resource overspend.
@@ -93,7 +93,7 @@ Immediate work:
 
 Certs:
 
-- `certify_approval_binding.py`
+- `certify_approval_scope_binding.py`
 - `certify_self_evolution_approval_binding.py`
 - `certify_budget_invariants.py`
 - `certify_marketplace_resource_invariants.py`

@@ -66,6 +66,7 @@ STACK = [
     ("certify_founder_ops", []),
     # company operator
     ("certify_company_operator_governance", []),
+    ("certify_approval_scope_binding", []),
     ("certify_company_operator_planning", []),
     ("certify_company_operator_accounts_legal", []),
     # venture foundry
