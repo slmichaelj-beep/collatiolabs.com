@@ -82,7 +82,8 @@ def perform(name: str, action_type: str, description: str, *, approval_ref: str 
     budget_ok = None
     if action_type == "spend":
         sp = budget.record_spend(name, cost, category=category, vendor=vendor,
-                                 description=description, approval_ref=approval_ref, store=store)
+                                 description=description, approval_ref=approval_ref,
+                                 subject=subject, store=store)
         if not sp["ok"]:
             return {"ok": False, "blocked": True, "reason": sp["error"],
                     "action": _record("blocked", sp["error"], True, approval_ok, False)}

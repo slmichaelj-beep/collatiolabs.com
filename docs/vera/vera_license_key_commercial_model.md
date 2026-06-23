@@ -245,7 +245,7 @@ Adds:
 Boundaries:
 - human-only legal, financial, account, and external commitments
 - action receipts required
-- company-operator and self-evolution approval binding are certified; budget direct-call binding remains required before sale
+- company-operator, self-evolution approval binding, and budget direct-call invariants are certified; marketplace resource invariants remain required before sale
 
 ### Connector Kits
 

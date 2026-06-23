@@ -85,7 +85,7 @@ Immediate work:
 
 - Bind approvals to exact action type, subject, amount, vendor, category, and risk. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals. CLOSED / CERTIFIED for high/core promotions.
-- Enforce monthly and category budget invariants.
+- Enforce monthly and category budget invariants. CLOSED / CERTIFIED.
 - Fix marketplace Connects/resource overspend.
 - Add finite-state machines for marketplace/workflow pipelines.
 - Add human-readable action receipts.

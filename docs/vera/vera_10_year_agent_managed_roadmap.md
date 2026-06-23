@@ -120,7 +120,7 @@ Owns:
 Immediate focus:
 - bind approvals to exact action type, target, amount, vendor, category, risk, and expiry. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution
 - bind self-evolution approvals to exact proposals. CLOSED / CERTIFIED for high/core promotions
-- enforce monthly/category budget invariants
+- enforce monthly/category budget invariants. CLOSED / CERTIFIED
 - add human-readable action receipts
 - classify broad exceptions into fail-open/fail-closed domains
 
@@ -287,7 +287,7 @@ Key certs:
 - Add vault manifest and room policies.
 - Bind approvals to exact actions. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals. CLOSED / CERTIFIED for high/core promotions.
-- Enforce budget invariants.
+- Enforce budget invariants. CLOSED / CERTIFIED.
 - Build Learning Studio v1.
 - Add identity diff.
 

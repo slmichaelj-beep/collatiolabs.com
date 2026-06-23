@@ -29,16 +29,17 @@ Top weaknesses:
 5. `P2 CLOSED; CERTIFIED` passkey/WebAuthn now stores credential public keys and verifies assertion signatures, flags, origin/RP-ID, challenge, and sign counters.
 6. `P2 CLOSED; CERTIFIED` approval packets now bind to action type, cost, vendor, category, subject, risk, expiry, and single-use execution.
 7. `P2 CLOSED; CERTIFIED` high/core self-evolution promotions now require scoped approval packets matching proposal ID, risk, cert evidence, rollback ref, and single-use execution.
-8. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
-9. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
-10. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
-11. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
-12. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
+8. `P2 CLOSED; CERTIFIED` budget direct-call invariants now enforce cumulative category/month caps, validate and consume approval refs, reject fake refs, and reject negative spends.
+9. `P2 CONFIRMED` marketplace ledgers have overspend and status edge cases.
+10. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
+11. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
+12. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
+13. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
 
 Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Approval mismatch authorizing the wrong action. CLOSED / CERTIFIED in W08.
 - Fake approval strings satisfying high/core self-evolution promotion. CLOSED / CERTIFIED in W09.
-- Cumulative category and monthly budget caps not being enforced.
+- Cumulative category and monthly budget caps not being enforced. CLOSED / CERTIFIED in W10.
 - Truth/observation ledgers writing raw sensitive text with `ANIMA_KEY` set.
 - Upwork Connects overspend and loose funnel transitions.
 
@@ -377,9 +378,9 @@ Certification:
 ### W10 - Budget module is not self-defensive enough
 
 Severity: `P2`
-Status: `CONFIRMED BY ADVERSARIAL PROBE`
+Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/company_operator/budget.py:23-35` stores monthly cap and category caps.
 - `anima/company_operator/budget.py:44-65` checks per-transaction caps and remaining total.
 - Category cap appears to be checked per transaction, not cumulative per category.
@@ -398,6 +399,18 @@ Fix direction:
 - Enforce cumulative category spend and monthly spend.
 - Validate approval refs or require spending only through the action ledger.
 - Cert direct-call attempts.
+
+Closure:
+- `can_spend()` now rejects non-positive spends and enforces cumulative category caps, cumulative current-month caps, per-transaction caps, vendor whitelist, forbidden categories, and remaining total.
+- `record_spend()` now validates any provided approval ref through `approvals.validate_for_action(...)` and refuses fake, pending, mismatched, or consumed refs.
+- Direct successful approved spends consume the approval as `executed`, preventing replay outside the action ledger.
+- Spending the full budget now marks the budget `exhausted` using the in-memory post-spend budget state.
+- `action_ledger.perform()` now passes spend `subject` into `budget.record_spend()` so subject-scoped spend approvals remain bound through both gates.
+
+Certification:
+- Added `scripts/certify_budget_invariants.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused cert passed: cumulative category cap, cumulative monthly cap, missing/fake approval ref, exact approval success, approval consumption, replay refusal, vendor mismatch, fake below-threshold ref, below-threshold clean spend, exhaustion, and negative-spend refusal.
+- Compatibility certs passed: `certify_company_operator_governance`, `certify_approval_scope_binding`, `certify_foundry_execution`, and `certify_self_evolution_approval_binding`.
 
 ### W11 - Upwork Connects ledger can overspend in edge paths
 
@@ -645,7 +658,7 @@ A weakness should be marked closed only when:
 
 Recommended immediate next sprint:
 1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. Strengthen budget and marketplace resource invariants.
+2. Strengthen marketplace resource invariants.
 3. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
 4. Classify broad exception handling into fail-open vs fail-closed domains.
 5. Reframe revenue/company as optional domain packs in UI and documentation.

@@ -292,20 +292,13 @@ VERIFIED:
 - Collatio legal/filing/contract modules prepare packets and require approval/review for legal acts.
 - Foundry/vendor/experiment paths include approval, kill/pivot criteria, and safety policies.
 
-FINDING P2:
+W10 closure:
 
-Budget ledger invariants are weaker than the docstring claims when called directly:
+Budget ledger direct-call invariants are now closed/certified:
 
-- `monthly_cap` is stored but not enforced.
-- Category caps are per transaction, not cumulative category spend.
-- `record_spend()` accepts any non-empty `approval_ref`; the action ledger validates approvals before calling it, but the budget module itself is not self-defensive.
-
-Recommended fix:
-
-- Enforce monthly caps cumulatively.
-- Enforce category caps cumulatively.
-- Validate approval refs inside `budget.record_spend()` or make it private/internal behind action ledger.
-- Add adversarial certs that call budget directly.
+- `can_spend()` enforces positive amounts, cumulative category caps, cumulative current-month caps, per-transaction caps, vendor whitelist, forbidden categories, and remaining total.
+- `record_spend()` validates provided approval refs, consumes successful approval refs, and refuses fake/mismatched/replayed refs even on direct calls.
+- `certify_budget_invariants.py` is wired into the master stack and passed focused + compatibility certs.
 
 FRONTIER:
 
@@ -398,13 +391,12 @@ Vera's verification system itself can become a consumer trust feature:
 ## Current Top Fix List
 
 1. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. P2: Strengthen budget cumulative invariants and direct approval-ref validation.
-3. P2: Fix Upwork Connects overspend and status transitions.
-4. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-5. P2: Classify broad exception handling into fail-open vs fail-closed domains.
-6. P2: Add relational-honesty companion modes.
-7. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
-8. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
+2. P2: Fix Upwork Connects overspend and status transitions.
+3. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+4. P2: Classify broad exception handling into fail-open vs fail-closed domains.
+5. P2: Add relational-honesty companion modes.
+6. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
+7. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
 
 ## North Star
 

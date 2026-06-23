@@ -377,7 +377,7 @@ Must fix:
 - passkey/WebAuthn signature verification closure; real-device ceremony smoke testing remains for packaging
 - approval/action mismatch. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution
 - fake self-evolution approvals. CLOSED / CERTIFIED for high/core promotions
-- weak budget invariants
+- weak budget invariants. CLOSED / CERTIFIED
 - marketplace overspend
 - broad fail-open exception taxonomy
 
@@ -506,7 +506,7 @@ Integrity:
 
 - no autonomous legal/financial/account commitments
 - action receipts for every external commitment
-- company-operator and self-evolution approval binding certified; budget invariants remain on the hardening queue
+- company-operator, self-evolution approval binding, and budget invariants certified; marketplace resource invariants remain on the hardening queue
 
 ### Year 4-5 - Personal Sovereignty Platform
 
@@ -574,7 +574,7 @@ Integrity:
 
 - Bind approvals to exact actions. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Bind self-evolution approvals to exact proposals. CLOSED / CERTIFIED for high/core promotions.
-- Enforce monthly/category budget invariants.
+- Enforce monthly/category budget invariants. CLOSED / CERTIFIED.
 - Fix marketplace resource invariants.
 - Add finite-state workflow guards.
 - Add governance adversarial certs.
