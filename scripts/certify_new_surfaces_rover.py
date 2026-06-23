@@ -48,7 +48,7 @@ def main() -> int:
             pg.on("console", lambda m, E=errs: E.append(m.text) if m.type == "error" else None)
             pg.on("pageerror", lambda e, E=errs: E.append(str(e)))
             try:
-                pg.goto("http://127.0.0.1:8765" + route, wait_until="networkidle", timeout=25000)
+                pg.goto("http://127.0.0.1:8765" + route, wait_until="domcontentloaded", timeout=25000)
                 title = pg.title()
                 # wait for the data section to populate (not stuck on 'loading…')
                 try:
