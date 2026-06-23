@@ -88,13 +88,13 @@ def _risk_rank(risk: str) -> int:
 
 def _parse_at(value: str):
     if not value:
-        return None
+        return {"ok": True, "at": None}
     try:
         v = value.replace("Z", "+00:00")
         dt = datetime.fromisoformat(v)
-        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return {"ok": True, "at": dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)}
     except Exception:
-        return None
+        return {"ok": False, "at": None}
 
 
 def _allowed_actions(approval_type: str) -> set[str]:
@@ -118,7 +118,10 @@ def validate_for_action(name: str, approval_id: str, action_type: str, *, cost: 
     if rec.get("status") != "approved":
         return {"ok": False, "reason": "approval is %s" % rec.get("status"), "approval": rec}
 
-    exp = _parse_at(str(rec.get("expires_at") or ""))
+    expiry = _parse_at(str(rec.get("expires_at") or ""))
+    if not expiry["ok"]:
+        return {"ok": False, "reason": "approval expiry invalid", "approval": rec}
+    exp = expiry["at"]
     if exp and exp <= datetime.now(timezone.utc):
         return {"ok": False, "reason": "approval expired", "approval": rec}
 

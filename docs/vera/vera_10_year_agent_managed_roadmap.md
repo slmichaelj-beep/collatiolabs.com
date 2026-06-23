@@ -122,12 +122,13 @@ Immediate focus:
 - bind self-evolution approvals to exact proposals. CLOSED / CERTIFIED for high/core promotions
 - enforce monthly/category budget invariants. CLOSED / CERTIFIED
 - add human-readable action receipts
-- classify broad exceptions into fail-open/fail-closed domains
+- classify broad exceptions into fail-open/fail-closed domains. PARTIALLY CLOSED / CERTIFIED; reduction remains
 
 Key certs:
 - `certify_approval_scope_binding.py`
 - `certify_self_evolution_approval_binding.py`
 - `certify_budget_invariants.py`
+- `certify_exception_safety_taxonomy.py`
 - `certify_action_receipts.py`
 - `certify_fail_closed_security_gates.py`
 

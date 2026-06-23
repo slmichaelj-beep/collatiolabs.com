@@ -379,7 +379,7 @@ Must fix:
 - fake self-evolution approvals. CLOSED / CERTIFIED for high/core promotions
 - weak budget invariants. CLOSED / CERTIFIED
 - marketplace overspend. CLOSED / CERTIFIED for Upwork bid pipeline
-- broad fail-open exception taxonomy
+- broad fail-open exception taxonomy. PARTIALLY CLOSED / CERTIFIED; handler reduction remains
 
 Build:
 

@@ -32,12 +32,15 @@ def load(name: str, store: Path | None = None, limit: int = 0) -> list[dict]:
     if not p.exists():
         return []
     out = []
-    for line in secure_store.read_jsonl_lines(p):
+    for i, line in enumerate(secure_store.read_jsonl_lines(p)):
         line = line.strip()
         if not line:
             continue
         try:
             out.append(json.loads(line))
         except Exception:
-            pass
+            out.append({"event_id": "obs_corrupt%07d" % i, "kind": "observation_corrupt",
+                        "status": "conflict", "surface": "observation", "domain": "integrity",
+                        "summary": "CORRUPT OBSERVATION LINE %d - unparseable entry" % (i + 1),
+                        "_corrupt": True})
     return out[-limit:] if limit else out

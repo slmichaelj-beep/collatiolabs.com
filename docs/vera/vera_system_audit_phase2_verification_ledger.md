@@ -387,7 +387,7 @@ Vera's verification system itself can become a consumer trust feature:
 
 1. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 2. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-3. P2: Classify broad exception handling into fail-open vs fail-closed domains.
+3. P2: Reduce remaining broad handlers and extend behavioral exception proofs for new high-risk paths.
 4. P2: Add relational-honesty companion modes.
 5. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
 6. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.

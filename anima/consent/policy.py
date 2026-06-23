@@ -36,11 +36,13 @@ def load(name: str) -> dict:
     return secure_store.load_json(_path(name), {}) or {}
 
 
-def _save(name: str, data: dict) -> None:
+def _save(name: str, data: dict) -> dict:
     try:
         secure_store.save_json(_path(name), data)
+        return {"ok": True}
     except Exception:
-        pass
+        _event("consent_persist_failed", "consent decision could not be persisted", risk="high")
+        return {"ok": False, "error": "consent decision could not be persisted"}
 
 
 def _key(scope: str, domain: str) -> str:
@@ -85,7 +87,9 @@ def set_consent(name: str, scope: str, domain: str, new_status: str, pacing: str
     if new_status == "revoked":
         rec["revoked_at"] = _now()
     data[_key(scope, domain)] = rec
-    _save(name, data)
+    saved = _save(name, data)
+    if not saved["ok"]:
+        return saved
     _event("consent_%s" % new_status, "consent %s for %s in %s" % (new_status, scope, domain),
            scope=scope, domain=domain, risk="high" if domain in schema.SENSITIVE_DOMAINS else "low")
     return {"ok": True, "consent": rec}

@@ -31,7 +31,7 @@ Top weaknesses:
 7. `P2 CLOSED; CERTIFIED` high/core self-evolution promotions now require scoped approval packets matching proposal ID, risk, cert evidence, rollback ref, and single-use execution.
 8. `P2 CLOSED; CERTIFIED` budget direct-call invariants now enforce cumulative category/month caps, validate and consume approval refs, reject fake refs, and reject negative spends.
 9. `P2 CLOSED; CERTIFIED` Upwork marketplace Connects and bid states now refuse overspend, failed-submit mutation, illegal jumps, repeat submit, and fake cash.
-10. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
+10. `P2 PARTIALLY CLOSED; CERTIFIED` broad exception use is now classified into fail-open/fail-closed safety domains and key fail-open cases are fixed; broad-handler reduction remains.
 11. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
 12. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
 13. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
@@ -42,6 +42,7 @@ Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Cumulative category and monthly budget caps not being enforced. CLOSED / CERTIFIED in W10.
 - Truth/observation ledgers writing raw sensitive text with `ANIMA_KEY` set.
 - Upwork Connects overspend and loose funnel transitions. CLOSED / CERTIFIED in W11.
+- Broad exception handling with unclassified fail-open risk. PARTIALLY CLOSED / CERTIFIED in W12.
 
 ## Security And Privacy
 
@@ -451,24 +452,34 @@ Certification:
 ### W12 - Broad exception handling has not been sorted by safety domain
 
 Severity: `P2`
-Status: `CONFIRMED`
+Status: `PARTIALLY CLOSED; CERTIFIED`
 
-Evidence:
-- AST sweep found 990 broad `except` handlers in `anima/`.
+Original evidence:
+- AST sweep found broad `except` handlers throughout `anima/`.
 - Some are good product resilience.
 - Some guard security-adjacent or persistence paths.
 - Example: `anima/company/storage.py:35-38` returns default on any load error.
-- Example: `anima/observation/store.py:40-43` silently drops corrupt observation lines.
+- Example: `anima/observation/store.py:40-43` silently dropped corrupt observation lines.
 
 Risk:
 Companions should be graceful, but security, consent, egress, auth, capability gates, and durable truth should fail closed or loudly. The current style makes it too hard to know which failures are safe.
 
-Fix direction:
-- Create a failure policy taxonomy:
-  - Auth, consent, egress, spend, host actions: fail closed.
-  - Memory/truth corruption: surface visibly.
-  - UI adornments and optional context: fail soft.
-- Add lint/certs around prohibited broad exceptions in gate modules.
+Closure update:
+- Added `scripts/certify_exception_safety_taxonomy.py` and wired it into `scripts/run_master_cert_stack.py`.
+- The W12 cert inventories all broad handlers and assigns them to safety domains: privacy/security/auth, governance/money/external action, egress/cloud/network, durable truth/memory, surface/runtime/visibility, or optional runtime/analysis.
+- Latest focused cert report classified `1,030` handlers: `35` privacy/security/auth, `6` governance/money/external action, `30` egress/cloud/network, `126` durable truth/memory, `240` surface/runtime/visibility, and `593` optional runtime/analysis.
+- Observation store corruption now becomes a visible `observation_corrupt` conflict record instead of a silent drop.
+- Consent persistence failure now returns failure and emits a high-risk event instead of reporting a successful consent change.
+- Malformed approval expiry now fails closed instead of becoming a no-expiry approval.
+
+Certification:
+- Focused cert passed: broad handler inventory/classification, corrupt Truth Ledger visibility, corrupt Observation visibility, consent persistence fail-closed, approval invalid-expiry fail-closed, zero-egress visible denial, and malformed passkey visible denial.
+- Evidence report: `reports/exception_safety_taxonomy.json`.
+
+Remaining work:
+- Reduce broad handlers where narrow exceptions are obvious, especially in surface/runtime code.
+- Add behavioral proofs as new authority, spend, credential, cloud, and egress paths are added.
+- Review `company/storage.py` call sites to decide where durable-state read failures should be visible conflicts rather than defaults.
 
 ### W13 - Verification can become ceremonial without adversarial certs
 
@@ -671,6 +682,6 @@ A weakness should be marked closed only when:
 Recommended immediate next sprint:
 1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
 2. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-3. Classify broad exception handling into fail-open vs fail-closed domains.
+3. Reduce remaining broad handlers and add behavioral proofs for new high-risk exception paths.
 4. Add relational-honesty companion modes.
 5. Reframe revenue/company as optional domain packs in UI and documentation.
