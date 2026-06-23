@@ -374,7 +374,7 @@ Must fix:
 - local/cloud route enforcement
 - inconsistent encrypted storage
 - query-token/localStorage auth
-- incomplete passkey semantics
+- passkey/WebAuthn signature verification closure; real-device ceremony smoke testing remains for packaging
 - approval/action mismatch
 - fake self-evolution approvals
 - weak budget invariants
@@ -565,7 +565,7 @@ Integrity:
 
 - Replace query-token auth with pairing/session flow.
 - Add Origin/Host/CSRF defenses.
-- Clarify or complete passkey/WebAuthn.
+- Keep passkey/WebAuthn certified and smoke-test the real browser ceremony on target devices.
 - Add per-turn privacy receipt. CLOSED / CERTIFIED for turn responses and append-only receipt ledger.
 - Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
 - Add receipt viewer UI.

@@ -67,7 +67,7 @@ didn't** (the "Sarah" incident, §4).
 | `cloud.py` | **Optional** cloud brains (OpenAI-compat + Anthropic) — **LOCAL Stheno is the default**. **PII hash-scrub at egress**, **$/day spend cap**, **honesty-verify-on-switch**, **per-provider key persistence**, **verify-before-save**, **live model-list fetch + `pick_default`** (auto-picks a top-tier chat model). Privacy invariant: cloud runs WITHOUT her memory/inbox. |
 | `models.py` | Local model manager: curated list, **fit-gating**, Ollama download (`/api/pull`), **unused-model cleanup**, active-model config. |
 | `sysinfo.py` | Reads RAM/chip, estimates whether a model fits (the wizard's brain). |
-| `passkey.py` | Face ID / Touch ID via WebAuthn (stdlib-only, opt-in, bypassable). Device-presence gate, not signature-verified (see §11). |
+| `passkey.py` | Face ID / Touch ID via WebAuthn (opt-in, bypassable) with server-side assertion signature verification. |
 | `caps.py` | The capability on/off toggles (per-name config). |
 | `applemac.py` | iMessage/Mail send (AppleScript) + read (`chat.db` / Mail) + **contacts→names** (AddressBook). |
 | `webget.py` | Allow-listed web fetch (orphaned from conversation; "coming soon"). |
@@ -196,10 +196,10 @@ live.** Nothing here is outstanding except the *optional* Track B (item 4).
 - **Headscale + Caddy** end-to-end (the §7 tasks) for the sovereign setup.
 
 ## 9. Known limitations / honest caveats (don't let these surprise you)
-- **Face ID** (`passkey.py`) is a **device-presence gate**: it verifies challenge/origin/RP-ID
-  + user-verified flag, but **not the cryptographic signature** (that needs a crypto lib). Strong
-  layer on top of the token + private tunnel; not full WebAuthn. Opt-in, `ANIMA_NO_PASSKEY=1`
-  bypass. **Test on a real device.**
+- **Face ID** (`passkey.py`) is now a cryptographically verified WebAuthn gate: it verifies
+  challenge/origin/RP-ID, user-present/user-verified flags, sign counter, and ES256/RS256 assertion
+  signatures over `authenticatorData || SHA256(clientDataJSON)`. Opt-in, `ANIMA_NO_PASSKEY=1`
+  bypass. **Still smoke-test the browser ceremony on a real device.**
 - **PII scrub** catches **structured** PII (email/phone/SSN/card/IP); free-form **names** need an
   NER model. Mitigated by withholding the Portrait + pausing inbox reads on cloud.
 - **`plausible-dalio`** is a weak eval trap (radical humility is a real Dalio theme) — expect it

@@ -83,7 +83,7 @@ The dangerous unauthenticated LAN bind, query-token POST, localStorage token/ses
 W04 packaging caveat:
 
 - Custom-scheme installed wrappers such as `tauri://localhost` are intentionally refused by the browser Origin wall. Supported installed shells must use a same-origin localhost webview/proxy unless a future explicit custom-origin allowlist is designed and certified.
-- Keep WebAuthn completion as W05; current passkey remains a strong local device-presence gate, not a full cryptographic WebAuthn verifier.
+- W05 WebAuthn signature verification is now product-closed; any future installed wrapper must preserve the same origin/RP-ID assumptions or get its own certified allowlist.
 
 ## Privacy And Local-First Boundary
 
@@ -145,16 +145,18 @@ VERIFIED:
 - `ANIMA_NO_PASSKEY=1` bypass exists for recovery.
 - Session tokens are HMAC-signed with a per-run secret and expire.
 - Tampered or expired sessions are rejected by cert.
-- The passkey layer checks challenge, origin, RP-ID hash, and user-present/user-verified flags.
+- The passkey layer checks challenge, origin, RP-ID hash, user-present/user-verified flags, authenticator sign counter, and ES256/RS256 assertion signatures.
 
-VERIFIED WITH CAVEAT:
+UPDATED CLOSURE:
 
-`passkey.py` explicitly does not verify the assertion cryptographic signature. It is a strong device-presence gate layered over token/private network, not a full WebAuthn verifier.
+- Enrollment parses `attestationObject`/authenticator data, extracts the credential public key, and stores it with the credential.
+- Login verifies the assertion signature over `authenticatorData || SHA256(clientDataJSON)` before issuing the signed Face-ID session.
+- Legacy rawId-only passkey records are marked `upgrade_required` and do not arm `required()`, preserving the no-lockout invariant while refusing to treat old records as full WebAuthn.
+- Certified by `scripts/certify_passkey_auth.py`, including synthetic ES256 registration, valid assertion acceptance, tampered signature rejection, missing user-verified flag rejection, wrong challenge rejection, sign-counter replay rejection, session tamper/expiry rejection, and real `.anima` byte-identical proof.
 
 Recommended improvement:
 
-- If Vera becomes a product for non-technical users, add a real WebAuthn verification dependency or OS-native auth wrapper.
-- Keep current dependency-free mode as "local developer/simple mode."
+- Smoke-test `navigator.credentials.create/get` on representative Apple devices and supported installed shells before external product packaging.
 
 ## Cognition And Personality Loop
 

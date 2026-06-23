@@ -26,7 +26,7 @@ Top weaknesses:
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
 3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; remaining product work is first-run key setup, recovery-code/hardware-key, and rotation UX.
 4. `P1/P2 CLOSED; CERTIFIED FOR SUPPORTED SHELLS` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are blocked. Custom-scheme installed wrappers remain a packaging constraint.
-5. `P2 CONFIRMED` passkey is a device-presence gate, not full WebAuthn assertion verification.
+5. `P2 CLOSED; CERTIFIED` passkey/WebAuthn now stores credential public keys and verifies assertion signatures, flags, origin/RP-ID, challenge, and sign counters.
 6. `P2 CONFIRMED` approvals are not bound tightly enough to the action they authorize.
 7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
 8. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
@@ -48,7 +48,7 @@ Adversarial probes run on 2026-06-21 confirmed live behavior for:
 Severity: `P1`
 Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/server.py:2766-2770` treats an empty token as authenticated.
 - `anima/server.py:3764-3767` exposes host/port controls.
 - `anima/server.py:3846-3847` prints an exposed-on-LAN warning when no password exists, but still permits startup.
@@ -219,21 +219,32 @@ Residual note:
 - Added `scripts/certify_browser_shell_replay_migration.py` to prove additional-code minting, one-time consumption/replay rejection, auth/passkey gating, same-host POST support for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells, and refusal of cross-host/cross-site/custom-scheme replay.
 - Supported installed shells must use a same-origin localhost webview/proxy. Custom-scheme origins such as `tauri://localhost` are intentionally refused by the browser Origin wall unless a future explicit allowlist is designed and certified.
 
-### W05 - Passkey is not full WebAuthn signature verification
+### W05 - Passkey lacked full WebAuthn signature verification
 
 Severity: `P2`
-Status: `CONFIRMED`
+Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/passkey.py` explicitly documents that it does not perform cryptographic signature verification.
 - It validates challenge, origin, RP ID hash, user present, and user verified flags.
 
 Risk:
 As a local second factor, this is useful. As a product claim of passkey-grade authentication, it is incomplete.
 
-Fix direction:
+Original fix direction:
 - Either label it honestly as “local device-presence gate,” or implement full WebAuthn assertion verification with stored public keys and counters.
 - Add replay/counter certs.
+
+Closure:
+- `anima/passkey.py` now parses WebAuthn registration `attestationObject`/authenticator data, extracts and stores the credential COSE public key, and supports ES256/RS256 assertion verification through `cryptography`.
+- `auth_finish()` now verifies challenge, origin, RP-ID hash, user-present/user-verified flags, authenticator sign counter, and the assertion signature over `authenticatorData || SHA256(clientDataJSON)` before issuing the Face-ID session.
+- Legacy rawId-only credential records are visible as `upgrade_required` and do not arm `required()`, so stale installs do not get locked out or silently treated as full WebAuthn.
+- `passkey` storage now honors `ANIMA_STORE`, keeping certs hermetic.
+- `scripts/certify_passkey_auth.py` now registers a deterministic synthetic ES256 WebAuthn credential, proves a valid assertion is accepted, rejects tampered signatures, missing user-verified flags, wrong challenges, and non-increasing sign counters, and keeps the session tamper/expiry floor.
+
+Certification:
+- Focused cert passed: `certify_passkey_auth`.
+- Remaining product check: smoke-test the real browser `navigator.credentials.create/get` ceremony on representative Apple devices/packaging shells.
 
 ### W06 - Local host-app integrations have high blast radius once enabled
 
@@ -608,9 +619,8 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Complete W05 WebAuthn signature verification or rename the surface honestly.
-2. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-3. Bind approvals to action intent.
-4. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-5. Strengthen budget and marketplace resource invariants.
-6. Reframe revenue/company as optional domain packs in UI and documentation.
+1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+2. Bind approvals to action intent.
+3. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+4. Strengthen budget and marketplace resource invariants.
+5. Reframe revenue/company as optional domain packs in UI and documentation.

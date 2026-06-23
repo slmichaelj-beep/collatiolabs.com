@@ -18,9 +18,11 @@ the SAME passkey API the gate calls, with NO hardware and NO network:
   D. OPT-IN, CAN'T-LOCK-YOU-OUT — with no credential enrolled, required() is False (the gate is inert
      and returns True), enrolled() is False, and status() is well-formed (available True, bypass flag).
 
-Deliberately NOT tested: the live Face ID ceremony (navigator.credentials) and the WebAuthn assertion
-verification (challenge/origin/RP-ID-hash + authenticator flags) — those are hardware/browser flows.
-The session floor IS the security-critical, deterministic surface the per-request gate depends on.
+This cert does not need actual Face ID hardware: it builds a deterministic synthetic WebAuthn
+credential, registers it through passkey.register_finish(), and authenticates through
+passkey.auth_finish() with a real cryptographic signature over authenticatorData || SHA256(clientDataJSON).
+The live navigator.credentials browser ceremony remains hardware/manual, but the server verifier is
+covered deterministically here.
 
 Hermetic + offline: the session check is pure in-memory HMAC (no file I/O), and we run inside the
 canonical temp store anyway; the real .anima is fingerprinted before/after and asserted byte-identical.
@@ -29,6 +31,9 @@ Exit 0 == CERTIFIED, 1 == FAIL.
 from __future__ import annotations
 
 import importlib.util
+import base64
+import hashlib
+import json
 import sys
 import time
 from pathlib import Path
@@ -44,8 +49,52 @@ _temp_store = _g0pe._temp_store
 _footprint = _g0pe._footprint
 
 
+def _b64u(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).decode().rstrip("=")
+
+
+def _cbor_head(major: int, n: int) -> bytes:
+    if n < 24:
+        return bytes([(major << 5) | n])
+    if n < 256:
+        return bytes([(major << 5) | 24, n])
+    if n < 65536:
+        return bytes([(major << 5) | 25]) + n.to_bytes(2, "big")
+    return bytes([(major << 5) | 26]) + n.to_bytes(4, "big")
+
+
+def _cbor(v) -> bytes:
+    if isinstance(v, int):
+        if v >= 0:
+            return _cbor_head(0, v)
+        return _cbor_head(1, -1 - v)
+    if isinstance(v, bytes):
+        return _cbor_head(2, len(v)) + v
+    if isinstance(v, str):
+        raw = v.encode("utf-8")
+        return _cbor_head(3, len(raw)) + raw
+    if isinstance(v, list):
+        return _cbor_head(4, len(v)) + b"".join(_cbor(x) for x in v)
+    if isinstance(v, dict):
+        out = _cbor_head(5, len(v))
+        for k, val in v.items():
+            out += _cbor(k) + _cbor(val)
+        return out
+    raise TypeError(type(v).__name__)
+
+
+def _client_data(kind: str, challenge: str, origin: str) -> bytes:
+    return json.dumps(
+        {"type": kind, "challenge": challenge, "origin": origin},
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
 def main() -> int:
     from anima import passkey
+    from anima.util import save_json
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import ec
     import hmac
     fails = []
 
@@ -107,13 +156,98 @@ def main() -> int:
         st = passkey.status()
         ck("D1: status() is well-formed (available + enrolled + required + bypass keys)",
            isinstance(st, dict) and set(("available", "enrolled", "required", "bypass")) <= set(st))
-        ck("D2: available() is True (no library needed — stdlib WebAuthn)", passkey.available() is True)
+        ck("D2: available() is True (cryptography-backed WebAuthn verifier is present)",
+           passkey.available() is True)
         ck("D3: opt-in invariant: required() implies enrolled() (the gate can't arm without a credential)",
            (not passkey.required()) or passkey.enrolled())
         ck("D4: required() implies the bypass is OFF (ANIMA_NO_PASSKEY=1 always disarms — no lockout)",
            (not passkey.required()) or not st.get("bypass"))
         ck("D5: status() agrees with required() (the UI gate-check and the server gate read the same)",
            bool(st.get("required")) == bool(passkey.required()))
+
+        # ---- E. FULL WEBAUTHN SIGNATURE VERIFICATION ------------------------------
+        rp_id = "localhost"
+        origin = "https://localhost"
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        numbers = private_key.public_key().public_numbers()
+        cose_key = {
+            1: 2,                         # kty EC2
+            3: -7,                        # alg ES256
+            -1: 1,                        # crv P-256
+            -2: numbers.x.to_bytes(32, "big"),
+            -3: numbers.y.to_bytes(32, "big"),
+        }
+        cred_id = b"synthetic-passkey-credential"
+        rp_hash = hashlib.sha256(rp_id.encode()).digest()
+
+        reg_opts = json.loads(passkey.register_begin(rp_id))
+        reg_client = _client_data("webauthn.create", reg_opts["challenge"], origin)
+        reg_auth_data = (
+            rp_hash
+            + bytes([0x45])                # UP + UV + AT
+            + (1).to_bytes(4, "big")
+            + (b"\x00" * 16)
+            + len(cred_id).to_bytes(2, "big")
+            + cred_id
+            + _cbor(cose_key)
+        )
+        reg_cred = {
+            "rawId": _b64u(cred_id),
+            "response": {
+                "clientDataJSON": _b64u(reg_client),
+                "attestationObject": _b64u(_cbor({
+                    "fmt": "none",
+                    "authData": reg_auth_data,
+                    "attStmt": {},
+                })),
+            },
+        }
+        reg = passkey.register_finish(reg_cred, rp_id, origin)
+        stored = passkey._load().get("credential") or {}
+        ck("E1: register_finish() stores a credential public key for full assertion verification",
+           reg.get("ok") is True and stored.get("public_key_cose") and stored.get("alg") == -7)
+        ck("E2: a signature-capable credential arms required() when require=true",
+           passkey.required() is True and passkey.status().get("signature_verified") is True)
+
+        def assertion(counter: int, *, flags: int = 0x05, tamper_sig: bool = False,
+                      challenge_override: str | None = None) -> dict:
+            auth_opts = json.loads(passkey.auth_begin(rp_id))
+            challenge = challenge_override or auth_opts["challenge"]
+            client = _client_data("webauthn.get", challenge, origin)
+            auth_data = rp_hash + bytes([flags]) + int(counter).to_bytes(4, "big")
+            sig = private_key.sign(auth_data + hashlib.sha256(client).digest(), ec.ECDSA(hashes.SHA256()))
+            if tamper_sig:
+                sig = sig[:-1] + bytes([sig[-1] ^ 0x01])
+            return {
+                "rawId": _b64u(cred_id),
+                "response": {
+                    "authenticatorData": _b64u(auth_data),
+                    "clientDataJSON": _b64u(client),
+                    "signature": _b64u(sig),
+                },
+            }
+
+        good = passkey.auth_finish(assertion(2), rp_id, origin)
+        ck("E3: auth_finish() accepts a valid WebAuthn assertion signature and issues a session",
+           good.get("ok") is True and passkey.valid_session(good.get("session", "")) is True)
+        bad_sig = passkey.auth_finish(assertion(3, tamper_sig=True), rp_id, origin)
+        ck("E4: a tampered WebAuthn assertion signature is REJECTED",
+           bad_sig.get("ok") is False and "signature" in bad_sig.get("error", ""))
+        no_uv = passkey.auth_finish(assertion(3, flags=0x01), rp_id, origin)
+        ck("E5: an assertion without user-verified/Face-ID flag is REJECTED",
+           no_uv.get("ok") is False and "verified" in no_uv.get("error", ""))
+        bad_challenge = passkey.auth_finish(assertion(3, challenge_override="wrong-challenge"), rp_id, origin)
+        ck("E6: an assertion signed over the wrong challenge is REJECTED",
+           bad_challenge.get("ok") is False and "challenge" in bad_challenge.get("error", ""))
+        replay_counter = passkey.auth_finish(assertion(2), rp_id, origin)
+        ck("E7: a non-increasing authenticator sign counter is REJECTED when counters are present",
+           replay_counter.get("ok") is False and "sign count" in replay_counter.get("error", ""))
+
+        save_json(passkey._path(), {"credential": {"id": _b64u(cred_id)}, "require": True})
+        legacy = passkey.status()
+        ck("E8: a legacy rawId-only credential is visible as upgrade_required, but does NOT arm required()",
+           legacy.get("upgrade_required") is True and legacy.get("required") is False
+           and passkey.required() is False)
 
     fp_after = _footprint(real_anima)
     ck("H1: real .anima is byte-identical after the cert (no contamination)", fp_before == fp_after)

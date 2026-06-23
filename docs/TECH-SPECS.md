@@ -137,15 +137,15 @@ actually runs in the Guruu venv, which ships Foundation/objc but **not** EventKi
 |---|---|
 | **Stack** | Python stdlib **`http.server.ThreadingHTTPServer`**, port **8765**, binds `127.0.0.1` (or `0.0.0.0` with `--expose`) |
 | **Auth** | token via `?k=` query / `X-Anima-Key` header / `Bearer`; **HMAC constant-time** compare. App **shell is public**; all data routes require the token. |
-| **Face-ID gate** | when enrolled+required, data routes also need a valid `X-Anima-Sess` (passguard) |
+| **Face-ID gate** | when enrolled+required, data routes also need a valid signed Face-ID session cookie or `X-Anima-Sess` (API compatibility) |
 | **Per-stage timing** | server logs `[timing] stt … · llm … · tts … · N words · T tok/s` |
 | **Endpoints** | `/talk` `/say` `/stt` `/tts` `/audio` `/state` `/persona` `/values` `/capabilities` `/brain`(GET+POST) `/models`(+`/select` `/pull` `/remove` `/cleanup`) `/metrics`(observatory gauges + verdict; diagnostic) `/auth/status` `/auth/{register,login}/{begin,finish}` `/auth/disable` `/imessage|/mail/{draft,send,read}` `/web/fetch` |
 
 ## Security — Face ID / Touch ID
 | | |
 |---|---|
-| **Mechanism** | **WebAuthn** via the platform authenticator (Face ID / Touch ID), **stdlib-only** (`anima/passkey.py`) |
-| **Verified** | challenge, origin, RP-ID hash, and **user-present + user-verified** flags. **NOT** the cryptographic signature (device-presence gate, not full WebAuthn). |
+| **Mechanism** | **WebAuthn** via the platform authenticator (Face ID / Touch ID), with local server-side signature verification (`anima/passkey.py`) |
+| **Verified** | challenge, origin, RP-ID hash, **user-present + user-verified** flags, authenticator sign counter, and ES256/RS256 assertion signature over `authenticatorData || SHA256(clientDataJSON)`. |
 | **Session** | HMAC-signed token, **12h** TTL, per server run |
 | **Safety** | opt-in (enroll + require); `ANIMA_NO_PASSKEY=1` bypass; inert until enrolled |
 
@@ -202,7 +202,7 @@ actually runs in the Guruu venv, which ships Foundation/objc but **not** EventKi
 ## Dependencies
 - **Core:** `numpy` (`requirements.txt`).
 - **Voice/ears (`requirements-voice.txt`):** `faster-whisper`, `kokoro`, `soundfile` (+ `espeak-ng` / `ffmpeg` via brew).
-- **Optional:** none required for Face ID (stdlib). Ollama installed separately.
+- **Optional:** `cryptography` is required for Face ID/WebAuthn assertion verification. Ollama installed separately.
 - **CI:** `scripts/selftest.py` (offline, 15 checks) via `.github/workflows/ci.yml`.
 `ANIMA_KEEP_ALIVE` (model resident time) · `ANIMA_MAX_TOKENS` (reply cap) ·
 `ANIMA_WHISPER` / `ANIMA_WHISPER_COMPUTE` (STT model/precision) ·
@@ -221,5 +221,5 @@ actually runs in the Guruu venv, which ships Foundation/objc but **not** EventKi
 ## Dependencies
 - **Core:** `numpy` (`requirements.txt`).
 - **Voice/ears (`requirements-voice.txt`):** `faster-whisper`, `kokoro`, `soundfile` (+ `espeak-ng` / `ffmpeg` via brew).
-- **Optional:** none required for Face ID (stdlib). Ollama installed separately.
+- **Optional:** `cryptography` is required for Face ID/WebAuthn assertion verification. Ollama installed separately.
 - **CI:** `scripts/selftest.py` (offline, 15 checks) via `.github/workflows/ci.yml`.

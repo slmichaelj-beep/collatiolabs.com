@@ -1435,7 +1435,7 @@ def probe_intake_trace_viewer(res: Result) -> None:
 
 # --- passkey_auth ----------------------------------------------------------------------------
 def probe_passkey_auth(res: Result) -> None:
-    """Opt-in Face ID second gate + the session-security FLOOR."""
+    """Opt-in Face ID/WebAuthn second gate + the session-security and assertion-signature floor."""
     rc, tail = run_subcert([HERE / "certify_passkey_auth.py"])
     cert_ok = (rc == 0) and ("PASSKEY-AUTH CERT: CERTIFIED" in tail)
     res.evidence.append("scripts/certify_passkey_auth.py -> exit %d; %s"
@@ -1444,10 +1444,12 @@ def probe_passkey_auth(res: Result) -> None:
     server_src = (ROOT / "anima" / "server.py").read_text()
     idx = (ROOT / "anima" / "web" / "index.html").read_text()
     backend = all(s in passkey_src for s in ("def issue_session(", "def valid_session(",
-                                             "def required(", "hmac.compare_digest"))
+                                             "def required(", "hmac.compare_digest",
+                                             "def _verify_signature(", "public_key_cose",
+                                             "authenticatorData || SHA256"))
     gate = ("def _passed" in server_src and "passkey.valid_session" in server_src
             and '"/auth/login/finish"' in server_src)
-    ui = ('id="gate"' in idx and "unlockFace" in idx and '"/auth/login/finish"' in idx
+    ui = ('id="gate"' in idx and "unlockFace" in idx and "/auth/login/finish" in idx
           and "X-Anima-Sess" not in idx and "localStorage.setItem('anima_sess'" not in idx)
     res.evidence.append("passkey session primitives (issue/valid/required/compare_digest)=%s; "
                         "server _passed gate + /auth routes=%s; #gate Face-ID UI=%s"
@@ -1457,13 +1459,16 @@ def probe_passkey_auth(res: Result) -> None:
     if cert_ok and backend and gate and ui:
         res.status = COMPLETE
         res.proven_links = ["visible_trigger", "real_backend", "final_gate"]
-        res.reason = ("Opt-in Face ID is a real second gate: a freshly-minted session VALIDATES and "
-                      "every tampered/forged/expired session is REJECTED (HMAC over a per-run secret, "
-                      "constant-time compare + exp>now); the gate is opt-in and can't lock you out "
-                      "(required() implies enrolled + no bypass); server._passed enforces it on every "
-                      "request and the #gate unlock UI is wired; real .anima byte-unchanged. The live "
-                      "WebAuthn/Face-ID hardware ceremony is out of scope (device-presence, not the "
-                      "session floor).")
+        res.reason = ("Opt-in Face ID/WebAuthn is a real second gate: enrollment stores the credential "
+                      "public key, login verifies challenge/origin/RP-ID hash, user-present/user-verified "
+                      "flags, authenticator sign counter, and the assertion signature over "
+                      "authenticatorData || SHA256(clientDataJSON); a freshly-minted session VALIDATES "
+                      "and every tampered/forged/expired session is REJECTED (HMAC over a per-run secret, "
+                      "constant-time compare + exp>now); legacy rawId-only credentials are marked "
+                      "upgrade_required and do not arm required(); server._passed enforces the signed "
+                      "session on every request and the #gate unlock UI is wired; real .anima byte-unchanged. "
+                      "The live navigator.credentials hardware ceremony remains manual/device-specific, "
+                      "but the server-side WebAuthn verifier is deterministic-certified.")
     else:
         res.status = PARTIAL if cert_ok else STUB
         res.missing_links = [k for k, v in (("live_cert", cert_ok), ("backend", backend),

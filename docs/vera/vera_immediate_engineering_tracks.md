@@ -15,6 +15,7 @@ Updated closure note, 2026-06-22:
 - Privacy Flight Recorder viewer, default-deny connector receipt policy, and coarse-location weather UX are closed and certified by `scripts/certify_privacy_receipt_viewer.py`.
 - Browser auth now strips query tokens, avoids localStorage secrets, uses HttpOnly/SameSite cookies, rejects cross-site POST, supports revocation/logout, session inventory, session rotation, logout-all, optional `ANIMA_PAIRING_CODE` pairing codes, generated startup one-time codes, authenticated minting of additional one-time codes, a main-chat first-launch pairing modal, and multi-shell replay/migration certs for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells.
 - W04 is closed for supported same-origin browser shells. Custom-scheme installed wrappers remain a packaging constraint: they must proxy through the same localhost origin or receive a future explicit allowlist.
+- W05 WebAuthn signature verification is closed and certified by `scripts/certify_passkey_auth.py`; remaining product check is real-device browser ceremony smoke testing.
 
 ## Track 1 - Security And Privacy Foundation
 
@@ -30,7 +31,7 @@ Immediate work:
 - Add one-time pairing-code UX. CLOSED / CERTIFIED for generated startup codes and the main chat shell.
 - Add device/session inventory, session rotation, single-session revoke, and logout-all. CLOSED / CERTIFIED.
 - Add multi-shell replay/migration certs. CLOSED / CERTIFIED for supported same-origin shells.
-- Complete WebAuthn or rename current passkey gate honestly.
+- Complete WebAuthn or rename current passkey gate honestly. CLOSED / CERTIFIED; real-device ceremony smoke test remains for packaging.
 - Add zero-egress mode. CLOSED / CERTIFIED for cloud, web, and weather egress.
 - Add egress ledger. CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, weather lookup, and connector-policy receipts.
 - Add per-turn privacy receipts. CLOSED / CERTIFIED for turn responses and append-only receipt ledger.
@@ -42,6 +43,7 @@ Certs:
 - `certify_route_backend_enforcement.py`
 - `certify_browser_session_cookies.py`
 - `certify_browser_origin_csrf.py`
+- `certify_passkey_auth.py`
 - `certify_zero_egress_mode.py`
 - `certify_privacy_receipts.py`
 - `certify_privacy_receipt_viewer.py`

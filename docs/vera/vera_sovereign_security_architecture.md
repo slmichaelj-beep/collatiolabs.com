@@ -436,7 +436,7 @@ Optional user-controlled inheritance/export workflow. Must be extremely careful 
 ### Phase 3 - Auth And Device Binding
 
 - Pairing/session auth.
-- Full WebAuthn or honest device-presence naming.
+- Full WebAuthn assertion verification. CLOSED / CERTIFIED; real-device ceremony smoke test remains for packaging.
 - Optional hardware key support.
 - Auto-lock.
 - Panic seal.

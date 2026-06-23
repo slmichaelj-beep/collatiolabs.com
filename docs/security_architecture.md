@@ -26,7 +26,7 @@ unless an explicit, default-OFF capability is enabled. Security is enforced by r
 1. **Auth wall** (`server.Handler._authed`) — every data route requires the `ANIMA_TOKEN` credential
    (`?k=` / `X-Anima-Key` / `Bearer`), compared **constant-time** with `hmac.compare_digest`. A
    missing/wrong credential gets `401 unauthorized` *before* dispatch. Open only in dev (no token).
-2. **Face-ID / passkey** (`_passed`) — an optional second layer (`need_face_id` 401) above the token.
+2. **Face-ID / passkey** (`_passed`) — an optional WebAuthn second layer (`need_face_id` 401) above the token, with server-side assertion signature verification and signed session cookies.
 3. **Default-deny capabilities** (`caps.py`) — every outward power (mail, iMessage, web, calendar,
    reminders, notes, host_awareness, identity_agency, grow_intelligence) is **OFF by default**. Read
    and act are **separate grants** (`mail_read` ≠ `mail`). `route.py` checks `caps.enabled` before any

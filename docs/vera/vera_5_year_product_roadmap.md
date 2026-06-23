@@ -291,7 +291,7 @@ Build now:
 - Enforce per-turn local/cloud routing. CLOSED / CERTIFIED.
 - Unify private storage and encrypt append-only ledgers. SUBSTANTIALLY CLOSED / CERTIFIED.
 - Replace query-token/localStorage auth with pairing/session flow. CLOSED / CERTIFIED for supported same-origin browser shells.
-- Implement full WebAuthn or rename current passkey honestly.
+- Implement full WebAuthn or rename current passkey honestly. CLOSED / CERTIFIED; real-device ceremony smoke test remains for packaging.
 - Bind approvals to exact actions.
 - Bind self-evolution approvals to exact proposals.
 - Enforce budget invariants.
@@ -449,7 +449,7 @@ Do not claim yet:
 - "Encrypted by default" until all private stores use the same encrypted substrate.
 - "Local-only by default" is now backed by per-turn backend enforcement, a zero-egress hard switch, certified privacy receipt/egress ledger coverage for cloud/web/weather/key-verification surfaces, the `/privacy` Privacy Flight Recorder, default-deny connector receipt policy, and coarse weather-location egress by default.
 - "Secure LAN access" until expose requires auth and CSRF/origin defenses exist.
-- "Passkey protected" unless full WebAuthn verification is implemented or the phrase is carefully scoped.
+- "Passkey protected" is now backed by certified server-side WebAuthn assertion verification; still qualify packaging claims until real-device ceremony smoke tests are complete.
 - "Autonomous governance" until approval binding and budget invariants are fixed.
 
 Claims that are closer to safe after hardening:

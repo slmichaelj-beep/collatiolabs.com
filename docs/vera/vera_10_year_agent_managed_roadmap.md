@@ -276,7 +276,7 @@ Key certs:
 - Add Origin/Host/CSRF guards. CLOSED / CERTIFIED for same-host browser POST boundary.
 - Add first-launch one-time pairing UX, session rotation/device inventory, and logout-all. CLOSED / CERTIFIED for generated startup codes and the main chat shell.
 - Add multi-shell replay/migration certs. CLOSED / CERTIFIED for desktop localhost, LAN browser, HTTPS tunnel, and same-origin installed/webview shells.
-- Complete WebAuthn or rename the current passkey gate honestly.
+- Complete WebAuthn or rename the current passkey gate honestly. CLOSED / CERTIFIED; real-device ceremony smoke test remains for packaging.
 - Add per-turn route receipts. CLOSED / CERTIFIED for turn responses.
 - Add egress ledger. PARTIALLY CLOSED / CERTIFIED for cloud provider calls, cloud key verification, web fetch, and weather lookup.
 - Add privacy receipt viewer. CLOSED / CERTIFIED as `/privacy` Privacy Flight Recorder.
