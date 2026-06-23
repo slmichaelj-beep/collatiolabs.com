@@ -30,7 +30,7 @@ Top weaknesses:
 6. `P2 CLOSED; CERTIFIED` approval packets now bind to action type, cost, vendor, category, subject, risk, expiry, and single-use execution.
 7. `P2 CLOSED; CERTIFIED` high/core self-evolution promotions now require scoped approval packets matching proposal ID, risk, cert evidence, rollback ref, and single-use execution.
 8. `P2 CLOSED; CERTIFIED` budget direct-call invariants now enforce cumulative category/month caps, validate and consume approval refs, reject fake refs, and reject negative spends.
-9. `P2 CONFIRMED` marketplace ledgers have overspend and status edge cases.
+9. `P2 CLOSED; CERTIFIED` Upwork marketplace Connects and bid states now refuse overspend, failed-submit mutation, illegal jumps, repeat submit, and fake cash.
 10. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
 11. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
 12. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
@@ -41,7 +41,7 @@ Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Fake approval strings satisfying high/core self-evolution promotion. CLOSED / CERTIFIED in W09.
 - Cumulative category and monthly budget caps not being enforced. CLOSED / CERTIFIED in W10.
 - Truth/observation ledgers writing raw sensitive text with `ANIMA_KEY` set.
-- Upwork Connects overspend and loose funnel transitions.
+- Upwork Connects overspend and loose funnel transitions. CLOSED / CERTIFIED in W11.
 
 ## Security And Privacy
 
@@ -415,9 +415,9 @@ Certification:
 ### W11 - Upwork Connects ledger can overspend in edge paths
 
 Severity: `P2`
-Status: `CONFIRMED BY ADVERSARIAL PROBE`
+Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/marketplaces/upwork/pipeline.py` lets `spend_connects()` increment spent even when availability is insufficient, then floors available at zero.
 - `advance()` ignores the result of `spend_connects()`.
 - Status transitions are only partially constrained.
@@ -435,6 +435,18 @@ Fix direction:
 - Stop status advancement if spend fails.
 - Add a finite-state transition table.
 - Cert overspend and illegal transition attempts.
+
+Closure:
+- `spend_connects()` now rejects non-positive spends and insufficient Connects without mutating the ledger.
+- `set_connects()` refuses negative available balances.
+- `advance()` now stops submission if Connects cannot be spent.
+- Upwork bids now use a finite-state transition table; terminal bids cannot move, repeat submissions are refused, and impossible jumps like `drafted -> awarded` and `submitted -> paid` are blocked.
+- Paid status still requires payment evidence, and cash only appears after a legal paid transition.
+
+Certification:
+- Added `scripts/certify_marketplace_resource_invariants.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused cert passed: direct overspend, zero/negative spend, negative available balance, failed submission no-mutation, illegal jumps, repeat submit no double-spend, paid evidence requirement, terminal immutability, and cash-only-after-paid.
+- Compatibility cert passed: `certify_upwork_pipeline`.
 
 ### W12 - Broad exception handling has not been sorted by safety domain
 
@@ -658,7 +670,7 @@ A weakness should be marked closed only when:
 
 Recommended immediate next sprint:
 1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. Strengthen marketplace resource invariants.
-3. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-4. Classify broad exception handling into fail-open vs fail-closed domains.
+2. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+3. Classify broad exception handling into fail-open vs fail-closed domains.
+4. Add relational-honesty companion modes.
 5. Reframe revenue/company as optional domain packs in UI and documentation.

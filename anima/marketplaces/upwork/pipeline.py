@@ -18,6 +18,15 @@ _ACTIVITY = ("submitted", "viewed", "replied", "interview")
 _PIPELINE = ("awarded", "delivered")
 _CASH = ("paid",)
 _TERMINAL = ("paid", "declined", "withdrawn")
+_ALLOWED_TRANSITIONS = {
+    "drafted": {"submitted", "declined", "withdrawn"},
+    "submitted": {"viewed", "replied", "interview", "declined", "withdrawn"},
+    "viewed": {"replied", "interview", "declined", "withdrawn"},
+    "replied": {"interview", "awarded", "declined", "withdrawn"},
+    "interview": {"awarded", "declined", "withdrawn"},
+    "awarded": {"delivered", "paid", "declined", "withdrawn"},
+    "delivered": {"paid"},
+}
 
 
 # ---- job triage log (scanned → bid/skip) ----
@@ -37,6 +46,8 @@ def record_triage(name: str, *, job_title: str, verdict: str, reason: str, job_u
 def stage_bid(name: str, *, job_title: str, job_url: str = "", bid_amount: float = 0.0,
               connects_cost: int = 0, fit_reason: str = "", client_signals: dict | None = None,
               store: Path | None = None) -> dict:
+    if int(connects_cost) < 0:
+        return {"ok": False, "error": "connects_cost must be non-negative"}
     rec = {"bid_id": "bid_" + uuid.uuid4().hex[:10], "job_title": job_title, "job_url": job_url,
            "bid_amount": float(bid_amount), "connects_cost": int(connects_cost),
            "fit_reason": fit_reason, "client_signals": client_signals or {},
@@ -59,13 +70,25 @@ def advance(name: str, bid_id: str, status: str, *, connects_spent: int | None =
         return {"ok": False, "error": "no such bid"}
     if rec["status"] in _TERMINAL:
         return {"ok": False, "error": "bid is terminal (%s)" % rec["status"]}
+    if status == rec["status"]:
+        return {"ok": False, "error": "bid is already %s" % status}
+    if status not in _ALLOWED_TRANSITIONS.get(rec["status"], set()):
+        return {"ok": False, "error": "illegal transition %s -> %s" % (rec["status"], status)}
     if status == "paid" and not (paid_evidence_ref or "").strip():
         return {"ok": False, "error": "paid requires payment evidence — not counted as cash"}
+    if status == "submitted" and connects_spent is not None:
+        spend = spend_connects(name, amount=int(connects_spent), note="bid: " + rec["job_title"],
+                               store=store)
+        if not spend["ok"]:
+            return {"ok": False, "error": spend["error"]}
+        rec["connects_cost"] = int(connects_spent)
+    elif status == "submitted" and int(rec.get("connects_cost") or 0) > 0:
+        spend = spend_connects(name, amount=int(rec.get("connects_cost") or 0),
+                               note="bid: " + rec["job_title"], store=store)
+        if not spend["ok"]:
+            return {"ok": False, "error": spend["error"]}
     rec["status"] = status
     rec["status_history"].append({"status": status, "at": storage.now()})
-    if status == "submitted" and connects_spent is not None:
-        rec["connects_cost"] = int(connects_spent)
-        spend_connects(name, amount=int(connects_spent), note="bid: " + rec["job_title"], store=store)
     if status == "paid":
         rec["paid_evidence_ref"] = paid_evidence_ref
     storage.save(name, "uw_bid_%s" % bid_id, rec, store)
@@ -86,14 +109,23 @@ def bids(name, store=None) -> list:
 
 # ---- connects ledger ----
 def set_connects(name: str, *, available: int, store: Path | None = None) -> dict:
+    if int(available) < 0:
+        return {"ok": False, "error": "available Connects must be non-negative"}
     c = storage.load(name, "uw_connects", store, default={"available": 0, "spent": 0})
     c["available"] = int(available); storage.save(name, "uw_connects", c, store)
     return {"ok": True, "connects": c}
 
 
 def spend_connects(name: str, *, amount: int, note: str = "", store: Path | None = None) -> dict:
+    amount = int(amount)
+    if amount <= 0:
+        return {"ok": False, "error": "Connects spend amount must be positive"}
     c = storage.load(name, "uw_connects", store, default={"available": 0, "spent": 0})
-    c["available"] = max(0, c["available"] - int(amount)); c["spent"] = c["spent"] + int(amount)
+    if amount > int(c["available"]):
+        return {"ok": False,
+                "error": "insufficient Connects: need %d, available %d" % (amount, c["available"])}
+    c["available"] = int(c["available"]) - amount
+    c["spent"] = int(c["spent"]) + amount
     storage.save(name, "uw_connects", c, store)
     return {"ok": True, "connects": c}
 

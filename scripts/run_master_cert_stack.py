@@ -133,6 +133,7 @@ STACK = [
     ("certify_fiverr_policy_gate", []),
     ("certify_fiverr_channel_engine", []),
     # upwork bid pipeline — live dashboard
+    ("certify_marketplace_resource_invariants", []),
     ("certify_upwork_pipeline", []),
 ]
 

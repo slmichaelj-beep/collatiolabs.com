@@ -334,20 +334,15 @@ Recommended product refactor:
 - Add pack enable/disable state.
 - Cert disabled domain pack does not appear as primary identity or run background work.
 
-FINDING P2:
+W11 closure:
 
-Upwork pipeline has accounting/state-machine gaps:
+Upwork pipeline accounting/state-machine gaps are now closed/certified:
 
-- Connects can be overspent because `spend_connects()` floors availability at zero and increments spent.
-- `advance()` ignores the result of `spend_connects()`.
-- Status transitions allow arbitrary jumps except terminal-state edits and paid-without-evidence.
-
-Recommended fix:
-
-- Refuse insufficient Connects.
-- Fail submission if Connects cannot be spent.
-- Encode allowed transitions.
-- Require external evidence for transitions that imply external events.
+- Connects cannot be overspent through direct calls or submission; refused spends do not mutate the ledger.
+- Negative available balances and non-positive spends are refused.
+- Bid status changes use a finite-state transition table.
+- Illegal jumps, repeat submissions, terminal edits, and submitted-to-paid jumps are blocked.
+- `certify_marketplace_resource_invariants.py` is wired into the master stack and passed focused + compatibility certs.
 
 FRONTIER:
 
@@ -391,12 +386,11 @@ Vera's verification system itself can become a consumer trust feature:
 ## Current Top Fix List
 
 1. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. P2: Fix Upwork Connects overspend and status transitions.
-3. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-4. P2: Classify broad exception handling into fail-open vs fail-closed domains.
-5. P2: Add relational-honesty companion modes.
-6. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
-7. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
+2. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+3. P2: Classify broad exception handling into fail-open vs fail-closed domains.
+4. P2: Add relational-honesty companion modes.
+5. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
+6. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.
 
 ## North Star
 

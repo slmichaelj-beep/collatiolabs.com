@@ -206,7 +206,7 @@ Frontier direction:
 - Bind approvals to action intent. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
 - Validate self-evolution approvals. CLOSED / CERTIFIED for high/core promotions.
 - Enforce monthly/category budget invariants. CLOSED / CERTIFIED.
-- Make marketplace packs finite-state and resource-safe.
+- Make marketplace packs finite-state and resource-safe. CLOSED / CERTIFIED for Upwork bid pipeline.
 - Add a human-readable action receipt UI.
 
 ### Sprint 3 - Core Companion Reframe
