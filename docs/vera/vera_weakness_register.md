@@ -28,15 +28,16 @@ Top weaknesses:
 4. `P1/P2 CLOSED; CERTIFIED FOR SUPPORTED SHELLS` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are blocked. Custom-scheme installed wrappers remain a packaging constraint.
 5. `P2 CLOSED; CERTIFIED` passkey/WebAuthn now stores credential public keys and verifies assertion signatures, flags, origin/RP-ID, challenge, and sign counters.
 6. `P2 CLOSED; CERTIFIED` approval packets now bind to action type, cost, vendor, category, subject, risk, expiry, and single-use execution.
-7. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
-8. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
-9. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
-10. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
-11. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
+7. `P2 CLOSED; CERTIFIED` high/core self-evolution promotions now require scoped approval packets matching proposal ID, risk, cert evidence, rollback ref, and single-use execution.
+8. `P2 CONFIRMED` budget and marketplace ledgers have direct-call and overspend edge cases.
+9. `P2 CONFIRMED` broad exception use is massive and not yet classified into fail-open vs fail-closed zones.
+10. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
+11. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
+12. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
 
 Adversarial probes run on 2026-06-21 confirmed live behavior for:
-- Approval mismatch authorizing the wrong action.
-- Fake approval strings satisfying high/core self-evolution promotion.
+- Approval mismatch authorizing the wrong action. CLOSED / CERTIFIED in W08.
+- Fake approval strings satisfying high/core self-evolution promotion. CLOSED / CERTIFIED in W09.
 - Cumulative category and monthly budget caps not being enforced.
 - Truth/observation ledgers writing raw sensitive text with `ANIMA_KEY` set.
 - Upwork Connects overspend and loose funnel transitions.
@@ -342,9 +343,9 @@ Certification:
 ### W09 - Self-evolution high-risk approval only checks non-empty text
 
 Severity: `P2`
-Status: `CONFIRMED BY ADVERSARIAL PROBE`
+Status: `CLOSED; CERTIFIED`
 
-Evidence:
+Original evidence:
 - `anima/self_evolution/evolve.py:70-94` promotes proposals after rollback, certs, Diamond, and approval.
 - `anima/self_evolution/evolve.py:85-86` only checks that `approval_ref` is non-empty for high/core risk proposals.
 
@@ -360,6 +361,18 @@ Fix direction:
 - Bind self-evolution to the approval ledger.
 - Require approval action type `product` or `core_change`, matching proposal ID, risk level, cert set, and rollback ref.
 - Cert fake approval strings and mismatched approvals.
+
+Closure:
+- `anima/self_evolution/evolve.py` now validates high/core promotions through `approvals.validate_for_action(...)`.
+- High-risk proposals require a scoped `product` / `product_change` approval packet.
+- Core proposals require a scoped `core_change` approval packet.
+- The approval must match proposal ID (`subject`), rollback ref, risk ceiling, and proposal cert evidence.
+- Successful high/core promotions consume the approval as `executed`, so replay is refused.
+
+Certification:
+- Added `scripts/certify_self_evolution_approval_binding.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused cert passed: fake approval string, pending approval, wrong product/core scope, wrong proposal subject, missing cert evidence, wrong rollback ref, and replay-after-execution were all refused.
+- Compatibility certs passed: `certify_self_evolution`, `certify_approval_scope_binding`, and `certify_company_operator_governance`.
 
 ### W10 - Budget module is not self-defensive enough
 
@@ -632,7 +645,7 @@ A weakness should be marked closed only when:
 
 Recommended immediate next sprint:
 1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. Bind self-evolution approvals to exact proposals.
+2. Strengthen budget and marketplace resource invariants.
 3. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-4. Strengthen budget and marketplace resource invariants.
+4. Classify broad exception handling into fail-open vs fail-closed domains.
 5. Reframe revenue/company as optional domain packs in UI and documentation.

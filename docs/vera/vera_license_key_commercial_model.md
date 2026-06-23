@@ -245,7 +245,7 @@ Adds:
 Boundaries:
 - human-only legal, financial, account, and external commitments
 - action receipts required
-- company-operator approval binding is certified for action ledger, sales engagement, and foundry execution; self-evolution and budget direct-call binding remain required before sale
+- company-operator and self-evolution approval binding are certified; budget direct-call binding remains required before sale
 
 ### Connector Kits
 

@@ -272,6 +272,13 @@ FRONTIER:
 
 The frontier is "bounded autopoiesis": a companion that can grow capabilities while proving that her core values, privacy rules, and relationship boundaries did not silently mutate.
 
+W09 closure:
+
+- High/core self-evolution promotions now require scoped approval packets instead of non-empty strings.
+- The approval must match the proposal ID, risk, rollback ref, and proposal cert evidence.
+- Product changes use `product` / `product_change`; core changes use `core_change`.
+- Successful high/core promotions consume the approval as `executed`.
+
 ## Governance And External Action
 
 VERIFIED:
@@ -391,10 +398,10 @@ Vera's verification system itself can become a consumer trust feature:
 ## Current Top Fix List
 
 1. P2: Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. P2: Bind self-evolution approvals to exact proposals.
-3. P2: Strengthen budget cumulative invariants and direct approval-ref validation.
+2. P2: Strengthen budget cumulative invariants and direct approval-ref validation.
+3. P2: Fix Upwork Connects overspend and status transitions.
 4. P2: Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-5. P2: Fix Upwork Connects overspend and status transitions.
+5. P2: Classify broad exception handling into fail-open vs fail-closed domains.
 6. P2: Add relational-honesty companion modes.
 7. P2: Make revenue/company layers optional domain packs, not Vera's primary frame.
 8. P2: Build Skill Gap / Learning Studio UX on top of self_evolution + LERF.

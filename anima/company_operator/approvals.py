@@ -13,8 +13,8 @@ from pathlib import Path
 from anima.company import storage
 
 STATUS = ("pending", "approved", "rejected", "revised", "expired", "executed")
-ACTION_TYPES = ("publish", "send", "spend", "legal", "account", "vendor", "product", "support",
-                "marketing")
+ACTION_TYPES = ("publish", "send", "spend", "legal", "account", "vendor", "product",
+                "product_change", "core_change", "support", "marketing")
 _ACTION_SCOPES = {
     "publish": {"publish"},
     "send": {"email", "send_message"},
@@ -22,7 +22,9 @@ _ACTION_SCOPES = {
     "legal": {"legal_prepare"},
     "account": {"account_create"},
     "vendor": {"vendor_contact"},
-    "product": {"publish", "file_create"},
+    "product": {"publish", "file_create", "product_change"},
+    "product_change": {"product_change"},
+    "core_change": {"core_change"},
     "support": {"support_reply"},
     "marketing": {"email", "send_message", "publish"},
 }
@@ -36,14 +38,14 @@ def _save(name, a, store): storage.save(name, "approvals", {"approvals": a}, sto
 def create(name: str, title: str, action_type: str, *, summary: str = "",
            requested_authority_level: int = 2, cost: float = 0.0, budget_ref: str = "",
            risk: str = "low", evidence_refs=None, rollback_plan: str = "",
-           category: str = "", vendor: str = "", subject: str = "", expires_at: str = "",
-           store: Path | None = None) -> dict:
+           category: str = "", vendor: str = "", subject: str = "", rollback_ref: str = "",
+           expires_at: str = "", store: Path | None = None) -> dict:
     rec = {"approval_id": "apr_" + uuid.uuid4().hex[:12], "title": title[:200],
            "action_type": action_type, "summary": summary[:1000],
            "requested_authority_level": requested_authority_level, "cost": float(cost),
            "budget_ref": budget_ref, "risk": risk, "evidence_refs": evidence_refs or [],
            "rollback_plan": rollback_plan, "category": category, "vendor": vendor,
-           "subject": subject, "expires_at": expires_at,
+           "subject": subject, "rollback_ref": rollback_ref, "expires_at": expires_at,
            "status": "pending", "created_at": storage.now(), "decided_at": None, "decided_by": None}
     a = _all(name, store); a.append(rec); _save(name, a, store)
     storage.emit_truth(name, "approval", rec["approval_id"], "APPROVAL REQUESTED[%s]: %s"
@@ -102,11 +104,13 @@ def _allowed_actions(approval_type: str) -> set[str]:
 
 def validate_for_action(name: str, approval_id: str, action_type: str, *, cost: float = 0.0,
                         category: str = "", vendor: str = "", risk: str = "low",
-                        subject: str = "", store: Path | None = None) -> dict:
+                        subject: str = "", rollback_ref: str = "",
+                        store: Path | None = None) -> dict:
     """Return a scoped approval verdict for the exact action envelope.
 
     An approval packet is not a bearer token. It must be approved, unexpired, single-use, and scoped
-    to the action class plus any cost/vendor/category/subject/risk constraints the packet names.
+    to the action class plus any cost/vendor/category/subject/rollback/risk constraints the packet
+    names.
     """
     rec = get(name, approval_id, store)
     if rec is None:
@@ -131,7 +135,8 @@ def validate_for_action(name: str, approval_id: str, action_type: str, *, cost: 
                           % (approved_cost, float(cost or 0.0)),
                 "approval": rec}
 
-    for key, actual in (("category", category), ("vendor", vendor), ("subject", subject)):
+    for key, actual in (("category", category), ("vendor", vendor), ("subject", subject),
+                        ("rollback_ref", rollback_ref)):
         expected = str(rec.get(key) or "")
         if expected and expected != str(actual or ""):
             return {"ok": False, "reason": "approval %s %r does not match action %r"

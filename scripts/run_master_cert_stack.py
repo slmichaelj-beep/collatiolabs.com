@@ -113,6 +113,7 @@ STACK = [
     ("certify_workforce_foundry", []),
     # autonomous self-evolution + self-healing
     ("certify_self_evolution", []),
+    ("certify_self_evolution_approval_binding", []),
     # revenue generation — strike / swarm / compounding
     ("certify_revenue_strike_engine", []),
     ("certify_revenue_swarm_factory", []),

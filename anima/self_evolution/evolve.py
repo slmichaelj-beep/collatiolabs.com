@@ -25,6 +25,36 @@ AUTONOMY_LEVELS = {
 }
 
 
+def _promotion_action_type(risk_level: str) -> str:
+    return "core_change" if risk_level == "core" else "product_change"
+
+
+def _validate_promotion_approval(name: str, prop: dict, approval_ref: str, rollback_ref: str,
+                                 store: Path | None) -> dict:
+    if not (approval_ref or "").strip():
+        return {"ok": False, "error": "promotion blocked: high-risk/core change needs approval"}
+
+    from anima.company_operator import approvals
+
+    action_type = _promotion_action_type(prop.get("risk_level", "high"))
+    verdict = approvals.validate_for_action(
+        name, approval_ref, action_type, risk=prop.get("risk_level", "high"),
+        subject=prop["proposal_id"], rollback_ref=rollback_ref, store=store,
+    )
+    if not verdict["ok"]:
+        return {"ok": False, "error": "promotion blocked: approval rejected: " + verdict["reason"]}
+
+    approval = verdict["approval"]
+    required_certs = set(prop.get("new_certs") or [])
+    approved_certs = set(approval.get("evidence_refs") or [])
+    missing = sorted(required_certs - approved_certs)
+    if missing:
+        return {"ok": False,
+                "error": "promotion blocked: approval missing cert evidence %s" % missing}
+
+    return {"ok": True, "approval": approval}
+
+
 def capability_gap(name: str, *, title: str, description: str, evidence_refs: list, frequency: int,
                    business_impact: str = "medium", store: Path | None = None) -> dict:
     """Detect a capability gap from REPEATED evidence. A one-off (frequency < 2) cannot auto-promote
@@ -82,8 +112,10 @@ def promote(name: str, *, proposal_id: str, cert_results: dict, rollback_ref: st
         return {"ok": False, "error": "promotion blocked: failing certs %s" % failed}
     if released and not diamond_passed:
         return {"ok": False, "error": "promotion blocked: Diamond not green for a released change"}
-    if prop["approval_required"] and not (approval_ref or "").strip():
-        return {"ok": False, "error": "promotion blocked: high-risk/core change needs approval"}
+    if prop["approval_required"]:
+        approval = _validate_promotion_approval(name, prop, approval_ref, rollback_ref, store)
+        if not approval["ok"]:
+            return approval
     rec = {"promotion_id": "promo_" + uuid.uuid4().hex[:10], "proposal_id": proposal_id,
            "risk_level": prop["risk_level"], "approval_ref": approval_ref or None,
            "rollback_ref": rollback_ref, "cert_results": cert_results, "diamond_passed": diamond_passed,
@@ -91,6 +123,9 @@ def promote(name: str, *, proposal_id: str, cert_results: dict, rollback_ref: st
     storage.save(name, "self_promotion_%s" % rec["promotion_id"], rec, store)
     storage.emit_truth(name, "self_promotion", rec["promotion_id"], "PROMOTED: " + proposal_id,
                        actor="user", store=store)
+    if prop["approval_required"]:
+        from anima.company_operator import approvals
+        approvals.mark_executed(name, approval_ref, store)
     return {"ok": True, "promotion": rec}
 
 

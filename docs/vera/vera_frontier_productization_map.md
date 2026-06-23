@@ -204,7 +204,7 @@ Frontier direction:
 ### Sprint 2 - Governance Integrity
 
 - Bind approvals to action intent. CLOSED / CERTIFIED for company-operator action ledger, sales engagement, and foundry execution.
-- Validate self-evolution approvals.
+- Validate self-evolution approvals. CLOSED / CERTIFIED for high/core promotions.
 - Enforce monthly/category budget invariants.
 - Make marketplace packs finite-state and resource-safe.
 - Add a human-readable action receipt UI.
