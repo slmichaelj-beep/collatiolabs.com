@@ -1,8 +1,8 @@
 # Vera / Collatio System Audit - Phase 2 Verification Ledger
 
-Date: 2026-06-22
+Date: 2026-06-25
 Repo: `/Users/lamar/Developer/collatiolabs.com`
-Branch/head reviewed: `anima` / rolling W03/W04 security hardening series
+Branch/head reviewed: `anima` / certified runtime build `87370687202ddd95a687705d32aa6b7f19929bdd`
 
 ## Status Tags
 
@@ -15,16 +15,16 @@ Branch/head reviewed: `anima` / rolling W03/W04 security hardening series
 
 VERIFIED:
 
-- `scripts/run_master_cert_stack.py` passes 89/89 when Vera is running.
-- `scripts/run_diamond_v2.py --gate` confirms Diamond v2 repeatability.
-- The live-path visibility pass reports byte-identical real `.anima` state and classifies `109 COMPLETE / 1 HONEST PARTIAL / 1 DEFERRED-NOT-CLAIMED`.
+- `scripts/run_master_cert_stack.py` passed 95/95 when Vera was running from clean `8737068`.
+- `scripts/run_diamond_v2.py --gate` confirmed Diamond v2 repeatability with `[109, 109, 109]`.
+- The Diamond/live-path visibility pass reports `109 COMPLETE / 1 HONEST PARTIAL`, with `audiobook_intake` deferred/not-claimed and `enterprise_readiness` enterprise-scoped.
 - Claim registry reports all claimed product paths as classified, with partial/deferred items visible instead of hidden.
 - Route registry reports 27 linked-active operator routes and 1 intentionally not-claimed route (`/board`).
-- Working tree was clean during review.
+- Working tree was clean during deploy proof and full-gate review.
 
 Important nuance:
 
-- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 89/89 GREEN.
+- The cert stack has live-route checks. Run it with `python3 -m anima.server --port 8765` active; the current committed stack is 95/95 GREEN as of `8737068`.
 
 Visibility rule:
 

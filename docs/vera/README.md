@@ -10,6 +10,7 @@ Start here:
 - `vera_sovereign_security_architecture.md` — sovereign memory security architecture.
 - `vera_weakness_register.md` — confirmed weaknesses, closure status, and remediation priorities.
 - `vera_adversarial_testing_pass_2026_06_21.md` — adversarial probes and results.
+- `vera_certified_slice_2026_06_25.md` — latest certified hardening slice and exact gate results.
 
 Commercial/product framing:
 
@@ -27,4 +28,3 @@ Integrity law:
 Every implementation slice must move through focused tests, positive and adversarial certs,
 clean commit, deploy proof, master cert stack, Diamond repeatability, documentation update,
 and push to `origin/anima`.
-

@@ -11,10 +11,10 @@ folder and this file first.
 | HEAD | Use `git rev-parse --short HEAD`; certified slices are pushed to `origin/anima` |
 | Language | Python 3.12 (venv at `.venv/`) |
 | Run the server | `source .venv/bin/activate && python3 -m anima.server --name Vera --port 8765` → http://127.0.0.1:8765 |
-| Verify everything | `.venv/bin/python scripts/run_master_cert_stack.py` (94/94 GREEN on W12) then `.venv/bin/python scripts/run_diamond_v2.py --gate` (Diamond CONFIRMED) |
-| Last certified runtime build | `dec1a8b4b31980710ad74865fd30ec3c0a58197f` - W12 exception safety taxonomy |
+| Verify everything | `.venv/bin/python3 scripts/run_master_cert_stack.py` then `.venv/bin/python3 scripts/run_diamond_v2.py --gate` |
+| Last certified runtime build | `87370687202ddd95a687705d32aa6b7f19929bdd` - master `95/95 GREEN`; Diamond v2 CONFIRMED `[109, 109, 109]` |
 | New Mac handoff | `NEW_MAC_HANDOFF_2026_06_23.md` |
-| Size | 347 Python modules · 230 cert scripts · 37 web surfaces · generated `reports/` ignored by Git |
+| Size | 348 Python modules · 232 cert scripts · 37 web surfaces · generated `reports/` ignored by Git |
 
 `reports/` is git-ignored (local evidence/state). Everything else is committed. The browser UI is
 served by `anima/server.py` (a stdlib `ThreadingHTTPServer`); each page has a `.json` data route and
@@ -79,6 +79,6 @@ Autonomous marketplace bidding or multi-account use is a ban risk and is refused
 ## For another service picking this up
 1. `cd ~/Developer/collatiolabs.com && source .venv/bin/activate`
 2. Read this file + `reports/financial_milestone_16000_plan.md` + `reports/offer_and_customer_acquisition_plan.md`.
-3. `python3 scripts/run_master_cert_stack.py` to confirm 89/89 GREEN, then `run_diamond_v2.py --gate`.
+3. `python3 scripts/run_master_cert_stack.py` to confirm the full stack, then `python3 scripts/run_diamond_v2.py --gate`.
 4. Start the server and open `/pipeline` and `/revenue/cash` to see live state.
 5. The deliverables in `deliverables/` are the proven, reusable work samples.

@@ -1,9 +1,9 @@
 # Vera Weakness Register
 
-Review pass: 2026-06-22
+Review pass: 2026-06-25
 Repo: `/Users/lamar/Developer/collatiolabs.com`
 Branch: `anima`
-Commit observed: rolling review through `cd0f143`
+Commit observed: certified runtime build `87370687202ddd95a687705d32aa6b7f19929bdd`
 
 This register is intentionally harsher than the certification ledger. The certs prove the designed happy paths are real. This file tracks places where Vera could fail under product pressure, hostile conditions, privacy expectations, local/cloud ambiguity, or scale.
 
@@ -33,8 +33,11 @@ Top weaknesses:
 9. `P2 CLOSED; CERTIFIED` Upwork marketplace Connects and bid states now refuse overspend, failed-submit mutation, illegal jumps, repeat submit, and fake cash.
 10. `P2 PARTIALLY CLOSED; CERTIFIED` broad exception use is now classified into fail-open/fail-closed safety domains and key fail-open cases are fixed; broad-handler reduction remains.
 11. `P2 CLOSED; CERTIFIED` older cert fixtures could dirty real `.anima` during live-path verification; the legacy cert family now runs under hermetic store redirection and `certify_cert_fixture_hermeticity` fails on fixture-store mutation.
-12. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
-13. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
+12. `P2 CLOSED; CERTIFIED` operator surfaces can pass static shell checks while their data/visibility lanes arrive late; `/founder` and `/trust/moat` now first-paint their critical decision/governance visibility and the rover cert records route governance in per-route `ok`.
+13. `P2 CLOSED; CERTIFIED` unresolved unsupported-memory counts were read from raw ledger rows, making append-only closeout impossible; `truth.query.unsupported()` now folds supersession/retraction state and the live memory cert closes its own probe artifacts transparently.
+14. `P3 CLOSED; CERTIFIED` `certify_expose_requires_auth` could flake under full-stack load because child server startup competed with warm-up; cert child processes now use `ANIMA_SKIP_WARM=1` and isolate unrelated product-mode env.
+15. `P2 FRONTIER IMPROVEMENT` self-learning machinery exists, but the user experience does not yet make Vera feel like she can safely notice, learn, build, certify, and explain new skills.
+16. `P2 FRONTIER IMPROVEMENT` revenue/business subsystems are too visible for a higher-level companion product unless they become optional domain packs.
 
 Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Approval mismatch authorizing the wrong action. CLOSED / CERTIFIED in W08.
@@ -43,6 +46,7 @@ Adversarial probes run on 2026-06-21 confirmed live behavior for:
 - Truth/observation ledgers writing raw sensitive text with `ANIMA_KEY` set.
 - Upwork Connects overspend and loose funnel transitions. CLOSED / CERTIFIED in W11.
 - Broad exception handling with unclassified fail-open risk. PARTIALLY CLOSED / CERTIFIED in W12.
+- First-paint visibility gaps on `/founder` and `/trust/moat`, raw unsupported-count semantics, and expose-auth timing flake. CLOSED / CERTIFIED on `8737068`.
 
 ## Security And Privacy
 
