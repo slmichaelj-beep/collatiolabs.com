@@ -141,6 +141,8 @@ def _classify(s: WriteSite) -> tuple[str, str]:
         return ("restore_tempfile", "same-directory temp path for atomic restore")
     if p == "anima/vault_backup.py" and f == "_write_owner_only":
         return ("encrypted_backup_bundle", "owner-only encrypted bundle write / confirmed restore after hash and path validation")
+    if p == "anima/vault_keys.py" and f == "_write_owner_only_text":
+        return ("vault_key_rotation", "owner-only rewrite of already-encrypted vault files during key rotation")
     if p == "anima/nightly.py":
         return ("installer_config", "macOS launchd plist, not Vera private memory")
 

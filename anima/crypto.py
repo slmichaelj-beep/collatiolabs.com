@@ -27,6 +27,33 @@ _fernet = None
 _resolved = False
 
 
+def reset_cipher_cache() -> None:
+    """Forget the process-local derived cipher after an intentional key change."""
+    global _fernet, _resolved
+    _fernet = None
+    _resolved = False
+
+
+def key_source() -> str:
+    """Return where the vault key would come from, without returning the key."""
+    if os.environ.get("ANIMA_KEY"):
+        return "env:ANIMA_KEY"
+    if os.environ.get("ANIMA_DISABLE_KEYCHAIN") == "1":
+        return "none"
+    import sys
+    if sys.platform != "darwin":
+        return "none"
+    import subprocess
+    try:
+        r = subprocess.run(["security", "find-generic-password", "-s", "anima", "-w"],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            return "macos-keychain:anima"
+    except Exception:
+        pass
+    return "none"
+
+
 def _salt() -> bytes:
     _STORE.mkdir(exist_ok=True)
     p = _STORE / ".keysalt"

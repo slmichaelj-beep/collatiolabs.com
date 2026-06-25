@@ -560,6 +560,7 @@ Integrity:
 - Migrate company/governance ledgers.
 - Add raw-secret absence cert.
 - Add backup/restore encryption cert. CLOSED / CERTIFIED.
+- Add local vault key lifecycle cert. CLOSED / CERTIFIED for first-launch vault posture, display-once recovery codes, salted-hash recovery storage, wrong-key refusal, and key rotation.
 
 ### Month 3 - Auth And Receipts
 

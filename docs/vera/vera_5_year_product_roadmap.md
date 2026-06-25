@@ -214,7 +214,7 @@ Allowed product:
 
 Requirements:
 - Auth required for any non-localhost exposure. CLOSED / CERTIFIED.
-- Encryption consistently applied to private stores. SUBSTANTIALLY CLOSED / CERTIFIED; key lifecycle UX remains.
+- Encryption consistently applied to private stores. CLOSED / CERTIFIED, including first-launch vault posture, local/keychain key source visibility, display-once recovery codes, salted-hash recovery storage, and key rotation.
 - One-time pairing and session auth. CLOSED / CERTIFIED for supported same-origin browser shells; generated/displayed one-time pairing codes, authenticated minting of additional one-time codes, chat-shell first-launch pairing UX, HttpOnly cookies, session inventory, rotation, single-session revoke, logout-all, and desktop/LAN/tunnel/same-origin installed-shell replay/migration certs are closed. Custom-scheme installed wrappers remain a packaging constraint: they must proxy through the same localhost origin or receive a future explicit allowlist.
 - Basic update/recovery story.
 - Crash-safe backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED.
@@ -362,7 +362,7 @@ Build:
 - Pack-specific privacy and action receipts.
 - Pack-specific cert requirements.
 - Local appliance packaging.
-- Advanced backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED; recovery-code/hardware-key UX remains.
+- Advanced backup/restore. ENCRYPTED BUNDLE + RESTORE DRILL CLOSED / CERTIFIED; local vault recovery-code and key-rotation lifecycle CLOSED / CERTIFIED; FIDO/passkey-wrapped multi-device recovery remains packaging work.
 - Multi-device sync option with end-to-end encryption.
 - Stronger model committee orchestration.
 

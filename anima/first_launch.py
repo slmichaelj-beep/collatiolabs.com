@@ -53,7 +53,32 @@ def state() -> dict:
                   "detail": "%d GB free" % contract.get("disk_free_gb"),
                   "next": "" if not low_disk else "Free up space before large intake jobs."})
 
-    # 3. Ollama (the brain runtime)
+    # 3. private vault posture
+    try:
+        from anima import vault_keys
+        vault = vault_keys.status()
+    except Exception as e:
+        vault = {"encryption_enabled": False, "product_mode_required": False,
+                 "recovery": {}, "error": str(e)}
+    vault_on = bool(vault.get("encryption_enabled"))
+    product_vault_required = bool(vault.get("product_mode_required"))
+    recovery_configured = bool((vault.get("recovery") or {}).get("configured"))
+    steps.append({"id": "vault", "ok": vault_on or not product_vault_required,
+                  "label": "Private vault encryption is active." if vault_on
+                           else "Private vault encryption is off.",
+                  "detail": "key source: %s" % (vault.get("key_source") or "none"),
+                  "next": "" if vault_on else
+                          ("Set ANIMA_KEY or the macOS Keychain item 'anima' before product/private use."
+                           if product_vault_required else
+                           "Optional for development; required before product/private use.")})
+    steps.append({"id": "recovery", "ok": (not vault_on) or recovery_configured,
+                  "label": "Vault recovery codes are configured." if recovery_configured
+                           else "Vault recovery codes are not configured.",
+                  "detail": "%s unused recovery code(s)" % ((vault.get("recovery") or {}).get("codes_unused") or 0),
+                  "next": "" if (not vault_on or recovery_configured)
+                          else "Open Security -> Vault and generate recovery codes."})
+
+    # 4. Ollama (the brain runtime)
     up = _ollama_up()
     steps.append({"id": "ollama", "ok": up,
                   "label": "Ollama is running." if up else "Ollama isn't running yet.",
@@ -61,7 +86,7 @@ def state() -> dict:
                   "next": "" if up else "Open the Ollama app (open -a Ollama), then re-check. "
                                         "Use the APP, not the Homebrew formula."})
 
-    # 4. the model
+    # 5. the model
     models = _ollama_models()
     want = contract.get("default_model", "")
     have = any(want.split(":")[0] in m for m in models)
@@ -70,7 +95,7 @@ def state() -> dict:
                   "detail": want,
                   "next": "" if have else "Run: ollama pull %s" % want})
 
-    # 5. voice (capability-truthful: claimed only if the profile + benchmark allow it)
+    # 6. voice (capability-truthful: claimed only if the profile + benchmark allow it)
     from anima.host import enforcement as henf
     v = henf.voice_allowed(contract, benchmark_ms=(hbench.tts_latency_ms() if up else None))
     steps.append({"id": "voice", "ok": v["allowed"],
@@ -80,14 +105,14 @@ def state() -> dict:
                   "detail": v["reason"],
                   "next": "" if v["allowed"] else "Optional — Vera works in text without it."})
 
-    # 6. ears
+    # 7. ears
     ears_on = contract.get("ears_mode") == "enabled"
     steps.append({"id": "ears", "ok": ears_on or contract.get("ears_mode") == "optional",
                   "label": "Mic dictation ready." if ears_on else "Mic dictation optional.",
                   "detail": "Whisper local transcription",
                   "next": ""})
 
-    # 7. limits (honest, profile-driven)
+    # 8. limits (honest, profile-driven)
     steps.append({"id": "limits", "ok": True,
                   "label": "Setup limits explained.",
                   "detail": "Uploads up to %d MB; %s background jobs; %s." % (
@@ -97,6 +122,8 @@ def state() -> dict:
                   "next": ""})
 
     blocking = [s for s in steps if not s["ok"] and s["id"] in ("ollama", "model")]
+    if product_vault_required and not vault_on:
+        blocking.append(next(s for s in steps if s["id"] == "vault"))
     ready = not blocking
     return {
         "ok": True,

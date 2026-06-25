@@ -33,6 +33,7 @@ STACK = [
     ("certify_product_polish", []),
     ("certify_expose_requires_auth", []),
     ("certify_vault_requires_encryption", []),
+    ("certify_vault_key_lifecycle", []),
     ("certify_browser_origin_csrf", []),
     ("certify_browser_session_cookies", []),
     ("certify_browser_shell_replay_migration", []),

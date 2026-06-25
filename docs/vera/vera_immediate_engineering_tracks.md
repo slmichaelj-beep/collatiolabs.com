@@ -7,8 +7,8 @@ This is the implementation translation of the 5-year frontier buildout. It turns
 Updated closure note, 2026-06-22:
 
 - `--expose`/non-loopback startup now refuses without `ANIMA_TOKEN`; certified by `scripts/certify_expose_requires_auth.py`.
-- Private stores, high-risk ledgers, intake staging, portable exports, dataset/export bundles, and product-mode vault enforcement now have W03 encryption coverage.
-- Encrypted off-device backup bundles and restore drills are closed and certified by `scripts/certify_encrypted_backup_restore.py`; first-run key setup, recovery-code/hardware-key, and rotation UX remain.
+- Private stores, high-risk ledgers, intake staging, portable exports, dataset/export bundles, product-mode vault enforcement, first-launch vault posture, display-once recovery codes, salted-hash recovery storage, and key rotation now have W03 encryption coverage.
+- Encrypted off-device backup bundles and restore drills are closed and certified by `scripts/certify_encrypted_backup_restore.py`; local vault key lifecycle is closed and certified by `scripts/certify_vault_key_lifecycle.py`.
 - Per-turn local/cloud backend enforcement is closed and certified by `scripts/certify_route_backend_enforcement.py`.
 - Zero-egress hard switch is closed and certified for cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_zero_egress_mode.py`.
 - Per-turn privacy receipts plus sanitized egress ledger coverage are closed and certified for turns, cloud provider calls, cloud key verification, web fetch, and weather lookup by `scripts/certify_privacy_receipts.py`.
@@ -62,7 +62,7 @@ Immediate work:
 - Migrate company/governance ledgers.
 - Define public/private store taxonomy.
 - Build encrypted off-device backup bundle + restore drill. CLOSED / CERTIFIED.
-- Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
+- Build first-run key setup, recovery-code/hardware-key, and key rotation UX. CLOSED / CERTIFIED for local `ANIMA_KEY`/macOS Keychain lifecycle; future FIDO/passkey-wrapped multi-device recovery remains packaging work.
 - Build Memory Rooms v1.
 - Build "what Vera knows about me" explorer.
 - Add forget/export proof.
@@ -73,6 +73,7 @@ Certs:
 - `certify_append_jsonl_encryption.py`
 - `certify_no_raw_secret_in_private_store.py`
 - `certify_encrypted_backup_restore.py`
+- `certify_vault_key_lifecycle.py`
 - `certify_memory_room_boundaries.py`
 - `certify_forget_everywhere.py`
 

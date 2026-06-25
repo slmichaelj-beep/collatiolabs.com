@@ -16,7 +16,9 @@ Proves the founder's required list:
   6. IMMUNE POSTURE     — the surface carries the Context Immune System status: doctrine + the 4 routes +
                          the live defenses.
   7. CAPS POSTURE       — the surface shows which outward capabilities are on/off right now.
-  8. HONEST + WIRED UI  — the page wires the lockdown/restore control, renders quarantine evidence, and
+  8. VAULT POSTURE      — the surface shows encrypted-vault status, recovery-code status, and the
+                         recovery/rotation controls.
+  9. HONEST + WIRED UI  — the page wires the lockdown/restore control, renders quarantine evidence, and
                          explains every panel human-level (what it means / what to do); honest empty state.
 
 Exit 0 == CERTIFIED; 1 == FAIL.
@@ -133,12 +135,19 @@ def main() -> int:
        isinstance(d.get("caps"), dict) and "on" in d["caps"] and "off" in d["caps"]
        and "caps_off" in d["counts"])
 
+    # ---- 8 VAULT POSTURE -------------------------------------------------------------------------
+    vk = d.get("vault") or {}
+    ck("8. the surface carries vault encryption/recovery/rotation posture",
+       isinstance(vk, dict) and "encryption_enabled" in vk and "recovery" in vk and "rotation" in vk)
+
     # ---- 8 HONEST + WIRED UI ---------------------------------------------------------------------
     ck("8. the page WIRES the lockdown / restore control (the real panic button)",
        'data-action="lockdown"' in html and 'data-action="restore"' in html
        and "/security/action" in html)
     ck("8. the page renders quarantine evidence (held, not obeyed) + the immune posture",
        "quarantineView" in html and "immuneView" in html and "held as" in html.lower())
+    ck("8. the page renders the Vault tab with recovery + rotation controls",
+       "Vault" in html and "vault_recovery_generate" in html and "vault_rotate" in html)
     ck("8. every panel is explained HUMAN-LEVEL (what it means / what to do)",
        html.lower().count("what to do") >= 3 and "what this is" in html.lower())
     ck("8. honest empty states (no fake all-clear, no fake alarm)",

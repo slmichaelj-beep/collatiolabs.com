@@ -24,7 +24,7 @@ Severity:
 Top weaknesses:
 1. `P1 CLOSED; CERTIFIED` LAN expose can run with no auth if `--expose` is used and `ANIMA_TOKEN` is absent.
 2. `P1 CLOSED; CERTIFIED` per-turn local/cloud routing is computed, but generation can still follow the global cloud brain selection.
-3. `P1 PARTIALLY CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; remaining product work is first-run key setup, recovery-code/hardware-key, and rotation UX.
+3. `P1 CLOSED; CERTIFIED` at-rest encryption now consistently covers private ledgers/queues, intake staging, export/training packages, and off-device backup bundles when a vault key is active; product/private mode refuses plaintext startup; first-launch vault posture, display-once recovery codes, salted-hash recovery storage, key rotation, wrong-key refusal, and Security -> Vault visibility/actions are certified.
 4. `P1/P2 CLOSED; CERTIFIED FOR SUPPORTED SHELLS` unsafe cross-origin POST, POST query-token authorization, localStorage auth secrets, non-revocable browser cookies, static pairing replay, missing main-shell first-launch pairing, missing startup one-time code generation, missing additional-shell pairing, missing session inventory, missing rotation, missing logout-all, and desktop/LAN/tunnel replay gaps are blocked. Custom-scheme installed wrappers remain a packaging constraint.
 5. `P2 CLOSED; CERTIFIED` passkey/WebAuthn now stores credential public keys and verifies assertion signatures, flags, origin/RP-ID, challenge, and sign counters.
 6. `P2 CLOSED; CERTIFIED` approval packets now bind to action type, cost, vendor, category, subject, risk, expiry, and single-use execution.
@@ -109,7 +109,7 @@ Closure update:
 ### W03 - Encryption is optional and not consistently applied
 
 Severity: `P1`
-Status: `PARTIALLY CLOSED; CERTIFIED`
+Status: `CLOSED; CERTIFIED`
 
 Evidence:
 - `anima/crypto.py` implements optional Fernet encryption when `ANIMA_KEY` or keychain material exists.
@@ -176,8 +176,13 @@ Seventh closure update:
 - Added `scripts/certify_encrypted_backup_restore.py` and wired it into `scripts/run_master_cert_stack.py`.
 - Focused certification passed: `certify_encrypted_backup_restore`, `certify_encrypted_exports`, `certify_vault_requires_encryption`, compile checks, and backup script syntax.
 
-Residual note before W03 becomes product-closed:
-- Encryption still depends on an active `ANIMA_KEY` or macOS Keychain secret. Product mode now refuses plaintext startup and encrypted backup/restore is certified, but first-run key setup, recovery-code/hardware-key, and key rotation UX remain open.
+Eighth closure update:
+- Added `anima/vault_keys.py` for local vault lifecycle: key-source/status reporting without secret disclosure, display-once recovery-code generation, salted-hash-only recovery storage, one-time recovery-code consumption, dry-run and confirmed key rotation, wrong-key refusal before mutation, and post-rotation new-key verification.
+- Added `crypto.reset_cipher_cache()` and `crypto.key_source()` so lifecycle code can intentionally rotate keys without reaching into private globals or exposing key material.
+- Wired vault posture into first launch and `/security.json`; added Security -> Vault controls for recovery-code generation and key rotation through the existing token + Face-ID gated `/security/action` path.
+- Added `scripts/certify_vault_key_lifecycle.py` and wired it into `scripts/run_master_cert_stack.py`.
+- Focused certification passed: `certify_vault_key_lifecycle`, `certify_private_write_classification`, `certify_security_surface`, and compile checks.
+- Product note: the certified local key sources are `ANIMA_KEY` and the macOS Keychain item `anima`. Future FIDO/passkey-wrapped multi-device recovery remains a frontier packaging enhancement, not a blocker for closing this P1.
 
 ### W04 - Query-token and localStorage auth are too weak for a privacy product
 
@@ -680,8 +685,8 @@ A weakness should be marked closed only when:
 4. The verification ledger records the closure and links to the cert.
 
 Recommended immediate next sprint:
-1. Build first-run key setup, recovery-code/hardware-key, and key rotation UX.
-2. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
-3. Reduce remaining broad handlers and add behavioral proofs for new high-risk exception paths.
-4. Add relational-honesty companion modes.
-5. Reframe revenue/company as optional domain packs in UI and documentation.
+1. Harden packaging for custom-scheme installed wrappers only if the product chooses that route.
+2. Reduce remaining broad handlers and add behavioral proofs for new high-risk exception paths.
+3. Add relational-honesty companion modes.
+4. Reframe revenue/company as optional domain packs in UI and documentation.
+5. Design future FIDO/passkey-wrapped multi-device vault recovery as a packaging enhancement.

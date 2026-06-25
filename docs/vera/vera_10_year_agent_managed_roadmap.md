@@ -296,7 +296,7 @@ Key certs:
 
 - Build encrypted backup bundles. CLOSED / CERTIFIED.
 - Build restore drill. CLOSED / CERTIFIED.
-- Add recovery code/hardware-key recovery design.
+- Add recovery code/hardware-key recovery design. CLOSED / CERTIFIED for local/keychain recovery-code lifecycle and key rotation; FIDO/passkey-wrapped multi-device recovery remains packaging work.
 - Build Administrative Command Center.
 - Build deadline/renewal tracker.
 - Build document autoprep with receipts.

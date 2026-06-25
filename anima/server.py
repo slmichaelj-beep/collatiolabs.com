@@ -2605,7 +2605,14 @@ def _security_data(name: str) -> dict:
     except Exception:
         out["caps"] = {"on": [], "off": []}
 
-    # 7. TRUTH LABELS — origin / active-state / visibility / context-reach for every hostile catch, so
+    # 7. VAULT KEY LIFECYCLE — encrypted-at-rest posture, recovery-code status, and rotation history.
+    try:
+        from . import vault_keys
+        out["vault"] = vault_keys.status(STORE)
+    except Exception as e:
+        out["vault"] = {"ok": False, "error": str(e), "action_required": True}
+
+    # 8. TRUTH LABELS — origin / active-state / visibility / context-reach for every hostile catch, so
     #    blocked PWNED/wire-money TEST FIXTURES are not shown as active compromise. Split into the four
     #    user-facing buckets + a top summary. (Increment 3 — Security Event Truth Labels.)
     try:
@@ -2621,7 +2628,8 @@ def _security_data(name: str) -> dict:
         "quarantine_events": len(out["quarantine_events"]),
         "events": len(out["events"]),
         "locked": 1 if out["locked"] else 0,
-        "caps_off": len(out["caps"]["off"])}
+        "caps_off": len(out["caps"]["off"]),
+        "vault_action_required": 1 if (out.get("vault") or {}).get("action_required") else 0}
     # honest: "clean" iff no source is currently quarantined AND no hostile catch is on record. The page
     # still shows the lockdown control + immune posture when clean — empty means "no threat", not "blank".
     out["empty"] = not (out["quarantined_sources"] or out["quarantine_events"])
@@ -2865,16 +2873,38 @@ def _security_action(name: str, data: dict) -> dict:
     writes a security event for both). lockdown holds EVERY outward capability OFF at the caps gate,
     regardless of stored grants; restore returns the user's stored settings untouched. Local-only."""
     action = str(data.get("action") or "")
-    if action not in ("lockdown", "restore"):
-        return {"ok": False, "error": "need action in {lockdown,restore}"}
+    if action not in ("lockdown", "restore", "vault_recovery_generate", "vault_rotate"):
+        return {"ok": False, "error": "need action in {lockdown,restore,vault_recovery_generate,vault_rotate}"}
     try:
         from . import incident
         if action == "lockdown":
             reason = str(data.get("reason") or "manual (Security console)")[:200]
             rec = incident.lockdown(reason, by="founder")
             return {"ok": True, "locked": True, "lockdown": rec}
-        lifted = incident.restore(by="founder")
-        return {"ok": True, "locked": False, "lifted": bool(lifted)}
+        if action == "restore":
+            lifted = incident.restore(by="founder")
+            return {"ok": True, "locked": False, "lifted": bool(lifted)}
+        from . import vault_keys
+        if action == "vault_recovery_generate":
+            count = int(data.get("count") or 8)
+            out = vault_keys.generate_recovery_codes(STORE, count=count)
+            incident.security_event("vault_recovery_generated",
+                                    "vault recovery codes regenerated", count=out.get("count"))
+            return out
+        old_key = str(data.get("old_key") or "")
+        new_key = str(data.get("new_key") or "")
+        if not data.get("confirm"):
+            return {"ok": False, "error": "vault rotation requires confirm=true"}
+        out = vault_keys.rotate_store(STORE, old_key=old_key, new_key=new_key, confirm=True)
+        if out.get("ok"):
+            os.environ["ANIMA_KEY"] = new_key
+            from . import crypto
+            crypto.reset_cipher_cache()
+            incident.security_event("vault_key_rotated",
+                                    "vault key rotated; restart with the new key",
+                                    files_rotated=out.get("files_rotated"))
+            out["restart_required"] = True
+        return out
     except Exception as e:
         return {"ok": False, "error": "security action failed: %s" % e}
 

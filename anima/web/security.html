@@ -38,6 +38,10 @@
   .btn.danger{border-color:var(--bad-d);background:var(--bad-d);color:#f6b3bf;font-weight:620}
   .btn.lift{border-color:var(--good-d);background:var(--good-d);color:#9bf0cf;font-weight:620}
   .btn:disabled{opacity:.4;cursor:not-allowed}
+  .field{width:100%;min-height:38px;border:1px solid var(--line);border-radius:8px;background:#0d1422;color:var(--ink);
+    padding:8px 10px;font:13px -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif}
+  .formgrid{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-top:8px}
+  .secretbox{margin-top:9px;border:1px solid var(--warn-d);background:#211a0b;border-radius:8px;padding:10px}
   .feed{font-size:13px}
   .feed .row{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
   .feed .row:first-child{border-top:0}
@@ -54,6 +58,7 @@
   .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
   footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
   .counts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+  @media(max-width:720px){.formgrid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -91,7 +96,7 @@
   try{localStorage.removeItem('anima_token');}catch(e){}
   var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
   if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
-  var DATA=null, TAB='quarantine', BUSY=false;
+  var DATA=null, TAB='quarantine', BUSY=false, VAULT_CODES=null, VAULT_MSG='';
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function when(s){return esc((String(s||'').replace('T',' ').slice(0,19))||'—');}
 
@@ -202,6 +207,39 @@
       'Settings, or press <b>Engage lockdown</b> above to force all of them off at once while you check.</div></div>';
   }
 
+  // ---- vault lifecycle --------------------------------------------------------------------------
+  function vaultView(d){
+    var v=d.vault||{}, rec=v.recovery||{}, rot=v.rotation||{}, files=v.files||{};
+    var enc=!!v.encryption_enabled, recOk=!!rec.configured;
+    var codeHtml=VAULT_CODES&&VAULT_CODES.length
+      ? '<div class="secretbox"><div class="lab" style="margin-top:0">Recovery codes shown once</div>'+
+        '<div class="mono">'+VAULT_CODES.map(esc).join('\n')+'</div></div>' : '';
+    var msg=VAULT_MSG?'<div class="why"><b>Status:</b> '+esc(VAULT_MSG)+'</div>':'';
+    return '<div class="card"><div class="ph"><span class="pill '+(enc?'good':'bad')+'">'+
+      (enc?'encrypted':'plaintext')+'</span><span class="ttl">Private vault</span>'+
+      '<span class="pill">'+esc(v.key_source||'none')+'</span>'+
+      '<span class="pill '+(v.action_required?'warn':'good')+'">action required: '+(v.action_required?'YES':'no')+'</span></div>'+
+      '<div class="lab">Recovery</div><div class="chips">'+
+      '<span class="pill '+(recOk?'good':'warn')+'">'+(recOk?'configured':'not configured')+'</span>'+
+      '<span class="pill">'+(rec.codes_unused||0)+' unused</span>'+
+      '<span class="pill">'+(rec.codes_used||0)+' used</span></div>'+
+      '<div class="lab">Rotation</div><div class="chips">'+
+      '<span class="pill '+(rot.configured?'good':'warn')+'">'+(rot.configured?'last rotated '+when(rot.last_rotated_at):'no rotation recorded')+'</span>'+
+      '<span class="pill">'+(rot.files_rotated||0)+' files</span></div>'+
+      '<div class="lab">Store posture</div><div class="chips">'+
+      '<span class="pill">'+(files.encrypted_files||0)+' encrypted</span>'+
+      '<span class="pill '+((files.plaintext_or_binary_files||0)?'warn':'good')+'">'+(files.plaintext_or_binary_files||0)+' plaintext/binary</span>'+
+      '<span class="pill">'+(files.total_files||0)+' total</span></div>'+
+      '<div class="why"><b>What this is:</b> the local vault key lifecycle. Recovery codes are generated once; Vera stores only salted hashes. Rotation rewrites marked encrypted files to the new key and verifies them before it returns.</div>'+
+      '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn lift" id="vaultGen" '+(enc?'':'disabled')+'>Generate recovery codes</button></div>'+
+      codeHtml+msg+'</div>'+
+      '<div class="card"><div class="ttl">Rotate vault key</div>'+
+      '<div class="formgrid"><input id="oldKey" class="field" type="password" autocomplete="current-password" placeholder="Current vault key">'+
+      '<input id="newKey" class="field" type="password" autocomplete="new-password" placeholder="New vault key">'+
+      '<button class="btn" id="vaultRotate" '+(enc?'':'disabled')+'>Rotate</button></div>'+
+      '<div class="why"><b>What to do:</b> after rotation, restart Vera with the new key. The running process switches immediately so this page can verify the result.</div></div>';
+  }
+
   // ---- the SOC trail (full local security log) --------------------------------------------------
   function trailView(d){
     var ev=d.events||[];
@@ -232,12 +270,37 @@
     var tabs=[['quarantine','Threats & Evidence',(ts.active_contamination||0)+(ts.blocked_live_hostile_outputs||0)+(ts.security_test_fixtures_blocked||0)],
       ['immune','Immune posture',((d.immune&&d.immune.routes)||[]).length],
       ['caps','Capabilities',(d.counts.caps_off||0)],
+      ['vault','Vault',(d.counts.vault_action_required||0)],
       ['trail','Event log',(d.counts.events||0)]];
     document.getElementById('tabs').innerHTML=tabs.map(function(t){
       return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'<span class="n">'+t[2]+'</span></span>';}).join('');
-    var v=TAB==='quarantine'?quarantineView(d):TAB==='immune'?immuneView(d):TAB==='caps'?capsView(d):trailView(d);
+    var v=TAB==='quarantine'?quarantineView(d):TAB==='immune'?immuneView(d):TAB==='caps'?capsView(d):TAB==='vault'?vaultView(d):trailView(d);
     document.getElementById('view').innerHTML=v;
     document.querySelectorAll('.tab').forEach(function(el){el.onclick=function(){TAB=el.dataset.tab;render();};});
+    var vg=document.getElementById('vaultGen');
+    if(vg) vg.onclick=function(){
+      VAULT_MSG=''; VAULT_CODES=null; vg.disabled=true;
+      fetch('/security/action',{method:'POST',headers:HDR,body:JSON.stringify({action:'vault_recovery_generate',count:8})})
+        .then(function(r){return r.json();}).then(function(j){
+          if(j.ok){VAULT_CODES=j.codes||[]; VAULT_MSG='Recovery codes generated. Store them outside this Mac; Vera kept only salted hashes.';}
+          else VAULT_MSG=j.error||'Recovery generation failed.';
+          load();
+        }).catch(function(){VAULT_MSG='Recovery generation failed.'; render();});
+    };
+    var vr=document.getElementById('vaultRotate');
+    if(vr) vr.onclick=function(){
+      var oldEl=document.getElementById('oldKey'), newEl=document.getElementById('newKey');
+      var oldKey=oldEl?oldEl.value:'', newKey=newEl?newEl.value:'';
+      if(!oldKey||!newKey){VAULT_MSG='Enter both vault keys.'; render(); return;}
+      if(!confirm('Rotate the vault key now? Vera will rewrite encrypted vault files and you must restart with the new key.')) return;
+      VAULT_MSG=''; VAULT_CODES=null; vr.disabled=true;
+      fetch('/security/action',{method:'POST',headers:HDR,body:JSON.stringify({action:'vault_rotate',old_key:oldKey,new_key:newKey,confirm:true})})
+        .then(function(r){return r.json();}).then(function(j){
+          if(oldEl)oldEl.value=''; if(newEl)newEl.value='';
+          VAULT_MSG=j.ok?('Vault rotated: '+(j.files_rotated||0)+' files. Restart with the new key.'):j.error||'Rotation failed.';
+          load();
+        }).catch(function(){VAULT_MSG='Rotation failed.'; render();});
+    };
     document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
   }
 
