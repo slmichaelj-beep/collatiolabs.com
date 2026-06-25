@@ -4320,7 +4320,10 @@ def main(argv=None):
             print("brain: warmed (model + voice + ears resident — first turn won't pay a cold load)")
         except Exception:
             pass
-    threading.Thread(target=_warm, daemon=True).start()
+    if os.environ.get("ANIMA_SKIP_WARM") == "1":
+        print("brain: warmup skipped (ANIMA_SKIP_WARM=1)")
+    else:
+        threading.Thread(target=_warm, daemon=True).start()
     try:
         srv = ThreadingHTTPServer((host, args.port), Handler)
     except OSError:

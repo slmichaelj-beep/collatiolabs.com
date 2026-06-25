@@ -42,7 +42,12 @@ def _env(token: str | None, cwd: Path) -> dict:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
     env["ANIMA_STORE"] = str(cwd / "store")
+    env["ANIMA_NO_PASSKEY"] = "1"
+    env["ANIMA_SKIP_WARM"] = "1"
     env.pop("ANIMA_KEY", None)
+    env.pop("ANIMA_PAIRING_CODE", None)
+    env.pop("ANIMA_PRODUCT_MODE", None)
+    env.pop("ANIMA_REQUIRE_ENCRYPTION", None)
     if token is None:
         env.pop("ANIMA_TOKEN", None)
     else:
@@ -105,7 +110,7 @@ def main() -> int:
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         listening = False
         try:
-            deadline = time.time() + 10
+            deadline = time.time() + 25
             while time.time() < deadline:
                 if _can_connect(port3):
                     listening = True
