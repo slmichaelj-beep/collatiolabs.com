@@ -18,7 +18,7 @@ REPORTS = ROOT / "reports"
 def _git(*a) -> str:
     try:
         return subprocess.run(["git", *a], cwd=str(ROOT), capture_output=True, text=True,
-                              timeout=10).stdout.strip()
+                              timeout=10).stdout.rstrip("\n")
     except Exception:
         return ""
 

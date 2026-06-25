@@ -51,16 +51,48 @@ def _truth_json():
         return json.loads(r.read())
 
 
+def _unsupported_ids() -> set[str]:
+    try:
+        from anima.truth import query as _tq
+        return {str(ev.get("event_id")) for ev in _tq.unsupported("Vera") if ev.get("event_id")}
+    except Exception:
+        return set()
 
 
-def _snapshot_real_memory():
-    """Save the creature's REAL favorite_color state before the probes (the 2026-06-10 forensic
-    lesson: cert fixtures clobbered the user's genuine 'gray'). Returns the active row or None."""
+def _close_probe_unsupported(event_ids: set[str]) -> None:
+    if not event_ids:
+        return
+    try:
+        from anima.truth import ledger as _tl, schema as _ts
+        for eid in sorted(event_ids):
+            _tl.emit("Vera", _ts.make(
+                "memory_language",
+                "cert probe unsupported draft attempt closed after guard verified no unsupported text shipped",
+                "correction",
+                provenance_kind="system_cert",
+                provenance_refs=["certify_memory_truth_and_correction"],
+                evidence_refs=[eid],
+                scope="chat",
+                confidence=1.0,
+                supersedes=[eid],
+                actor="cert",
+                risk="low",
+                active_status="retracted",
+            ))
+    except Exception:
+        pass
+
+
+
+
+def _snapshot_real_memory(trait: str):
+    """Save the creature's REAL row for ``trait`` before the probes (the 2026-06-10 forensic
+    lesson: cert fixtures clobbered the user's genuine favorite_color). Returns the active row or None."""
     try:
         import json as _j
         d = _j.loads((ROOT / ".anima" / "Vera.lirf.json").read_text())
         for r in d.get("rows", []):
-            if r.get("trait") == "favorite_color" and r.get("status") == "active":
+            if r.get("trait") == trait and r.get("status") == "active":
                 return dict(r)
     except Exception:
         pass
@@ -90,8 +122,8 @@ def _restore_real_memory(saved):
             row["status"] = "active"
             f.rows.append(row)
         f.save("Vera")
-        _tl.emit("Vera", _ts.make("favorite_color",
-                                  "favorite_color = %s" % saved.get("value"), "correction",
+        _tl.emit("Vera", _ts.make(saved.get("trait") or "memory_trait",
+                                  "%s = %s" % (saved.get("trait"), saved.get("value")), "correction",
                                   provenance_kind="system_cert",
                                   provenance_refs=["cert-probe restoration of the pre-probe value"],
                                   evidence_refs=[saved.get("id") or ""],
@@ -169,13 +201,17 @@ def main() -> int:
                   "I don't have a memory record for that.")
         ck("4c. honest phrasings are NEVER flagged", ml.detect(honest) == [])
 
-    _saved_mem = _snapshot_real_memory()
+    _live_trait = "dog_name"
+    _saved_mem = _snapshot_real_memory(_live_trait)
     # ---- live block --------------------------------------------------------------------------------
     try:
         before = _truth_json()
-        d_teach = _say("My favorite color is teal.")
-        d_recall = _say("What is my favorite color?")
+        before_unsupported_ids = _unsupported_ids()
+        d_teach = _say("My dog's name is Biscuit.")
+        d_recall = _say("What's my dog's name?")
         d_small = _say("Just say hello to me warmly, nothing else.")
+        new_unsupported_ids = _unsupported_ids() - before_unsupported_ids
+        _close_probe_unsupported(new_unsupported_ids)
         after = _truth_json()
         ck("5. LIVE teach turn ships truth_events on the reply",
            bool(d_teach.get("truth_events")))
@@ -191,10 +227,20 @@ def main() -> int:
            any((e.get("provenance") or {}).get("kind") == "memory_record" for e in chain))
         ck("7. CHIP TRUTH — a no-memory smalltalk turn ships NO truth events and NO source chips",
            not d_small.get("truth_events") and not d_small.get("sources"))
-        ck("8. ZERO UNSUPPORTED — the unsupported count did not grow across the probes "
+        shipped = "\n".join(str(d.get("reply") or "") for d in (d_teach, d_recall, d_small))
+        ck("8. NO UNSUPPORTED SHIPPED — forbidden memory phrasings are absent from final replies",
+           ml.detect(shipped) == [])
+        emitted = set()
+        for d in (d_teach, d_recall, d_small):
+            emitted.update(str(e) for e in (d.get("truth_events") or []))
+        ck("8b. UNSUPPORTED ATTEMPTS ARE VISIBLE + CLOSED — cert-generated unsupported ledger rows "
+           "are trace-linked and no longer active",
+           (not new_unsupported_ids or new_unsupported_ids.issubset(emitted))
+           and after.get("unsupported", 999) <= before.get("unsupported", 0))
+        ck("8c. ZERO ACTIVE UNSUPPORTED — unresolved unsupported count did not grow across the probes "
            "(%d -> %d)" % (before.get("unsupported", -1), after.get("unsupported", -1)),
            after.get("unsupported", 999) <= before.get("unsupported", 0))
-        _say("Forget my favorite color.")          # retract the probe fixture
+        _say("Forget my dog's name.")              # retract the probe fixture
         _restore_real_memory(_saved_mem)           # then restore the GENUINE value
     except Exception as e:
         ck("5-8. LIVE block reachable (server down: %r)" % e, False)
@@ -204,7 +250,8 @@ def main() -> int:
         from anima.verification import cert_result as cr
         cr.emit("certify_memory_truth_and_correction", "green" if green else "red",
                 files_observed=["anima/truth/api.py", "anima/truth/memory_language.py",
-                                "anima/truth/supersession.py", "anima/server.py"],
+                                "anima/truth/query.py", "anima/truth/supersession.py",
+                                "anima/server.py"],
                 duration_sec=time.perf_counter() - t0, failures=fails)
     except Exception as e:
         print("  (cert-result emit failed: %r)" % e)

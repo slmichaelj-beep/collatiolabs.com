@@ -74,12 +74,16 @@ def main() -> int:
                 ck("%s served + titled (%r)" % (route, title), served)
                 ck("%s rendered its data (not blank/loading)" % route, rendered)
                 ck("%s console/page clean (errs=%d)" % (route, len(errs)), not errs)
+                gov_ok, observed_ok = True, True
                 if gov:
                     gov_ok = "Governance:" in body and ("human-only" in body.lower())
+                    observed_ok = "Observed" in body
                     ck("%s shows the governance banner (authority/external/legal/kill)" % route, gov_ok)
-                    ck("%s shows the trace/observed chip" % route, "Observed" in body)
-                rec.update({"ok": served and rendered and not errs, "title": title,
-                            "rendered": rendered, "console_errors": len(errs), "governance": gov})
+                    ck("%s shows the trace/observed chip" % route, observed_ok)
+                rec.update({"ok": served and rendered and not errs and gov_ok and observed_ok,
+                            "title": title, "rendered": rendered,
+                            "console_errors": len(errs), "governance": gov,
+                            "governance_rendered": gov_ok, "observed_chip": observed_ok})
             except Exception as e:
                 ck("%s reachable (%r)" % (route, e), False)
                 rec["error"] = repr(e)
@@ -101,8 +105,21 @@ def main() -> int:
     try:
         from anima.verification import cert_result as cr
         cr.emit("certify_new_operator_surfaces_rover", "green" if green else "red",
-                files_observed=["anima/web/founder.html", "anima/web/chairman.html",
-                                "anima/web/observation.html", "anima/web/learning.html"],
+                files_observed=[
+                    "anima/web/learning.html", "anima/web/founder.html",
+                    "anima/web/chairman.html", "anima/web/observation.html",
+                    "anima/web/commercial.html", "anima/web/sales.html",
+                    "anima/web/board_revenue.html", "anima/web/opportunities.html",
+                    "anima/web/collatio.html", "anima/web/teams.html",
+                    "anima/web/workforce.html", "anima/web/self.html",
+                    "anima/web/revenue.html", "anima/web/revenue_swarm.html",
+                    "anima/web/compounding.html", "anima/web/revenue_intelligence.html",
+                    "anima/web/distribution.html", "anima/web/trust_moat.html",
+                    "anima/web/resources.html", "anima/web/empire.html",
+                    "anima/web/revenue_cash.html", "anima/web/fiverr.html",
+                    "anima/web/pipeline.html",
+                    "scripts/certify_new_operator_surfaces_rover.py",
+                ],
                 report_paths=["reports/new_operator_surfaces_rover.json"],
                 duration_sec=time.perf_counter() - t0, failures=fails)
     except Exception as e:

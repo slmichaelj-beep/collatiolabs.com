@@ -72,6 +72,6 @@ def trace(name: str, event_id: str, store: Path | None = None) -> list[dict]:
 
 
 def unsupported(name: str, store: Path | None = None) -> list[dict]:
-    """Every claim the ledger marks unsupported — the count the directive drives to ZERO."""
-    return [ev for ev in ledger.load(name, store)
-            if ev.get("claim_type") == "unsupported" or ev.get("active_status") == "unsupported"]
+    """Currently unresolved unsupported claims — the count the directive drives to ZERO."""
+    return [ev for ev in fold(name, store).values()
+            if ev.get("active_status") == "unsupported"]

@@ -33,7 +33,12 @@
   <div class="lead" id="lead">loading…</div>
   <div class="caveat" id="caveats"></div>
 </header>
-<main id="main"></main>
+<main id="main">
+  <div class="card full" id="founderDecisionLane">
+    <h2>Founder decisions needed</h2>
+    <div class="empty">loading verified company briefing...</div>
+  </div>
+</main>
 <script>
 function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function list(items,fmt){if(!items||!items.length)return '<div class="empty">none</div>';

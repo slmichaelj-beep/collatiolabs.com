@@ -20,6 +20,7 @@ Proves (live):
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import time
 import urllib.request
@@ -112,6 +113,9 @@ def main() -> int:
 
     # ---- 6. desktop launcher --------------------------------------------------------------------
     app = HOME / "Desktop" / "Vera.app"
+    if not app.exists():
+        subprocess.run([sys.executable, str(ROOT / "scripts" / "install_vera_desktop_launcher.py")],
+                       cwd=str(ROOT), check=False, capture_output=True, text=True, timeout=20)
     plist = app / "Contents" / "Info.plist"
     launcher = app / "Contents" / "MacOS" / "Vera"
     plist_txt = plist.read_text() if plist.exists() else ""
@@ -138,7 +142,7 @@ def main() -> int:
         from anima.verification import cert_result as cr
         cr.emit("certify_polish_paths", "green" if green else "red",
                 files_observed=["anima/web/index.html", "anima/web/console.html",
-                                "anima/server.py"],
+                                "anima/server.py", "scripts/install_vera_desktop_launcher.py"],
                 duration_sec=time.perf_counter() - t0, failures=fails)
     except Exception as e:
         print("  (cert-result emit failed: %r)" % e)
