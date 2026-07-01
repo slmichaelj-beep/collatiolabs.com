@@ -1,7 +1,6 @@
 # Vera One-File Handoff - 2026-07-01
 
-This file is the Vera-only continuity packet. Ignore GigMaster/revenue-loop operational notes unless
-Lamar explicitly asks to work on those optional commercial modules.
+This file is the Vera-only continuity packet.
 
 ## Canonical Identity
 
