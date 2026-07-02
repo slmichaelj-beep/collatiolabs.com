@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collatio Labs - Governed Automation Systems</title>
-<meta name="description" content="Collatio Labs builds governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<title>Collatio Labs - Operational Infrastructure for the AI Era</title>
+<meta name="description" content="Collatio Labs builds AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://collatiolabs.com/">
-<meta property="og:title" content="Collatio Labs - Governed Automation Systems">
-<meta property="og:description" content="Governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<meta property="og:title" content="Collatio Labs - Operational Infrastructure for the AI Era">
+<meta property="og:description" content="AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://collatiolabs.com/">
 <meta property="og:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Collatio Labs - Governed Automation Systems">
-<meta name="twitter:description" content="Governed automation, document intelligence, internal tools, and human-reviewed AI systems for high-accountability teams.">
+<meta name="twitter:title" content="Collatio Labs - Operational Infrastructure for the AI Era">
+<meta name="twitter:description" content="AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
 <meta name="twitter:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,15 +24,16 @@
 
 :root {
   --ink: #0b0d0c;
-  --paper: #f5f1e8;
-  --bone: #fffaf0;
+  --paper: #f3f0e8;
+  --bone: #fffaf2;
   --line: rgba(11, 13, 12, 0.14);
   --muted: #67645b;
   --green: #a9c6b2;
-  --blue: #c7d4d5;
-  --clay: #b75d43;
+  --blue: #cbd6d6;
+  --clay: #98614d;
   --charcoal: #111311;
   --stone: #e8e2d6;
+  --panel: rgba(255, 250, 242, 0.7);
   --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --step-label: 0.75rem;
   --step-small: 0.86rem;
@@ -41,7 +42,7 @@
   --step-card: clamp(1.45rem, 1.7vw, 2rem);
   --step-stat: clamp(1.45rem, 2.2vw, 2.8rem);
   --step-section: clamp(2.7rem, 5.2vw, 6.2rem);
-  --step-hero: clamp(4.1rem, 9.6vw, 10.2rem);
+  --step-hero: clamp(4rem, 8vw, 8.8rem);
 }
 
 html {
@@ -70,7 +71,7 @@ a { color: inherit; }
   z-index: 20;
   border-bottom: 1px solid rgba(255, 250, 240, 0.18);
   color: var(--bone);
-  background: rgba(11, 13, 12, 0.76);
+  background: rgba(11, 13, 12, 0.84);
   backdrop-filter: blur(16px);
 }
 
@@ -175,16 +176,16 @@ a { color: inherit; }
 }
 
 h1 {
-  max-width: 9.2ch;
+  max-width: 11.4ch;
   font-size: var(--step-hero);
-  line-height: 0.92;
+  line-height: 0.94;
   letter-spacing: 0;
   font-weight: 800;
   overflow-wrap: normal;
 }
 
 .hero-copy {
-  max-width: min(510px, 100%);
+  max-width: min(620px, 100%);
   margin-top: 30px;
   color: rgba(255, 250, 240, 0.78);
   font-size: var(--step-lede);
@@ -197,6 +198,16 @@ h1 {
   border-radius: 8px;
   background: rgba(11, 13, 12, 0.62);
   backdrop-filter: blur(14px);
+}
+
+.hero-panel-title {
+  display: block;
+  padding: 18px 16px;
+  border-bottom: 1px solid rgba(255, 250, 240, 0.14);
+  color: rgba(255, 250, 240, 0.58);
+  font-size: var(--step-label);
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .hero-panel div {
@@ -260,29 +271,65 @@ h1 {
   position: relative;
   z-index: 2;
   border-top: 1px solid rgba(255, 250, 240, 0.18);
+  border-bottom: 1px solid rgba(255, 250, 240, 0.12);
   color: var(--bone);
   overflow: hidden;
 }
 
 .ticker-track {
   display: flex;
-  width: max-content;
-  animation: ticker 34s linear infinite;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1px;
+  width: 100%;
 }
 
 .ticker span {
-  display: inline-block;
-  padding: 16px 20px;
+  flex: 1 1 150px;
+  display: inline-flex;
+  justify-content: center;
+  padding: 16px 18px;
   font-size: var(--step-small);
   font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
   color: rgba(255, 250, 240, 0.7);
+  background: rgba(255, 250, 240, 0.035);
 }
 
-@keyframes ticker {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+.institutional {
+  background: var(--ink);
+  color: var(--bone);
+  border-top: 1px solid rgba(255, 250, 240, 0.14);
+  border-bottom: 1px solid rgba(255, 250, 240, 0.14);
+}
+
+.institutional-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 22px 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255, 250, 240, 0.14);
+}
+
+.institutional span {
+  display: block;
+  min-height: 92px;
+  padding: 18px;
+  background: var(--ink);
+  color: rgba(255, 250, 240, 0.72);
+  font-size: var(--step-small);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.institutional strong {
+  display: block;
+  color: var(--green);
+  font-size: var(--step-label);
+  margin-bottom: 14px;
 }
 
 .section {
@@ -291,10 +338,30 @@ h1 {
   padding: 92px 24px;
 }
 
+.section-head {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+  margin-bottom: 42px;
+}
+
+.section-note {
+  max-width: 760px;
+  color: var(--muted);
+  font-size: var(--step-lede);
+  font-weight: 600;
+  margin-top: 20px;
+}
+
 .section.split {
   display: grid;
   grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
   gap: 56px;
+}
+
+.position {
+  background: var(--paper);
 }
 
 .label {
@@ -383,6 +450,156 @@ h1 {
   font-weight: 600;
 }
 
+.outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.outcome {
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.outcome:nth-child(2n) { background: rgba(203, 214, 214, 0.3); }
+.outcome:nth-child(3n) { background: rgba(169, 198, 178, 0.22); }
+
+.outcome h3 {
+  font-size: var(--step-card);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.outcome p {
+  color: var(--muted);
+  font-size: var(--step-body);
+  max-width: 34ch;
+}
+
+.buyer-strip {
+  display: grid;
+  grid-template-columns: 0.7fr 1fr;
+  gap: 44px;
+  align-items: start;
+  border-top: 1px solid var(--line);
+  padding-top: 26px;
+  margin-top: 48px;
+}
+
+.buyer-strip strong {
+  display: block;
+  font-size: var(--step-card);
+  line-height: 1.08;
+}
+
+.buyer-list {
+  display: grid;
+  gap: 10px;
+}
+
+.buyer-list span {
+  display: block;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.platform {
+  background: var(--charcoal);
+  color: var(--bone);
+}
+
+.platform .label {
+  color: rgba(255, 250, 240, 0.56);
+}
+
+.platform .statement {
+  color: var(--bone);
+}
+
+.platform-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid rgba(255, 250, 240, 0.16);
+  border-left: 1px solid rgba(255, 250, 240, 0.16);
+  margin-top: 44px;
+}
+
+.platform-unit {
+  min-height: 290px;
+  padding: 24px;
+  display: grid;
+  align-content: space-between;
+  gap: 42px;
+  border-right: 1px solid rgba(255, 250, 240, 0.16);
+  border-bottom: 1px solid rgba(255, 250, 240, 0.16);
+}
+
+.enterprise-band {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: var(--bone);
+}
+
+.enterprise-band .section {
+  padding-top: 42px;
+  padding-bottom: 42px;
+}
+
+.enterprise-line {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+.enterprise-line div {
+  min-height: 132px;
+  padding: 22px;
+  background: var(--bone);
+}
+
+.enterprise-line strong {
+  display: block;
+  font-size: var(--step-label);
+  text-transform: uppercase;
+  color: var(--clay);
+  margin-bottom: 18px;
+}
+
+.enterprise-line p {
+  color: var(--muted);
+  font-size: var(--step-body);
+  font-weight: 650;
+  max-width: 42ch;
+}
+
+.platform-unit strong {
+  color: var(--green);
+  font-size: var(--step-label);
+  text-transform: uppercase;
+}
+
+.platform-unit h3 {
+  font-size: var(--step-card);
+  line-height: 1.05;
+  margin-bottom: 14px;
+}
+
+.platform-unit p {
+  color: rgba(255, 250, 240, 0.66);
+  font-size: var(--step-body);
+}
+
 .work-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -466,6 +683,68 @@ h1 {
   font-size: var(--step-body);
 }
 
+.engagements {
+  background: var(--bone);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.engagement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  margin-top: 42px;
+}
+
+.engagement {
+  min-height: 250px;
+  padding: 22px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  align-content: space-between;
+  gap: 28px;
+}
+
+.engagement strong {
+  color: var(--clay);
+  font-size: var(--step-label);
+  text-transform: uppercase;
+}
+
+.engagement h3 {
+  font-size: var(--step-card);
+  line-height: 1.05;
+}
+
+.engagement p {
+  color: var(--muted);
+  font-size: var(--step-body);
+}
+
+.conversion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.64fr);
+  gap: 40px;
+  align-items: start;
+  border-top: 1px solid var(--line);
+  margin-top: 52px;
+  padding-top: 26px;
+}
+
+.conversion p {
+  max-width: 68ch;
+  color: var(--muted);
+  font-size: var(--step-lede);
+  font-weight: 600;
+}
+
+.conversion-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .proof {
   background: var(--ink);
   color: var(--bone);
@@ -483,9 +762,13 @@ h1 {
   max-width: 980px;
 }
 
+.proof .section-head {
+  margin-bottom: 48px;
+}
+
 .proof-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   background: rgba(255, 250, 240, 0.18);
   margin-top: 48px;
@@ -588,6 +871,23 @@ h1 {
   color: var(--ink);
 }
 
+.proof-safe-note {
+  border-top: 1px solid rgba(255, 250, 240, 0.18);
+  margin-top: 52px;
+  padding-top: 26px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.64fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.proof-safe-note p {
+  max-width: 68ch;
+  color: rgba(255, 250, 240, 0.68);
+  font-size: var(--step-lede);
+  font-weight: 600;
+}
+
 footer {
   border-top: 1px solid var(--line);
   padding: 24px;
@@ -609,6 +909,7 @@ footer a {
   .hero { min-height: 860px; }
   .hero-grid,
   .section.split,
+  .section-head,
   .thesis-grid,
   .governed-copy {
     grid-template-columns: 1fr;
@@ -616,11 +917,22 @@ footer a {
 
   .work-grid,
   .proof-grid,
-  .standard-grid {
+  .standard-grid,
+  .outcome-grid,
+  .engagement-grid,
+  .institutional-inner,
+  .platform-grid,
+  .enterprise-line {
     grid-template-columns: 1fr 1fr;
   }
 
   .services {
+    grid-template-columns: 1fr;
+  }
+
+  .buyer-strip,
+  .conversion,
+  .proof-safe-note {
     grid-template-columns: 1fr;
   }
 
@@ -701,17 +1013,26 @@ footer a {
   .section { padding: 58px 16px; }
   .work-grid,
   .proof-grid,
-  .standard-grid {
+  .standard-grid,
+  .outcome-grid,
+  .engagement-grid,
+  .institutional-inner,
+  .platform-grid,
+  .enterprise-line {
     grid-template-columns: 1fr;
   }
   .hero-panel div {
-    grid-template-columns: 84px minmax(0, 1fr);
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+  .hero-panel-title {
+    padding: 16px 12px;
   }
   .metric {
     padding: 16px 12px;
+    font-size: 1.28rem;
   }
   .metric-copy {
-    padding: 16px 12px 16px 4px;
+    padding: 16px 12px 16px 8px;
     font-size: var(--step-small);
     line-height: 1.45;
     overflow-wrap: break-word;
@@ -730,6 +1051,8 @@ footer a {
   <div class="nav-inner">
     <a class="brand" href="index.html">Collatio Labs</a>
     <div class="nav-links">
+      <a href="#platform">Platform</a>
+      <a href="#outcomes">Outcomes</a>
       <a href="#work">Work</a>
       <a href="#services">Services</a>
       <a href="#proof">Proof</a>
@@ -743,61 +1066,132 @@ footer a {
     <div class="hero-content">
       <div class="hero-grid">
         <div>
-          <div class="kicker">Automation. Intelligence. Control.</div>
-          <h1>Systems for work that matters.</h1>
-          <p class="hero-copy">We turn operational pressure into systems people can trust.</p>
+          <div class="kicker">Collatio Labs Platform</div>
+          <h1>Operational infrastructure for high-stakes work.</h1>
+          <p class="hero-copy">A governed software, data, and AI operations layer for teams that need complex workflows to become measurable, reviewable, and ready to run.</p>
           <div class="actions">
-            <a href="mailto:contact@collatiolabs.com" class="button light">Book a systems review</a>
-            <a href="#work" class="button">View the evidence</a>
+            <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button light">Request an executive review</a>
+            <a href="#platform" class="button">Explore the operating model</a>
           </div>
         </div>
-        <aside class="hero-panel" aria-label="Collatio Labs signals">
-          <div><span class="metric">Build</span> <span class="metric-copy">Custom software, automation, dashboards, document tools, data workflows, and internal systems.</span></div>
-          <div><span class="metric">Proof</span> <span class="metric-copy">Argus. Folia. Notis. Praeco. Vera / Anima. CV and PO extraction demos. Built, runnable, and reviewable.</span></div>
-          <div><span class="metric">Ship</span> <span class="metric-copy">Clear scope, working milestones, usable deliverables, documentation, and handoff-ready code.</span></div>
-          <div><span class="metric">Trust</span> <span class="metric-copy">AI-assisted where useful, human-reviewed before delivery, and built around the buyer's actual workflow.</span></div>
+        <aside class="hero-panel" aria-label="Collatio Labs platform layers">
+          <span class="hero-panel-title">Operating Infrastructure</span>
+          <div><span class="metric">Data</span> <span class="metric-copy">Capture, normalize, validate, and reconcile operational records across files, forms, portals, and APIs.</span></div>
+          <div><span class="metric">AI</span> <span class="metric-copy">Human-reviewed classification, extraction, drafting, search, routing, and decision-support workflows.</span></div>
+          <div><span class="metric">Apps</span> <span class="metric-copy">Internal tools, dashboards, review queues, integrations, and automation built around live operating needs.</span></div>
+          <div><span class="metric">Trust</span> <span class="metric-copy">Evidence, QA gates, source-truth checks, approvals, handoff records, and executive control.</span></div>
         </aside>
       </div>
       <div class="ticker" aria-hidden="true">
         <div class="ticker-track">
-          <span>PDF workflows</span><span>Data cleanup</span><span>Python automation</span><span>Dashboards</span><span>API integration</span><span>Human-reviewed AI</span><span>Document ops</span><span>Governed systems</span>
-          <span>PDF workflows</span><span>Data cleanup</span><span>Python automation</span><span>Dashboards</span><span>API integration</span><span>Human-reviewed AI</span><span>Document ops</span><span>Governed systems</span>
+          <span>Operational infrastructure</span><span>Governed AI</span><span>Data systems</span><span>Internal software</span><span>Executive dashboards</span><span>Workflow platforms</span><span>Document intelligence</span><span>Delivery control</span>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="section split">
-    <div class="label">Position</div>
-    <p class="statement">Bring the thing that needs to exist. We will make it work.</p>
+  <section class="institutional" aria-label="Institutional operating principles">
+    <div class="institutional-inner">
+      <span><strong>Architecture</strong>Workflow, data, software, and governance designed as one operating layer.</span>
+      <span><strong>Governance</strong>Human authority, approval gates, audit trails, and claim-safe proof built in.</span>
+      <span><strong>Execution</strong>Prototype, validate, document, and convert complex work into repeatable systems.</span>
+      <span><strong>Readiness</strong>Built for leaders who need evidence, control, and delivery discipline before scale.</span>
+    </div>
+  </section>
+
+  <section class="position">
+    <div class="section">
+      <div class="section-head">
+        <div class="label">Position</div>
+        <p class="statement">We turn disconnected operational work into governed infrastructure for decisions, delivery, and scale.</p>
+      </div>
+    </div>
   </section>
 
   <section class="thesis">
     <div class="section">
       <div class="thesis-grid">
-        <h2>From workflow to infrastructure.</h2>
+        <h2>The operating layer between data and decisions.</h2>
         <div class="thesis-copy">
-          <p>Collatio is built for buyers who need software that solves a real problem: the forms, files, dashboards, data flows, approvals, and handoffs that decide whether work actually moves.</p>
-          <p>We design the system underneath the task, then make it practical enough to use, clear enough to hand off, and disciplined enough to trust.</p>
+          <p>Critical work often lives between systems: in files, spreadsheets, portals, inboxes, approvals, and institutional judgment. Collatio turns that gap into a controlled operating layer.</p>
+          <p>The result is software-defined execution: intake, extraction, validation, review, dashboards, documentation, governance, and human approval gates.</p>
         </div>
       </div>
       <div class="standard-grid" aria-label="Collatio operating standards">
-        <article class="standard"><strong>01 Structure</strong><p>Unclear work becomes mapped, named, scoped, and measurable.</p></article>
-        <article class="standard"><strong>02 Evidence</strong><p>Outputs are checked against records, rules, source files, and review gates.</p></article>
-        <article class="standard"><strong>03 Control</strong><p>Automation accelerates the work while humans keep authority over commitments.</p></article>
+        <article class="standard"><strong>01 Map</strong><p>We model the operating reality, decision rights, source systems, risks, and proof requirements.</p></article>
+        <article class="standard"><strong>02 Build</strong><p>We ship the software, automation, dashboard, data layer, or prototype that proves the path.</p></article>
+        <article class="standard"><strong>03 Govern</strong><p>AI accelerates the work while humans retain authority over commitments, spend, delivery, and public claims.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="platform" id="platform">
+    <div class="section">
+      <div class="section-head">
+        <div class="label">Operating Model</div>
+        <p class="statement">A governed system of record for workflows that were never designed to scale.</p>
+      </div>
+      <div class="platform-grid">
+        <article class="platform-unit">
+          <strong>01 Intelligence Layer</strong>
+          <div><h3>Capture and structure the work.</h3><p>Documents, spreadsheets, portals, emails, files, and raw decisions become usable data, review queues, and source-truth records.</p></div>
+        </article>
+        <article class="platform-unit">
+          <strong>02 Execution Layer</strong>
+          <div><h3>Automate the repeatable path.</h3><p>Custom tools, dashboards, API handoffs, scripts, and workflow apps move work from manual effort into repeatable infrastructure.</p></div>
+        </article>
+        <article class="platform-unit">
+          <strong>03 Governance Layer</strong>
+          <div><h3>Keep authority with the business.</h3><p>Approvals, evidence, QA gates, acceptance criteria, risk registers, and human review make automation trustworthy.</p></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="outcomes">
+    <div class="section-head">
+      <div class="label">Outcomes</div>
+      <p class="statement">Enterprise value starts where manual work becomes operating leverage.</p>
+    </div>
+    <div class="outcome-grid">
+      <article class="outcome">
+        <h3>Workflow infrastructure</h3>
+        <p>Replace handoffs, email chains, spreadsheet rituals, and unclear ownership with a governed operating flow.</p>
+      </article>
+      <article class="outcome">
+        <h3>Data and document intelligence</h3>
+        <p>Extract, reconcile, normalize, validate, and package information from PDFs, spreadsheets, portals, APIs, and files.</p>
+      </article>
+      <article class="outcome">
+        <h3>Governed AI operations</h3>
+        <p>Use AI for analysis, routing, drafting, search, and classification with evidence, approvals, and human review built in.</p>
+      </article>
+      <article class="outcome">
+        <h3>Executive control rooms</h3>
+        <p>Give leaders a current view of status, blockers, decisions, risks, revenue gates, and proof.</p>
+      </article>
+    </div>
+    <div class="buyer-strip">
+      <strong>Built for leaders whose teams need operating clarity before they scale.</strong>
+      <div class="buyer-list">
+        <span>Document-heavy, compliance-sensitive, or public-sector workflows where proof matters.</span>
+        <span>Operators who need software-grade execution before they have a full product team.</span>
+        <span>Founders and executives who need dashboards, evidence, and decision discipline.</span>
+        <span>Teams moving from informal operations to governed, repeatable infrastructure.</span>
+        <span>Not a fit for vague AI strategy, unsupported claims, speculative automation, or cleanup with no operating value.</span>
       </div>
     </div>
   </section>
 
   <section class="section" id="work">
-    <div class="section split" style="padding: 0 0 38px;">
-      <div class="label">Selected Work</div>
-      <p class="statement">The range is the proof.</p>
+    <div class="section-head">
+      <div class="label">Evidence</div>
+      <p class="statement">Credibility comes from systems that can be inspected, tested, and handed off.</p>
     </div>
     <div class="work-grid">
       <article class="work-card">
         <div><div class="work-top"><span>Security</span><span>01</span></div><h3>Argus</h3></div>
-        <p>Local-first macOS network and system monitor with traffic interpretation, process forensics, deterministic risk scoring, and executive-ready reports.</p>
+        <p>Local-first macOS network and system monitor with traffic interpretation, process forensics, risk scoring, and executive-ready reports.</p>
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>PDF app</span><span>02</span></div><h3>Folia</h3></div>
@@ -813,70 +1207,117 @@ footer a {
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>AI OS</span><span>05</span></div><h3>Vera / Anima</h3></div>
-        <p>Local-first governed AI operating system with truth ledger, observation events, certification gates, approval queues, and human-controlled external actions.</p>
+        <p>Governed AI operating system with truth ledgers, observation events, certification gates, approval queues, and human-controlled external actions.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>Deliverables</span><span>06</span></div><h3>CV + PO demos</h3></div>
-        <p>Runnable document workflows that convert resume and purchase-order PDFs into structured, review-ready Excel outputs.</p>
+        <div><div class="work-top"><span>Automation</span><span>06</span></div><h3>Document-to-data workflows</h3></div>
+        <p>Runnable extraction and review workflows that convert unstructured documents into structured outputs and operating records.</p>
       </article>
     </div>
   </section>
 
-  <section class="section split" id="services">
-    <div class="label">Services</div>
+  <section class="section" id="services">
+    <div class="section-head">
+      <div class="label">Enterprise Entry Points</div>
+      <p class="statement">Consistent entry points for turning operational pressure into governed systems.</p>
+    </div>
     <div class="services">
       <article class="service">
         <div class="service-num">01</div>
-        <div><h3>Document intelligence</h3><p>Extract fields, clean tables, validate records, generate spreadsheets, and make PDF-heavy work auditable.</p></div>
+        <div><h3>Executive systems review</h3><p>Turn a critical workflow into a scoped operating plan: source material, handoffs, risks, decision gates, technical path, and first sprint.</p></div>
       </article>
       <article class="service">
         <div class="service-num">02</div>
-        <div><h3>Operational command surfaces</h3><p>Build dashboards, scripts, and review surfaces around the exact decisions your team has to make.</p></div>
+        <div><h3>Document intelligence sprint</h3><p>Extract, clean, validate, and package data from PDFs, spreadsheets, forms, and recurring document workflows.</p></div>
       </article>
       <article class="service">
         <div class="service-num">03</div>
-        <div><h3>Workflow architecture</h3><p>Connect forms, files, email, databases, APIs, and reporting so operational handoffs become visible, measurable, and reliable.</p></div>
+        <div><h3>Internal platform build</h3><p>Create the app, dashboard, operating ledger, review queue, or reporting layer that lets the team run the work.</p></div>
       </article>
       <article class="service">
         <div class="service-num">04</div>
-        <div><h3>Governed AI workflows</h3><p>Use AI to draft, classify, extract, compare, and accelerate work while preserving review, authority, and auditability.</p></div>
+        <div><h3>Governed AI operations</h3><p>Use AI for extraction, classification, drafting, search, and routing while preserving human approval and source-truth checks.</p></div>
       </article>
+      <article class="service">
+        <div class="service-num">05</div>
+        <div><h3>Data migration and control</h3><p>Normalize records, reconcile conflicts, move data across tools, and produce reviewable outputs the business can trust.</p></div>
+      </article>
+      <article class="service">
+        <div class="service-num">06</div>
+        <div><h3>Workflow and API integration</h3><p>Connect forms, files, email, databases, APIs, and reporting so ownership and status stop disappearing between systems.</p></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="engagements">
+    <div class="section">
+      <div class="section-head">
+        <div class="label">Engagement Model</div>
+        <p class="statement">Start with one critical workflow. Prove the operating layer. Expand with discipline.</p>
+      </div>
+      <div class="engagement-grid">
+        <article class="engagement">
+          <strong>01 Executive Review</strong>
+          <div><h3>Find the leverage.</h3><p>Map the workflow, data, documents, tools, risks, and handoffs. Leave with a scoped build path and clear decision gates.</p></div>
+        </article>
+        <article class="engagement">
+          <strong>02 Infrastructure Sprint</strong>
+          <div><h3>Make it operational.</h3><p>Build the first working version: extraction flow, dashboard, internal app, automation, AI review loop, or operating ledger.</p></div>
+        </article>
+        <article class="engagement">
+          <strong>03 Operating Layer</strong>
+          <div><h3>Make it repeatable.</h3><p>Add documentation, QA gates, acceptance criteria, reporting, handoff, and a practical cadence for running the system.</p></div>
+        </article>
+      </div>
+      <div class="conversion">
+        <p>Good first engagements have an accountable owner, a recurring high-value workflow, usable source material, a clear success definition, and a reason the current process cannot keep scaling.</p>
+        <div class="conversion-actions">
+          <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">Request an executive review</a>
+          <a href="#proof" class="button">Review proof standards</a>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="proof" id="proof">
     <div class="section">
-      <div class="section split" style="padding: 0;">
-        <div class="label">Proof Points</div>
-        <p class="statement proof-statement">We build across the stack.</p>
+      <div class="section-head">
+        <div class="label">Trust System</div>
+        <p class="statement proof-statement">Institutional trust is built through proof, control, and clean boundaries.</p>
       </div>
       <div class="proof-grid">
-        <div class="proof-cell"><strong>Apps</strong><span>Native macOS tools, PDF workspaces, security monitors, marketplaces, dashboards, and governed AI systems.</span></div>
-        <div class="proof-cell"><strong>Data</strong><span>Extraction pipelines, spreadsheet outputs, API workflows, document parsing, cleanup, validation, and reporting.</span></div>
-        <div class="proof-cell"><strong>Code</strong><span>Python, Flask, SwiftUI, PDFKit, databases, scripts, test coverage, docs, and handoff-ready repositories.</span></div>
-        <div class="proof-cell"><strong>Speed</strong><span>Fast scoping, working milestones, usable deliverables, and practical communication from first review to handoff.</span></div>
-        <div class="proof-cell"><strong>Judgment</strong><span>AI-assisted build speed with human review before delivery, external commitments, or client-facing action.</span></div>
+        <div class="proof-cell"><strong>Apps</strong><span>Native tools, PDF workspaces, security monitors, marketplaces, dashboards, and governed AI systems.</span></div>
+        <div class="proof-cell"><strong>Data</strong><span>Extraction pipelines, structured outputs, API workflows, document parsing, validation, and reporting.</span></div>
+        <div class="proof-cell"><strong>Code</strong><span>Python, Flask, SwiftUI, PDFKit, databases, scripts, tests, documentation, and handoff-ready repositories.</span></div>
+        <div class="proof-cell"><strong>Ops</strong><span>Executive cadence, source-truth ledgers, QA gates, acceptance criteria, risk registers, and delivery control.</span></div>
+        <div class="proof-cell"><strong>Trust</strong><span>NDA-safe positioning, human review, and clear boundaries before delivery, spend, external commitments, or public claims.</span></div>
+      </div>
+      <div class="proof-safe-note">
+        <p>When direct client names or former-project details are not appropriate, Collatio can still prove capability through synthetic demos, redacted workflows, screenshots, code-backed artifacts, acceptance criteria, QA checklists, and handoff documents.</p>
+        <div class="conversion-actions">
+          <a href="mailto:contact@collatiolabs.com?subject=Proof-Safe%20Executive%20Review" class="button light">Ask for proof-safe examples</a>
+        </div>
       </div>
     </div>
   </section>
 
   <section class="governed">
     <div class="section governed-copy">
-      <h2>Speed with judgment.</h2>
+      <h2>Engineering speed with executive control.</h2>
       <div class="rules">
         <div class="rule">AI-assisted work is checked by a human before delivery.</div>
-        <div class="rule">Messages, spend, credentials, legal, financial, and public-facing actions stay human-gated.</div>
-        <div class="rule">Every deliverable is built around a live path: capture, structure, validate, use, ship, verify.</div>
+        <div class="rule">Software, data, and workflow claims stay tied to demonstrable artifacts and claim-safe proof.</div>
+        <div class="rule">Every deliverable is built around a live path: capture, structure, build, validate, use, ship, and verify.</div>
       </div>
     </div>
   </section>
 
   <section class="contact" id="contact">
     <div class="section">
-      <h2>Bring the work.</h2>
+      <h2>Bring the workflow your organization cannot afford to keep running manually.</h2>
       <div class="contact-row">
-        <p>Show us the process that is high-volume, document-heavy, spreadsheet-bound, compliance-sensitive, or difficult to trust. We will turn it into a scoped system with evidence, controls, and a path to production.</p>
-        <a href="mailto:contact@collatiolabs.com" class="button dark">contact@collatiolabs.com</a>
+        <p>Show us the workflow that is spreadsheet-bound, document-heavy, AI-ready, data-fragmented, software-starved, compliance-sensitive, or difficult to trust. We will turn it into a scoped operating system with evidence, controls, and a path to production.</p>
+        <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">contact@collatiolabs.com</a>
       </div>
     </div>
   </section>
