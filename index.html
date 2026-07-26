@@ -3,19 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collatio Labs - Operational Infrastructure for the AI Era</title>
-<meta name="description" content="Collatio Labs builds AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
+<title>Collatio Labs - The Operating Layer for Complex Work</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0c'/%3E%3Cg fill='none' stroke='%23d9ff72' stroke-width='2'%3E%3Crect x='5' y='5' width='9' height='9'/%3E%3Crect x='18' y='5' width='9' height='9'/%3E%3Crect x='5' y='18' width='9' height='9'/%3E%3Crect x='18' y='18' width='9' height='9'/%3E%3C/g%3E%3Crect x='18' y='5' width='9' height='9' fill='%23d9ff72'/%3E%3Crect x='5' y='18' width='9' height='9' fill='%23d9ff72'/%3E%3C/svg%3E">
+<meta name="description" content="Collatio Labs builds governed systems that make complex work visible, decisions defensible, and execution repeatable.">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://collatiolabs.com/">
-<meta property="og:title" content="Collatio Labs - Operational Infrastructure for the AI Era">
-<meta property="og:description" content="AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
+<meta property="og:title" content="Collatio Labs - The Operating Layer for Complex Work">
+<meta property="og:description" content="Governed systems that make complex work visible, decisions defensible, and execution repeatable.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://collatiolabs.com/">
-<meta property="og:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
+<meta property="og:image" content="https://collatiolabs.com/assets/collatio-hero-human-system-v3.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Collatio Labs - Operational Infrastructure for the AI Era">
-<meta name="twitter:description" content="AI-enabled operational infrastructure: software, data systems, automation, dashboards, and governed workflow platforms for high-accountability teams.">
-<meta name="twitter:image" content="https://collatiolabs.com/assets/collatio-hero-ops.png">
+<meta name="twitter:title" content="Collatio Labs - The Operating Layer for Complex Work">
+<meta name="twitter:description" content="Governed systems that make complex work visible, decisions defensible, and execution repeatable.">
+<meta name="twitter:image" content="https://collatiolabs.com/assets/collatio-hero-human-system-v3.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -128,9 +129,9 @@ a { color: inherit; }
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(11, 13, 12, 0.96) 0%, rgba(11, 13, 12, 0.78) 36%, rgba(11, 13, 12, 0.28) 72%),
-    linear-gradient(180deg, rgba(11, 13, 12, 0.18) 0%, rgba(11, 13, 12, 0.76) 100%),
-    url("assets/collatio-hero-ops.png") center right / cover no-repeat;
+    linear-gradient(90deg, rgba(11, 13, 12, 0.95) 0%, rgba(11, 13, 12, 0.70) 40%, rgba(11, 13, 12, 0.12) 76%),
+    linear-gradient(180deg, rgba(11, 13, 12, 0.02) 0%, rgba(11, 13, 12, 0.66) 100%),
+    url("assets/collatio-hero-human-system-v3.png") center / cover no-repeat;
 }
 
 .hero-content {
@@ -930,6 +931,46 @@ footer a {
     grid-template-columns: 1fr;
   }
 
+  .hero-content {
+    padding: 112px 24px 42px;
+  }
+
+  .hero-panel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .hero-panel-title {
+    grid-column: 1 / -1;
+  }
+
+  .hero-panel div {
+    display: block;
+    border-right: 1px solid rgba(255, 250, 240, 0.14);
+    border-bottom: 0;
+  }
+
+  .hero-panel div:last-child {
+    border-right: 0;
+  }
+
+  .metric,
+  .metric-copy {
+    display: block;
+  }
+
+  .metric {
+    padding: 14px 12px 8px;
+  }
+
+  .metric-copy {
+    padding: 0 12px 14px;
+  }
+
+  .ticker {
+    display: none;
+  }
+
   .buyer-strip,
   .conversion,
   .proof-safe-note {
@@ -962,11 +1003,12 @@ footer a {
   }
   .hero::before {
     background:
-      linear-gradient(180deg, rgba(13, 13, 11, 0.9) 0%, rgba(13, 13, 11, 0.76) 48%, rgba(13, 13, 11, 0.92) 100%),
-      url("assets/collatio-hero-ops.png") center top / cover no-repeat;
+      linear-gradient(90deg, rgba(11, 13, 12, 0.94) 0%, rgba(11, 13, 12, 0.72) 58%, rgba(11, 13, 12, 0.18) 100%),
+      linear-gradient(180deg, rgba(11, 13, 12, 0.02) 0%, rgba(11, 13, 12, 0.72) 100%),
+      url("assets/collatio-hero-human-system-v3.png") 62% center / cover no-repeat;
   }
   .hero-content {
-    padding: 104px 16px 34px;
+    padding: 102px 16px 40px;
   }
   .hero-grid {
     gap: 28px;
@@ -994,6 +1036,10 @@ footer a {
     grid-template-columns: 1fr;
     gap: 12px;
     margin-top: 28px;
+  }
+  .hero-panel,
+  .ticker {
+    display: none;
   }
   .button {
     width: 100%;
@@ -1066,16 +1112,16 @@ footer a {
     <div class="hero-content">
       <div class="hero-grid">
         <div>
-          <div class="kicker">Collatio Labs Platform</div>
-          <h1>Operational infrastructure for high-stakes work.</h1>
-          <p class="hero-copy">A governed software, data, and AI operations layer for teams that need complex workflows to become measurable, reviewable, and ready to run.</p>
+          <div class="kicker">AI-native systems studio</div>
+          <h1>The operating layer for complex work.</h1>
+          <p class="hero-copy">Collatio Labs turns scattered documents, data, approvals, AI tasks, and decisions into governed systems with source truth, visible exceptions, human review, and clear operating control.</p>
           <div class="actions">
-            <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button light">Request an executive review</a>
-            <a href="#platform" class="button">Explore the operating model</a>
+            <a href="mailto:contact@collatiolabs.com?subject=Map%20a%20Complex%20Workflow" class="button light">Map a complex workflow</a>
+            <a href="#outcomes" class="button">See what gets built</a>
           </div>
         </div>
         <aside class="hero-panel" aria-label="Collatio Labs platform layers">
-          <span class="hero-panel-title">Operating Infrastructure</span>
+          <span class="hero-panel-title">System anatomy</span>
           <div><span class="metric">Data</span> <span class="metric-copy">Capture, normalize, validate, and reconcile operational records across files, forms, portals, and APIs.</span></div>
           <div><span class="metric">AI</span> <span class="metric-copy">Human-reviewed classification, extraction, drafting, search, routing, and decision-support workflows.</span></div>
           <div><span class="metric">Apps</span> <span class="metric-copy">Internal tools, dashboards, review queues, integrations, and automation built around live operating needs.</span></div>
@@ -1211,7 +1257,7 @@ footer a {
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>Automation</span><span>06</span></div><h3>Document-to-data workflows</h3></div>
-        <p>Runnable extraction and review workflows that convert unstructured documents into structured outputs and operating records.</p>
+        <p>Repeatable extraction and review workflows that convert unstructured documents into structured outputs and operating records.</p>
       </article>
     </div>
   </section>
@@ -1232,7 +1278,7 @@ footer a {
       </article>
       <article class="service">
         <div class="service-num">03</div>
-        <div><h3>Internal platform build</h3><p>Create the app, dashboard, operating ledger, review queue, or reporting layer that lets the team run the work.</p></div>
+        <div><h3>Internal platform build</h3><p>Create the app, dashboard, operating ledger, review queue, or reporting layer that makes ownership, evidence, and next actions visible.</p></div>
       </article>
       <article class="service">
         <div class="service-num">04</div>
@@ -1266,7 +1312,7 @@ footer a {
         </article>
         <article class="engagement">
           <strong>03 Operating Layer</strong>
-          <div><h3>Make it repeatable.</h3><p>Add documentation, QA gates, acceptance criteria, reporting, handoff, and a practical cadence for running the system.</p></div>
+          <div><h3>Make it repeatable.</h3><p>Add documentation, QA gates, acceptance criteria, reporting, handoff, and a practical cadence for operating and improving the system.</p></div>
         </article>
       </div>
       <div class="conversion">
@@ -1314,7 +1360,7 @@ footer a {
 
   <section class="contact" id="contact">
     <div class="section">
-      <h2>Bring the workflow your organization cannot afford to keep running manually.</h2>
+      <h2>Bring the workflow your organization cannot afford to leave manual.</h2>
       <div class="contact-row">
         <p>Show us the workflow that is spreadsheet-bound, document-heavy, AI-ready, data-fragmented, software-starved, compliance-sensitive, or difficult to trust. We will turn it into a scoped operating system with evidence, controls, and a path to production.</p>
         <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">contact@collatiolabs.com</a>
