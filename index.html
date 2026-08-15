@@ -1232,34 +1232,51 @@ footer a {
   <section class="section" id="work">
     <div class="section-head">
       <div class="label">Evidence</div>
-      <p class="statement">Credibility comes from systems that can be inspected, tested, and handed off.</p>
+      <p class="statement">Credibility comes from systems that can be inspected, tested, and handed off. Every card below carries what an independent audit could reproduce on 15 August 2026 &mdash; and what it could not.</p>
     </div>
     <div class="work-grid">
       <article class="work-card">
-        <div><div class="work-top"><span>Security</span><span>01</span></div><h3>Argus</h3></div>
-        <p>Local-first macOS network and system monitor with traffic interpretation, process forensics, risk scoring, and executive-ready reports.</p>
+        <div><div class="work-top"><span>Running &middot; revenue system</span><span>01</span></div><h3>The Machine</h3></div>
+        <p>A government-contracting revenue engine: discovers solicitations across 1,200+ sources and the SAM.gov API, classifies product-versus-service, drafts against a quality gate, verifies SAM/CAGE/UEI, prices from a founder-approved rate card, and stops at the submit button &mdash; a human always clicks. <em>Verified:</em> running on one PostgreSQL database with 140,000+ proof-disciplined records; 3,589 tests collected, 625 test files passed in the full run of 15&nbsp;Aug&nbsp;2026.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>PDF app</span><span>02</span></div><h3>Folia</h3></div>
-        <p>Native macOS PDF workspace built with SwiftUI and PDFKit, including forms, signatures, markup, page tools, local OCR, and packaged distribution.</p>
+        <div><div class="work-top"><span>Records &middot; verifiable archives</span><span>02</span></div><h3>Custodia</h3></div>
+        <p>Decommission a legacy system into an archive that proves itself: an RFC&nbsp;6962 Merkle-committed store, an Ed25519-signed certificate, and a dependency-free verifier shipped inside every archive. <em>Verified:</em> 183 tests passing; an end-to-end run built an archive, verified it, altered one record, and re-verification correctly failed. Internal demonstration.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>Documents</span><span>03</span></div><h3>Notis</h3></div>
-        <p>PDF editing and signing workflow with cryptographic sealing, audit-trail architecture, UAT reports, and release-test evidence.</p>
+        <div><div class="work-top"><span>Documents &middot; sealing</span><span>03</span></div><h3>Notis</h3></div>
+        <p>Document sealing and multi-party signing with tamper detection across SHA-512, SHA3, and BLAKE3. <em>Verified:</em> 489 tests passing; a sealed file verified, then failed verification the moment its content changed. Not yet deployed as a service.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>Marketplace</span><span>04</span></div><h3>Praeco</h3></div>
-        <p>Trust-based introduction marketplace prototype with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and test coverage.</p>
+        <div><div class="work-top"><span>Storage &middot; verifiable</span><span>04</span></div><h3>Comprimo</h3></div>
+        <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction. <em>Verified:</em> round trip verified directly under chaos and load tests; unit-test coverage still to be written.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>AI OS</span><span>05</span></div><h3>Vera / Anima</h3></div>
-        <p>Governed AI operating system with truth ledgers, observation events, certification gates, approval queues, and human-controlled external actions.</p>
+        <div><div class="work-top"><span>Security &middot; host observer</span><span>05</span></div><h3>Argus</h3></div>
+        <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding. <em>Verified:</em> API contract published and consumed by The Machine's egress guard; tests pass; the standalone service was not running at audit time.</p>
       </article>
       <article class="work-card">
-        <div><div class="work-top"><span>Automation</span><span>06</span></div><h3>Document-to-data workflows</h3></div>
+        <div><div class="work-top"><span>AI &middot; agent runtime</span><span>06</span></div><h3>Vera / Anima</h3></div>
+        <p>A local-model AI agent runtime whose state survives process death, whose learning is verified numerically, with three interchangeable model backends and a privacy guard that keeps sensitive prompts on local models. <em>Verified:</em> continuity, learning, model swap, and privacy routing each demonstrated; some subsystems noted as operationally broken at audit.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Running &middot; web application</span><span>07</span></div><h3>itsme</h3></div>
+        <p>A live web application with consent, age verification, geo/IP policy, presence and push, block enforcement, and a self-indexing knowledge database of its own code, routes, and migrations. <em>Verified:</em> live (HTTP&nbsp;200); knowledge database counts reproduced; unit tests not executable in the audit environment.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Documents &middot; PDF</span><span>08</span></div><h3>Folia</h3></div>
+        <p>Native macOS PDF workspace built with SwiftUI and PDFKit: forms, signatures, markup, page tools, local OCR, packaged distribution.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Marketplace</span><span>09</span></div><h3>Praeco</h3></div>
+        <p>Trust-based introduction marketplace with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and 24 test files; a Next.js rewrite in progress.</p>
+      </article>
+      <article class="work-card">
+        <div><div class="work-top"><span>Automation</span><span>10</span></div><h3>Document-to-data workflows</h3></div>
         <p>Repeatable extraction and review workflows that convert unstructured documents into structured outputs and operating records.</p>
       </article>
     </div>
+    <p class="statement" style="margin-top:1.2rem;font-size:.95rem;opacity:.85">Verification standard: every figure above is reproducible from a command and its output, recorded in our software inventory of 15 August 2026 (28 projects, ~861,000 first-party lines of code, 6,600+ tests in existence, 2,007 executed green in the audit). Nothing here is presented as customer past performance or a compliance certification.</p>
   </section>
 
   <section class="section" id="services">
