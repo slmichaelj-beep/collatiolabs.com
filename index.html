@@ -3,51 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Collatio Labs - The Operating Layer for Complex Work</title>
+<title>Collatio Labs — AI-native systems studio, Portland, Oregon</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230b0d0c'/%3E%3Cg fill='none' stroke='%23d9ff72' stroke-width='2'%3E%3Crect x='5' y='5' width='9' height='9'/%3E%3Crect x='18' y='5' width='9' height='9'/%3E%3Crect x='5' y='18' width='9' height='9'/%3E%3Crect x='18' y='18' width='9' height='9'/%3E%3C/g%3E%3Crect x='18' y='5' width='9' height='9' fill='%23d9ff72'/%3E%3Crect x='5' y='18' width='9' height='9' fill='%23d9ff72'/%3E%3C/svg%3E">
-<meta name="description" content="Collatio Labs builds governed systems that make complex work visible, decisions defensible, and execution repeatable.">
+<meta name="description" content="Principal-led studio building workflow, data, and AI systems for public agencies and compliance-sensitive organizations. SAM.gov registered. Fixed-price milestones. Live demonstration on request.">
 <meta name="robots" content="index, follow">
+<meta name="theme-color" content="#0b0d0c">
 <link rel="canonical" href="https://collatiolabs.com/">
-<meta property="og:title" content="Collatio Labs - The Operating Layer for Complex Work">
-<meta property="og:description" content="Governed systems that make complex work visible, decisions defensible, and execution repeatable.">
+<meta property="og:title" content="Collatio Labs — AI-native systems studio">
+<meta property="og:description" content="Principal-led studio building workflow, data, and AI systems for public agencies and compliance-sensitive organizations. SAM.gov registered. Fixed-price milestones. Live demonstration on request.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://collatiolabs.com/">
-<meta property="og:image" content="https://collatiolabs.com/assets/collatio-hero-human-system-v3.png">
+<meta property="og:image" content="https://collatiolabs.com/assets/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Collatio Labs - The Operating Layer for Complex Work">
-<meta name="twitter:description" content="Governed systems that make complex work visible, decisions defensible, and execution repeatable.">
-<meta name="twitter:image" content="https://collatiolabs.com/assets/collatio-hero-human-system-v3.png">
+<meta name="twitter:title" content="Collatio Labs — AI-native systems studio">
+<meta name="twitter:description" content="Principal-led studio building workflow, data, and AI systems for public agencies and compliance-sensitive organizations. SAM.gov registered. Fixed-price milestones. Live demonstration on request.">
+<meta name="twitter:image" content="https://collatiolabs.com/assets/og.jpg">
+<link rel="preload" as="image" href="assets/hero-1600.webp" imagesrcset="assets/hero-900.webp 900w, assets/hero-1600.webp 1672w" imagesizes="100vw" fetchpriority="high">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400..700&display=swap"></noscript>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+@font-face {
+  font-family: "Instrument Sans Fallback";
+  src: local("Arial");
+  size-adjust: 103.2%;
+  ascent-override: 94%;
+  descent-override: 24.2%;
+  line-gap-override: 0%;
+}
 
 :root {
   --ink: #0b0d0c;
   --paper: #f3f0e8;
   --bone: #fffaf2;
-  --line: rgba(11, 13, 12, 0.14);
-  --muted: #67645b;
-  --green: #a9c6b2;
-  --blue: #cbd6d6;
-  --clay: #98614d;
-  --charcoal: #111311;
   --stone: #e8e2d6;
-  --panel: rgba(255, 250, 242, 0.7);
-  --font: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --step-label: 0.75rem;
+  --line: rgba(11, 13, 12, 0.14);
+  --line-dark: rgba(255, 250, 240, 0.18);
+  --muted: #5c5951;
+  --ink-2: rgba(11, 13, 12, 0.72);
+  --ink-3: rgba(11, 13, 12, 0.56);
+  --bone-2: rgba(255, 250, 240, 0.72);
+  --bone-3: rgba(255, 250, 240, 0.56);
+  --green: #a9c6b2;
+  --clay: #98614d;
+  --clay-text: #7f4c3a;
+  --font: "Instrument Sans", "Instrument Sans Fallback", Arial, sans-serif;
+  --gutter: clamp(24px, 3.3vw, 48px);
+  --space-section: clamp(64px, 7vw, 112px);
+  --space-section-tight: clamp(40px, 4.5vw, 64px);
+  --step-label: 0.72rem;
   --step-small: 0.86rem;
   --step-body: 1rem;
   --step-lede: clamp(1rem, 1.1vw, 1.16rem);
-  --step-card: clamp(1.45rem, 1.7vw, 2rem);
-  --step-stat: clamp(1.45rem, 2.2vw, 2.8rem);
-  --step-section: clamp(2.7rem, 5.2vw, 6.2rem);
-  --step-hero: clamp(4rem, 8vw, 8.8rem);
+  --step-card: clamp(1.35rem, 1.6vw, 1.85rem);
+  --step-section: clamp(2.25rem, 3.6vw, 3.75rem);
+  --step-tentpole: clamp(2.6rem, 4.4vw, 4.8rem);
+  --step-hero: clamp(3.4rem, 7.2vw, 7.6rem);
 }
 
 html {
-  font-size: 16px;
+  font-size: 100%;
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -57,1144 +76,396 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font);
-  line-height: 1.45;
-  word-spacing: normal;
+  font-synthesis: none;
+  line-height: 1.5;
   overflow-x: hidden;
 }
 
 a { color: inherit; }
+[id] { scroll-margin-top: 74px; }
+h1, h2, h3, .statement { text-wrap: balance; }
+p, .buyer-list span, .rule, .metric-copy, .institutional span { text-wrap: pretty; }
 
+:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; border-radius: 4px; }
+:focus:not(:focus-visible) { outline: none; }
+
+.skip {
+  position: absolute; left: 16px; top: -48px; z-index: 40;
+  padding: 10px 14px; background: var(--bone); color: var(--ink); border-radius: 4px; text-decoration: none;
+}
+.skip:focus { top: 8px; }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- micro labels: one rule ---------- */
+.label, .kicker, .hero-panel-title, .institutional strong, .platform-unit strong, .engagement strong, .work-top, .legend, .verified em {
+  font-size: var(--step-label);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- nav ---------- */
 .nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 20;
-  border-bottom: 1px solid rgba(255, 250, 240, 0.18);
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  border-bottom: 1px solid var(--line-dark);
   color: var(--bone);
-  background: rgba(11, 13, 12, 0.84);
-  backdrop-filter: blur(16px);
+  background: rgba(11, 13, 12, 0.94);
+  backdrop-filter: blur(8px);
 }
-
 .nav-inner {
-  height: 58px;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  height: 58px; max-width: 1440px; margin: 0 auto; padding: 0 var(--gutter);
+  display: flex; align-items: center; justify-content: space-between;
 }
-
-.brand {
-  font-size: var(--step-small);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-decoration: none;
-  text-transform: uppercase;
-}
-
-.nav-links {
-  display: flex;
-  gap: 22px;
-  align-items: center;
-}
-
-.nav-links a {
-  color: rgba(255, 250, 240, 0.78);
-  font-size: var(--step-small);
-  font-weight: 600;
-  text-decoration: none;
-}
-
+.brand { font-size: var(--step-small); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; }
+.menu > summary { display: none; list-style: none; cursor: pointer; min-height: 40px; align-items: center; padding: 0 12px; border: 1px solid rgba(255, 250, 240, 0.32); border-radius: 4px; font: 500 var(--step-small) var(--font); }
+.menu > summary::-webkit-details-marker { display: none; }
+.nav-links { display: flex; gap: 22px; align-items: center; }
+.nav-links a { position: relative; color: rgba(255, 250, 240, 0.78); font-size: var(--step-small); font-weight: 500; text-decoration: none; }
 .nav-links a:hover { color: var(--bone); }
+.nav-links a:not(.nav-cta)::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 1px; background: var(--green); transform: scaleX(0); transform-origin: left; transition: transform 220ms ease; }
+.nav-links a:hover::after { transform: scaleX(1); }
+.nav-cta { min-height: 40px; display: inline-flex; align-items: center; padding: 0 16px; border: 1px solid rgba(255, 250, 240, 0.42); border-radius: 4px; }
+.nav-cta:hover { border-color: var(--bone); }
 
-.nav-cta {
-  border: 1px solid rgba(255, 250, 240, 0.32);
-  border-radius: 4px;
-  padding: 8px 14px;
-}
-
-.hero {
-  min-height: 92vh;
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
-  background: var(--charcoal);
-}
-
-.hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
+/* ---------- hero ---------- */
+.hero { min-height: 92vh; position: relative; display: flex; align-items: flex-end; overflow: hidden; background: var(--ink); }
+.hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; z-index: 0; }
+.hero::after {
+  content: ""; position: absolute; inset: 0; z-index: 1;
   background:
-    linear-gradient(90deg, rgba(11, 13, 12, 0.95) 0%, rgba(11, 13, 12, 0.70) 40%, rgba(11, 13, 12, 0.12) 76%),
-    linear-gradient(180deg, rgba(11, 13, 12, 0.02) 0%, rgba(11, 13, 12, 0.66) 100%),
-    url("assets/collatio-hero-human-system-v3.png") center / cover no-repeat;
+    linear-gradient(90deg, rgba(11, 13, 12, 0.95) 0%, rgba(11, 13, 12, 0.72) 40%, rgba(11, 13, 12, 0.14) 76%),
+    linear-gradient(180deg, rgba(11, 13, 12, 0.04) 0%, rgba(11, 13, 12, 0.7) 100%);
 }
+.hero-content { position: relative; z-index: 2; width: 100%; max-width: 1440px; margin: 0 auto; padding: 132px var(--gutter) 88px; color: var(--bone); }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr); gap: 42px; align-items: end; }
+.hero-grid > * { min-width: 0; }
+.kicker { display: inline-flex; align-items: center; gap: 10px; color: var(--bone-2); margin-bottom: 22px; }
+.kicker::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
+h1 { max-width: 12ch; font-size: var(--step-hero); line-height: 0.96; letter-spacing: -0.03em; font-weight: 700; }
+.hero-copy { max-width: min(620px, 100%); margin-top: 30px; color: var(--bone-2); font-size: var(--step-lede); line-height: 1.55; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+.hero-addr { margin-top: 14px; font-size: var(--step-small); color: var(--bone-3); }
+.hero-addr a { text-decoration: none; }
+.hero-addr a:hover { color: var(--bone); text-decoration: underline; text-underline-offset: 4px; }
 
-.hero-content {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 132px 24px 56px;
-  color: var(--bone);
-}
-
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-  gap: 42px;
-  align-items: end;
-  max-width: 100%;
-}
-
-.hero-grid > * {
-  min-width: 0;
-}
-
-.kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--step-label);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: rgba(255, 250, 240, 0.72);
-  margin-bottom: 22px;
-}
-
-.kicker::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--green);
-}
-
-h1 {
-  max-width: 11.4ch;
-  font-size: var(--step-hero);
-  line-height: 0.94;
-  letter-spacing: 0;
-  font-weight: 800;
-  overflow-wrap: normal;
-}
-
-.hero-copy {
-  max-width: min(620px, 100%);
-  margin-top: 30px;
-  color: rgba(255, 250, 240, 0.78);
-  font-size: var(--step-lede);
-  line-height: 1.55;
-}
-
-.hero-panel {
-  min-width: 0;
-  border: 1px solid rgba(255, 250, 240, 0.18);
-  border-radius: 8px;
-  background: rgba(11, 13, 12, 0.62);
-  backdrop-filter: blur(14px);
-}
-
-.hero-panel-title {
-  display: block;
-  padding: 18px 16px;
-  border-bottom: 1px solid rgba(255, 250, 240, 0.14);
-  color: rgba(255, 250, 240, 0.58);
-  font-size: var(--step-label);
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.hero-panel div {
-  display: grid;
-  grid-template-columns: 136px 1fr;
-  border-bottom: 1px solid rgba(255, 250, 240, 0.14);
-}
-
+.hero-panel { min-width: 0; border: 1px solid var(--line-dark); border-radius: 4px; background: rgba(11, 13, 12, 0.62); backdrop-filter: blur(14px); }
+.hero-panel-title { display: block; padding: 18px 16px; border-bottom: 1px solid rgba(255, 250, 240, 0.14); color: var(--bone-3); }
+.hero-panel div { display: grid; grid-template-columns: 136px 1fr; border-bottom: 1px solid rgba(255, 250, 240, 0.14); }
 .hero-panel div:last-child { border-bottom: 0; }
+.metric { padding: 18px 16px; font-size: var(--step-card); font-weight: 600; letter-spacing: -0.015em; color: var(--green); line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.metric-copy { padding: 18px 16px; color: var(--bone-2); font-size: var(--step-small); }
 
-.metric {
-  padding: 18px 16px;
-  font-size: var(--step-card);
-  font-weight: 700;
-  color: var(--green);
-  letter-spacing: 0;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.metric-copy {
-  padding: 18px 16px;
-  color: rgba(255, 250, 240, 0.72);
-  font-size: var(--step-small);
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 34px;
-  max-width: 100%;
-}
-
+/* ---------- buttons ---------- */
 .button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  padding: 12px 20px;
-  font-size: var(--step-small);
-  font-weight: 700;
-  text-decoration: none;
-  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid currentColor; border-radius: 4px; padding: 12px 20px;
+  font-size: 0.9rem; font-weight: 600; text-decoration: none;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 80ms ease;
 }
+.button:hover { background: var(--ink); color: var(--bone); border-color: var(--ink); }
+.button:active { transform: translateY(1px); }
+.button.light { background: var(--bone); border-color: var(--bone); color: var(--ink); }
+.button.light:hover { background: transparent; color: var(--bone); border-color: var(--bone); }
+.button.dark { background: var(--ink); border-color: var(--ink); color: var(--bone); }
+.button.dark:hover { background: transparent; color: var(--ink); }
+.dark-band .button:hover, .contact .button:hover { background: transparent; color: var(--bone); border-color: var(--bone); }
+.contact .button.dark { background: var(--bone); border-color: var(--bone); color: var(--ink); }
 
-.button.light {
-  background: var(--bone);
-  border-color: var(--bone);
-  color: var(--ink);
-}
+/* ---------- facts strip ---------- */
+.institutional { background: var(--ink); color: var(--bone); border-bottom: 1px solid var(--line-dark); }
+.institutional-inner { max-width: 1440px; margin: 0 auto; padding: 8px var(--gutter) 34px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 32px; }
+.institutional span { display: block; padding: 24px 0 0; border-top: 1px solid var(--line-dark); color: var(--bone-2); font-size: var(--step-small); font-weight: 400; line-height: 1.5; }
+.institutional strong { display: block; color: var(--green); margin-bottom: 12px; }
 
-.button.dark {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--bone);
-}
-
-.ticker {
-  position: relative;
-  z-index: 2;
-  border-top: 1px solid rgba(255, 250, 240, 0.18);
-  border-bottom: 1px solid rgba(255, 250, 240, 0.12);
-  color: var(--bone);
-  overflow: hidden;
-}
-
-.ticker-track {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 1px;
-  width: 100%;
-}
-
-.ticker span {
-  flex: 1 1 150px;
-  display: inline-flex;
-  justify-content: center;
-  padding: 16px 18px;
-  font-size: var(--step-small);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  color: rgba(255, 250, 240, 0.7);
-  background: rgba(255, 250, 240, 0.035);
-}
-
-.institutional {
-  background: var(--ink);
-  color: var(--bone);
-  border-top: 1px solid rgba(255, 250, 240, 0.14);
-  border-bottom: 1px solid rgba(255, 250, 240, 0.14);
-}
-
-.institutional-inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 22px 24px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: rgba(255, 250, 240, 0.14);
-}
-
-.institutional span {
-  display: block;
-  min-height: 92px;
-  padding: 18px;
-  background: var(--ink);
-  color: rgba(255, 250, 240, 0.72);
-  font-size: var(--step-small);
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.institutional strong {
-  display: block;
-  color: var(--green);
-  font-size: var(--step-label);
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 14px;
-}
-
-.section {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 92px 24px;
-}
-
-.section-head {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
-  gap: 56px;
-  align-items: start;
-  margin-bottom: 42px;
-}
-
-.section-note {
-  max-width: 760px;
-  color: var(--muted);
-  font-size: var(--step-lede);
-  font-weight: 400;
-  margin-top: 20px;
-}
-
-.section.split {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr);
-  gap: 56px;
-}
-
-.label {
-  font-size: var(--step-label);
-  font-weight: 700;
-  letter-spacing: 0;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-.statement {
-  font-size: var(--step-section);
-  line-height: 1.02;
-  letter-spacing: 0;
-  font-weight: 800;
-  max-width: 930px;
-  overflow-wrap: normal;
-}
-
-.statement em {
-  color: var(--clay);
-  font-style: normal;
-}
-
-.thesis {
-  background: var(--bone);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.thesis-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 34px;
-  align-items: start;
-}
-
-.thesis h2 {
-  max-width: 11ch;
-  font-size: var(--step-section);
-  line-height: 1.02;
-  letter-spacing: 0;
-  font-weight: 800;
-  overflow-wrap: normal;
-}
-
-.thesis-copy {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-  max-width: 980px;
-  color: var(--muted);
-  font-size: var(--step-lede);
-  line-height: 1.45;
-  font-weight: 400;
-}
-
-.standard-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-  margin-top: 54px;
-}
-
-.standard {
-  min-height: 190px;
-  padding: 22px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
-.standard strong {
-  display: block;
-  color: var(--clay);
-  font-size: var(--step-label);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-  margin-bottom: 36px;
-}
-
-.standard p {
-  max-width: 34ch;
-  color: rgba(13, 13, 11, 0.72);
-  font-size: var(--step-body);
-  font-weight: 400;
-}
-
-.outcome-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-}
-
-.outcome {
-  min-height: 250px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  gap: 24px;
-  padding: 22px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.outcome:nth-child(2n) { background: rgba(203, 214, 214, 0.3); }
-.outcome:nth-child(3n) { background: rgba(169, 198, 178, 0.22); }
-
-.outcome h3 {
-  font-size: var(--step-card);
-  line-height: 1.05;
-  letter-spacing: 0;
-}
-
-.outcome p {
-  color: var(--muted);
-  font-size: var(--step-body);
-  max-width: 34ch;
-  margin: auto 0;
-}
-
-.buyer-strip {
-  display: grid;
-  grid-template-columns: 0.7fr 1fr;
-  gap: 44px;
-  align-items: start;
-  border-top: 1px solid var(--line);
-  padding-top: 26px;
-  margin-top: 48px;
-}
-
-.buyer-strip strong {
-  display: block;
-  font-size: var(--step-card);
-  line-height: 1.08;
-}
-
-.buyer-list {
-  display: grid;
-  gap: 10px;
-}
-
-.buyer-list span {
-  display: block;
-  border-bottom: 1px solid var(--line);
-  padding-bottom: 12px;
-  color: rgba(13, 13, 11, 0.74);
-  font-size: var(--step-body);
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.buyer-list span:last-child {
-  border-bottom: 0;
-  color: var(--clay);
-}
-
-.platform {
-  background: var(--charcoal);
-  color: var(--bone);
-}
-
-.platform .label {
-  color: rgba(255, 250, 240, 0.56);
-}
-
-.platform .statement {
-  color: var(--bone);
-}
-
-.platform-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid rgba(255, 250, 240, 0.16);
-  border-left: 1px solid rgba(255, 250, 240, 0.16);
-  margin-top: 44px;
-}
-
-.platform-unit {
-  min-height: 290px;
-  padding: 24px;
-  display: grid;
-  align-content: space-between;
-  gap: 42px;
-  border-right: 1px solid rgba(255, 250, 240, 0.16);
-  border-bottom: 1px solid rgba(255, 250, 240, 0.16);
-}
-
-.enterprise-band {
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: var(--bone);
-}
-
-.enterprise-band .section {
-  padding-top: 42px;
-  padding-bottom: 42px;
-}
-
-.enterprise-line {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1px;
-  background: var(--line);
-}
-
-.enterprise-line div {
-  min-height: 132px;
-  padding: 22px;
-  background: var(--bone);
-}
-
-.enterprise-line strong {
-  display: block;
-  font-size: var(--step-label);
-  text-transform: uppercase;
-  color: var(--clay);
-  margin-bottom: 18px;
-}
-
-.enterprise-line p {
-  color: var(--muted);
-  font-size: var(--step-body);
-  font-weight: 650;
-  max-width: 42ch;
-}
-
-.platform-unit strong {
-  color: var(--green);
-  font-size: var(--step-label);
-  text-transform: uppercase;
-}
-
-.platform-unit h3 {
-  font-size: var(--step-card);
-  line-height: 1.05;
-  margin-bottom: 14px;
-}
-
-.platform-unit p {
-  color: rgba(255, 250, 240, 0.66);
-  font-size: var(--step-body);
-}
-
-.work-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-}
-
-.work-card {
-  min-height: 315px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 250, 240, 0.28);
-}
-
-.work-card:nth-child(2n) { background: rgba(199, 212, 213, 0.22); }
-.work-card:nth-child(3n) { background: rgba(169, 198, 178, 0.18); }
-
-.work-top {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  color: var(--muted);
-  font-size: var(--step-label);
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.work-card h3 {
-  margin-top: 34px;
-  font-size: var(--step-card);
-  line-height: 1.05;
-  letter-spacing: 0;
-}
-
-.work-card p {
-  max-width: 34ch;
-  color: var(--muted);
-  font-size: var(--step-body);
-}
-
-.services {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--line);
-}
-
-.service {
-  min-height: 208px;
-  display: grid;
-  grid-template-columns: 96px 1fr;
-  gap: 20px;
-  padding: 28px 0;
-  border-bottom: 1px solid var(--line);
-}
-
-.service:nth-child(odd) { padding-right: 24px; border-right: 1px solid var(--line); }
-.service:nth-child(even) { padding-left: 24px; }
-
-.service-num {
-  color: var(--clay);
-  font-size: var(--step-card);
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.service h3 {
-  font-size: var(--step-card);
-  line-height: 1.05;
-  letter-spacing: 0;
-  margin-bottom: 12px;
-}
-
-.service p {
-  color: var(--muted);
-  max-width: 48ch;
-  font-size: var(--step-body);
-}
-
-.engagements {
-  background: rgba(203, 214, 214, 0.34);
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-}
-
+/* ---------- sections ---------- */
+.section { max-width: 1440px; margin: 0 auto; padding: var(--space-section) var(--gutter); }
 .band-paper { background: var(--paper); }
 .band-stone { background: var(--stone); }
-.band-bone { background: var(--bone); border-top: 1px solid var(--line); }
+.dark-band { background: var(--ink); color: var(--bone); }
 
-.engagement-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
-  margin-top: 42px;
+.section-head {
+  display: grid; grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr); gap: 56px;
+  border-top: 1px solid var(--line); padding-top: 22px; margin-bottom: 48px;
 }
+.dark-band .section-head { border-color: var(--line-dark); }
+.label { color: var(--ink-3); padding-top: 0.45em; }
+.dark-band .label { color: var(--bone-3); }
+.statement { max-width: 20ch; font-size: var(--step-section); line-height: 1.04; letter-spacing: -0.02em; font-weight: 700; }
+.tentpole .statement { font-size: var(--step-tentpole); max-width: 16ch; }
+.section-note { max-width: 62ch; color: var(--muted); font-size: var(--step-lede); line-height: 1.55; margin-top: 18px; }
+.dark-band .section-note { color: var(--bone-2); }
 
-.engagement {
-  min-height: 250px;
-  padding: 22px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  display: grid;
-  align-content: space-between;
-  gap: 28px;
+/* ---------- evidence ---------- */
+.work-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.work-card {
+  display: flex; flex-direction: column; gap: 14px; min-height: 300px; padding: 22px;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  transition: background 200ms ease;
 }
+.work-card:hover { background: var(--bone); }
+.work-top { display: flex; justify-content: space-between; gap: 12px; color: var(--clay-text); }
+.work-top .status { color: var(--ink); }
+.work-card h3 { margin-top: 24px; font-size: var(--step-card); line-height: 1.08; letter-spacing: -0.015em; font-weight: 600; }
+.work-card p { max-width: 40ch; color: var(--muted); font-size: var(--step-body); }
+.verified { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-size: var(--step-small); color: var(--ink); max-width: none; font-variant-numeric: tabular-nums; }
+.verified em { display: inline-block; font-style: normal; color: var(--clay-text); margin-right: 6px; }
+.legend { margin-top: 18px; color: var(--ink-3); }
+.also-built { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); max-width: 92ch; color: var(--muted); font-size: var(--step-small); line-height: 1.6; }
+.also-built strong { color: var(--ink); font-weight: 600; }
 
-.engagement strong {
-  color: var(--clay);
-  font-size: var(--step-label);
-  text-transform: uppercase;
-}
+/* ---------- approach (dark) ---------- */
+.platform-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line-dark); }
+.platform-unit { display: grid; align-content: start; gap: 28px; min-height: 220px; padding: 22px; background: var(--ink); }
+.platform-unit strong { display: block; color: var(--green); }
+.platform-unit h3 { font-size: var(--step-card); line-height: 1.08; letter-spacing: -0.015em; font-weight: 600; margin-bottom: 12px; }
+.platform-unit p { color: var(--bone-2); font-size: var(--step-body); max-width: 40ch; }
 
-.engagement h3 {
-  font-size: var(--step-card);
-  line-height: 1.05;
-}
+.rules-block { margin-top: 64px; display: grid; grid-template-columns: minmax(220px, 0.44fr) minmax(0, 1fr); gap: 56px; border-top: 1px solid var(--line-dark); padding-top: 22px; }
+.rules-block h2 { font-size: var(--step-card); line-height: 1.1; letter-spacing: -0.015em; font-weight: 600; max-width: 18ch; }
+.rules { display: grid; gap: 0; }
+.rule { padding: 18px 0; border-bottom: 1px solid var(--line-dark); color: var(--bone-2); font-size: var(--step-lede); max-width: 62ch; }
+.rule:first-child { padding-top: 0; }
 
-.engagement p {
-  color: var(--muted);
-  font-size: var(--step-body);
-}
+/* ---------- outcomes ---------- */
+.outcome-grid { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.outcome { display: flex; flex-direction: column; gap: 12px; min-height: 230px; padding: 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.outcome h3 { min-height: 2.1em; font-size: var(--step-card); line-height: 1.05; letter-spacing: -0.015em; font-weight: 600; }
+.outcome p { color: var(--muted); font-size: var(--step-body); max-width: 34ch; }
 
-.conversion {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.64fr);
-  gap: 40px;
-  align-items: start;
-  border-top: 1px solid var(--line);
-  margin-top: 52px;
-  padding-top: 26px;
-}
+.buyer-strip { display: grid; grid-template-columns: 0.7fr 1fr; gap: 44px; align-items: start; border-top: 1px solid var(--line); padding-top: 26px; margin-top: 48px; }
+.buyer-title { font-size: var(--step-card); font-weight: 600; letter-spacing: -0.015em; line-height: 1.08; }
+.buyer-list { display: grid; gap: 10px; }
+.buyer-list span { display: block; border-bottom: 1px solid var(--line); padding-bottom: 12px; color: var(--muted); font-size: var(--step-body); max-width: 62ch; }
+.buyer-list span:last-child { border-bottom: 0; color: var(--clay-text); }
 
-.conversion p {
-  max-width: 68ch;
-  color: var(--muted);
-  font-size: var(--step-lede);
-  font-weight: 400;
-}
+/* ---------- services ---------- */
+.services { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+.service { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: start; padding: 32px 0; border-bottom: 1px solid var(--line); }
+.service:nth-child(odd) { padding-right: 24px; border-right: 1px solid var(--line); }
+.service:nth-child(even) { padding-left: 24px; }
+.service-num { color: var(--clay); font-size: var(--step-card); font-weight: 500; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.service h3 { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 8px; }
+.service p { color: var(--muted); font-size: var(--step-body); max-width: 46ch; }
 
-.conversion-actions {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-}
+/* ---------- engagements ---------- */
+.engagement-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.engagement { display: grid; align-content: start; gap: 28px; min-height: 200px; padding: 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.engagement strong { display: block; color: var(--clay-text); }
+.engagement h3 { font-size: var(--step-card); line-height: 1.08; letter-spacing: -0.015em; font-weight: 600; margin-bottom: 12px; }
+.engagement p { color: var(--muted); font-size: var(--step-body); max-width: 40ch; }
+.conversion { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr); gap: 40px; align-items: start; margin-top: 48px; padding-top: 26px; border-top: 1px solid var(--line); }
+.conversion p { max-width: 62ch; color: var(--muted); font-size: var(--step-lede); line-height: 1.55; }
+.conversion p + p { margin-top: 14px; }
+.conversion-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 
-.proof {
-  background: var(--ink);
-  color: var(--bone);
-}
+/* ---------- trust (dark) ---------- */
+.proof-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--line-dark); }
+.proof-cell { min-height: 210px; padding: 22px; background: var(--ink); }
+.proof-cell strong { display: block; color: var(--green); font-size: var(--step-card); font-weight: 600; letter-spacing: -0.015em; line-height: 1.05; margin-bottom: 14px; }
+.proof-cell span { display: block; color: var(--bone-2); font-size: var(--step-small); max-width: 40ch; }
+.proof-cell a { color: var(--bone); text-decoration: none; border-bottom: 1px solid var(--bone-3); }
+.proof-cell a:hover { border-color: var(--bone); }
+.proof-safe-note { border-top: 1px solid var(--line-dark); margin-top: 52px; padding-top: 26px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr); gap: 40px; align-items: start; }
+.proof-safe-note p { max-width: 62ch; color: var(--bone-2); font-size: var(--step-lede); line-height: 1.55; }
 
-.proof .section {
-  padding-top: 112px;
-  padding-bottom: 112px;
-}
+/* ---------- contact ---------- */
+.contact { min-height: 64vh; display: grid; align-items: center; background: var(--ink); color: var(--bone); border-top: 1px solid var(--line-dark); }
+.contact .section { width: 100%; padding-top: 112px; padding-bottom: 112px; }
+.contact h2 { max-width: 16ch; font-size: var(--step-tentpole); line-height: 1.02; letter-spacing: -0.02em; font-weight: 700; }
+.contact-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.6fr); gap: 40px; align-items: start; margin-top: 40px; border-top: 1px solid var(--line-dark); padding-top: 26px; }
+.contact-row p { max-width: 52ch; color: var(--bone-2); font-size: var(--step-lede); line-height: 1.55; }
+.contact-actions { display: grid; justify-items: end; gap: 14px; }
+.contact-meta { color: var(--bone-3); font-size: var(--step-small); text-align: right; }
+.contact-meta a { color: var(--bone); text-decoration: none; border-bottom: 1px solid var(--bone-3); }
+.contact-meta a:hover { border-color: var(--bone); }
 
-.proof .label { color: rgba(255, 250, 240, 0.54); }
+/* ---------- footer ---------- */
+footer { border-top: 1px solid var(--line); background: var(--paper); }
+.footer-inner { max-width: 1440px; margin: 0 auto; padding: 22px var(--gutter); display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; color: var(--muted); font-size: var(--step-small); }
+.footer-inner nav { display: flex; flex-wrap: wrap; gap: 4px; }
+footer a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; text-decoration: none; }
+footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
-.proof-statement {
-  color: var(--bone);
-  max-width: 980px;
-}
-
-.proof .section-head {
-  margin-bottom: 48px;
-}
-
-.proof-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1px;
-  background: rgba(255, 250, 240, 0.18);
-  margin-top: 48px;
-}
-
-.proof-cell {
-  min-height: 210px;
-  padding: 22px;
-  background: var(--ink);
-}
-
-.proof-cell strong {
-  display: block;
-  color: var(--green);
-  font-size: var(--step-stat);
-  line-height: 1;
-  letter-spacing: 0;
-  margin-bottom: 14px;
-}
-
-.proof-cell span {
-  color: rgba(255, 250, 240, 0.68);
-  font-size: var(--step-small);
-}
-
-.governed {
-  background: linear-gradient(135deg, var(--blue), #d9ded8);
-}
-
-.governed-copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.75fr);
-  gap: 40px;
-  align-items: start;
-}
-
-.governed h2 {
-  max-width: 720px;
-  font-size: var(--step-section);
-  line-height: 1.02;
-  letter-spacing: 0;
-  font-weight: 800;
-}
-
-.rules {
-  display: grid;
-  gap: 10px;
-}
-
-.rule {
-  border: 1px solid rgba(13, 13, 11, 0.22);
-  border-radius: 8px;
-  background: rgba(255, 250, 240, 0.28);
-  padding: 18px;
-  color: rgba(13, 13, 11, 0.75);
-  font-size: var(--step-body);
-}
-
-.contact {
-  min-height: 64vh;
-  display: grid;
-  align-items: center;
-  background: var(--ink);
-  color: var(--bone);
-}
-
-.contact .section {
-  width: 100%;
-  padding-top: 112px;
-  padding-bottom: 112px;
-}
-
-.contact h2 {
-  max-width: 900px;
-  font-size: var(--step-section);
-  line-height: 1.02;
-  letter-spacing: 0;
-  font-weight: 800;
-}
-
-.contact-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: end;
-  margin-top: 34px;
-  border-top: 1px solid rgba(255, 250, 240, 0.24);
-  padding-top: 22px;
-}
-
-.contact-row p {
-  max-width: 48ch;
-  color: rgba(255, 250, 240, 0.68);
-  font-weight: 400;
-}
-
-.contact .button.dark {
-  background: var(--bone);
-  border-color: var(--bone);
-  color: var(--ink);
-}
-
-.proof-safe-note {
-  border-top: 1px solid rgba(255, 250, 240, 0.18);
-  margin-top: 52px;
-  padding-top: 26px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.64fr);
-  gap: 40px;
-  align-items: start;
-}
-
-.proof-safe-note p {
-  max-width: 68ch;
-  color: rgba(255, 250, 240, 0.68);
-  font-size: var(--step-lede);
-  font-weight: 400;
-}
-
-footer {
-  border-top: 1px solid var(--line);
-  padding: 24px;
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-  color: var(--muted);
-  font-size: var(--step-small);
-  font-weight: 600;
-}
-
-footer a {
-  margin-left: 14px;
-  text-decoration: none;
-}
-
+/* ---------- responsive ---------- */
 @media (max-width: 980px) {
-  .hero { min-height: 860px; }
-  .hero-grid,
-  .section.split,
-  .section-head,
-  .thesis-grid,
-  .governed-copy {
-    grid-template-columns: 1fr;
-  }
+  .hero { min-height: min(860px, 100vh); }
+  .hero-grid, .section-head, .rules-block, .conversion, .proof-safe-note, .contact-row, .buyer-strip { grid-template-columns: 1fr; }
+  .section-head { gap: 14px; }
+  .rules-block { gap: 20px; }
+  .conversion-actions, .contact-actions { justify-content: flex-start; justify-items: start; }
+  .contact-meta { text-align: left; }
+  .institutional-inner { grid-template-columns: 1fr 1fr; }
+  .work-grid, .outcome-grid { grid-template-columns: 1fr 1fr; }
+  .platform-grid, .engagement-grid { grid-template-columns: repeat(3, 1fr); }
+  .work-card, .outcome, .platform-unit, .engagement { min-height: 0; }
+  .outcome:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .proof-grid { grid-template-columns: 1fr; gap: 0; background: none; border-top: 1px solid var(--line-dark); }
+  .proof-cell { display: grid; grid-template-columns: 120px 1fr; column-gap: 24px; align-items: start; min-height: 0; padding: 22px 0; border-bottom: 1px solid var(--line-dark); }
+  .proof-cell strong { margin: 0; }
+  .proof-cell span { max-width: none; }
+}
 
-  .work-grid,
-  .proof-grid,
-  .standard-grid,
-  .outcome-grid,
-  .engagement-grid,
-  .institutional-inner,
-  .platform-grid,
-  .enterprise-line {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  /* an odd last cell spans the row instead of leaving an empty slot */
-  .work-card:last-child:nth-child(odd),
-  .proof-cell:last-child:nth-child(odd),
-  .standard:last-child:nth-child(odd),
-  .outcome:last-child:nth-child(odd),
-  .engagement:last-child:nth-child(odd),
-  .platform-unit:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-  }
-
-  .services {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-content {
-    padding: 112px 24px 42px;
-  }
-
-  .hero-panel {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .hero-panel-title {
-    grid-column: 1 / -1;
-  }
-
-  .hero-panel div {
-    display: block;
-    border-right: 1px solid rgba(255, 250, 240, 0.14);
-    border-bottom: 0;
-  }
-
-  .hero-panel div:last-child {
-    border-right: 0;
-  }
-
-  .metric,
-  .metric-copy {
-    display: block;
-  }
-
-  .metric {
-    padding: 14px 12px 8px;
-  }
-
-  .metric-copy {
-    padding: 0 12px 14px;
-  }
-
-  .ticker {
-    display: none;
-  }
-
-  .buyer-strip,
-  .conversion,
-  .proof-safe-note {
-    grid-template-columns: 1fr;
-  }
-
-  .service:nth-child(odd),
-  .service:nth-child(even) {
-    padding-left: 0;
-    padding-right: 0;
-    border-right: 0;
-  }
+@media (max-width: 760px) {
+  .work-grid, .outcome-grid, .platform-grid, .engagement-grid, .services { grid-template-columns: 1fr; }
+  .service:nth-child(odd), .service:nth-child(even) { padding-left: 0; padding-right: 0; border-right: 0; }
+  .institutional-inner { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
   :root {
-    --step-label: 0.7rem;
-    --step-small: 0.84rem;
-    --step-body: 0.96rem;
-    --step-lede: 1rem;
-    --step-card: 1.45rem;
-    --step-stat: 1.7rem;
-    --step-section: clamp(2.25rem, 11vw, 3rem);
-    --step-hero: clamp(3rem, 15vw, 4.2rem);
+    --gutter: 16px;
+    --step-section: clamp(1.9rem, 8.5vw, 2.35rem);
+    --step-tentpole: clamp(2.2rem, 10vw, 2.9rem);
+    --step-hero: clamp(2.6rem, 13vw, 3.4rem);
+    --step-card: 1.3rem;
   }
-  .nav-links a:not(.nav-cta) { display: none; }
-  .nav-inner { padding: 0 16px; }
-  .hero {
-    min-height: auto;
-  }
-  .hero::before {
-    background:
-      linear-gradient(90deg, rgba(11, 13, 12, 0.94) 0%, rgba(11, 13, 12, 0.72) 58%, rgba(11, 13, 12, 0.18) 100%),
-      linear-gradient(180deg, rgba(11, 13, 12, 0.02) 0%, rgba(11, 13, 12, 0.72) 100%),
-      url("assets/collatio-hero-human-system-v3.png") 62% center / cover no-repeat;
-  }
-  .hero-content {
-    padding: 102px 16px 40px;
-  }
-  .hero-grid {
-    gap: 28px;
-  }
-  .kicker {
-    max-width: 100%;
-    align-items: flex-start;
-    font-size: var(--step-label);
-    line-height: 1.35;
-    white-space: normal;
-  }
-  h1 {
-    max-width: 7.2ch;
-    line-height: 0.98;
-  }
-  .hero-copy {
-    max-width: 100%;
-    margin-top: 24px;
-    font-size: var(--step-lede);
-    line-height: 1.55;
-    overflow-wrap: break-word;
-  }
-  .actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-top: 28px;
-  }
-  .hero-panel,
-  .ticker {
-    display: none;
-  }
-  .button {
-    width: 100%;
-    min-height: 48px;
-    padding: 11px 14px;
-    white-space: normal;
-    text-align: center;
-  }
-  .thesis-copy {
-    grid-template-columns: 1fr;
-    max-width: 100%;
-  }
-  .thesis h2 {
-    max-width: 100%;
-    line-height: 1;
-  }
-  .section { padding: 58px 16px; }
-  .work-grid,
-  .proof-grid,
-  .standard-grid,
-  .outcome-grid,
-  .engagement-grid,
-  .institutional-inner,
-  .platform-grid,
-  .enterprise-line {
-    grid-template-columns: 1fr;
-  }
-  .hero-panel div {
-    grid-template-columns: 112px minmax(0, 1fr);
-  }
-  .hero-panel-title {
-    padding: 16px 12px;
-  }
-  .metric {
-    padding: 16px 12px;
-    font-size: 1.28rem;
-  }
-  .metric-copy {
-    padding: 16px 12px 16px 8px;
-    font-size: var(--step-small);
-    line-height: 1.45;
-    overflow-wrap: break-word;
-  }
-  .contact-row {
-    display: block;
-  }
-  .contact-row .button {
-    margin-top: 20px;
-  }
+  h1 { max-width: 100%; }
+  .section { padding-top: 80px; }
+  .hero-content { padding: 100px var(--gutter) 40px; }
+  .hero-img { object-position: 62% center; }
+  .hero-panel { margin-top: 28px; }
+  .hero-panel div { grid-template-columns: 88px 1fr; }
+  .metric { padding: 14px 12px; font-size: 1.25rem; }
+  .metric-copy { padding: 14px 12px 14px 0; }
+  .menu > summary { display: inline-flex; }
+  .nav-links { position: absolute; left: 0; right: 0; top: 58px; display: grid; gap: 0; padding: 8px 16px 16px; background: rgba(11, 13, 12, 0.96); border-bottom: 1px solid var(--line-dark); }
+  .nav-links a { display: flex; align-items: center; min-height: 48px; border-bottom: 1px solid rgba(255, 250, 240, 0.12); }
+  .nav-links a::after { display: none; }
+  .nav-cta { border: 0; padding: 0; }
+  .actions .button, .conversion-actions .button, .contact-actions .button { width: 100%; min-height: 48px; padding: 11px 14px; white-space: normal; text-align: center; }
+  .proof-cell { grid-template-columns: 88px 1fr; }
+  .service { grid-template-columns: 1fr; gap: 6px; padding: 24px 0; }
+  .service-num { font-size: var(--step-label); line-height: 1; }
+  .contact { min-height: 0; }
+  .contact .section { padding-top: 80px; padding-bottom: 80px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 </style>
 </head>
 <body>
-<nav class="nav">
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="nav" aria-label="Primary">
   <div class="nav-inner">
-    <a class="brand" href="index.html">Collatio Labs</a>
-    <div class="nav-links">
-      <a href="#platform">Platform</a>
-      <a href="#outcomes">Outcomes</a>
-      <a href="#work">Evidence</a>
-      <a href="#services">Services</a>
-      <a href="#proof">Trust</a>
-      <a href="mailto:contact@collatiolabs.com" class="nav-cta">Contact</a>
-    </div>
+    <a class="brand" href="/">Collatio Labs</a>
+    <details class="menu" open>
+      <summary aria-label="Menu">Menu</summary>
+      <div class="nav-links">
+        <a href="#work">Evidence</a>
+        <a href="#platform">Approach</a>
+        <a href="#outcomes">Outcomes</a>
+        <a href="#services">Services</a>
+        <a href="#trust">Trust</a>
+        <a href="#contact" class="nav-cta">Contact</a>
+      </div>
+    </details>
   </div>
 </nav>
 
-<main>
+<main id="main">
   <section class="hero">
+    <img class="hero-img" src="assets/hero-1600.jpg" srcset="assets/hero-900.webp 900w, assets/hero-1600.webp 1672w" sizes="100vw" width="1672" height="941" alt="" fetchpriority="high" decoding="async">
     <div class="hero-content">
       <div class="hero-grid">
         <div>
-          <div class="kicker">AI-native systems studio</div>
-          <h1>The operating layer for complex work.</h1>
-          <p class="hero-copy">Collatio Labs builds governed systems that make complex work visible, decisions defensible, and execution repeatable.</p>
+          <p class="kicker">AI-native systems studio · Portland, Oregon · SAM.gov registered</p>
+          <h1>Systems that make complex work defensible.</h1>
+          <p class="hero-copy">Collatio Labs designs and builds the workflow, data, and AI systems that public agencies and compliance-sensitive organizations use to capture, verify, route, and approve document-heavy work — with a human holding every consequential decision and evidence you can inspect.</p>
           <div class="actions">
-            <a href="mailto:contact@collatiolabs.com?subject=Map%20a%20Complex%20Workflow" class="button light">Map a complex workflow</a>
-            <a href="#outcomes" class="button">See what gets built</a>
+            <a href="mailto:contact@collatiolabs.com?subject=Live%20demonstration%20request" class="button light">Request a live demonstration<span class="sr"> (opens your email app)</span></a>
+            <a href="#work" class="button">See the systems</a>
           </div>
+          <p class="hero-addr"><a href="mailto:contact@collatiolabs.com">contact@collatiolabs.com</a></p>
         </div>
-        <aside class="hero-panel" aria-label="Collatio Labs platform layers">
-          <span class="hero-panel-title">System anatomy</span>
+        <aside class="hero-panel" aria-labelledby="anatomy">
+          <h2 class="hero-panel-title" id="anatomy">What we build</h2>
           <div><span class="metric">Data</span> <span class="metric-copy">Capture, normalize, validate, and reconcile operational records across files, forms, portals, and APIs.</span></div>
           <div><span class="metric">AI</span> <span class="metric-copy">Human-reviewed classification, extraction, drafting, search, routing, and decision-support workflows.</span></div>
           <div><span class="metric">Apps</span> <span class="metric-copy">Internal tools, dashboards, review queues, integrations, and automation built around live operating needs.</span></div>
-          <div><span class="metric">Trust</span> <span class="metric-copy">Evidence, QA gates, source-truth checks, approvals, handoff records, and executive control.</span></div>
+          <div><span class="metric">Trust</span> <span class="metric-copy">Evidence, QA gates, checks against the source record, approvals, handoff records, and executive control.</span></div>
         </aside>
       </div>
-      <div class="ticker" aria-hidden="true">
-        <div class="ticker-track">
-          <span>Operational infrastructure</span><span>Governed AI</span><span>Data systems</span><span>Internal software</span><span>Executive dashboards</span><span>Workflow platforms</span><span>Document intelligence</span><span>Delivery control</span>
-        </div>
-      </div>
     </div>
   </section>
 
-  <section class="institutional" aria-label="Institutional operating principles">
+  <section class="institutional" aria-label="Doing business with Collatio Labs">
     <div class="institutional-inner">
-      <span><strong>Architecture</strong>Workflow, data, software, and governance designed as one operating layer.</span>
-      <span><strong>Governance</strong>Human authority, approval gates, audit trails, and claim-safe proof built in.</span>
-      <span><strong>Execution</strong>Prototype, validate, document, and convert complex work into repeatable systems.</span>
-      <span><strong>Readiness</strong>Built for leaders who need evidence, control, and delivery discipline before scale.</span>
+      <span><strong>Entity</strong>Collatio Labs LLC, Portland, Oregon. Registered in SAM.gov; UEI and CAGE furnished on request.</span>
+      <span><strong>Principal</strong>Principal-led and senior-only. The principal brings 19 years of enterprise delivery: AWS strategic accounts, state Medicaid program leadership, global security modernization.</span>
+      <span><strong>Commercial</strong>Fixed-price milestones priced from a founder-approved rate card. General and excess liability insurance in force; certificate of insurance on request.</span>
+      <span><strong>Proof</strong>Every system on this page was built by Collatio Labs. Any of them can be demonstrated live, on request.</span>
     </div>
   </section>
 
-  <section class="thesis">
-    <div class="section">
-      <div class="thesis-grid">
-        <h2>The operating layer between data and decisions.</h2>
-        <div class="thesis-copy">
-          <p>Critical work often lives between systems: in files, spreadsheets, portals, inboxes, approvals, and institutional judgment. Collatio turns that gap into a controlled operating layer.</p>
-          <p>The result is software-defined execution: intake, extraction, validation, review, dashboards, documentation, governance, and human approval gates.</p>
-        </div>
-      </div>
-      <div class="standard-grid" aria-label="Collatio operating standards">
-        <article class="standard"><strong>01 Map</strong><p>We model the operating reality, decision rights, source systems, risks, and proof requirements.</p></article>
-        <article class="standard"><strong>02 Build</strong><p>We ship the software, automation, dashboard, data layer, or prototype that proves the path.</p></article>
-        <article class="standard"><strong>03 Govern</strong><p>AI accelerates the work while humans retain authority over commitments, spend, delivery, and public claims.</p></article>
-      </div>
-    </div>
-  </section>
-
-  <section class="platform" id="platform">
+  <section class="band band-stone tentpole" id="work">
     <div class="section">
       <div class="section-head">
-        <div class="label">Operating Model</div>
-        <p class="statement">A governed system of record for workflows that were never designed to scale.</p>
+        <p class="label">Evidence</p>
+        <div>
+          <h2 class="statement">Every capability claim on this page is backed by a system we can show you running.</h2>
+          <p class="section-note">All systems below were built by Collatio Labs; the running ones are operated by us. Every “Verified” line is a Collatio test run or demonstration; any of them can be re-run live, on request.</p>
+        </div>
+      </div>
+      <div class="work-grid">
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Running</span> · Procurement document intelligence</span><span>01</span></div>
+          <h3>The Machine</h3>
+          <p>The system Collatio runs its own government-contracting pipeline on. AI discovers, classifies, drafts, and checks; a human always clicks submit. It pulls solicitations from the SAM.gov API and 1,200+ public sources, sorts product bids from service bids, drafts against a quality gate, verifies SAM/CAGE/UEI, prices from a founder-approved rate card, and stops at the submit button.</p>
+          <p class="verified"><em>Verified</em>625 test files passed in the full run of 15 Aug 2026 (3,589 tests collected); in production on one PostgreSQL database with 140,000+ records.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Records · verifiable archives</span><span>02</span></div>
+          <h3>Custodia</h3>
+          <p>Decommission a legacy system into an archive that proves itself: an RFC 6962 Merkle-committed store, an Ed25519-signed certificate, and a dependency-free verifier shipped inside every archive.</p>
+          <p class="verified"><em>Verified</em>183 tests passing; an end-to-end run built an archive, verified it, altered one record, and re-verification correctly failed.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Documents · sealing</span><span>03</span></div>
+          <h3>Notis</h3>
+          <p>Document sealing and multi-party signing with tamper detection across SHA-512, SHA3, and BLAKE3.</p>
+          <p class="verified"><em>Verified</em>489 tests passing; a sealed file verified, then failed verification the moment its content changed.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Storage · verifiable</span><span>04</span></div>
+          <h3>Comprimo</h3>
+          <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction.</p>
+          <p class="verified"><em>Verified</em>exact round trip reproduced directly under chaos and load tests.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Running</span> · Security · host observer</span><span>05</span></div>
+          <h3>Argus</h3>
+          <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding.</p>
+          <p class="verified"><em>Verified</em>API contract published and consumed by The Machine's egress guard; tests pass; running as a read-only host observer.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Demonstrable</span> · AI · agent runtime</span><span>06</span></div>
+          <h3>Vera / Anima</h3>
+          <p>A local-model AI agent runtime with a privacy guard that keeps sensitive prompts on local models; state survives process death, learning is verified numerically, three interchangeable model backends.</p>
+          <p class="verified"><em>Verified</em>continuity, learning, model swap, and privacy routing each demonstrated.</p>
+        </article>
+      </div>
+      <p class="legend">Running = in daily use. Demonstrable = internal demonstration, not customer delivery; shown live on request.</p>
+      <p class="also-built"><strong>Also built:</strong> itsme — live web application with consent, age verification, and geo/IP policy enforcement (live, HTTP 200); Folia — native macOS PDF workspace (SwiftUI, PDFKit; forms, signatures, markup, local OCR); Praeco — introduction marketplace prototype (Flask, Stripe Connect; Next.js rewrite in progress). Demonstration on request. Stack across these systems: Python, Flask, PostgreSQL, SwiftUI, PDFKit; tests, documentation, and handoff-ready repositories.</p>
+    </div>
+  </section>
+
+  <section class="dark-band" id="platform">
+    <div class="section">
+      <div class="section-head">
+        <p class="label">Approach</p>
+        <h2 class="statement">Capture the work, automate the repeatable path, keep authority with the business.</h2>
       </div>
       <div class="platform-grid">
         <article class="platform-unit">
           <strong>01 Intelligence Layer</strong>
-          <div><h3>Capture and structure the work.</h3><p>Documents, spreadsheets, portals, emails, files, and raw decisions become usable data, review queues, and source-truth records.</p></div>
+          <div><h3>Capture and structure the work.</h3><p>Documents, spreadsheets, portals, emails, files, and raw decisions become usable data, review queues, and records tied to their source.</p></div>
         </article>
         <article class="platform-unit">
           <strong>02 Execution Layer</strong>
@@ -1205,142 +476,104 @@ footer a {
           <div><h3>Keep authority with the business.</h3><p>Approvals, evidence, QA gates, acceptance criteria, risk registers, and human review make automation trustworthy.</p></div>
         </article>
       </div>
+      <div class="rules-block">
+        <h2>Engineering speed with human control.</h2>
+        <div class="rules">
+          <div class="rule">AI drafts; a person reviews before anything is delivered.</div>
+          <div class="rule">A human always clicks submit, approves spend, and signs off on delivery and on anything said publicly.</div>
+          <div class="rule">We claim only what we can show running. Every system on this page can be demonstrated live, on request.</div>
+          <div class="rule">Systems can be built to keep sensitive prompts on local models and to stop outside AI and web calls automatically on a high-severity finding.</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="band band-paper" id="outcomes">
     <div class="section">
-    <div class="section-head">
-      <div class="label">Outcomes</div>
-      <p class="statement">Enterprise value starts where manual work becomes operating leverage.</p>
-    </div>
-    <div class="outcome-grid">
-      <article class="outcome">
-        <h3>Workflow infrastructure</h3>
-        <p>Replace handoffs, email chains, spreadsheet rituals, and unclear ownership with a governed operating flow.</p>
-      </article>
-      <article class="outcome">
-        <h3>Data and document intelligence</h3>
-        <p>Extract, reconcile, normalize, validate, and package information from PDFs, spreadsheets, portals, APIs, and files.</p>
-      </article>
-      <article class="outcome">
-        <h3>Governed AI operations</h3>
-        <p>Use AI for analysis, routing, drafting, search, and classification with evidence, approvals, and human review built in.</p>
-      </article>
-      <article class="outcome">
-        <h3>Executive control rooms</h3>
-        <p>Give leaders a current view of status, blockers, decisions, risks, revenue gates, and proof.</p>
-      </article>
-    </div>
-    <div class="buyer-strip">
-      <strong>Built for leaders whose teams need operating clarity before they scale.</strong>
-      <div class="buyer-list">
-        <span>Document-heavy, compliance-sensitive, or public-sector workflows where proof matters.</span>
-        <span>Operators who need software-grade execution before they have a full product team.</span>
-        <span>Founders and executives who need dashboards, evidence, and decision discipline.</span>
-        <span>Teams moving from informal operations to governed, repeatable infrastructure.</span>
-        <span>Not a fit for vague AI strategy, unsupported claims, speculative automation, or cleanup with no operating value.</span>
+      <div class="section-head">
+        <p class="label">Outcomes</p>
+        <h2 class="statement">Manual, document-heavy work becomes a system your staff can operate and your auditors can inspect.</h2>
+      </div>
+      <div class="outcome-grid">
+        <article class="outcome">
+          <h3>Workflow infrastructure</h3>
+          <p>Replace handoffs, email chains, spreadsheet rituals, and unclear ownership with a governed operating flow.</p>
+        </article>
+        <article class="outcome">
+          <h3>Data and document intelligence</h3>
+          <p>Extract, reconcile, normalize, validate, and package information from PDFs, spreadsheets, portals, APIs, and files.</p>
+        </article>
+        <article class="outcome">
+          <h3>Governed AI operations</h3>
+          <p>Use AI for analysis, routing, drafting, search, and classification with evidence, approvals, and human review built in.</p>
+        </article>
+        <article class="outcome">
+          <h3>Leadership dashboards</h3>
+          <p>Give leaders a current view of status, blockers, decisions, risks, approval gates, and evidence.</p>
+        </article>
+      </div>
+      <div class="buyer-strip">
+        <h3 class="buyer-title">Who this is for.</h3>
+        <div class="buyer-list">
+          <span>Public agencies and their program offices with document-heavy, audit-exposed workflows.</span>
+          <span>Compliance-sensitive organizations in health, finance, and regulated services where every output needs a source.</span>
+          <span>Teams moving from spreadsheets, inboxes, and portals to a governed, repeatable system.</span>
+          <span>Leaders who need a current view of status, blockers, decisions, and risk.</span>
+          <span>Not a fit for vague AI strategy, unsupported claims, or speculative automation.</span>
+        </div>
       </div>
     </div>
-    </div>
   </section>
 
-  <section class="band band-stone" id="work">
-    <div class="section">
-    <div class="section-head">
-      <div class="label">Evidence</div>
-      <p class="statement">Credibility comes from systems that can be inspected, tested, and handed off.</p>
-    </div>
-    <div class="work-grid">
-      <article class="work-card">
-        <div><div class="work-top"><span>Running &middot; revenue system</span><span>01</span></div><h3>The Machine</h3></div>
-        <p>A government-contracting revenue engine: discovers solicitations across 1,200+ sources and the SAM.gov API, classifies product-versus-service, drafts against a quality gate, verifies SAM/CAGE/UEI, prices from a founder-approved rate card, and stops at the submit button &mdash; a human always clicks. <em>Verified:</em> running on one PostgreSQL database with 140,000+ proof-disciplined records; 3,589 tests collected, 625 test files passed in the full run of 15&nbsp;Aug&nbsp;2026.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Records &middot; verifiable archives</span><span>02</span></div><h3>Custodia</h3></div>
-        <p>Decommission a legacy system into an archive that proves itself: an RFC&nbsp;6962 Merkle-committed store, an Ed25519-signed certificate, and a dependency-free verifier shipped inside every archive. <em>Verified:</em> 183 tests passing; an end-to-end run built an archive, verified it, altered one record, and re-verification correctly failed. Internal demonstration.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Documents &middot; sealing</span><span>03</span></div><h3>Notis</h3></div>
-        <p>Document sealing and multi-party signing with tamper detection across SHA-512, SHA3, and BLAKE3. <em>Verified:</em> 489 tests passing; a sealed file verified, then failed verification the moment its content changed. Not yet deployed as a service.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Storage &middot; verifiable</span><span>04</span></div><h3>Comprimo</h3></div>
-        <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction. <em>Verified:</em> exact round trip reproduced directly under chaos and load tests. Internal demonstration.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Security &middot; host observer</span><span>05</span></div><h3>Argus</h3></div>
-        <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding. <em>Verified:</em> API contract published and consumed by The Machine's egress guard; tests pass; running as a read-only host observer.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>AI &middot; agent runtime</span><span>06</span></div><h3>Vera / Anima</h3></div>
-        <p>A local-model AI agent runtime whose state survives process death, whose learning is verified numerically, with three interchangeable model backends and a privacy guard that keeps sensitive prompts on local models. <em>Verified:</em> continuity, learning, model swap, and privacy routing each demonstrated. Internal demonstration.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Running &middot; web application</span><span>07</span></div><h3>itsme</h3></div>
-        <p>A live web application with consent, age verification, geo/IP policy, presence and push, block enforcement, and a self-indexing knowledge database of its own code, routes, and migrations. <em>Verified:</em> live (HTTP&nbsp;200); knowledge database counts reproduced.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Documents &middot; PDF</span><span>08</span></div><h3>Folia</h3></div>
-        <p>Native macOS PDF workspace built with SwiftUI and PDFKit: forms, signatures, markup, page tools, local OCR, packaged distribution.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Marketplace</span><span>09</span></div><h3>Praeco</h3></div>
-        <p>Trust-based introduction marketplace with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and 24 test files; a Next.js rewrite in progress.</p>
-      </article>
-    </div>
-    </div>
-  </section>
-
-  <section class="band band-bone" id="services">
-    <div class="section">
-    <div class="section-head">
-      <div class="label">Enterprise Entry Points</div>
-      <p class="statement">Consistent entry points for turning operational pressure into governed systems.</p>
-    </div>
-    <div class="services">
-      <article class="service">
-        <div class="service-num">01</div>
-        <div><h3>Executive systems review</h3><p>Turn a critical workflow into a scoped operating plan: source material, handoffs, risks, decision gates, technical path, and first sprint.</p></div>
-      </article>
-      <article class="service">
-        <div class="service-num">02</div>
-        <div><h3>Document intelligence sprint</h3><p>Extract, clean, validate, and package data from PDFs, spreadsheets, forms, and recurring document workflows.</p></div>
-      </article>
-      <article class="service">
-        <div class="service-num">03</div>
-        <div><h3>Internal platform build</h3><p>Create the app, dashboard, operating ledger, review queue, or reporting layer that makes ownership, evidence, and next actions visible.</p></div>
-      </article>
-      <article class="service">
-        <div class="service-num">04</div>
-        <div><h3>Governed AI operations</h3><p>Use AI for extraction, classification, drafting, search, and routing while preserving human approval and source-truth checks.</p></div>
-      </article>
-      <article class="service">
-        <div class="service-num">05</div>
-        <div><h3>Data migration and control</h3><p>Normalize records, reconcile conflicts, move data across tools, and produce reviewable outputs the business can trust.</p></div>
-      </article>
-      <article class="service">
-        <div class="service-num">06</div>
-        <div><h3>Workflow and API integration</h3><p>Connect forms, files, email, databases, APIs, and reporting so ownership and status stop disappearing between systems.</p></div>
-      </article>
-    </div>
-    </div>
-  </section>
-
-  <section class="engagements">
+  <section class="band band-stone" id="services">
     <div class="section">
       <div class="section-head">
-        <div class="label">Engagement Model</div>
-        <p class="statement">Start with one critical workflow. Prove the operating layer. Expand with discipline.</p>
+        <p class="label">Services</p>
+        <h2 class="statement">Six ways to start.</h2>
+      </div>
+      <div class="services">
+        <article class="service">
+          <div class="service-num">01</div>
+          <div><h3>Executive systems review</h3><p>Turn a critical workflow into a scoped operating plan: source material, handoffs, risks, decision gates, technical path, and first sprint.</p></div>
+        </article>
+        <article class="service">
+          <div class="service-num">02</div>
+          <div><h3>Document intelligence sprint</h3><p>Extract, clean, validate, and package data from PDFs, spreadsheets, forms, and recurring document workflows.</p></div>
+        </article>
+        <article class="service">
+          <div class="service-num">03</div>
+          <div><h3>Internal platform build</h3><p>Create the app, dashboard, status ledger, review queue, or reporting layer that makes ownership, evidence, and next actions visible.</p></div>
+        </article>
+        <article class="service">
+          <div class="service-num">04</div>
+          <div><h3>Governed AI operations</h3><p>Use AI for extraction, classification, drafting, search, and routing while a human keeps approval and every output is checked against its source record. AI steps can run on local models so sensitive data does not leave your environment.</p></div>
+        </article>
+        <article class="service">
+          <div class="service-num">05</div>
+          <div><h3>Data migration and control</h3><p>Normalize records, reconcile conflicts, move data across tools, and produce reviewable outputs the business can trust.</p></div>
+        </article>
+        <article class="service">
+          <div class="service-num">06</div>
+          <div><h3>Workflow and API integration</h3><p>Connect forms, files, email, databases, APIs, and reporting so ownership and status stop disappearing between systems.</p></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="band band-paper" id="engagement">
+    <div class="section">
+      <div class="section-head">
+        <p class="label">Engagement Model</p>
+        <h2 class="statement">Start with one critical workflow. Prove the operating layer. Expand with discipline.</h2>
       </div>
       <div class="engagement-grid">
         <article class="engagement">
-          <strong>01 Executive Review</strong>
+          <strong>01 Executive Systems Review</strong>
           <div><h3>Find the leverage.</h3><p>Map the workflow, data, documents, tools, risks, and handoffs. Leave with a scoped build path and clear decision gates.</p></div>
         </article>
         <article class="engagement">
           <strong>02 Infrastructure Sprint</strong>
-          <div><h3>Make it operational.</h3><p>Build the first working version: extraction flow, dashboard, internal app, automation, AI review loop, or operating ledger.</p></div>
+          <div><h3>Make it operational.</h3><p>Build the first working version: extraction flow, dashboard, internal app, automation, AI review loop, or status ledger.</p></div>
         </article>
         <article class="engagement">
           <strong>03 Operating Layer</strong>
@@ -1348,44 +581,36 @@ footer a {
         </article>
       </div>
       <div class="conversion">
-        <p>Good first engagements have an accountable owner, a recurring high-value workflow, usable source material, a clear success definition, and a reason the current process cannot keep scaling.</p>
+        <div>
+          <p>Good first engagements have an accountable owner, a recurring high-value workflow, usable source material, a clear success definition, and a reason the current process cannot keep scaling.</p>
+          <p>Engagements are priced from a founder-approved rate card as fixed-price milestones, each accepted against agreed acceptance criteria. You work directly with the principal, and every engagement is built to be handed off: documented and tested code in a handoff-ready repository, with a written handoff at each milestone. Rate card on request.</p>
+        </div>
         <div class="conversion-actions">
-          <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">Request an executive review</a>
-          <a href="#proof" class="button">Review proof standards</a>
+          <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">Request an executive systems review<span class="sr"> (opens your email app)</span></a>
+          <a href="mailto:contact@collatiolabs.com?subject=Live%20demonstration%20request" class="button">Request a live demonstration<span class="sr"> (opens your email app)</span></a>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="proof" id="proof">
+  <section class="dark-band" id="trust">
     <div class="section">
       <div class="section-head">
-        <div class="label">Trust System</div>
-        <p class="statement proof-statement">Institutional trust is built through proof, control, and clean boundaries.</p>
+        <p class="label">Trust</p>
+        <h2 class="statement">Trust is built through proof, control, and clean boundaries.</h2>
       </div>
       <div class="proof-grid">
-        <div class="proof-cell"><strong>Apps</strong><span>Native tools, PDF workspaces, security monitors, marketplaces, dashboards, and governed AI systems.</span></div>
-        <div class="proof-cell"><strong>Data</strong><span>Extraction pipelines, structured outputs, API workflows, document parsing, validation, and reporting.</span></div>
-        <div class="proof-cell"><strong>Code</strong><span>Python, Flask, PostgreSQL, SwiftUI, PDFKit, scripts, tests, documentation, and handoff-ready repositories.</span></div>
-        <div class="proof-cell"><strong>Ops</strong><span>Executive cadence, source-truth ledgers, QA gates, acceptance criteria, risk registers, and delivery control.</span></div>
-        <div class="proof-cell"><strong>Trust</strong><span>NDA-safe positioning, human review, and clear boundaries before delivery, spend, external commitments, or public claims.</span></div>
+        <div class="proof-cell"><strong>Entity</strong><span>Collatio Labs LLC, Portland, Oregon. Registered in SAM.gov; UEI and CAGE on request.</span></div>
+        <div class="proof-cell"><strong>Principal</strong><span>Principal-led, senior-only. 19 years of enterprise delivery: AWS strategic accounts, state Medicaid program leadership, global security modernization. <a href="https://www.linkedin.com/in/stevenlamarmichael">Principal on LinkedIn</a>.</span></div>
+        <div class="proof-cell"><strong>Commercial</strong><span>Fixed-price milestones on a founder-approved rate card, each accepted against agreed acceptance criteria. Rate card on request.</span></div>
+        <div class="proof-cell"><strong>Insured</strong><span>General and excess liability insurance in force; certificate of insurance on request.</span></div>
+        <div class="proof-cell"><strong>Control</strong><span>A human reviews AI-assisted work before delivery, and holds authority over commitments, spend, delivery, and anything said publicly. Documentation and handoff records accompany every delivery.</span></div>
       </div>
       <div class="proof-safe-note">
-        <p>When direct client names or former-project details are not appropriate, Collatio can still prove capability through synthetic demos, redacted workflows, screenshots, code-backed artifacts, acceptance criteria, QA checklists, and handoff documents.</p>
+        <p>There are no client names or testimonials on this page. Every system above was built by Collatio Labs; the principal's 19 years of enterprise delivery predate Collatio and are not presented as Collatio past performance. Capability is proven by showing the systems running — code, tests, and live instance — in a working session.</p>
         <div class="conversion-actions">
-          <a href="mailto:contact@collatiolabs.com?subject=Proof-Safe%20Executive%20Review" class="button light">Ask for proof-safe examples</a>
+          <a href="mailto:contact@collatiolabs.com?subject=Live%20demonstration%20request" class="button light">Request a live demonstration<span class="sr"> (opens your email app)</span></a>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="governed">
-    <div class="section governed-copy">
-      <h2>Engineering speed with executive control.</h2>
-      <div class="rules">
-        <div class="rule">AI-assisted work is checked by a human before delivery.</div>
-        <div class="rule">Software, data, and workflow claims stay tied to demonstrable artifacts and claim-safe proof.</div>
-        <div class="rule">Every deliverable is built around a live path: capture, structure, build, validate, use, ship, and verify.</div>
       </div>
     </div>
   </section>
@@ -1394,16 +619,29 @@ footer a {
     <div class="section">
       <h2>Bring the workflow your organization cannot afford to leave manual.</h2>
       <div class="contact-row">
-        <p>Show us the workflow that is spreadsheet-bound, document-heavy, AI-ready, data-fragmented, software-starved, compliance-sensitive, or difficult to trust. We will turn it into a scoped operating system with evidence, controls, and a path to production.</p>
-        <a href="mailto:contact@collatiolabs.com?subject=Executive%20Systems%20Review" class="button dark">contact@collatiolabs.com</a>
+        <p>Email contact@collatiolabs.com and bring one workflow. We will scope it, price it in fixed-price milestones against a founder-approved rate card, and demonstrate our working systems live before you commit further. Any system on this page can be demonstrated live, on request.</p>
+        <div class="contact-actions">
+          <a href="mailto:contact@collatiolabs.com?subject=Live%20demonstration%20request" class="button dark">contact@collatiolabs.com<span class="sr"> (opens your email app)</span></a>
+          <p class="contact-meta">Collatio Labs LLC · Portland, Oregon · <a href="https://www.linkedin.com/in/stevenlamarmichael">Principal on LinkedIn</a></p>
+        </div>
       </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <span>&copy; 2026 Collatio Labs LLC. Portland, Oregon.</span>
-  <span><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="https://www.linkedin.com/in/stevenlamarmichael">LinkedIn</a></span>
+  <div class="footer-inner">
+    <span>© 2026 Collatio Labs LLC · Portland, Oregon · Registered in SAM.gov (UEI and CAGE on request)</span>
+    <nav aria-label="Legal"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="https://www.linkedin.com/in/stevenlamarmichael">LinkedIn</a></nav>
+  </div>
 </footer>
+<script>
+(function () {
+  var menu = document.querySelector('.menu'), narrow = window.matchMedia('(max-width: 620px)');
+  function sync() { menu.open = !narrow.matches; }
+  sync(); narrow.addEventListener('change', sync);
+  menu.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', function () { if (narrow.matches) menu.open = false; }); });
+})();
+</script>
 </body>
 </html>
