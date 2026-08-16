@@ -111,8 +111,8 @@ a { color: inherit; }
 
 .nav-cta {
   border: 1px solid rgba(255, 250, 240, 0.32);
-  border-radius: 999px;
-  padding: 8px 13px;
+  border-radius: 4px;
+  padding: 8px 14px;
 }
 
 .hero {
@@ -249,11 +249,12 @@ h1 {
   align-items: center;
   justify-content: center;
   border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 10px 17px;
+  border-radius: 4px;
+  padding: 12px 20px;
   font-size: var(--step-small);
   font-weight: 700;
   text-decoration: none;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
 .button.light {
@@ -322,14 +323,16 @@ h1 {
   background: var(--ink);
   color: rgba(255, 250, 240, 0.72);
   font-size: var(--step-small);
-  font-weight: 700;
-  text-transform: uppercase;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .institutional strong {
   display: block;
   color: var(--green);
   font-size: var(--step-label);
+  font-weight: 700;
+  text-transform: uppercase;
   margin-bottom: 14px;
 }
 
@@ -351,7 +354,7 @@ h1 {
   max-width: 760px;
   color: var(--muted);
   font-size: var(--step-lede);
-  font-weight: 600;
+  font-weight: 400;
   margin-top: 20px;
 }
 
@@ -413,7 +416,7 @@ h1 {
   color: var(--muted);
   font-size: var(--step-lede);
   line-height: 1.45;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .standard-grid {
@@ -435,6 +438,7 @@ h1 {
   display: block;
   color: var(--clay);
   font-size: var(--step-label);
+  font-weight: 700;
   letter-spacing: 0;
   text-transform: uppercase;
   margin-bottom: 36px;
@@ -444,7 +448,7 @@ h1 {
   max-width: 34ch;
   color: rgba(13, 13, 11, 0.72);
   font-size: var(--step-body);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .outcome-grid {
@@ -458,7 +462,7 @@ h1 {
   min-height: 250px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 24px;
   padding: 22px;
   border-right: 1px solid var(--line);
@@ -479,6 +483,7 @@ h1 {
   color: var(--muted);
   font-size: var(--step-body);
   max-width: 34ch;
+  margin: auto 0;
 }
 
 .buyer-strip {
@@ -505,9 +510,16 @@ h1 {
 .buyer-list span {
   display: block;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 10px;
-  color: var(--muted);
-  font-weight: 700;
+  padding-bottom: 12px;
+  color: rgba(13, 13, 11, 0.74);
+  font-size: var(--step-body);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.buyer-list span:last-child {
+  border-bottom: 0;
+  color: var(--clay);
 }
 
 .platform {
@@ -681,10 +693,14 @@ h1 {
 }
 
 .engagements {
-  background: var(--bone);
+  background: rgba(203, 214, 214, 0.34);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
+
+.band-paper { background: var(--paper); }
+.band-stone { background: var(--stone); }
+.band-bone { background: var(--bone); border-top: 1px solid var(--line); }
 
 .engagement-grid {
   display: grid;
@@ -734,12 +750,13 @@ h1 {
   max-width: 68ch;
   color: var(--muted);
   font-size: var(--step-lede);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .conversion-actions {
   display: grid;
   gap: 10px;
+  justify-items: start;
 }
 
 .proof {
@@ -859,7 +876,7 @@ h1 {
 .contact-row p {
   max-width: 48ch;
   color: rgba(255, 250, 240, 0.68);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .contact .button.dark {
@@ -882,7 +899,7 @@ h1 {
   max-width: 68ch;
   color: rgba(255, 250, 240, 0.68);
   font-size: var(--step-lede);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 footer {
@@ -921,6 +938,16 @@ footer a {
   .platform-grid,
   .enterprise-line {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* an odd last cell spans the row instead of leaving an empty slot */
+  .work-card:last-child:nth-child(odd),
+  .proof-cell:last-child:nth-child(odd),
+  .standard:last-child:nth-child(odd),
+  .outcome:last-child:nth-child(odd),
+  .engagement:last-child:nth-child(odd),
+  .platform-unit:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .services {
@@ -1181,7 +1208,8 @@ footer a {
     </div>
   </section>
 
-  <section class="section" id="outcomes">
+  <section class="band band-paper" id="outcomes">
+    <div class="section">
     <div class="section-head">
       <div class="label">Outcomes</div>
       <p class="statement">Enterprise value starts where manual work becomes operating leverage.</p>
@@ -1214,9 +1242,11 @@ footer a {
         <span>Not a fit for vague AI strategy, unsupported claims, speculative automation, or cleanup with no operating value.</span>
       </div>
     </div>
+    </div>
   </section>
 
-  <section class="section" id="work">
+  <section class="band band-stone" id="work">
+    <div class="section">
     <div class="section-head">
       <div class="label">Evidence</div>
       <p class="statement">Credibility comes from systems that can be inspected, tested, and handed off.</p>
@@ -1259,9 +1289,11 @@ footer a {
         <p>Trust-based introduction marketplace with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and 24 test files; a Next.js rewrite in progress.</p>
       </article>
     </div>
+    </div>
   </section>
 
-  <section class="section" id="services">
+  <section class="band band-bone" id="services">
+    <div class="section">
     <div class="section-head">
       <div class="label">Enterprise Entry Points</div>
       <p class="statement">Consistent entry points for turning operational pressure into governed systems.</p>
@@ -1291,6 +1323,7 @@ footer a {
         <div class="service-num">06</div>
         <div><h3>Workflow and API integration</h3><p>Connect forms, files, email, databases, APIs, and reporting so ownership and status stop disappearing between systems.</p></div>
       </article>
+    </div>
     </div>
   </section>
 
