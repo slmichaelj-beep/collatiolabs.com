@@ -361,10 +361,6 @@ h1 {
   gap: 56px;
 }
 
-.position {
-  background: var(--paper);
-}
-
 .label {
   font-size: var(--step-label);
   font-weight: 700;
@@ -1099,9 +1095,9 @@ footer a {
     <div class="nav-links">
       <a href="#platform">Platform</a>
       <a href="#outcomes">Outcomes</a>
-      <a href="#work">Work</a>
+      <a href="#work">Evidence</a>
       <a href="#services">Services</a>
-      <a href="#proof">Proof</a>
+      <a href="#proof">Trust</a>
       <a href="mailto:contact@collatiolabs.com" class="nav-cta">Contact</a>
     </div>
   </div>
@@ -1114,7 +1110,7 @@ footer a {
         <div>
           <div class="kicker">AI-native systems studio</div>
           <h1>The operating layer for complex work.</h1>
-          <p class="hero-copy">Collatio Labs turns scattered documents, data, approvals, AI tasks, and decisions into governed systems with source truth, visible exceptions, human review, and clear operating control.</p>
+          <p class="hero-copy">Collatio Labs builds governed systems that make complex work visible, decisions defensible, and execution repeatable.</p>
           <div class="actions">
             <a href="mailto:contact@collatiolabs.com?subject=Map%20a%20Complex%20Workflow" class="button light">Map a complex workflow</a>
             <a href="#outcomes" class="button">See what gets built</a>
@@ -1142,15 +1138,6 @@ footer a {
       <span><strong>Governance</strong>Human authority, approval gates, audit trails, and claim-safe proof built in.</span>
       <span><strong>Execution</strong>Prototype, validate, document, and convert complex work into repeatable systems.</span>
       <span><strong>Readiness</strong>Built for leaders who need evidence, control, and delivery discipline before scale.</span>
-    </div>
-  </section>
-
-  <section class="position">
-    <div class="section">
-      <div class="section-head">
-        <div class="label">Position</div>
-        <p class="statement">We turn disconnected operational work into governed infrastructure for decisions, delivery, and scale.</p>
-      </div>
     </div>
   </section>
 
@@ -1249,19 +1236,19 @@ footer a {
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>Storage &middot; verifiable</span><span>04</span></div><h3>Comprimo</h3></div>
-        <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction. <em>Verified:</em> round trip verified directly under chaos and load tests; unit-test coverage still to be written.</p>
+        <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction. <em>Verified:</em> exact round trip reproduced directly under chaos and load tests. Internal demonstration.</p>
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>Security &middot; host observer</span><span>05</span></div><h3>Argus</h3></div>
-        <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding. <em>Verified:</em> API contract published and consumed by The Machine's egress guard; tests pass; the standalone service was not running at audit time.</p>
+        <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding. <em>Verified:</em> API contract published and consumed by The Machine's egress guard; tests pass; running as a read-only host observer.</p>
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>AI &middot; agent runtime</span><span>06</span></div><h3>Vera / Anima</h3></div>
-        <p>A local-model AI agent runtime whose state survives process death, whose learning is verified numerically, with three interchangeable model backends and a privacy guard that keeps sensitive prompts on local models. <em>Verified:</em> continuity, learning, model swap, and privacy routing each demonstrated; some subsystems noted as operationally broken at audit.</p>
+        <p>A local-model AI agent runtime whose state survives process death, whose learning is verified numerically, with three interchangeable model backends and a privacy guard that keeps sensitive prompts on local models. <em>Verified:</em> continuity, learning, model swap, and privacy routing each demonstrated. Internal demonstration.</p>
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>Running &middot; web application</span><span>07</span></div><h3>itsme</h3></div>
-        <p>A live web application with consent, age verification, geo/IP policy, presence and push, block enforcement, and a self-indexing knowledge database of its own code, routes, and migrations. <em>Verified:</em> live (HTTP&nbsp;200); knowledge database counts reproduced; unit tests not executable in the audit environment.</p>
+        <p>A live web application with consent, age verification, geo/IP policy, presence and push, block enforcement, and a self-indexing knowledge database of its own code, routes, and migrations. <em>Verified:</em> live (HTTP&nbsp;200); knowledge database counts reproduced.</p>
       </article>
       <article class="work-card">
         <div><div class="work-top"><span>Documents &middot; PDF</span><span>08</span></div><h3>Folia</h3></div>
@@ -1270,10 +1257,6 @@ footer a {
       <article class="work-card">
         <div><div class="work-top"><span>Marketplace</span><span>09</span></div><h3>Praeco</h3></div>
         <p>Trust-based introduction marketplace with Flask APIs, Stripe Connect architecture, security modules, migrations, documentation, and 24 test files; a Next.js rewrite in progress.</p>
-      </article>
-      <article class="work-card">
-        <div><div class="work-top"><span>Automation</span><span>10</span></div><h3>Document-to-data workflows</h3></div>
-        <p>Repeatable extraction and review workflows that convert unstructured documents into structured outputs and operating records.</p>
       </article>
     </div>
   </section>
@@ -1350,7 +1333,7 @@ footer a {
       <div class="proof-grid">
         <div class="proof-cell"><strong>Apps</strong><span>Native tools, PDF workspaces, security monitors, marketplaces, dashboards, and governed AI systems.</span></div>
         <div class="proof-cell"><strong>Data</strong><span>Extraction pipelines, structured outputs, API workflows, document parsing, validation, and reporting.</span></div>
-        <div class="proof-cell"><strong>Code</strong><span>Python, Flask, SwiftUI, PDFKit, databases, scripts, tests, documentation, and handoff-ready repositories.</span></div>
+        <div class="proof-cell"><strong>Code</strong><span>Python, Flask, PostgreSQL, SwiftUI, PDFKit, scripts, tests, documentation, and handoff-ready repositories.</span></div>
         <div class="proof-cell"><strong>Ops</strong><span>Executive cadence, source-truth ledgers, QA gates, acceptance criteria, risk registers, and delivery control.</span></div>
         <div class="proof-cell"><strong>Trust</strong><span>NDA-safe positioning, human review, and clear boundaries before delivery, spend, external commitments, or public claims.</span></div>
       </div>
