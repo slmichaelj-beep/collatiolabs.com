@@ -417,19 +417,19 @@ footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
         <article class="work-card">
           <div class="work-top"><span><span class="status">In production</span> · Procurement intelligence</span><span>01</span></div>
           <h3>The Machine</h3>
-          <p>The system Collatio runs its own government contracting on. Solicitations arrive from the SAM.gov API and 1,200+ public sources; the pipeline classifies bids, drafts against a quality gate, verifies SAM, CAGE, and UEI, and prices from an approved rate card. A human approves every submission.</p>
-          <p class="verified"><em>Verified</em>Live in production on a single PostgreSQL database holding more than 140,000 records.</p>
+          <p>The system Collatio runs its own government contracting on. Solicitations arrive from the SAM.gov API and 1,200+ public sources; the pipeline classifies each one, drafts responses against an explicit quality gate, verifies SAM, CAGE, and UEI registrations, and applies pricing from an approved rate card. A procurement decision is never made without a human.</p>
+          <p class="verified"><em>Verified</em>Live in production, holding more than 140,000 records.</p>
         </article>
         <article class="work-card">
           <div class="work-top"><span><span class="status">Demo on request</span> · Decommission archives</span><span>02</span></div>
           <h3>Custodia</h3>
-          <p>Self-verifying archives for retiring systems. Each archive carries a portable database, a signed completeness certificate, and a dependency-free verifier the customer keeps; the archive opens and proves its own integrity without Custodia in the loop.</p>
+          <p>Self-verifying archives for decommissioned systems. Each archive includes a portable database, a signed completeness certificate, and a dependency-free verifier the customer retains. Archives open and prove their own integrity — no Custodia, no external dependencies.</p>
           <p class="verified"><em>Verified</em>An end-to-end run built an archive and verified it; altering a single record caused re-verification to fail.</p>
         </article>
         <article class="work-card">
           <div class="work-top"><span><span class="status">Demo on request</span> · Document sealing</span><span>03</span></div>
           <h3>Notis</h3>
-          <p>Document sealing and signature verification for files that must not change after signing: sealed files are tamper-evident, and their integrity can be checked by anyone holding the file.</p>
+          <p>Document sealing and signature verification for files that must not change after signing. Sealed files carry cryptographic proofs; any modification — even a single byte — breaks the seal, and any party holding the file can verify it.</p>
           <p class="verified"><em>Verified</em>A sealed file verified intact, then failed verification the moment its content changed.</p>
         </article>
         <article class="work-card">
@@ -441,13 +441,13 @@ footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
         <article class="work-card">
           <div class="work-top"><span><span class="status">In production</span> · Host and network observability</span><span>05</span></div>
           <h3>Argus</h3>
-          <p>Local-first host and network monitoring with a published API contract. It records process and network forensics, builds incident timelines with supporting evidence, and on a high-severity finding can cut a system's outbound AI and web traffic automatically.</p>
+          <p>Local-first host and network monitoring with a published API contract. It records process and network forensics and builds incident timelines with supporting evidence; on a high-severity finding it can automatically isolate a system's outbound AI and web traffic.</p>
           <p class="verified"><em>Verified</em>Running in daily use as a read-only host observer; its published API contract is consumed by The Machine.</p>
         </article>
         <article class="work-card">
           <div class="work-top"><span><span class="status">Demo on request</span> · Agent runtime</span><span>06</span></div>
           <h3>Vera / Anima</h3>
-          <p>An AI agent runtime built for data control: a privacy guard keeps sensitive prompts on local models, agent state survives process failure, learning is verified numerically rather than asserted, and three model backends are interchangeable behind one runtime.</p>
+          <p>An AI agent runtime built for data control. A privacy guard routes sensitive prompts to local models only; agent state persists across process failures; learning is verified numerically rather than asserted; and three model backends are interchangeable behind a single runtime.</p>
           <p class="verified"><em>Verified</em>State continuity across restarts, numerically verified learning, model interchange, and privacy routing have each been demonstrated.</p>
         </article>
       </div>
