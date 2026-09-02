@@ -415,40 +415,40 @@ footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
       </div>
       <div class="work-grid">
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Running</span> · Procurement document intelligence</span><span>01</span></div>
+          <div class="work-top"><span><span class="status">Running</span> · Procurement intelligence</span><span>01</span></div>
           <h3>The Machine</h3>
-          <p>The system Collatio runs its own government-contracting pipeline on. AI discovers, classifies, drafts, and checks; a human always clicks submit. It pulls solicitations from the SAM.gov API and 1,200+ public sources, sorts product bids from service bids, drafts against a quality gate, verifies SAM/CAGE/UEI, prices from a founder-approved rate card, and stops at the submit button.</p>
-          <p class="verified"><em>Verified</em>625 test files passed in the full run of 15 Aug 2026 (3,589 tests collected); in production on one PostgreSQL database with 140,000+ records.</p>
+          <p>The system Collatio runs its own government contracting on. Solicitations arrive from the SAM.gov API and 1,200+ public sources; the pipeline classifies bids, drafts against a quality gate, verifies SAM, CAGE, and UEI, and prices from an approved rate card. A human approves every submission.</p>
+          <p class="verified"><em>Verified</em>Live in production on a single PostgreSQL database holding more than 140,000 records.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demonstrable</span> · Records · verifiable archives</span><span>02</span></div>
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Decommission archives</span><span>02</span></div>
           <h3>Custodia</h3>
-          <p>Decommission a legacy system into an archive that proves itself: an RFC 6962 Merkle-committed store, an Ed25519-signed certificate, and a dependency-free verifier shipped inside every archive.</p>
-          <p class="verified"><em>Verified</em>183 tests passing; an end-to-end run built an archive, verified it, altered one record, and re-verification correctly failed.</p>
+          <p>Self-verifying archives for retiring systems. Each archive carries a portable database, a signed completeness certificate, and a dependency-free verifier the customer keeps; the archive opens and proves its own integrity without Custodia in the loop.</p>
+          <p class="verified"><em>Verified</em>An end-to-end run built an archive and verified it; altering a single record caused re-verification to fail.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demonstrable</span> · Documents · sealing</span><span>03</span></div>
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Document sealing</span><span>03</span></div>
           <h3>Notis</h3>
-          <p>Document sealing and multi-party signing with tamper detection across SHA-512, SHA3, and BLAKE3.</p>
-          <p class="verified"><em>Verified</em>489 tests passing; a sealed file verified, then failed verification the moment its content changed.</p>
+          <p>Document sealing and signature verification for files that must not change after signing: sealed files are tamper-evident, and their integrity can be checked by anyone holding the file.</p>
+          <p class="verified"><em>Verified</em>A sealed file verified intact, then failed verification the moment its content changed.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demonstrable</span> · Storage · verifiable</span><span>04</span></div>
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Verifiable data reduction</span><span>04</span></div>
           <h3>Comprimo</h3>
-          <p>Deterministic data reduction with Merkle proofs and audit certificates: reduce storage and prove exact, bit-perfect reconstruction.</p>
-          <p class="verified"><em>Verified</em>exact round trip reproduced directly under chaos and load tests.</p>
+          <p>Deterministic data reduction backed by Merkle proofs and audit certificates. Storage shrinks; reconstruction is provably exact. Every reduced dataset carries the evidence to demonstrate bit-perfect recovery of the original.</p>
+          <p class="verified"><em>Verified</em>Round-trip reconstruction verified exact, bit for bit, under chaos testing and under load.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Running</span> · Security · host observer</span><span>05</span></div>
+          <div class="work-top"><span><span class="status">Running</span> · Host and network observability</span><span>05</span></div>
           <h3>Argus</h3>
-          <p>Local-first host and network observer with a published API contract: process and network forensics, incident timeline, evidence, and a software breaker that stops a system's outside AI and web calls on a high-severity finding.</p>
-          <p class="verified"><em>Verified</em>API contract published and consumed by The Machine's egress guard; tests pass; running as a read-only host observer.</p>
+          <p>Local-first host and network monitoring with a published API contract. It records process and network forensics, builds incident timelines with supporting evidence, and on a high-severity finding can cut a system's outbound AI and web traffic automatically.</p>
+          <p class="verified"><em>Verified</em>Running in daily use as a read-only host observer; its published API contract is consumed by The Machine.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demonstrable</span> · AI · agent runtime</span><span>06</span></div>
+          <div class="work-top"><span><span class="status">Demonstrable</span> · Agent runtime</span><span>06</span></div>
           <h3>Vera / Anima</h3>
-          <p>A local-model AI agent runtime with a privacy guard that keeps sensitive prompts on local models; state survives process death, learning is verified numerically, three interchangeable model backends.</p>
-          <p class="verified"><em>Verified</em>continuity, learning, model swap, and privacy routing each demonstrated.</p>
+          <p>An AI agent runtime built for data control: a privacy guard keeps sensitive prompts on local models, agent state survives process failure, learning is verified numerically rather than asserted, and three model backends are interchangeable behind one runtime.</p>
+          <p class="verified"><em>Verified</em>State continuity across restarts, numerically verified learning, model interchange, and privacy routing have each been demonstrated.</p>
         </article>
       </div>
       <p class="legend">Running = in daily use. Demonstrable = internal demonstration, not customer delivery; shown live on request.</p>
