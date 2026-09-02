@@ -415,43 +415,43 @@ footer a:hover { text-decoration: underline; text-underline-offset: 4px; }
       </div>
       <div class="work-grid">
         <article class="work-card">
-          <div class="work-top"><span><span class="status">In production</span> · Procurement intelligence</span><span>01</span></div>
+          <div class="work-top"><span><span class="status">In production</span> · Procurement pipeline</span><span>01</span></div>
           <h3>The Machine</h3>
-          <p>The system Collatio runs its own government contracting on. Solicitations arrive from the SAM.gov API and 1,200+ public sources; the pipeline classifies each one, drafts responses against an explicit quality gate, verifies SAM, CAGE, and UEI registrations, and applies pricing from an approved rate card. A procurement decision is never made without a human.</p>
-          <p class="verified"><em>Verified</em>Live in production, holding more than 140,000 records.</p>
+          <p>Procurement intake Collatio uses on its own SAM.gov work. Solicitations arrive from the SAM.gov API and 1,200+ public sources; the pipeline classifies product versus service bids, drafts responses against an explicit quality gate, checks SAM, CAGE, and UEI registrations, and applies pricing from an approved rate card. A human approves every submission — nothing leaves the system without that click.</p>
+          <p class="verified"><em>Verified</em>In daily use, holding more than 140,000 records.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demo on request</span> · Decommission archives</span><span>02</span></div>
+          <div class="work-top"><span><span class="status">In production</span> · Host observer</span><span>02</span></div>
+          <h3>Argus</h3>
+          <p>Local-first host and network observer with a published API contract. On a high-severity finding it can stop a host's outbound AI and web traffic; it records process and network forensics and builds incident timelines with supporting evidence.</p>
+          <p class="verified"><em>Verified</em>In daily use as a read-only host observer; its published API contract is consumed by The Machine.</p>
+        </article>
+        <article class="work-card">
+          <div class="work-top"><span><span class="status">Demo on request</span> · Decommission archives</span><span>03</span></div>
           <h3>Custodia</h3>
-          <p>Self-verifying archives for decommissioned systems. Each archive includes a portable database, a signed completeness certificate, and a dependency-free verifier the customer retains. Archives open and prove their own integrity — no Custodia, no external dependencies.</p>
-          <p class="verified"><em>Verified</em>An end-to-end run built an archive and verified it; altering a single record caused re-verification to fail.</p>
+          <p>Archives for systems you are retiring. Each archive ships with a portable database, an Ed25519-signed completeness certificate, and a dependency-free verifier the customer keeps. The archive opens and proves its own integrity without Custodia in the loop.</p>
+          <p class="verified"><em>Verified</em>An end-to-end run built an archive and verified it; changing one record caused re-verification to fail.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demo on request</span> · Document sealing</span><span>03</span></div>
+          <div class="work-top"><span><span class="status">Demo on request</span> · Document sealing</span><span>04</span></div>
           <h3>Notis</h3>
-          <p>Document sealing and signature verification for files that must not change after signing. Sealed files carry cryptographic proofs; any modification — even a single byte — breaks the seal, and any party holding the file can verify it.</p>
+          <p>Seal a file so any later change is evident. Sealed files carry cryptographic proofs, and anyone holding the file can check its integrity — without calling Collatio.</p>
           <p class="verified"><em>Verified</em>A sealed file verified intact, then failed verification the moment its content changed.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">Demo on request</span> · Verifiable data reduction</span><span>04</span></div>
+          <div class="work-top"><span><span class="status">Demo on request</span> · Verifiable reduction</span><span>05</span></div>
           <h3>Comprimo</h3>
-          <p>Deterministic data reduction backed by Merkle proofs and audit certificates. Storage shrinks; reconstruction is provably exact. Every reduced dataset carries the evidence to demonstrate bit-perfect recovery of the original.</p>
-          <p class="verified"><em>Verified</em>Round-trip reconstruction verified exact, bit for bit, under chaos testing and under load.</p>
+          <p>Reduce a dataset so reconstruction is provably exact. Every reduced set carries Merkle proofs and an audit certificate; recovery is bit-for-bit of the original, and the proof travels with the data.</p>
+          <p class="verified"><em>Verified</em>Round-trip reconstruction matched the original bit for bit, under chaos testing and under load.</p>
         </article>
         <article class="work-card">
-          <div class="work-top"><span><span class="status">In production</span> · Host and network observability</span><span>05</span></div>
-          <h3>Argus</h3>
-          <p>Local-first host and network monitoring with a published API contract. It records process and network forensics and builds incident timelines with supporting evidence; on a high-severity finding it can automatically isolate a system's outbound AI and web traffic.</p>
-          <p class="verified"><em>Verified</em>Running in daily use as a read-only host observer; its published API contract is consumed by The Machine.</p>
-        </article>
-        <article class="work-card">
-          <div class="work-top"><span><span class="status">Demo on request</span> · Agent runtime</span><span>06</span></div>
-          <h3>Vera / Anima</h3>
-          <p>An AI agent runtime built for data control. A privacy guard routes sensitive prompts to local models only; agent state persists across process failures; learning is verified numerically rather than asserted; and three model backends are interchangeable behind a single runtime.</p>
-          <p class="verified"><em>Verified</em>State continuity across restarts, numerically verified learning, model interchange, and privacy routing have each been demonstrated.</p>
+          <div class="work-top"><span><span class="status">Demo on request</span> · Local agent runtime</span><span>06</span></div>
+          <h3>Vera</h3>
+          <p>An agent runtime that keeps sensitive prompts on local models. Agent state survives process failure; three model backends sit behind one interface; and learning claims are checked with a numeric test. (Runtime core: Anima.)</p>
+          <p class="verified"><em>Verified</em>State continuity across restarts, numeric learning checks, backend interchange, and privacy routing have each been demonstrated.</p>
         </article>
       </div>
-      <p class="legend">In production = in daily use at Collatio. Demo on request = built and working; shown live, not yet in customer delivery.</p>
+      <p class="legend">Every capability above is a system we can show running. In production = daily use at Collatio. Demo on request = built and working, shown live — not yet customer-delivered.</p>
       <p class="also-built"><strong>Also built:</strong> itsme — live web application with consent, age verification, and geo/IP policy enforcement (live, HTTP 200); Folia — native macOS PDF workspace (SwiftUI, PDFKit; forms, signatures, markup, local OCR); Praeco — introduction marketplace prototype (Flask, Stripe Connect; Next.js rewrite in progress). Demonstration on request. Stack across these systems: Python, Flask, PostgreSQL, SwiftUI, PDFKit; tests, documentation, and handoff-ready repositories.</p>
     </div>
   </section>
