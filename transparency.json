@@ -1,0 +1,17 @@
+{
+  "epoch": 2,
+  "generated": "2026-09-02T10:07:51Z",
+  "notary_fingerprints": [
+    "7d1e04e8b8ced50d56afbc3d41722e1bfeb7836535fab22edf9ad7d097094d42"
+  ],
+  "root_fingerprint": "e653088df84945d7877c30dc11c13fb8f05b1f385ed2301514376ac8d58a7bc9",
+  "root_pubkey": "c5abd6f70fc63f1b2498de50ea44f2e41d2e55cdd7cd693481cfffb47f3f227c",
+  "signature": "a0896ba605c213837ac8bdc37ec90c66420930eeac225a71e65f6730f57f921db13cabb659542a4392d45ba41f922103ae701163f58060973f6db81828878106",
+  "signing_fingerprints": [
+    "673ffaf2e8e5d363428d631791d2d052b29a420b68511f5a1739cb30a9edc88e",
+    "1e6fd5721e98fc4230f1a1fbe51b51b8aaa17cd24bcf97cd589f85c27cf7d8f9"
+  ],
+  "statement": "CUSTODIA-KEY-PUBLICATION-v2",
+  "valid_from": "2026-09-02T10:07:51Z",
+  "valid_to": ""
+}
