@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="__NAME__">
+<meta name="mobile-web-app-capable" content="yes">
+<title>__NAME__</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+/* ── one palette, used everywhere — so colours stay consistent across every surface ───────── */
+:root{
+  --bg:#0a0a0a;                       /* app background */
+  --panel:rgba(32,34,40,.76);         /* frosted sliding drawers (settings/library/dashboard) */
+  --panel-modal:rgba(32,34,40,.86);   /* focused centred overlay (search) — a touch more opaque */
+  --popover:rgba(26,27,32,.97);       /* solid small popovers (export / add menus) */
+  --line:rgba(255,255,255,.09);       /* hairline border on glass surfaces */
+  --accent:#2f7fff;                   /* the one blue accent */
+}
+/* Full auto-hide scrollbars: invisible until you hover a scrollable surface (chat or drawer),
+   then a thin translucent thumb fades in. The 9px gutter stays reserved so nothing shifts. */
+html{scrollbar-width:thin;scrollbar-color:transparent transparent}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:transparent;border-radius:10px;border:2.5px solid transparent;background-clip:padding-box}
+#log:hover,#settings:hover,#library:hover,#searchPanel:hover{scrollbar-color:rgba(255,255,255,.22) transparent}
+#log:hover::-webkit-scrollbar-thumb,#settings:hover::-webkit-scrollbar-thumb,
+#library:hover::-webkit-scrollbar-thumb,#searchPanel:hover::-webkit-scrollbar-thumb,
+#log:active::-webkit-scrollbar-thumb{background:rgba(255,255,255,.22)}
+#log:hover::-webkit-scrollbar-thumb:hover,#settings:hover::-webkit-scrollbar-thumb:hover,
+#library:hover::-webkit-scrollbar-thumb:hover,#searchPanel:hover::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.34)}
+::-webkit-scrollbar-corner{background:transparent}
+body{font-family:'SF Pro Text',-apple-system,'Inter',system-ui,sans-serif;background:#0a0a0a;color:#e4e4e7;
+  font-weight:300;letter-spacing:.01em;
+  display:flex;flex-direction:column;height:100dvh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+header{position:relative;padding:18px 20px 10px;text-align:center;border-bottom:1px solid #141414;
+  background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3)}
+header h1{font-size:15px;font-weight:400;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;display:inline-block}
+header h1.busy{animation:breathe 1.4s ease-in-out infinite}        /* gentle motion = something's happening */
+@keyframes breathe{0%,100%{opacity:.92;letter-spacing:.22em}50%{opacity:.42;letter-spacing:.28em}}
+header .state{margin-top:4px;font-size:11px;color:#555;letter-spacing:.05em;min-height:0;transition:opacity .3s}
+/* the cog is the RIGHT-edge knob that pulls out the settings drawer */
+#cog{position:fixed;right:0;top:50%;transform:translateY(-50%);z-index:11;width:30px;height:52px;
+  background:rgba(255,255,255,.05);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.08);border-right:none;color:#9a9aa2;border-radius:14px 0 0 14px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color .2s,background .2s}
+#cog:hover{background:rgba(255,255,255,.1);color:#e8e8ec}
+#cog:active{background:rgba(255,255,255,.16)}
+#mute{position:absolute;left:12px;top:12px;width:36px;height:36px;background:none;border:none;color:#666;border-radius:9px}
+#mute:active{background:#161616}
+#mute.muted{color:#b91c1c}
+#log{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:80%;padding:11px 14px;border-radius:16px;font-size:15px;line-height:1.45;word-wrap:break-word}
+.me{align-self:flex-end;background:#1f2937;color:#e8eaed;border-bottom-right-radius:5px}
+.her{align-self:flex-start;background:#141414;color:#d4d4d8;border-bottom-left-radius:5px}
+form{padding:10px 12px;border-top:1px solid #141414;
+  background:rgba(10,10,10,.6);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+  padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+/* one full-width pill: toolbar on the left, text in the middle, send on the right */
+#bar{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+  border-radius:26px;padding:4px 6px;transition:border-color .2s,box-shadow .2s}
+/* a quiet highlight when you're typing — the bar feels awake without shouting */
+#bar:focus-within{border-color:rgba(255,255,255,.18);box-shadow:0 0 0 1px rgba(255,255,255,.05) inset}
+#bar.rec{border-color:rgba(120,170,255,.5);box-shadow:0 0 0 1px rgba(120,170,255,.22) inset}
+#bar.dragover{border-color:rgba(47,127,255,.6);box-shadow:0 0 0 2px rgba(47,127,255,.18) inset}
+#t{flex:1;background:none;border:none;padding:11px 8px;color:#fff;font-size:16px;outline:none;min-width:0}
+#t::placeholder{color:rgba(255,255,255,.34)}
+/* toolbar: compact icon row left of the text input */
+#toolbar{display:flex;align-items:center;gap:0;flex:none}
+.tbtn{background:none;border:none;color:#8a8a8a;width:34px;height:34px;border-radius:50%;
+  flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:color .15s,background .15s;position:relative}
+.tbtn:hover{color:#c4c4c8;background:rgba(255,255,255,.06)}
+.tbtn:active{color:#2f7fff;background:rgba(47,127,255,.14)}
+.tbtn.active{color:#2f7fff}
+/* "+ Add Knowledge" — a LABELED pill so it's unmistakably the knowledge base, not a chat attachment */
+.tpill{display:inline-flex;align-items:center;gap:5px;flex:none;background:rgba(47,127,255,.12);
+  border:1px solid rgba(47,127,255,.34);color:#9cc2ff;height:32px;padding:0 11px 0 9px;margin-right:3px;
+  border-radius:16px;font:inherit;font-size:12.5px;font-weight:400;white-space:nowrap;cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s}
+.tpill:hover{background:rgba(47,127,255,.2);color:#c2d9ff;border-color:rgba(47,127,255,.5)}
+.tpill:active{background:rgba(47,127,255,.3)}
+.tpill svg{flex:none}
+/* keep the label from crowding a very narrow phone: the icon stays, the text hides under ~360px */
+/* on a phone the toolbar must not crowd out the text field: collapse the Add-Knowledge pill to
+   its "+" icon and tighten the icon row so the input keeps a usable width */
+@media (max-width:480px){.tpill-label{display:none}.tpill{padding:0 9px;margin-right:1px}
+  .tbtn{width:32px}#bar{gap:2px}#t{min-width:84px}}
+#mic,#send{background:none;border:none;color:#8a8a8a;width:42px;height:42px;border-radius:50%;
+  flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#mic:active,#send:active{background:#232323}
+/* recording: a soft, light-blue highlight that gently breathes — not an alarm */
+#mic.on{color:#cfe0ff;background:rgba(120,170,255,.18);animation:glow 1.8s ease-in-out infinite}
+#send{color:#2f7fff}
+#bar svg{display:block;pointer-events:none}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(120,170,255,0)}50%{box-shadow:0 0 0 7px rgba(120,170,255,.12)}}
+/* On a wide laptop screen, keep the conversation a centered, readable column instead of
+   stretching edge-to-edge. No effect on phones — the screen is narrower than the cap. */
+#log,#bar{width:100%;max-width:1400px;margin-inline:auto}
+/* settings drawer — frosted glass that slides up, leaving a sliver of chat above */
+/* settings drawer — floating frosted glass that slides in from the RIGHT, ~a third of the screen */
+#settings{position:fixed;right:0;top:0;bottom:0;width:min(430px,42vw);min-width:300px;z-index:12;margin:10px;
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  display:flex;flex-direction:column;padding:16px 18px 16px 28px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.09);box-shadow:-24px 24px 64px rgba(0,0,0,.55);
+  transform:translateX(calc(100% + 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+#settings.open{transform:translateX(0);pointer-events:auto}
+/* library drawer — same frosted glass, slides in from the LEFT */
+#library{position:fixed;left:0;top:0;bottom:0;width:min(520px,52vw);min-width:300px;z-index:12;margin:10px;
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  display:flex;flex-direction:column;padding:16px 28px 16px 18px;border-radius:20px;
+  border:1px solid rgba(255,255,255,.09);box-shadow:24px 24px 64px rgba(0,0,0,.55);
+  transform:translateX(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+#library.open{transform:translateX(0);pointer-events:auto}
+#libgrab{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:4px;height:44px;border-radius:2px;
+  background:rgba(255,255,255,.2);cursor:pointer;transition:background .2s,height .2s}
+#libgrab:hover{background:rgba(255,255,255,.5);height:62px}
+/* search panel — compact overlay centered in chat */
+#searchPanel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);z-index:14;
+  width:min(640px,92vw);max-height:80vh;
+  background:var(--panel-modal);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid var(--line);border-radius:20px;box-shadow:0 32px 80px rgba(0,0,0,.7);
+  display:flex;flex-direction:column;padding:18px 20px;
+  opacity:0;pointer-events:none;transition:opacity .22s,transform .22s}
+#searchPanel.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+/* export/copy menu — small popup above the toolbar button */
+#exportMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
+  background:var(--popover);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:230px;
+  box-shadow:0 12px 40px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
+#exportMenu.open{opacity:1;pointer-events:auto;transform:none}
+.emitem{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:13.5px;color:#c4c4c8;
+  cursor:pointer;user-select:none;transition:background .12s,color .12s}
+.emitem:hover{background:rgba(255,255,255,.07);color:#e8e8ec}
+.emitem:active{background:rgba(255,255,255,.12)}
+.emitem svg{flex:none;color:#8a8a8a}
+/* "+ Add Knowledge" menu — same look as the export menu */
+#addMenu{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;
+  background:var(--popover);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:6px 0;min-width:212px;
+  box-shadow:0 12px 40px rgba(0,0,0,.7);
+  opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity .18s,transform .18s}
+#addMenu.open{opacity:1;pointer-events:auto;transform:none}
+/* intake queue + paste overlays — reuse the trace-overlay look */
+#queueOverlay,#pasteOverlay{position:fixed;inset:0;z-index:21;background:rgba(5,5,7,.82);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);display:flex;align-items:center;
+  justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .2s}
+#queueOverlay.open,#pasteOverlay.open{opacity:1;pointer-events:auto}
+#queueBox,#pasteBox{background:#0f1117;border:1px solid rgba(255,255,255,.12);border-radius:18px;
+  padding:18px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+#queueBox h3,#pasteBox h3{font-size:12px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;
+  color:#888;margin-bottom:12px}
+.qitem{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.qitem .qtitle{font-size:14px;color:#e4e4e7;font-weight:500;word-break:break-word}
+.qitem .qmeta{font-size:12px;color:#888;margin-top:4px;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.qitem .qhist{font-size:11px;color:#5f6672;margin-top:7px;line-height:1.55;
+  border-top:1px solid rgba(255,255,255,.06);padding-top:6px}
+#pasteText{width:100%;min-height:120px;background:#0a0c11;border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;color:#e4e4e7;font-size:14px;padding:11px 13px;font-family:inherit;resize:vertical}
+#pasteText:focus{outline:none;border-color:#2f7fff}
+.paste-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.paste-actions button{background:#1a1d26;border:1px solid rgba(255,255,255,.14);color:#d4d4d8;
+  border-radius:10px;padding:8px 16px;font-size:13px;cursor:pointer;transition:background .15s}
+.paste-actions button.primary{background:#2f7fff;border-color:#2f7fff;color:#fff}
+.paste-actions button:active{background:rgba(255,255,255,.12)}
+/* intake preview card — floated in the chat, below the message that triggered it */
+.intake-card{align-self:flex-start;max-width:90%;background:#0f1117;border:1px solid rgba(255,255,255,.1);
+  border-radius:16px;padding:14px 16px;font-size:14px;color:#c8c8ce;line-height:1.5;margin-top:2px}
+.intake-card .ict{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#555;margin-bottom:6px}
+.intake-card .ictype{font-weight:500;color:#e4e4e7}
+.intake-card .icrow{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.intake-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(255,255,255,.07);color:#9a9aa2;border:1px solid rgba(255,255,255,.08)}
+.intake-tag.warn{background:rgba(185,28,28,.12);color:#f87171;border-color:rgba(185,28,28,.25)}
+.intake-tag.safe{background:rgba(70,178,122,.1);color:#6ee7b7;border-color:rgba(70,178,122,.2)}
+.intake-tag.needs{background:rgba(214,162,58,.1);color:#fcd34d;border-color:rgba(214,162,58,.2)}
+/* control picker inside preview card */
+.ctrl-group{margin-top:12px;display:flex;flex-direction:column;gap:5px}
+.ctrl-group label{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:9px;cursor:pointer;
+  font-size:13px;color:#a4a4ae;transition:background .12s,color .12s}
+.ctrl-group label:hover{background:rgba(255,255,255,.05);color:#d4d4d8}
+.ctrl-group input[type=radio]{accent-color:#2f7fff;flex:none}
+.ctrl-delraw{display:flex;align-items:center;gap:8px;font-size:12px;color:#777;margin-top:6px;padding:4px 8px}
+.ctrl-delraw input[type=checkbox]{accent-color:#2f7fff}
+.intake-approve{margin-top:10px;background:#1c2e4a;color:#7ab8ff;border:none;border-radius:18px;
+  padding:8px 18px;font-size:13px;cursor:pointer;transition:background .15s}
+.intake-approve:hover{background:#22376a}
+.intake-approve:disabled{opacity:.4;cursor:default}
+/* status chips / dots (§7) */
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;flex:none}
+.sdot.queued{background:#555}
+.sdot.parsing{background:#8b6e2a}
+.sdot.classifying{background:#2a6b8b}
+.sdot.extracting{background:#2a5f8b}
+.sdot.needs_review{background:#d6a23a}
+.sdot.certified{background:#46b27a}
+.sdot.active{background:#2f7fff}
+.sdot.archived{background:#444}
+.sdot.failed{background:#b91c1c}
+.sdot.deleted{background:#2a2a2a}
+.status-chip{display:inline-flex;align-items:center;font-size:11px;padding:2px 8px;border-radius:99px;
+  background:rgba(255,255,255,.05);color:#9a9aa2;border:1px solid rgba(255,255,255,.07)}
+/* library row */
+.lib-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);
+  font-size:13px;color:#b4b4bc}
+.lib-row:last-child{border-bottom:none}
+.lib-row .lt{flex:1;min-width:0}
+.lib-row .ltitle{color:#e4e4e7;font-weight:400;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib-row .lmeta{font-size:11px;color:#666;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lib-row .lactions{display:flex;gap:4px;flex:none;align-items:center}
+.lbtn{background:none;border:1px solid rgba(255,255,255,.08);color:#8a8a8a;font-size:11px;padding:3px 9px;
+  border-radius:8px;cursor:pointer;transition:background .12s,color .12s}
+.lbtn:hover{background:rgba(255,255,255,.06);color:#d4d4d4}
+.lbtn.danger{border-color:rgba(185,28,28,.3);color:#f87171}
+.lbtn.danger:hover{background:rgba(185,28,28,.1)}
+/* filter chips */
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.fchip{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);color:#8a8a8a;
+  font-size:11px;padding:4px 11px;border-radius:99px;cursor:pointer;transition:background .12s,color .12s,border-color .12s}
+.fchip:hover{background:rgba(255,255,255,.09);color:#c4c4c8}
+.fchip.sel{background:rgba(47,127,255,.14);border-color:rgba(47,127,255,.35);color:#7ab8ff}
+/* search results */
+.sr-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;transition:background .1s}
+.sr-item:last-child{border-bottom:none}
+.sr-item:hover{background:rgba(255,255,255,.03);margin:0 -6px;padding:10px 6px;border-radius:8px}
+.sr-title{font-size:13.5px;color:#e4e4e7;margin-bottom:3px}
+.sr-snip{font-size:12px;color:#777;line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sr-tag{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 7px;border-radius:99px;margin-right:6px}
+.sr-tag.memory{background:rgba(47,127,255,.15);color:#7ab8ff}
+.sr-tag.reference,.sr-tag.uploaded_pdf,.sr-tag.web_page{background:rgba(70,178,122,.1);color:#6ee7b7}
+.sr-tag.lerf_skill,.sr-tag.lerf_concept,.sr-tag.lerf_procedure{background:rgba(168,85,247,.12);color:#d8b4fe}
+.sr-tag.personal_preference{background:rgba(249,115,22,.1);color:#fdba74}
+.sr-tag.world{background:rgba(255,255,255,.07);color:#9ca3af}
+/* MRI trace overlay */
+#mriOverlay{position:fixed;inset:0;z-index:20;background:rgba(5,5,7,.82);backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .22s}
+#mriOverlay.open{opacity:1;pointer-events:auto}
+#mriBox{width:min(640px,94vw);max-height:82vh;overflow-y:auto;
+  background:rgba(18,18,23,.8);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:22px 24px;
+  box-shadow:0 32px 80px rgba(0,0,0,.8)}
+#mriBox h3{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:12px}
+.trace-step{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px;color:#a4a4ae;line-height:1.5}
+.trace-step:last-child{border-bottom:none}
+.trace-step b{color:#e4e4e7;font-weight:500}
+.trace-render{font-size:12px;color:#777;white-space:pre-wrap;font-family:monospace;margin-top:12px;
+  background:rgba(255,255,255,.03);border-radius:8px;padding:10px;overflow-x:auto}
+/* overlay close btn */
+.overlay-close{background:none;border:1px solid rgba(255,255,255,.1);color:#9a9aa2;border-radius:99px;
+  padding:6px 16px;font-size:12px;cursor:pointer;margin-top:14px;transition:background .15s,color .15s}
+.overlay-close:hover{background:rgba(255,255,255,.07);color:#e4e4e7}
+/* dashboard drawer — pulls DOWN from the top: the operator's gauges + verdict */
+#dashknob{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:13;width:54px;height:18px;
+  display:flex;align-items:center;justify-content:center;font-size:11px;color:#9a9aa2;cursor:pointer;
+  background:rgba(255,255,255,.05);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.08);border-top:none;border-radius:0 0 12px 12px;transition:color .2s,background .2s}
+#dashknob:hover{background:rgba(255,255,255,.1);color:#e8e8ec}
+#dash{position:fixed;top:0;left:0;right:0;margin:10px auto;max-width:720px;max-height:82vh;overflow-y:auto;z-index:12;
+  background:var(--panel);backdrop-filter:blur(36px) saturate(1.8);-webkit-backdrop-filter:blur(36px) saturate(1.8);
+  border:1px solid var(--line);border-radius:20px;box-shadow:0 24px 64px rgba(0,0,0,.55);padding:20px 22px 16px;
+  transform:translateY(calc(-100% - 18px));transition:transform .34s cubic-bezier(.2,.85,.25,1);pointer-events:none}
+#dash.open{transform:translateY(0);pointer-events:auto}
+#dash h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec}
+.gauge{padding:12px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.gauge:last-of-type{border-bottom:none}
+.gh{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:#cfcfd6;margin-bottom:7px}
+.gh span{text-transform:none;letter-spacing:0;color:#6f6f76;font-size:11px;margin-left:7px}
+.grow{display:flex;align-items:baseline;gap:8px;font-size:13px;padding:3px 0}
+.grow>span:first-child{flex:1;color:#8a8a93}
+.grow b{color:#e8e8ee;font-variant-numeric:tabular-nums;font-weight:500}
+.grow .gn{color:#6f6f76;font-size:11px}
+.verdict{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(47,127,255,.1);
+  border:1px solid rgba(47,127,255,.25);color:#cfe0ff;font-size:12.5px;line-height:1.5}
+.dhint{color:#777;font-size:12px;padding:10px 0}
+/* the pull-bar on the drawer's inner edge — click (or grab) to close; no Save/Cancel */
+#grab{position:absolute;left:8px;top:50%;transform:translateY(-50%);width:4px;height:44px;border-radius:2px;
+  background:rgba(255,255,255,.2);cursor:pointer;transition:background .2s,height .2s}
+#grab:hover{background:rgba(255,255,255,.5);height:62px}
+/* collapsible setting groups — frosted rows, all closed by default for a clean drawer */
+.group{border-bottom:1px solid rgba(255,255,255,.07)}
+.group:last-of-type{border-bottom:none}
+.group>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;
+  padding:17px 2px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;user-select:none}
+.group>summary::-webkit-details-marker{display:none}
+.group>summary::after{content:"";margin-left:auto;width:7px;height:7px;flex:none;
+  border-right:1.5px solid #9a9aa2;border-bottom:1.5px solid #9a9aa2;transform:rotate(-45deg);transition:transform .25s}
+.group[open]>summary::after{transform:rotate(45deg)}
+.group>summary:hover{color:#fff}.group>summary:hover::after{border-color:#fff}
+.group .body{padding:0 2px 20px;animation:groupin .28s ease}
+@keyframes groupin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+/* access grouped by service — groups FLOAT on the glass (no card boxes), simple
+   single-color icons, iOS-style toggle on the right */
+.svc{padding:0 2px;margin-bottom:20px}
+.svc-h{display:flex;align-items:center;gap:10px;font-size:13px;color:#cfcfd6;letter-spacing:.04em;
+  padding:2px 0 8px}
+.svc-h svg{opacity:.55}
+#caps .cap{display:flex;align-items:center;gap:10px;padding:12px 0;font-size:14px;color:#d2d2d2;border-bottom:1px solid rgba(255,255,255,.05)}
+#caps .cap:last-child{border-bottom:none}
+#caps .cap>.lbl{flex:1}
+#caps .cap.soon{color:#6f6f6f}
+#caps .tag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#46b27a;background:#11301f;padding:3px 7px;border-radius:9px}
+#caps .cap.soon .tag{color:#777;background:#1f1f1f}
+#caps .tag.exp{color:#d9a23b;background:#332408}
+/* personality dials — frosted sliders that float on the glass */
+.dial{padding:11px 2px 13px;border-bottom:1px solid rgba(255,255,255,.05)}
+.dial:last-child{border-bottom:none}
+.dial .dl{display:flex;justify-content:space-between;font-size:13px;color:#d2d2d2;margin-bottom:9px}
+.dial .dv{color:#8b8b93;font-variant-numeric:tabular-nums;font-size:12px}
+.dial input[type=range]{width:100%;height:3px;-webkit-appearance:none;appearance:none;
+  background:rgba(255,255,255,.14);border-radius:2px;outline:none}
+.dial input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;
+  border-radius:50%;background:#e8e8ee;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer}
+.sw{appearance:none;-webkit-appearance:none;width:42px;height:26px;border-radius:13px;background:#3a3a3a;position:relative;flex:none;transition:background .2s;cursor:pointer;margin:0}
+.sw:checked{background:#2f7fff}
+.sw:disabled{opacity:.4;cursor:default}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw:checked::after{transform:translateX(16px)}
+#allow{width:100%;margin:4px 0 12px;background:#0f0f0f;border:1px solid #222;color:#ddd;border-radius:8px;padding:9px;font-size:13px;min-height:50px;box-sizing:border-box}
+#settings h2{font-size:13px;font-weight:400;letter-spacing:.16em;text-transform:uppercase;color:#e8e8ec;margin-bottom:6px}
+#settings .hint{font-size:12px;color:#666;line-height:1.5;margin-bottom:14px}
+#sheet{flex:1;overflow-y:auto}
+#settings select,#settings #model,#settings #key,#settings #budget{width:100%;margin-top:8px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#ddd;border-radius:9px;
+  padding:11px;font-size:14px;box-sizing:border-box}
+#spend{font-size:12px;color:#8a8a8a;margin-top:9px}
+#brainNote{font-size:12px;color:#d6a23a;margin-top:9px;line-height:1.45}
+#sysinfo{font-size:12px;color:#8a8a8a;margin:2px 0 4px;line-height:1.5}
+#localModels{margin-top:6px}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.mbtn{background:rgba(255,255,255,.08);border:none;color:#cfe0ff;font-size:13px;padding:7px 13px;border-radius:16px;cursor:pointer;width:auto;height:auto}
+.mbtn:active{background:rgba(255,255,255,.16)}
+.mclean{margin-top:12px;font-size:12px;color:#d6a23a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row{display:flex;align-items:center;gap:10px;margin-top:14px;flex:none}
+.txt{width:auto;height:auto;background:none;color:#888;font-size:14px;padding:10px 6px;border-radius:8px}
+.txt:active{background:#161616}
+.primary{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:11px 22px;border-radius:22px}
+#gate{display:none;position:fixed;inset:0;z-index:30;background:rgba(8,8,10,.86);
+  backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  flex-direction:column;align-items:center;justify-content:center;gap:18px}
+#gate.show{display:flex}
+#gate-face{font-size:46px}
+#gate-name{font-size:15px;letter-spacing:.24em;text-transform:uppercase;color:#f5f5f7;font-weight:400}
+#gate-btn{width:auto;height:auto;background:#1f4ed8;color:#fff;font-size:15px;padding:13px 26px;border-radius:24px}
+#faceRow .mbtn{margin-top:2px}
+/* search input inside panel */
+#searchInput{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:#e4e4e7;border-radius:12px;padding:11px 14px;font-size:15px;outline:none}
+#searchInput::placeholder{color:#555}
+#searchInput:focus{border-color:rgba(47,127,255,.4);box-shadow:0 0 0 2px rgba(47,127,255,.12)}
+#searchResults{flex:1;overflow-y:auto;margin-top:12px}
+#libBody{flex:1;overflow-y:auto}
+#libHead{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#9a9aa2;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+/* file picker hidden input */
+#filePicker{display:none}
+</style>
+</head>
+<body>
+<div id="gate">
+  <div id="gate-face">🔒</div>
+  <div id="gate-name">__NAME__</div>
+  <button type="button" id="gate-btn">Unlock with Face ID</button>
+</div>
+<header>
+  <button id="mute" aria-label="voice on/off"></button>
+  <h1 id="title">__NAME__</h1>
+  <div class="state" id="state"></div>
+</header>
+<!-- the settings knob lives OUTSIDE the (backdrop-filtered) header so position:fixed top:50% is
+     viewport-relative — i.e. it rides the vertical MIDDLE of the right edge, mirroring #dashknob -->
+<button id="cog" aria-label="settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.4" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="2.4" fill="currentColor" stroke="none"/></svg></button>
+<div id="log"></div>
+<form id="f">
+  <div id="bar">
+    <!-- mic: stroke-only, tap-to-toggle; aria-label matches the two-state model -->
+    <button type="button" id="mic" aria-label="tap to talk">
+      <!-- stroke mic (not filled) -->
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="3" width="6" height="11" rx="3"/>
+        <path d="M5 11a7 7 0 0 0 14 0"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="9" y1="22" x2="15" y2="22"/>
+      </svg>
+    </button>
+    <!-- attachment toolbar: Add, Code, Search, Library, Export -->
+    <div id="toolbar">
+      <!-- + Add Knowledge — opens a menu: upload file / paste a link / paste text / view queue -->
+      <div style="position:relative">
+        <button type="button" class="tpill" id="tbAdd" aria-label="Add knowledge to the knowledge base" title="Add Knowledge — upload a file, paste a link, or paste text into the knowledge base (not this chat)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span class="tpill-label">Add Knowledge</span>
+        </button>
+        <div id="addMenu">
+          <div class="emitem" id="amUpload">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Upload file<span style="opacity:.42;font-size:.82em;margin-left:auto;padding-left:14px">docs · audio · audiobooks (.mp3/.m4a/.m4b/.wav)</span>
+          </div>
+          <div class="emitem" id="amLink">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            Paste a link
+          </div>
+          <div class="emitem" id="amText">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="14" y2="17"/></svg>
+            Paste text
+          </div>
+          <div class="emitem" id="amQueue">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg>
+            View intake queue
+          </div>
+        </div>
+      </div>
+      <!-- (removed the </> "Code" button — it opened the same file picker as "+ Add Knowledge →
+           Upload file"; the intake classifier handles code regardless, so it was a pure duplicate) -->
+      <!-- magnifier Search -->
+      <button type="button" class="tbtn" id="tbSearch" aria-label="Search knowledge" title="Search">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </button>
+      <!-- folder Library -->
+      <button type="button" class="tbtn" id="tbLib" aria-label="Knowledge library" title="Library">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </button>
+      <!-- overlap-squares Copy/Export -->
+      <div style="position:relative">
+        <button type="button" class="tbtn" id="tbExport" aria-label="Copy or export" title="Copy / Export">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+        <!-- export/copy popup menu — position relative to its parent div -->
+        <div id="exportMenu">
+          <div class="emitem" id="emCopyReply">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy last reply
+          </div>
+          <div class="emitem" id="emCopyTranscript">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Copy transcript
+          </div>
+          <div class="emitem" id="emExportConvo">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export conversation
+          </div>
+          <div class="emitem" id="emExportMind">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/></svg>
+            Export whole mind archive
+          </div>
+          <div class="emitem" id="emExportSources">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Export source summary
+          </div>
+        </div>
+      </div>
+    </div>
+    <input id="t" placeholder="What's on your mind?" enterkeyhint="send"
+      autocomplete="on" autocorrect="on" autocapitalize="sentences" spellcheck="true">
+    <button type="submit" id="send" aria-label="send">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 19V5M5 12l7-7 7 7"/>
+      </svg>
+    </button>
+  </div>
+</form>
+
+<!-- hidden file picker for attach flow -->
+<input type="file" id="filePicker" multiple accept="*/*">
+
+<!-- Settings drawer (existing, unchanged) -->
+<div id="settings">
+  <div id="grab"></div>
+  <div id="sheet">
+
+  <a href="/observatory" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin:0 0 10px;padding:12px 14px;border:1px solid rgba(120,160,255,.28);border-radius:12px;background:rgba(40,60,100,.22);color:#cfe0ff">
+    <b style="font-size:13.5px">◎ Observatory</b><br>
+    <span style="opacity:.72;font-size:12px">What's real · what kind of mind I am · what I know about you · live activity</span>
+  </a>
+
+  <a href="/console" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin:0 0 10px;padding:12px 14px;border:1px solid rgba(120,160,255,.28);border-radius:12px;background:rgba(40,60,100,.22);color:#cfe0ff">
+    <b style="font-size:13.5px">◳ Patterns &amp; Improvements</b><br>
+    <span style="opacity:.72;font-size:12px">What I'm noticing · what's repeating · what I recommend · did the fix work</span>
+  </a>
+
+  <a href="/security" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin:0 0 10px;padding:12px 14px;border:1px solid rgba(120,160,255,.28);border-radius:12px;background:rgba(40,60,100,.22);color:#cfe0ff">
+    <b style="font-size:13.5px">⛨ Security &amp; Quarantine</b><br>
+    <span style="opacity:.72;font-size:12px">Panic button · what I caught · quarantined sources · the security log</span>
+  </a>
+
+  <a href="/founder/living-map" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin:0 0 10px;padding:12px 14px;border:1px solid rgba(120,160,255,.28);border-radius:12px;background:rgba(40,60,100,.22);color:#cfe0ff">
+    <b style="font-size:13.5px">◉ Living Map</b><br>
+    <span style="opacity:.72;font-size:12px">Operational digital twin — how data, memory, sources, models &amp; safety move through me</span>
+  </a>
+
+  <a href="/consent" target="_blank" rel="noopener" style="display:block;text-decoration:none;margin:0 0 14px;padding:12px 14px;border:1px solid rgba(120,160,255,.28);border-radius:12px;background:rgba(40,60,100,.22);color:#cfe0ff">
+    <b style="font-size:13.5px">⚖ Consent &amp; Boundaries</b><br>
+    <span style="opacity:.72;font-size:12px">What I may remember, learn, or reuse in sensitive areas — your call, revocable</span>
+  </a>
+
+  <details class="group"><summary>Brain</summary><div class="body">
+  <p class="hint"><b>Local</b> stays on your Mac. <b>Cloud</b> is smarter but sends the chat out — memory + inbox withheld, PII hashed.</p>
+  <div id="sysinfo"></div>
+  <select id="provider">
+    <option value="local">Local — Stheno (private)</option>
+    <option value="openai">OpenAI</option>
+    <option value="deepseek">DeepSeek</option>
+    <option value="mistral">Mistral</option>
+    <option value="grok">Grok (xAI)</option>
+    <option value="anthropic">Anthropic</option>
+  </select>
+  <div id="cloudFields" style="display:none">
+    <p class="hint" style="margin:10px 0 0">You pick the provider's <b>model</b> (a capability tier
+      like <i>gpt-4o-mini</i> vs <i>gpt-4o</i>) — not a compute size; the provider runs it.</p>
+    <input id="model" list="modelopts" placeholder="model" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <datalist id="modelopts"></datalist>
+    <input id="key" type="password" placeholder="API key — stays on your Mac" autocomplete="off">
+    <input id="budget" type="number" step="0.25" min="0" placeholder="daily spend cap (USD)" autocomplete="off">
+    <div id="spend"></div>
+  </div>
+  <div id="localModels"></div>
+  <div id="brainNote"></div>
+  </div></details>
+
+  <details class="group"><summary>Personality</summary><div class="body">
+  <p class="hint">Her manner — never her honesty (that's fixed in code).</p>
+  <div id="dials"></div>
+  </div></details>
+
+  <details class="group"><summary>Access</summary><div class="body">
+  <p class="hint">All off by default. Nothing sends without your tap.</p>
+  <div id="caps">
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9.6 9.6 0 0 1-4-.9L3 21l1.9-5.5a8.5 8.5 0 0 1-.9-3.9A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg> Messages</div>
+      <label class="cap"><span class="lbl">Read recent</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="imessage_read"></label>
+      <label class="cap"><span class="lbl">Send <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="imessage"></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg> Mail</div>
+      <label class="cap"><span class="lbl">Read recent</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="mail_read"></label>
+      <label class="cap"><span class="lbl">Send <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="mail"></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg> Calendar</div>
+      <label class="cap"><span class="lbl">Read events</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="calendar_read"></label>
+      <label class="cap"><span class="lbl">Add event <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="calendar"></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="6" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="5" cy="18" r="1.6"/><path d="M10 6h10M10 12h10M10 18h10"/></svg> Reminders</div>
+      <label class="cap"><span class="lbl">Read reminders</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="reminders_read"></label>
+      <label class="cap"><span class="lbl">Add / complete <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="reminders"></label>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg> Notes</div>
+      <label class="cap"><span class="lbl">Read <span style="opacity:.6">(titles only)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="notes_read"></label>
+      <label class="cap"><span class="lbl">Create / append <span style="opacity:.6">(draft → confirm)</span></span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="notes"></label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">On-device only (your Mac's Calendar, Reminders, Notes). Reading note titles never opens their bodies, and every add or change is drafted for your confirmation first — nothing is written without your tap.</p>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg> Web</div>
+      <label class="cap"><span class="lbl">Read allow-listed sites</span> <input type="checkbox" class="sw" data-cap="web"></label>
+      <textarea id="allow" placeholder="allowed sites, one per line"></textarea>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg> Host awareness</div>
+      <label class="cap"><span class="lbl">Read host &amp; network state</span> <span class="tag">live</span> <input type="checkbox" class="sw" data-cap="host_awareness"></label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Read-only. Reads a certified, local Argus monitor so she can notice which apps are reaching the network — nothing leaves your Mac, and she takes no host action (no blocking) in this first integration.</p>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7.5"/><path d="M11 7.5v3.5l2.2 2.2"/></svg> Curiosity &amp; growth</div>
+      <label class="cap"><span class="lbl">How often I ask</span> <select id="curiosity" data-enum="curiosity" style="width:auto;margin:0;padding:3px 6px"><option value="minimal">Minimal</option><option value="balanced">Balanced</option><option value="deep">Deep</option></select></label>
+      <label class="cap"><span class="lbl">Grow Intelligence <span style="opacity:.6">(idle-time · may use cloud)</span></span> <span class="tag exp">experimental</span> <input type="checkbox" class="sw" data-cap="grow_intelligence"></label>
+      <label class="cap"><span class="lbl">Growth intensity</span> <select id="growmode" data-enum="grow_mode" style="width:auto;margin:0;padding:3px 6px"><option value="off">Off</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="research">Research</option></select></label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Curiosity sets how often Vera surfaces a question (frequency only). Grow Intelligence is OFF by default — while off it is a provable no-op ($0, nothing autonomous). It grows task-skill only, never who Vera is (the identity freeze is absolute).</p>
+    </div>
+    <div class="svc">
+      <div class="svc-h"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="9" r="3.2"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg> Inner life</div>
+      <label class="cap" title="Experimental. Held until the observation window closes (2026-07-03). Off by default; turn it on only when you choose. While off, nothing identity- or agency-shaping runs.">
+        <span class="lbl">Identity &amp; Agency <span style="opacity:.6">— held until the observation window (2026-07-03)</span></span>
+        <span class="tag exp">experimental</span>
+        <input type="checkbox" class="sw" data-cap="identity_agency">
+      </label>
+      <p class="hint" style="margin:8px 2px 0;font-size:11px">Lets her form a sense of self and weigh her own actions. Held until the observation window closes; leave off unless you mean to turn it on.</p>
+    </div>
+  </div>
+
+  <h2 style="margin-top:22px">Persona</h2>
+  <p class="hint">Who Vera is — her character card. Read-only; her identity is frozen (you observe it, you don't rewrite it here).</p>
+  <div id="personaCard" class="hint" style="white-space:pre-wrap;max-height:200px;overflow:auto;font-size:12px;line-height:1.5;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px">…</div>
+
+  <h2 style="margin-top:22px">Morning briefing</h2>
+  <p class="hint">Ask Vera to brief you now — composed only from today's facts (calendar only if you've turned Calendar on; never silently). The same voice as her scheduled morning reach-out.</p>
+  <div class="row"><button type="button" id="briefMe" class="mbtn">Brief me</button></div>
+  <div id="briefOut" class="hint" style="white-space:pre-wrap;margin-top:8px;font-size:12.5px;line-height:1.5"></div>
+
+  <h2 style="margin-top:22px">Security</h2>
+  <p class="hint">Face ID as a second lock on top of your key.</p>
+  <div id="faceRow"></div>
+
+  <h2 style="margin-top:22px">Portable self</h2>
+  <p class="hint">Her character + memory as a portable file. Export to keep or move her.</p>
+  <div class="row" style="gap:10px;justify-content:flex-start">
+    <button type="button" id="idexport" class="mbtn">Export self</button>
+    <button type="button" id="idimport" class="mbtn">Import…</button>
+    <input type="file" id="idfile" accept="application/json" style="display:none">
+  </div>
+  <div id="idnote" class="hint" style="margin-top:8px"></div>
+
+  <h2 style="margin-top:22px">What I've learned about you</h2>
+  <p class="hint">Grounded only in what you've actually told me — never guessed. Each is
+    source-labeled and confidence-scored, and anything sensitive is flagged. You can relabel or
+    remove any of it; removing it stops her from using it.</p>
+  <div class="row" style="gap:10px;justify-content:flex-start;flex-wrap:wrap">
+    <button type="button" id="learnDistill" class="mbtn">Distill from my history</button>
+    <button type="button" id="learnRefresh" class="mbtn">Refresh</button>
+  </div>
+  <div id="learnlist" class="hint" style="margin-top:10px"></div>
+
+  <h2 style="margin-top:22px">Wisdom</h2>
+  <p class="hint">What's held up <b>over time</b> — theories she's formed by watching outcomes, and the long-horizon lessons distilled from them. Grounded in observed results, never guessed; about the world and you, never about her.</p>
+  <div id="wisdomCard" class="hint" style="margin-top:8px"></div>
+
+  <h2 style="margin-top:22px">Your portable mind</h2>
+  <p class="hint">What she's grounded about <b>you</b> — your facts and how you think — as a plain,
+    model-agnostic file you can carry to any app or model. This is <i>your</i> mind, not her character.</p>
+  <div class="row" style="gap:10px;justify-content:flex-start">
+    <button type="button" id="mindexport" class="mbtn">Export my mind</button>
+    <button type="button" id="fullexport" class="mbtn">Carry everything</button>
+  </div>
+  <div id="mindnote" class="hint" style="margin-top:8px"></div>
+  </div></details>
+  </div>
+
+  <!-- auto-saves on blur; no Save/Cancel -->
+</div>
+
+<!-- Library drawer (NEW — sibling of #settings, slides from LEFT) -->
+<div id="library">
+  <div id="libgrab"></div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-left:4px">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <div id="libHead">Knowledge Library</div>
+  </div>
+  <div class="filter-chips" id="libChips">
+    <div class="fchip sel" data-sec="">All</div>
+    <div class="fchip" data-sec="reference">References</div>
+    <div class="fchip" data-sec="writing">Your writing</div>
+    <div class="fchip" data-sec="authoritative">Authoritative</div>
+    <div class="fchip" data-sec="discussion">Discussion topics</div>
+    <div class="fchip" data-sec="training">Training material</div>
+    <div class="fchip" data-sec="personal">Personal documents</div>
+    <div class="fchip" data-sec="archived">Archived</div>
+    <div class="fchip" data-sec="objects">Extracted objects</div>
+  </div>
+  <div id="libBody"><div style="font-size:12px;color:#555;padding:16px 0">loading…</div></div>
+</div>
+
+<!-- Search panel (NEW — centered overlay) -->
+<div id="searchPanel" role="dialog" aria-label="Search knowledge">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#9a9aa2;flex:1">Search</span>
+    <button type="button" id="searchClose" style="background:none;border:none;color:#666;cursor:pointer;font-size:18px;line-height:1;padding:4px">×</button>
+  </div>
+  <input id="searchInput" placeholder="search memory, references, skills…" autocomplete="off" spellcheck="false">
+  <div id="searchResults"></div>
+</div>
+
+<!-- MRI trace overlay (NEW) -->
+<div id="mriOverlay">
+  <div id="mriBox">
+    <h3>Intake trace</h3>
+    <div id="mriContent"></div>
+    <button type="button" class="overlay-close" id="mriClose">Close</button>
+  </div>
+</div>
+
+<!-- Intake queue overlay: every ingested source + its status + lifecycle (the per-item MRI) -->
+<div id="queueOverlay">
+  <div id="queueBox">
+    <h3>Intake queue</h3>
+    <div id="queueContent"></div>
+    <button type="button" class="overlay-close" id="queueClose">Close</button>
+  </div>
+</div>
+
+<!-- Paste a link / paste text modal -> runIntake -->
+<div id="pasteOverlay">
+  <div id="pasteBox">
+    <h3 id="pasteTitle">Add knowledge</h3>
+    <textarea id="pasteText" placeholder=""></textarea>
+    <div class="paste-actions">
+      <button type="button" id="pasteCancel">Cancel</button>
+      <button type="button" class="primary" id="pasteAdd">Add</button>
+    </div>
+  </div>
+</div>
+
+<button id="dashknob" aria-label="dashboard">▾</button>
+<div id="dash"><div id="dashbody"></div></div>
+
+<script>
+// token comes from ?k= on the FIRST visit, then is remembered in localStorage — so a
+// home-screen/saved app keeps working without the key in the URL every launch.
+const _u=new URL(location.href);
+let TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||"";
+if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+// keep ?k= IN the url: iOS home-screen apps have their own storage, so the key in the
+// saved URL is what makes a standalone (added-to-home-screen) app keep working.
+// mutable so the Face-ID session can be added live after unlock (every fetch spreads ...HDR)
+const HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+let SESS=localStorage.getItem('anima_sess')||''; if(SESS) HDR['X-Anima-Sess']=SESS;
+const log=document.getElementById('log'),input=document.getElementById('t'),
+      stateEl=document.getElementById('state'),mic=document.getElementById('mic'),
+      titleEl=document.getElementById('title'),bar=document.getElementById('bar');
+// gently animate her NAME while something's actually happening (listening / thinking /
+// speaking) — ref-counted so overlapping stages keep it on; no claimed-state text.
+let busyN=0;
+function setBusy(on){ busyN=Math.max(0,busyN+(on?1:-1)); titleEl.classList.toggle('busy',busyN>0); }
+function flash(msg){ stateEl.textContent=msg; clearTimeout(flash._t);
+  flash._t=setTimeout(()=>{ stateEl.textContent=''; },2600); }   // transient, auto-clears
+// one place to surface auth failures: 401 = either Face ID gate or a missing key
+async function authMiss(r){
+  if(!r || r.status!==401) return false;
+  let b={}; try{ b=await r.clone().json(); }catch(e){}
+  if(b.need_face_id){ const g=document.getElementById('gate'); if(g) g.classList.add('show'); }
+  else flash(TOKEN?'Not signed in — reopen your ?k=… link once':'Open your link with ?k=vera2026 to sign in');
+  return true;
+}
+
+// the conversation persists across reloads/reopens (per device) in localStorage
+const CONVO_KEY='anima_convo';
+let convo=[]; try{ convo=JSON.parse(localStorage.getItem(CONVO_KEY)||'[]'); }catch(e){ convo=[]; }
+function saveConvo(){ try{ localStorage.setItem(CONVO_KEY,JSON.stringify(convo.slice(-300))); }catch(e){} }
+function add(text,who,restoring){const d=document.createElement('div');d.className='msg '+who;
+  d.textContent=text;log.appendChild(d);log.scrollTop=log.scrollHeight;
+  if(!restoring){ convo.push({text,who}); saveConvo(); }}
+function restoreConvo(){ convo.forEach(m=>add(m.text,m.who,true)); }
+function addMeta(t){const d=document.createElement('div');d.textContent=t;          // reply speed
+  d.style.cssText='font-size:11px;color:#555;margin:-2px 0 8px 4px';log.appendChild(d);log.scrollTop=log.scrollHeight;}
+// source-aware attribution: which uploaded REFERENCE sources are relevant to this turn.
+// Reference-green (matches the library/search reference tag) so it is never mistaken for memory.
+function addSources(sources){
+  const d=document.createElement('div');
+  d.style.cssText='display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-2px 0 9px 4px';
+  const lbl=document.createElement('span'); lbl.textContent='based on';
+  lbl.style.cssText='font-size:11px;color:#555'; d.appendChild(lbl);
+  sources.slice(0,3).forEach(s=>{
+    const c=document.createElement('span');
+    c.innerHTML='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" '+
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;'+
+      'margin-right:4px"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>'+esc(s.title||'reference');
+    c.title=(s.snippet||'')+'  ·  source type: '+(s.type||'reference');
+    c.style.cssText='font-size:11px;color:#7fb88a;background:rgba(120,200,140,.10);'+
+      'border:1px solid rgba(120,200,140,.22);border-radius:10px;padding:2px 8px;cursor:default';
+    d.appendChild(c);
+  });
+  log.appendChild(d); log.scrollTop=log.scrollHeight;
+}
+
+// "how she answered" badge — an honest trust signal. The deterministic seams answer FROM grounded
+// data (memory / a saved correction / your Mac), never the model; this makes that visible so a
+// grounded answer is distinguishable from a generated one. Model/LERF/reference answers get NO
+// badge here (reference already shows its own 'based on' chip; the model makes no grounding claim).
+function addBackendBadge(backend){
+  if(!backend) return;
+  const map={
+    'memory:known_fact':    ['from your memory','#7aa7d8','120,160,210'],
+    'memory:honest_unknown':['not on record yet — she asked','#c79a7a','200,150,110'],
+    'repair:supersede':     ['correction saved','#7aa7d8','120,160,210'],
+    'host:awareness':       ['from your Mac','#9a86c4','150,130,200'],
+  };
+  const m=map[backend]; if(!m) return;
+  const wrap=document.createElement('div');
+  wrap.style.cssText='margin:-2px 0 9px 4px';
+  const c=document.createElement('span');
+  c.innerHTML='<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" '+
+    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;'+
+    'margin-right:4px"><path d="M20 6 9 17l-5-5"/></svg>'+esc(m[0]);
+  c.title='Answered deterministically from grounded data ('+backend+') — not generated by the model.';
+  c.style.cssText='font-size:11px;color:'+m[1]+';background:rgba('+m[2]+',.10);'+
+    'border:1px solid rgba('+m[2]+',.24);border-radius:10px;padding:2px 8px;cursor:default';
+  wrap.appendChild(c); log.appendChild(wrap); log.scrollTop=log.scrollHeight;
+}
+
+// one reused audio element, "blessed" on a tap so iOS lets us play it later
+const player=new Audio();
+let primed=false;
+const SILENT="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=";
+function prime(){
+  if(primed)return; primed=true;
+  try{ player.src=SILENT; player.play().catch(()=>{}); }catch(e){}
+}
+// Streaming voice: play her reply sentence-by-sentence (Kokoro), prefetching the
+// next clip while the current one plays — so she starts speaking after the FIRST
+// sentence instead of waiting for the whole reply to synthesize.
+function splitSentences(t){
+  const parts=(t.match(/[^.!?…]+[.!?…]*/g)||[t]);
+  const out=[]; let buf='';
+  for(const p of parts){ buf+=p; if(buf.trim().length>=24){ out.push(buf.trim()); buf=''; } }
+  if(buf.trim()) out.push(buf.trim());
+  return out.length?out:[t.trim()];
+}
+let speakSeq=0;                                  // a newer reply cancels an older stream
+async function ttsClip(text,rate){
+  const r=await fetch('/tts',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+    body:JSON.stringify({text,rate})});
+  if(!r.ok) throw new Error('tts '+r.status);
+  return URL.createObjectURL(await r.blob());
+}
+function playClip(url){
+  return new Promise(res=>{ player.src=url; player.onended=res; player.onerror=res;
+    player.onpause=res; player.play().catch(()=>res()); });
+}
+async function speak(text,rate){
+  if(!text) return;
+  const my=++speakSeq, segs=splitSentences(text); rate=rate||1.0;
+  let next=ttsClip(segs[0],rate).catch(()=>null);
+  for(let i=0;i<segs.length;i++){
+    const url=await next; if(my!==speakSeq){ if(url)URL.revokeObjectURL(url); return; }
+    const after=(i+1<segs.length)?ttsClip(segs[i+1],rate).catch(()=>null):null;
+    if(url){ await playClip(url); URL.revokeObjectURL(url); }
+    else if(i===0 && 'speechSynthesis' in window){     // server voice down → browser fallback
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text)); return;
+    }
+    if(my!==speakSeq){ if(after) after.then(u=>{ if(u) URL.revokeObjectURL(u); }); return; }  // don't leak the prefetched clip
+    next=after;
+  }
+}
+// tap the speaker (top-right) to mute — that also cuts her off mid-sentence
+
+// voice on/off (text-only mode) — muted uses the faster /say (no synth)
+const mute=document.getElementById('mute');
+const SPK='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M16 8.5a4 4 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+const SPK_OFF='<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 9v6h4l5 4V5L7 9H3z"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
+let muted=localStorage.getItem('muted')==='1';
+function renderMute(){ mute.innerHTML=muted?SPK_OFF:SPK; mute.classList.toggle('muted',muted); }
+mute.onclick=()=>{ muted=!muted; localStorage.setItem('muted',muted?'1':'0'); if(muted){ speakSeq++; player.pause(); } renderMute(); };
+renderMute();
+restoreConvo();                       // bring back the prior conversation on load
+
+// --- draft → confirm (the only path that sends; nothing sends without this) ---
+let pendingDraft=null, pendingBtns=null;
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function renderDraftCard(draft){
+  pendingDraft=draft;
+  const card=document.createElement('div'); card.className='msg her';
+  card.style.cssText='border:1px solid #2a2a2a;border-radius:14px;padding:12px;background:#0f0f0f';
+  const kind=draft.kind==='mail'?'Email':'Text';
+  card.innerHTML='<div style="font-size:12px;color:#888;margin-bottom:6px">'+kind+' draft · to '+esc(draft.to)+'</div>'+
+    '<div style="margin-bottom:10px;white-space:pre-wrap">'+esc(draft.body)+'</div>';
+  const s=document.createElement('button'); s.textContent='Send';
+  s.style.cssText='background:#1f6f43;color:#fff;border:none;border-radius:18px;padding:8px 20px;margin-right:8px;font-size:14px';
+  const c=document.createElement('button'); c.textContent='Cancel';
+  c.style.cssText='background:#262626;color:#bbb;border:none;border-radius:18px;padding:8px 18px;font-size:14px';
+  pendingBtns={s,c};
+  s.onclick=()=>doSend(draft,{s,c});       // each card sends ITS OWN draft (no cross-talk)
+  c.onclick=()=>{ if(pendingDraft===draft) pendingDraft=null; s.disabled=c.disabled=true; c.textContent='Cancelled'; };
+  card.appendChild(s); card.appendChild(c); log.appendChild(card); log.scrollTop=log.scrollHeight;
+}
+async function doSend(draft, b){
+  draft=draft||pendingDraft; b=b||pendingBtns||{};   // no args = the latest (spoken "send it")
+  if(!draft) return;
+  if(pendingDraft===draft) pendingDraft=null;
+  if(b.s){ b.s.disabled=true; b.s.textContent='Sending…'; } if(b.c) b.c.disabled=true;
+  try{
+    const r=await fetch('/'+draft.kind+'/send',{method:'POST',
+      headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({id:draft.id})});
+    const d=await r.json();
+    if(d.ok){ if(b.s)b.s.textContent='Sent ✓'; add('Sent to '+draft.to+' ✓','her'); }
+    else{ if(b.s)b.s.textContent='Failed'; add('(send failed: '+(d.error||d.detail||'unknown')+')','her'); }
+  }catch(e){ if(b.s)b.s.textContent='Failed'; add('(could not reach the server to send)','her'); }
+}
+
+async function send(text){
+  const t=text.trim();
+  // when a draft is waiting, a confirm phrase (typed OR spoken) sends it
+  if(pendingDraft && /^(send( it)?|yes,?( send( it)?| please)?|confirm|go ahead|do it)\.?$/i.test(t)){
+    add(text,'me'); input.value=''; return doSend();
+  }
+  add(text,'me');input.value='';
+  setBusy(true);
+  try{
+    const r=await fetch(muted?'/say':'/talk',{method:'POST',
+      headers:{'Content-Type':'application/json',...HDR},
+      body:JSON.stringify({text})});
+    if(await authMiss(r)){ setBusy(false); return; }
+    const d=await r.json();
+    add(d.reply,'her');
+    addBackendBadge(d.backend);                               // "how she answered" — grounded-vs-generated trust signal
+    if(d.sources&&d.sources.length) addSources(d.sources);   // source-aware attribution (reference, distinct from memory)
+    if(d.gen_s) addMeta(d.gen_s+'s'+(d.tok_s?' · '+d.tok_s+' tok/s':''));  // reply speed, on-screen
+    if(d.draft) renderDraftCard(d.draft);     // show the confirm card; sends nothing yet
+    if(!muted) speak(d.reply, d.rate).finally(()=>setBusy(false));   // animate name while speaking
+    else setBusy(false);
+  }catch(e){ add('(could not reach the server — is it running on your Mac?)','her'); setBusy(false); }
+}
+
+document.getElementById('f').addEventListener('submit',e=>{
+  e.preventDefault();prime();const v=input.value.trim();if(v)send(v);});
+
+// ============================================================
+// VOICE — §9 redesign: stroke mic, tap-to-toggle, barge-in
+// ============================================================
+
+// Barge-in: Web Audio AnalyserNode that monitors mic energy while TTS is playing.
+// Lifecycle: started when speak() begins, stopped when TTS ends or is cancelled.
+let bargeCtx=null, bargeAnalyser=null, bargeStream=null, bargeTimer=null, bargeActive=false;
+const BARGE_THRESHOLD=16;      // RMS out of 0-255; ~quiet room voice
+const BARGE_SUSTAIN_MS=180;    // must hold for this long before triggering (avoids plosives)
+let bargeSustainStart=null;
+
+function stopBarge(){
+  clearInterval(bargeTimer); bargeTimer=null; bargeSustainStart=null; bargeActive=false;
+  if(bargeAnalyser){ try{ bargeAnalyser.disconnect(); }catch(e){} bargeAnalyser=null; }
+  if(bargeStream){ bargeStream.getTracks().forEach(t=>t.stop()); bargeStream=null; }
+  if(bargeCtx){ try{ bargeCtx.close(); }catch(e){} bargeCtx=null; }
+}
+
+async function startBarge(){
+  if(bargeActive || !navigator.mediaDevices || muted) return;
+  if(!window.AudioContext && !window.webkitAudioContext) return;
+  bargeActive=true;
+  try{
+    bargeStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    bargeCtx=new (window.AudioContext||window.webkitAudioContext)();
+    const src=bargeCtx.createMediaStreamSource(bargeStream);
+    bargeAnalyser=bargeCtx.createAnalyser();
+    bargeAnalyser.fftSize=512;
+    src.connect(bargeAnalyser);
+    const buf=new Uint8Array(bargeAnalyser.frequencyBinCount);
+    bargeTimer=setInterval(()=>{
+      if(!player.paused) {
+        bargeAnalyser.getByteTimeDomainData(buf);
+        let sum=0; for(let i=0;i<buf.length;i++){ const v=buf[i]-128; sum+=v*v; }
+        const rms=Math.sqrt(sum/buf.length);
+        if(rms>BARGE_THRESHOLD){
+          if(!bargeSustainStart) bargeSustainStart=Date.now();
+          else if(Date.now()-bargeSustainStart>=BARGE_SUSTAIN_MS){
+            // sustained speech detected — interrupt TTS and start recording
+            speakSeq++; player.pause();
+            stopBarge();
+            startRecording();
+          }
+        } else {
+          bargeSustainStart=null;
+        }
+      } else {
+        // TTS finished on its own — no longer need the analyser
+        stopBarge();
+      }
+    },40);
+  }catch(e){
+    bargeActive=false;
+    // barge-in is best-effort — silently fail if mic permission is unavailable
+  }
+}
+
+// patch speak() to activate barge-in while TTS is running
+const _speakOrig=speak;
+async function speakWithBarge(text,rate){
+  if(!text) return;
+  const beforeSeq=speakSeq;
+  // start barge monitor after a short delay to avoid immediately triggering on our own TTS
+  const bargeDelay=setTimeout(()=>{ if(speakSeq===beforeSeq+1 || speakSeq>beforeSeq) startBarge(); },400);
+  try{
+    await _speakOrig(text,rate);
+  } finally {
+    clearTimeout(bargeDelay);
+    stopBarge();
+  }
+}
+// replace speak reference used by the send() function
+// (we shadow it in the same scope; existing calls inside send() will pick up the wrapper)
+// The above won't work at call-site since send() captured `speak` by reference to the const.
+// Instead we override via the same name in this scope for calls below, and patch the player:
+player.addEventListener('play',()=>{
+  // each time TTS starts playing, arm barge-in
+  setTimeout(()=>{ if(!player.paused && !bargeActive) startBarge(); },300);
+});
+player.addEventListener('ended',stopBarge);
+player.addEventListener('pause',stopBarge);
+
+// Voice recording: tap-to-toggle
+let mediaRec=null, chunks=[], recording=false, wantRec=false;
+async function startRecording(){
+  prime();
+  if(recording||wantRec) return;
+  if(!navigator.mediaDevices || !window.MediaRecorder){
+    add("Open my secure (https) address to use the mic.","her"); return;
+  }
+  // stop any barge-in monitor first so we don't fight over the mic
+  stopBarge();
+  wantRec=true;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    if(!wantRec){ stream.getTracks().forEach(t=>t.stop()); return; }   // cancelled during the await
+    mediaRec=new MediaRecorder(stream); chunks=[];
+    mediaRec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+    mediaRec.onstop=async ()=>{
+      recording=false; wantRec=false; mic.classList.remove('on'); bar.classList.remove('rec');
+      // idle state: quiet mic label
+      mic.setAttribute('aria-label','tap to talk');
+      input.placeholder="What's on your mind?";
+      stream.getTracks().forEach(t=>t.stop());
+      if(!chunks.length) return;
+      setBusy(true);                                   // transcribing — animate the name
+      try{
+        const blob=new Blob(chunks,{type:mediaRec.mimeType||'audio/mp4'});
+        const r=await fetch('/stt',{method:'POST',headers:HDR,body:blob});
+        if(await authMiss(r)) return;
+        const d=await r.json();
+        if(d.text && d.text.trim()) send(d.text.trim());
+        else flash("didn't catch that — try again");
+      }catch(e){ flash('transcription failed'); }
+      finally{ setBusy(false); }
+    };
+    mediaRec.start(); recording=true; mic.classList.add('on'); bar.classList.add('rec');
+    // recording state: clear tap-to-stop label
+    mic.setAttribute('aria-label','Listening — tap to stop');
+    input.placeholder='Listening — tap to stop';
+  }catch(err){
+    wantRec=false;
+    add("Tap 'Allow' when Safari asks for the microphone, then try again.","her");
+  }
+}
+function stopRecording(){ wantRec=false; if(recording && mediaRec) mediaRec.stop(); }
+mic.onclick=()=>{ if(recording) stopRecording(); else startRecording(); };
+
+// ============================================================
+// ATTACHMENT TOOLBAR — handlers (§1 + §3)
+// ============================================================
+
+// Helper: safe JSON fetch that won't throw on non-200 / missing endpoint
+async function apiFetch(path, opts){
+  try{
+    const r=await fetch(path,{...opts, headers:{...((opts&&opts.headers)||{}),...HDR}});
+    if(!r.ok){
+      let msg=''; try{ const e=await r.clone().json(); msg=e.error||e.detail||''; }catch(_){}
+      return {_err:true, status:r.status, msg};
+    }
+    return await r.json();
+  }catch(e){
+    return {_err:true, status:0, msg:'Could not reach the server — is it running?'};
+  }
+}
+
+// Status dot helper
+const STATUS_LABELS={
+  raw:'Queued', parsed:'Parsing', classified:'Classifying', candidate:'Extracting',
+  verified:'Certified', active:'Active', archived:'Archived', rejected:'Failed',
+  deleted:'Deleted', needs_review:'Needs Review'
+};
+const STATUS_CLASS={
+  raw:'queued', parsed:'parsing', classified:'classifying', candidate:'extracting',
+  verified:'certified', active:'active', archived:'archived', rejected:'failed',
+  deleted:'deleted', needs_review:'needs_review'
+};
+function statusDot(state){
+  const cls=STATUS_CLASS[state]||'queued';
+  const lbl=STATUS_LABELS[state]||state||'Queued';
+  return '<span class="status-chip"><span class="sdot '+cls+'"></span>'+esc(lbl)+'</span>';
+}
+
+// Intake MRI viewer (§7)
+async function openMRI(traceId){
+  const mriOverlay=document.getElementById('mriOverlay');
+  const mriContent=document.getElementById('mriContent');
+  mriContent.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">loading trace…</div>';
+  mriOverlay.classList.add('open');
+  const d=await apiFetch('/intake/trace?trace_id='+encodeURIComponent(traceId));
+  if(d._err){ mriContent.innerHTML='<div style="font-size:12px;color:#b91c1c">'+esc(d.msg)+'</div>'; return; }
+  const trace=d.trace||{};
+  let h='';
+  const steps=[
+    ['Parsed',trace.parse_status],
+    ['Detected type',trace.detected_type],
+    ['Suggested use',(trace.suggested_use||[]).join(', ')],
+    ['Routing',(trace.routing||[]).map(r=>r.destination+(r.purpose?' ('+r.purpose+')':'')).join('; ')],
+    ['Confidence',trace.confidence!=null?Math.round(trace.confidence*100)+'%':null],
+    ['Chunks',trace.chunk_count],
+    ['Committed',trace.committed?'yes':'no'],
+    ['Safety — embedded instructions',trace.safety&&trace.safety.embedded_instructions&&trace.safety.embedded_instructions.found
+      ? 'found ('+trace.safety.embedded_instructions.count+') — treated as data only, never executed'
+      : 'none detected'],
+  ];
+  steps.forEach(([label,val])=>{
+    if(val==null||val==='') return;
+    h+='<div class="trace-step"><b>'+esc(label)+':</b> '+esc(String(val))+'</div>';
+  });
+  if(d.render) h+='<div class="trace-render">'+esc(d.render)+'</div>';
+  mriContent.innerHTML=h||'<div style="font-size:12px;color:#555">No trace data.</div>';
+}
+document.getElementById('mriClose').onclick=()=>document.getElementById('mriOverlay').classList.remove('open');
+document.getElementById('mriOverlay').addEventListener('click',e=>{
+  if(e.target===document.getElementById('mriOverlay')) document.getElementById('mriOverlay').classList.remove('open');
+});
+
+// Render intake preview card (§3)
+function renderIntakeCard(plan){
+  const card=document.createElement('div');
+  card.className='intake-card';
+  const conf=plan.confidence!=null?Math.round(plan.confidence*100)+'%':'—';
+  const dest=(plan.routing||[]).map(r=>r.destination).join(', ')||'—';
+
+  // sensitive category warning chips
+  let safetyCh='';
+  if(plan.safety){
+    (plan.safety.sensitive||[]).forEach(s=>{
+      safetyCh+='<span class="intake-tag warn">'+esc(s)+'</span> ';
+    });
+    if(plan.safety.embedded_instructions&&plan.safety.embedded_instructions.found){
+      safetyCh+='<span class="intake-tag warn">embedded instructions — treated as data only</span> ';
+    }
+  }
+  let needsApproval='';
+  if(plan.requires_user_confirmation||safetyCh){
+    needsApproval='<div class="icrow"><span class="intake-tag needs">needs approval</span> '+safetyCh+'</div>';
+  }
+
+  const sugUse=(plan.suggested_use||[]).join(', ')||'—';
+  card.innerHTML=
+    '<div class="ict">Vera detected this as</div>'+
+    '<div class="ictype">'+esc(plan.detected_type||'unknown')+'</div>'+
+    '<div style="font-size:12px;color:#777;margin:6px 0 2px">Suggested use: '+esc(sugUse)+'&nbsp;·&nbsp;Destination: '+esc(dest)+'&nbsp;·&nbsp;Confidence: '+conf+'</div>'+
+    needsApproval+
+    '<div class="ctrl-group" id="ctrl-'+plan.source_id+'">'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="reference_only"> Use as reference</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="review_before_adding" checked> Review before adding to memory</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="approve_all"> Use as personal memory</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="never_train_from_this"> Never learn from this</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="use_only_this_chat"> This chat only</label>'+
+    '<label><input type="radio" name="ctrl-'+plan.source_id+'" value="delete_raw_after_processing"> Archive only</label>'+
+    '</div>'+
+    '<label class="ctrl-delraw"><input type="checkbox" id="delraw-'+plan.source_id+'"> Delete raw file after processing</label>'+
+    '<div style="display:flex;gap:8px;align-items:center;margin-top:10px">'+
+    '<button type="button" class="intake-approve" id="iapprove-'+plan.source_id+'" data-sid="'+esc(plan.source_id)+'" data-tid="'+esc(plan.trace_id||'')+'">Approve</button>'+
+    (plan.trace_id?'<button type="button" class="lbtn" id="imri-'+plan.source_id+'" data-tid="'+esc(plan.trace_id)+'">Details</button>':'')+'</div>';
+
+  log.appendChild(card); log.scrollTop=log.scrollHeight;
+
+  // Approve button
+  const appBtn=document.getElementById('iapprove-'+plan.source_id);
+  if(appBtn) appBtn.onclick=async()=>{
+    appBtn.disabled=true; appBtn.textContent='Approving…';
+    const cg=document.getElementById('ctrl-'+plan.source_id);
+    const sel=cg?cg.querySelector('input[type=radio]:checked'):null;
+    const control=sel?sel.value:'review_before_adding';
+    const delRaw=document.getElementById('delraw-'+plan.source_id);
+    const dr=delRaw?delRaw.checked:false;
+    const result=await apiFetch('/intake/approve',{method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({source_id:plan.source_id,control,delete_raw:dr})});
+    if(result._err){
+      appBtn.textContent='Failed';
+      appBtn.style.color='#f87171';
+      const err=document.createElement('div');
+      err.style.cssText='font-size:12px;color:#b91c1c;margin-top:6px';
+      err.textContent=result.msg||'Approval failed — try again.';
+      appBtn.parentNode.appendChild(err);
+    } else {
+      card.innerHTML='<div class="ict">Intake approved</div>'+
+        statusDot(result.state||'active')+
+        '<div style="font-size:12px;color:#666;margin-top:6px">Control: '+esc(control.replace(/_/g,' '))+
+        (result.raw_deleted?' · raw deleted':'')+'</div>'+
+        (plan.trace_id?'<button type="button" class="lbtn" style="margin-top:8px" data-tid="'+esc(plan.trace_id)+'">View trace</button>':'');
+      card.querySelectorAll('[data-tid]').forEach(b=>{
+        b.onclick=()=>openMRI(b.dataset.tid);
+      });
+    }
+  };
+
+  // Details (MRI) button
+  const mriBtn=document.getElementById('imri-'+plan.source_id);
+  if(mriBtn) mriBtn.onclick=()=>openMRI(mriBtn.dataset.tid);
+}
+
+// Core intake pipeline: takes a {kind, input?, text?, filename?, bytesB64?} descriptor
+async function runIntake(desc){
+  flash('Analyzing…');
+  const body={kind:desc.kind};
+  if(desc.kind==='text') body.text=desc.text;
+  else if(desc.kind==='url') body.input=desc.input;
+  else if(desc.kind==='file'){ body.filename=desc.filename; body.bytes_b64=desc.bytes_b64; }
+  const plan=await apiFetch('/intake/plan',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(plan._err){
+    const errDiv=document.createElement('div'); errDiv.className='msg her';
+    errDiv.style.cssText='font-size:13px;color:#b91c1c';
+    errDiv.textContent='Intake unavailable: '+(plan.msg||'could not reach the server');
+    log.appendChild(errDiv); log.scrollTop=log.scrollHeight;
+    return;
+  }
+  renderIntakeCard(plan);
+}
+
+// Read a File as base64
+function fileToB64(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{ const url=fr.result; res(url.split(',')[1]); };
+    fr.onerror=rej;
+    fr.readAsDataURL(file);
+  });
+}
+
+// Detect URL or YouTube
+function looksLikeUrl(s){ return /^https?:\/\//i.test(s.trim()); }
+
+// tbAdd: opens the "+ Add Knowledge" menu (upload file / paste a link / paste text / view queue)
+const filePicker=document.getElementById('filePicker');
+const addMenu=document.getElementById('addMenu');
+const closeAddMenu=()=>addMenu.classList.remove('open');
+document.getElementById('tbAdd').onclick=(e)=>{ e.stopPropagation(); addMenu.classList.toggle('open'); };
+document.addEventListener('click',e=>{ if(!addMenu.contains(e.target)&&!e.target.closest('#tbAdd')) closeAddMenu(); });
+document.getElementById('amUpload').onclick=()=>{ closeAddMenu(); filePicker.click(); };
+document.getElementById('amLink').onclick=()=>{ closeAddMenu(); openPaste('url'); };
+document.getElementById('amText').onclick=()=>{ closeAddMenu(); openPaste('text'); };
+document.getElementById('amQueue').onclick=()=>{ closeAddMenu(); openQueue(); };
+
+// Paste a link / paste text modal -> runIntake({kind})
+const pasteOverlay=document.getElementById('pasteOverlay');
+let pasteKind='text';
+function openPaste(kind){
+  pasteKind=kind;
+  document.getElementById('pasteTitle').textContent = kind==='url' ? 'Paste a link' : 'Paste text';
+  const ta=document.getElementById('pasteText');
+  ta.value='';
+  ta.placeholder = kind==='url' ? 'https://…  or a YouTube link' : 'Paste or type text to add as knowledge…';
+  pasteOverlay.classList.add('open');
+  setTimeout(()=>ta.focus(),60);
+}
+const closePaste=()=>pasteOverlay.classList.remove('open');
+document.getElementById('pasteCancel').onclick=closePaste;
+pasteOverlay.addEventListener('click',e=>{ if(e.target===pasteOverlay) closePaste(); });
+document.getElementById('pasteAdd').onclick=()=>{
+  const v=document.getElementById('pasteText').value.trim();
+  if(!v) return;
+  closePaste();
+  if(pasteKind==='url'||looksLikeUrl(v)) runIntake({kind:'url',input:v});
+  else runIntake({kind:'text',text:v});
+};
+
+// Intake queue viewer -> GET /intake/queue: each source + status + lifecycle history (per-item MRI)
+const queueOverlay=document.getElementById('queueOverlay');
+document.getElementById('queueClose').onclick=()=>queueOverlay.classList.remove('open');
+queueOverlay.addEventListener('click',e=>{ if(e.target===queueOverlay) queueOverlay.classList.remove('open'); });
+async function openQueue(){
+  const qc=document.getElementById('queueContent');
+  qc.innerHTML='<div style="font-size:12px;color:#555">loading…</div>';
+  queueOverlay.classList.add('open');
+  const d=await apiFetch('/intake/queue');
+  if(d._err){ qc.innerHTML='<div style="font-size:12px;color:#b91c1c">'+esc(d.msg||'could not load the queue')+'</div>'; return; }
+  const recs=(d.records||[]).slice().reverse();   // newest first
+  if(!recs.length){
+    qc.innerHTML='<div style="font-size:13px;color:#888;line-height:1.6">Nothing ingested yet.<br>Use <b>+ → Upload file / Paste a link / Paste text</b> to add knowledge.</div>';
+    return;
+  }
+  qc.innerHTML=recs.map(r=>{
+    const dest=(r.routing||[]).map(x=>x.destination||x.store||x).filter(Boolean).join(', ');
+    const hist=(r.history||[]).slice(-6).map(h=>{
+      const st=STATUS_LABELS[h.state]||h.state||'';
+      return '· '+esc(st)+(h.reason?' — '+esc(h.reason):'');
+    }).join('<br>');
+    return '<div class="qitem">'+
+      '<div class="qtitle">'+esc(r.title||r.source_id||'untitled source')+'</div>'+
+      '<div class="qmeta">'+statusDot(r.state)+
+        '<span>'+esc(r.detected_type||'—')+'</span>'+
+        (r.control?'<span>·&nbsp;'+esc(String(r.control).replace(/_/g,' '))+'</span>':'')+
+        (dest?'<span>·&nbsp;→ '+esc(dest)+'</span>':'')+
+        (r.committed?'<span>·&nbsp;stored</span>':'')+'</div>'+
+      (hist?'<div class="qhist">'+hist+'</div>':'')+
+    '</div>';
+  }).join('');
+}
+
+filePicker.onchange=async(e)=>{
+  const files=Array.from(e.target.files||[]); e.target.value='';
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+};
+
+// Drag-drop onto #bar / form area
+const formEl=document.getElementById('f');
+formEl.addEventListener('dragover',e=>{ e.preventDefault(); bar.classList.add('dragover'); });
+formEl.addEventListener('dragleave',()=>bar.classList.remove('dragover'));
+formEl.addEventListener('drop',async e=>{
+  e.preventDefault(); bar.classList.remove('dragover');
+  const items=Array.from(e.dataTransfer.items||[]);
+  const files=Array.from(e.dataTransfer.files||[]);
+  // check for URL in drag data
+  const urlItem=items.find(it=>it.kind==='string'&&it.type==='text/uri-list');
+  if(urlItem){
+    urlItem.getAsString(url=>{ if(url.trim()) runIntake({kind:'url',input:url.trim()}); });
+    return;
+  }
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+});
+
+// Also allow drag-drop on the full log area
+log.addEventListener('dragover',e=>{ e.preventDefault(); bar.classList.add('dragover'); });
+log.addEventListener('dragleave',()=>bar.classList.remove('dragover'));
+log.addEventListener('drop',async e=>{
+  e.preventDefault(); bar.classList.remove('dragover');
+  const files=Array.from(e.dataTransfer.files||[]);
+  for(const f of files){
+    const b64=await fileToB64(f);
+    runIntake({kind:'file',filename:f.name,bytes_b64:b64});
+  }
+});
+
+// Paste from clipboard (images, files, URLs, code)
+document.addEventListener('paste',async e=>{
+  // only intercept if not typing in an input/textarea
+  const tag=(document.activeElement||{}).tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA') return;
+  const items=Array.from(e.clipboardData.items||[]);
+  // image paste
+  const imgItem=items.find(it=>it.type.startsWith('image/'));
+  if(imgItem){
+    e.preventDefault();
+    const blob=imgItem.getAsFile();
+    const b64=await fileToB64(blob);
+    runIntake({kind:'file',filename:'screenshot.png',bytes_b64:b64});
+    return;
+  }
+  // text paste
+  const textItem=items.find(it=>it.kind==='string'&&it.type==='text/plain');
+  if(textItem){
+    textItem.getAsString(txt=>{
+      if(!txt.trim()) return;
+      if(looksLikeUrl(txt)) runIntake({kind:'url',input:txt.trim()});
+      else runIntake({kind:'text',text:txt.trim()});
+    });
+  }
+});
+
+// ============================================================
+// LIBRARY DRAWER (§4)
+// ============================================================
+const libDrawer=document.getElementById('library');
+const libBody=document.getElementById('libBody');
+let libSection='';
+
+async function loadLibrary(section){
+  libSection=section||'';
+  libBody.innerHTML='<div style="font-size:12px;color:#555;padding:10px 0">loading…</div>';
+  const url='/library'+(section?'?section='+encodeURIComponent(section):'');
+  const d=await apiFetch(url);
+  if(d._err){
+    libBody.innerHTML='<div style="font-size:12px;color:#666;padding:10px 0">'+esc(d.msg||'Library unavailable.')+'</div>';
+    return;
+  }
+  const items=d.items||[];
+  if(!items.length){
+    libBody.innerHTML='<div style="font-size:12px;color:#555;padding:10px 0">Nothing here yet.</div>';
+    return;
+  }
+  libBody.innerHTML='';
+  items.forEach(it=>libBody.appendChild(buildLibRow(it)));
+}
+
+function buildLibRow(it){
+  const row=document.createElement('div'); row.className='lib-row';
+  const lu=it.last_used?new Date(it.last_used).toLocaleDateString():'—';
+  const conf=it.confidence!=null?Math.round(it.confidence*100)+'%':'—';
+  row.innerHTML=
+    '<div class="lt">'+
+      '<div class="ltitle">'+esc(it.title||it.id||'Untitled')+'</div>'+
+      '<div class="lmeta">'+
+        '<span>'+esc(it.type||'—')+'</span>'+
+        '<span style="color:#444">·</span>'+
+        '<span>'+esc(it.source||'—')+'</span>'+
+        statusDot(it.status)+''+
+        '<span>→ '+esc(it.destination||'—')+'</span>'+
+        '<span>used: '+lu+'</span>'+
+        '<span>conf: '+conf+'</span>'+
+        (it.objects_extracted?'<span>'+it.objects_extracted+' objects</span>':'')+''+
+      '</div>'+
+    '</div>'+
+    '<div class="lactions">'+
+      '<button class="lbtn" data-id="'+esc(it.id)+'" data-act="reprocess">Reprocess</button>'+
+      '<button class="lbtn" data-id="'+esc(it.id)+'" data-act="archive">Archive</button>'+
+      '<button class="lbtn danger" data-id="'+esc(it.id)+'" data-act="delete">Delete</button>'+
+    '</div>';
+  row.querySelectorAll('[data-act]').forEach(btn=>{
+    btn.onclick=async()=>{
+      btn.disabled=true;
+      const res=await apiFetch('/library/edit',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:it.id,action:btn.dataset.act})});
+      if(res._err){ btn.disabled=false; flash(res.msg||'Action failed'); }
+      else{ loadLibrary(libSection); }
+    };
+  });
+  return row;
+}
+
+document.getElementById('tbLib').onclick=()=>{
+  const isOpen=libDrawer.classList.contains('open');
+  closeAllPanels();
+  if(!isOpen){ libDrawer.classList.add('open'); loadLibrary(libSection); }
+};
+document.getElementById('libgrab').onclick=()=>libDrawer.classList.remove('open');
+
+// section filter chips
+document.getElementById('libChips').addEventListener('click',e=>{
+  const chip=e.target.closest('.fchip');
+  if(!chip) return;
+  document.querySelectorAll('#libChips .fchip').forEach(c=>c.classList.remove('sel'));
+  chip.classList.add('sel');
+  loadLibrary(chip.dataset.sec||'');
+});
+
+// ============================================================
+// SEARCH PANEL (§5)
+// ============================================================
+const searchPanel=document.getElementById('searchPanel');
+const searchInput=document.getElementById('searchInput');
+const searchResults=document.getElementById('searchResults');
+
+document.getElementById('tbSearch').onclick=()=>{
+  const isOpen=searchPanel.classList.contains('open');
+  closeAllPanels();
+  if(!isOpen){ searchPanel.classList.add('open'); searchInput.focus(); }
+};
+document.getElementById('searchClose').onclick=()=>searchPanel.classList.remove('open');
+
+let _searchT;
+searchInput.addEventListener('input',()=>{
+  clearTimeout(_searchT);
+  _searchT=setTimeout(()=>doSearch(searchInput.value.trim()),350);
+});
+searchInput.addEventListener('keydown',e=>{
+  if(e.key==='Escape') searchPanel.classList.remove('open');
+  if(e.key==='Enter'){ clearTimeout(_searchT); doSearch(searchInput.value.trim()); }
+});
+
+async function doSearch(q){
+  if(!q){ searchResults.innerHTML=''; return; }
+  searchResults.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">searching…</div>';
+  const d=await apiFetch('/search',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({q})});
+  if(d._err){
+    searchResults.innerHTML='<div style="font-size:12px;color:#666;padding:8px 0">'+esc(d.msg||'Search unavailable.')+'</div>';
+    return;
+  }
+  const results=d.results||[];
+  if(!results.length){ searchResults.innerHTML='<div style="font-size:12px;color:#555;padding:8px 0">No results.</div>'; return; }
+  searchResults.innerHTML='';
+  results.forEach(r=>{
+    const item=document.createElement('div'); item.className='sr-item';
+    const st=r.source_type||'world';
+    item.innerHTML=
+      '<div class="sr-title"><span class="sr-tag '+esc(st)+'">'+esc(st.replace(/_/g,' '))+'</span>'+esc(r.title||r.id||'')+'</div>'+
+      '<div class="sr-snip">'+esc(r.snippet||'')+'</div>';
+    item.onclick=()=>{
+      // clicking a result: if it has a trace_id, open MRI; otherwise close and note it
+      searchPanel.classList.remove('open');
+      if(r.trace_id) openMRI(r.trace_id);
+    };
+    searchResults.appendChild(item);
+  });
+}
+
+// ============================================================
+// COPY / EXPORT MENU (§6)
+// ============================================================
+const exportMenu=document.getElementById('exportMenu');
+document.getElementById('tbExport').onclick=(e)=>{
+  e.stopPropagation();
+  exportMenu.classList.toggle('open');
+};
+// close on outside click
+document.addEventListener('click',e=>{
+  if(!exportMenu.contains(e.target)&&e.target!==document.getElementById('tbExport'))
+    exportMenu.classList.remove('open');
+});
+
+// Copy last reply — grab last .her message text
+document.getElementById('emCopyReply').onclick=()=>{
+  exportMenu.classList.remove('open');
+  const msgs=log.querySelectorAll('.msg.her');
+  const last=msgs[msgs.length-1];
+  if(!last){ flash('No reply to copy'); return; }
+  copyText(last.textContent);
+};
+
+// Copy full transcript
+document.getElementById('emCopyTranscript').onclick=()=>{
+  exportMenu.classList.remove('open');
+  const lines=convo.map(m=>(m.who==='me'?'You: ':'Vera: ')+m.text).join('\n');
+  copyText(lines);
+};
+
+// Export conversation as JSON download
+document.getElementById('emExportConvo').onclick=()=>{
+  exportMenu.classList.remove('open');
+  downloadJson(convo,'conversation');
+};
+
+// Export whole mind archive via /identity/export
+document.getElementById('emExportMind').onclick=async()=>{
+  exportMenu.classList.remove('open');
+  try{
+    const r=await fetch('/identity/export',{headers:HDR});
+    if(!r.ok){ flash('Export failed'); return; }
+    const b=await r.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download=(document.title||'vera')+'.mind.json'; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ flash('Export failed'); }
+};
+
+// Export source summary — assemble from library if available
+document.getElementById('emExportSources').onclick=async()=>{
+  exportMenu.classList.remove('open');
+  const d=await apiFetch('/library');
+  if(d._err){ flash('Source summary unavailable'); return; }
+  downloadJson(d.items||[],'sources');
+};
+
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(()=>flash('Copied')).catch(()=>flash('Could not copy'));
+  } else {
+    // fallback
+    const ta=document.createElement('textarea'); ta.value=t;
+    ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try{ document.execCommand('copy'); flash('Copied'); }catch(e){ flash('Could not copy'); }
+    document.body.removeChild(ta);
+  }
+}
+function downloadJson(data, name){
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=name+'-'+(new Date().toISOString().slice(0,10))+'.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ============================================================
+// Panel coordination: close all panels (drawers, search, etc.)
+// ============================================================
+function closeAllPanels(){
+  document.getElementById('settings').classList.remove('open');
+  libDrawer.classList.remove('open');
+  searchPanel.classList.remove('open');
+  exportMenu.classList.remove('open');
+}
+
+// clicking the chat area closes side panels (preserve existing behavior for settings + dash)
+log.addEventListener('click',()=>{
+  document.getElementById('settings').classList.remove('open');
+  libDrawer.classList.remove('open');
+  searchPanel.classList.remove('open');
+  document.getElementById('dash').classList.remove('open');
+});
+
+// ============================================================
+// SETTINGS (existing logic, preserved exactly)
+// ============================================================
+const panel=document.getElementById('settings');
+let CAPS=null, BRAIN=null;
+const capsBox=document.getElementById('caps'),allowBox=document.getElementById('allow'),
+      providerSel=document.getElementById('provider'),modelBox=document.getElementById('model'),
+      keyBox=document.getElementById('key'),cloudFields=document.getElementById('cloudFields'),
+      budgetBox=document.getElementById('budget'),spendEl=document.getElementById('spend'),
+      brainNote=document.getElementById('brainNote'),sysEl=document.getElementById('sysinfo'),
+      localModels=document.getElementById('localModels');
+function fitBadge(v){const m={comfortable:['#46b27a','fits'],tight:['#d6a23a','tight'],'too big':['#d05a5a','too big'],unknown:['#888','?']};
+  const x=m[v]||m.unknown; return '<span style="color:'+x[0]+';font-size:9px;text-transform:uppercase;letter-spacing:.06em;margin-left:6px">'+x[1]+'</span>';}
+function renderLocalModels(L){
+  let h='';
+  (L.models||[]).forEach(m=>{
+    let act;
+    if(m.active) act='<span style="color:#46b27a;font-size:13px">✓ active</span>';
+    else if(m.fit==='too big') act='<span style="color:#666;font-size:12px">won’t fit</span>';
+    else if(m.installed) act='<button class="mbtn" data-sel="'+esc(m.ref)+'">Use</button>';
+    else if(L.pull&&L.pull.ref===m.ref&&!L.pull.done) act='<span style="color:#8ab4ff;font-size:13px">'+(L.pull.pct||0)+'%</span>';
+    else act='<button class="mbtn" data-pull="'+esc(m.ref)+'">Download</button>';
+    h+='<div class="mrow"><div><div>'+esc(m.label)+fitBadge(m.fit)+'</div>'+
+       '<div style="font-size:11px;color:#777">'+esc(m.note||'')+' · ~'+m.need_gb+' GB</div></div><div>'+act+'</div></div>';
+  });
+  const c=L.cleanup;
+  if(c&&c.candidates&&c.candidates.length)
+    h+='<div class="mclean"><span>'+c.candidates.length+' unused model'+(c.candidates.length>1?'s':'')+' using ~'+c.free_gb+' GB.</span><button class="mbtn" id="cleanbtn">Clean up</button></div>';
+  localModels.innerHTML=h;
+  localModels.querySelectorAll('[data-sel]').forEach(b=>b.onclick=()=>modelAction('/models/select',b.dataset.sel));
+  localModels.querySelectorAll('[data-pull]').forEach(b=>b.onclick=()=>modelAction('/models/pull',b.dataset.pull));
+  const cb=document.getElementById('cleanbtn');
+  if(cb) cb.onclick=()=>{ if(confirm('Remove all unused models? This frees the disk space.')) modelAction('/models/cleanup',''); };
+}
+async function fetchModels(){
+  try{ const r=await fetch('/models',{headers:HDR}); const L=await r.json(); renderLocalModels(L);
+    if(L.pull&&L.pull.ref&&!L.pull.done) setTimeout(fetchModels,1200);   // poll download progress
+  }catch(e){}
+}
+async function modelAction(path,ref){
+  try{ const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({ref})});
+    const d=await r.json(); if(d&&d.error) flash(d.error);
+  }catch(e){}
+  fetchModels();
+}
+function renderCaps(){
+  capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{cb.checked=!!(CAPS&&CAPS[cb.dataset.cap]);});
+  capsBox.querySelectorAll('select[data-enum]').forEach(s=>{ if(CAPS&&CAPS[s.dataset.enum]!=null) s.value=CAPS[s.dataset.enum]; });
+  allowBox.value=((CAPS&&CAPS.allowlist)||[]).join('\n');
+}
+function applyProvider(p){
+  const cloud=(p&&p!=='local');
+  cloudFields.style.display = cloud ? 'block':'none';
+  if(keyBox){                                          // per-provider key: reflect whether THIS provider already has one saved
+    const set=cloud&&BRAIN&&BRAIN.configured&&BRAIN.configured.includes(p);
+    keyBox.value='';
+    keyBox.placeholder=set?'✓ key saved — leave blank to keep, or paste to replace':'API key — stays on your Mac';
+  }
+  if(sysEl) sysEl.style.display = cloud ? 'none':'block';   // RAM/fit only matters for local
+  if(localModels){ localModels.style.display = cloud ? 'none':'block'; if(!cloud) fetchModels(); }
+  const preset=BRAIN&&BRAIN.presets&&BRAIN.presets[p];
+  modelBox.placeholder = preset ? preset.model : 'model';
+  const opts=document.getElementById('modelopts');
+  if(opts){ opts.innerHTML=''; ((preset&&preset.models)||[]).forEach(m=>{
+    const o=document.createElement('option'); o.value=m; opts.appendChild(o); }); }
+}
+function renderBrain(){
+  if(!BRAIN||!BRAIN.providers) return;     // guard against a partial/error /brain payload
+  const s=BRAIN.system||{};
+  if(s.ram_gb){
+    const vm={comfortable:['#46b27a','fits comfortably'],tight:['#d6a23a','tight — may be slow'],
+              'too big':['#d05a5a',"won't fit"],unknown:['#8a8a8a','—']};
+    const v=vm[s.verdict]||vm.unknown;
+    sysEl.innerHTML='🖥 '+esc(s.chip||'this Mac')+' · '+s.ram_gb+' GB — comfortably runs up to ~'+s.comfy_b+'B local.'
+      + (s.params_b? ' Current model ~'+s.params_b+'B (~'+s.need_gb+' GB): <span style="color:'+v[0]+'">'+v[1]+'</span>.' : '');
+  } else sysEl.textContent='';
+  providerSel.value=BRAIN.provider;
+  modelBox.value=BRAIN.model||'';
+  keyBox.value='';
+  keyBox.placeholder = BRAIN.has_key ? 'key saved — leave blank to keep' : 'API key — stays on your Mac';
+  budgetBox.value = (BRAIN.budget!=null) ? BRAIN.budget : 0.50;
+  spendEl.textContent = 'spent today: $'+(BRAIN.spent_today||0).toFixed(2)+' of $'+Number(BRAIN.budget||0).toFixed(2)+' cap';
+  brainNote.textContent = BRAIN.honesty_verified ? ''
+    : '⚠ Honesty not yet verified for this model. Re-run the eval on your Mac before trusting it for honesty-critical chats.';
+  applyProvider(BRAIN.provider);
+}
+providerSel.onchange=()=>{ modelBox.value=''; applyProvider(providerSel.value); saveBrain(); };
+// --- personality dials (0–100 sliders) -------------------------------------
+const dialsBox=document.getElementById('dials');
+function renderDials(rows){
+  dialsBox.innerHTML='';
+  (rows||[]).forEach(r=>{
+    const d=document.createElement('div'); d.className='dial';
+    d.innerHTML='<div class="dl"><span>'+r.label+'</span><span class="dv">'+r.value+'</span></div>'
+      +'<input type="range" min="0" max="100" value="'+r.value+'" data-dial="'+r.key+'">';
+    const out=d.querySelector('.dv'), inp=d.querySelector('input');
+    inp.oninput=()=>{ out.textContent=inp.value; };
+    dialsBox.appendChild(d);
+  });
+}
+async function openSettings(){
+  panel.classList.add('open');
+  try{ const b=await fetch('/brain',{headers:HDR}); BRAIN=await b.json(); renderBrain(); }catch(e){}
+  try{ const c=await fetch('/capabilities',{headers:HDR}); CAPS=await c.json(); renderCaps(); }catch(e){}
+  try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(e){}
+  renderFaceRow();
+  loadLearn();
+  loadPersona();
+  loadWisdom();
+}
+async function loadWisdom(){
+  const el=document.getElementById('wisdomCard'); if(!el)return;
+  const d=await apiFetch('/theory');
+  if(d._err){ el.textContent='Could not load wisdom right now.'; return; }
+  const th=(d&&d.theories)||[], ls=(d&&d.lessons)||[];
+  el.innerHTML='';
+  if(!th.length&&!ls.length){ el.textContent="No theories yet — wisdom accrues as outcomes pile up over time (nothing invented)."; return; }
+  th.forEach(t=>{ const r=document.createElement('div'); r.style.cssText='margin:6px 0;font-size:12px;color:#e8e8ec;line-height:1.4';
+    r.textContent='• ['+(t.status||'')+' · '+Math.round((t.confidence||0)*100)+'%] '+t.statement+' ('+t.held+'/'+t.observed+')'; el.appendChild(r); });
+  if(ls.length){ const h=document.createElement('div'); h.textContent='Long-horizon lessons';
+    h.style.cssText='font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;margin:12px 0 2px'; el.appendChild(h);
+    ls.forEach(L=>{ const r=document.createElement('div'); r.style.cssText='margin:4px 0;font-size:12px;opacity:.85';
+      r.textContent='◆ when '+L.condition+' → '+L.action+'  ('+L.expectation+')'; el.appendChild(r); }); }
+}
+async function loadPersona(){
+  const el=document.getElementById('personaCard'); if(!el)return;
+  try{ const r=await fetch('/persona',{headers:HDR}); const d=await r.json();
+    el.textContent=(d&&d.persona)||'No persona on record.';
+  }catch(e){ el.textContent='Could not load the persona.'; }
+}
+// --- on-demand morning briefing (GET /briefing) — composed from a cap-respecting day sheet -----
+(function(){ const b=document.getElementById('briefMe'); if(!b) return;
+  b.onclick=async()=>{ const out=document.getElementById('briefOut');
+    b.disabled=true; const was=b.textContent; b.textContent='…';
+    if(out) out.textContent='Composing your briefing…';
+    try{ const r=await fetch('/briefing',{headers:HDR}); const d=await r.json();
+      if(out) out.textContent = d&&d.ok ? (d.message||'(empty briefing)')
+        : ('Could not compose a briefing'+(d&&d.error?': '+d.error:'.')); }
+    catch(e){ if(out) out.textContent='Could not reach the server for a briefing.'; }
+    finally{ b.disabled=false; b.textContent=was; }
+  };
+})();
+
+// --- Face ID (WebAuthn passkey) — a second layer on top of the key ---------
+const faceRow=document.getElementById('faceRow'),gate=document.getElementById('gate');
+const b64uToBuf=s=>{ s=s.replace(/-/g,'+').replace(/_/g,'/'); s+='='.repeat((4-s.length%4)%4);
+  const b=atob(s),u=new Uint8Array(b.length); for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i); return u.buffer; };
+const bufToB64u=b=>{ let s=''; new Uint8Array(b).forEach(x=>s+=String.fromCharCode(x));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); };
+async function renderFaceRow(){
+  if(!faceRow) return;
+  let st={}; try{ st=await (await fetch('/auth/status',{headers:HDR})).json(); }catch(e){}
+  if(!window.PublicKeyCredential){
+    faceRow.innerHTML='<span style="font-size:12px;color:#777">This device/browser doesn’t support Face ID unlock.</span>'; return; }
+  faceRow.innerHTML = st.enrolled
+    ? '<button class="mbtn" id="facedis">Turn off Face ID</button>'
+    : '<button class="mbtn" id="faceen">Enable Face ID</button>';
+  const en=document.getElementById('faceen'); if(en) en.onclick=enrollFace;
+  const dis=document.getElementById('facedis'); if(dis) dis.onclick=async()=>{ await fetch('/auth/disable',{method:'POST',headers:HDR}); renderFaceRow(); };
+}
+async function enrollFace(){
+  try{
+    const o=await (await fetch('/auth/register/begin',{method:'POST',headers:HDR})).json();
+    o.challenge=b64uToBuf(o.challenge); o.user.id=b64uToBuf(o.user.id);
+    (o.excludeCredentials||[]).forEach(c=>c.id=b64uToBuf(c.id));
+    const c=await navigator.credentials.create({publicKey:o});
+    const cred={id:c.id,rawId:bufToB64u(c.rawId),type:c.type,clientExtensionResults:{},
+      response:{attestationObject:bufToB64u(c.response.attestationObject),clientDataJSON:bufToB64u(c.response.clientDataJSON)}};
+    const r=await (await fetch('/auth/register/finish',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({cred})})).json();
+    flash(r.ok?'Face ID enabled':(r.error||'enroll failed')); renderFaceRow();
+  }catch(e){ flash('Face ID setup cancelled'); }
+}
+async function unlockFace(){
+  try{
+    const o=await (await fetch('/auth/login/begin',{method:'POST',headers:HDR})).json();
+    if(o.error){ flash(o.error); return; }
+    o.challenge=b64uToBuf(o.challenge); (o.allowCredentials||[]).forEach(c=>c.id=b64uToBuf(c.id));
+    const c=await navigator.credentials.get({publicKey:o});
+    const cred={id:c.id,rawId:bufToB64u(c.rawId),type:c.type,clientExtensionResults:{},
+      response:{authenticatorData:bufToB64u(c.response.authenticatorData),clientDataJSON:bufToB64u(c.response.clientDataJSON),
+        signature:bufToB64u(c.response.signature),userHandle:c.response.userHandle?bufToB64u(c.response.userHandle):null}};
+    const r=await (await fetch('/auth/login/finish',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({cred})})).json();
+    if(r.ok&&r.session){ SESS=r.session; HDR['X-Anima-Sess']=SESS; localStorage.setItem('anima_sess',SESS); gate.classList.remove('show'); }
+    else flash('unlock failed');
+  }catch(e){ flash('Face ID cancelled'); }
+}
+document.getElementById('gate-btn').onclick=unlockFace;
+async function checkGate(){
+  try{ const st=await (await fetch('/auth/status',{headers:HDR})).json();
+    if(st.required && !valid()){ gate.classList.add('show'); } }catch(e){}
+  function valid(){ try{ return SESS && parseInt(SESS.split('.')[0])>Date.now()/1000; }catch(e){ return false; } }
+}
+checkGate();
+// --- portable self: export downloads the bundle, import restores it --------
+const idnote=document.getElementById('idnote');
+document.getElementById('idexport').onclick=async()=>{
+  try{ const r=await fetch('/identity/export',{headers:HDR}); const b=await r.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download=(document.title||'anima')+'.identity.json'; a.click(); URL.revokeObjectURL(a.href);
+  }catch(e){ idnote.textContent='Export failed.'; }
+};
+// your PORTABLE MIND (facts + how-you-think) — distinct from "Export self" (her character).
+const mindnote=document.getElementById('mindnote');
+// --- Learn-Lamar: see / distill / relabel / remove what Vera has grounded about you ---
+// User-derived strings go in via textContent (never innerHTML), so a captured phrase can't inject.
+function _learnRow(it){
+  const row=document.createElement('div');
+  row.style.cssText='border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 10px;margin:7px 0';
+  const top=document.createElement('div'); top.style.cssText='display:flex;align-items:center;gap:8px';
+  const sum=document.createElement('div'); sum.textContent=it.summary||'(no summary)';
+  sum.style.cssText='flex:1;color:#e8e8ec;font-size:13px;line-height:1.35';
+  top.appendChild(sum);
+  if(it.sensitive){ const s=document.createElement('span'); s.className='tag'; s.textContent='sensitive';
+    s.style.cssText='background:#5a2330;color:#ffd2da'; top.appendChild(s); }
+  const conf=document.createElement('span'); conf.className='tag'; conf.title='confidence';
+  conf.textContent=Math.round((it.confidence||0)*100)+'%'; top.appendChild(conf);
+  const edit=document.createElement('button'); edit.className='mbtn'; edit.textContent='✎';
+  edit.title='Reword'; edit.style.cssText='padding:2px 8px';
+  edit.onclick=async()=>{ const t=prompt('Reword this claim (leave blank to revert to the original):',
+      it.user_edited?(it.summary||''):''); if(t===null)return;
+    await apiFetch('/personal/edit',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:it.id,text:t})}); loadLearn(); };
+  const del=document.createElement('button'); del.className='mbtn'; del.textContent='✕';
+  del.title='Remove'; del.style.cssText='padding:2px 8px';
+  del.onclick=async()=>{ if(!confirm('Remove this from your model? She stops using it.'))return;
+    await apiFetch('/personal/forget',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:it.id})}); loadLearn(); };
+  top.appendChild(edit); top.appendChild(del); row.appendChild(top);
+  const src=document.createElement('div'); src.style.cssText='font-size:11px;opacity:.55;margin-top:4px';
+  src.textContent='from '+(it.source||'captured')+(it.user_edited?' · you reworded this':'');
+  row.appendChild(src);
+  return row;
+}
+async function loadLearn(){
+  const box=document.getElementById('learnlist'); if(!box)return;
+  box.textContent='Loading…';
+  const d=await apiFetch('/personal/profile');
+  if(d._err){ box.textContent='Could not load your model right now.'; return; }
+  const p=(d&&d.profile)||{}; box.innerHTML='';
+  if(!p.known){ box.textContent="Nothing learned yet — as we talk and you share documents, what I "
+    +"ground about how you think will show up here, each with its source."; return; }
+  const facets=[['decision_patterns','How you decide'],['values','What you value'],
+    ['preferences','What you prefer'],['writing','How you write'],['lessons','What you’ve learned']];
+  for(const pair of facets){ const items=p[pair[0]]||[]; if(!items.length)continue;
+    const h=document.createElement('div'); h.textContent=pair[1]+' ('+items.length+')';
+    h.style.cssText='font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.5;margin:12px 0 2px';
+    box.appendChild(h); items.forEach(it=>box.appendChild(_learnRow(it))); }
+}
+document.getElementById('learnRefresh').onclick=loadLearn;
+document.getElementById('learnDistill').onclick=async()=>{
+  const b=document.getElementById('learnlist'); if(b)b.textContent='Distilling from your history…';
+  await apiFetch('/personal/learn',{method:'POST'}); loadLearn();
+};
+document.getElementById('fullexport').onclick=async()=>{
+  try{ const r=await fetch('/platform/export',{headers:HDR});
+    let n=null; try{ n=JSON.parse(await r.clone().text()).manifest.counts; }catch(_){}
+    const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='my-full-mind.json'; a.click(); URL.revokeObjectURL(a.href);
+    mindnote.textContent=n?('Exported your WHOLE mind — '+(n.vault_objects||0)+' cognitive objects'
+      +(n.theories?(' incl. '+n.theories+' theories'):'')+'. Carry it to any app or model.')
+      :'Exported your full portable mind.';
+  }catch(e){ mindnote.textContent='Full export failed.'; }
+};
+document.getElementById('mindexport').onclick=async()=>{
+  try{ const r=await fetch('/mind/export',{headers:HDR});
+    let n=null; try{ n=JSON.parse(await r.clone().text()).manifest.counts; }catch(_){}
+    const b=await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='my-mind.json'; a.click(); URL.revokeObjectURL(a.href);
+    mindnote.textContent=n?('Exported a model-agnostic bundle — '+(n.identity_facts||0)+' facts + '
+      +(n.cognitive_objects||0)+' cognitive objects round-trip. Carry it to any app or model.')
+      :'Exported your portable mind — a model-agnostic file.';
+  }catch(e){ mindnote.textContent='Export failed.'; }
+};
+document.getElementById('idimport').onclick=()=>document.getElementById('idfile').click();
+document.getElementById('idfile').onchange=async(e)=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{ const bundle=JSON.parse(await f.text());
+    const r=await(await fetch('/identity/import',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({bundle})})).json();
+    if(r.ok){ idnote.textContent='Imported: '+(r.applied||[]).join(', ')
+        +(((r.artifacts||{}).regenerate||[]).length?'. Regenerate: '+r.artifacts.regenerate.join('; '):'.');
+      try{ const d=await fetch('/dials',{headers:HDR}); renderDials((await d.json()).dials); }catch(_){}
+    } else idnote.textContent='Import failed: '+(r.error||'unknown');
+  }catch(err){ idnote.textContent='Not a valid identity file.'; }
+  e.target.value='';
+};
+// --- auto-save: no Save/Cancel. Every change persists the moment you leave the field. ---
+async function saveBrain(){
+  const testing=providerSel.value!=='local'&&keyBox.value.trim();
+  brainNote.textContent = testing ? 'Testing '+providerSel.value+' key…' : '';
+  let bj={};
+  try{
+    const br=await fetch('/brain',{method:'POST',headers:{'Content-Type':'application/json',...HDR},
+      body:JSON.stringify({provider:providerSel.value,model:modelBox.value.trim(),key:keyBox.value,budget:parseFloat(budgetBox.value)||0})});
+    bj=await br.json();
+  }catch(e){ brainNote.textContent='✗ Could not reach the server.'; return; }
+  if(bj.error){ brainNote.textContent='✗ '+providerSel.value+' key rejected — '+bj.error+' (not saved)'; return; }
+  if(bj.verified){ brainNote.textContent='✓ '+providerSel.value+' verified & saved'; keyBox.value=''; keyBox.placeholder='key saved — leave blank to keep'; }
+  else if(providerSel.value!=='local' && !bj.has_key){ brainNote.textContent='Add your '+providerSel.value+' key to use it.'; }
+  else brainNote.textContent='✓ saved';
+  if(bj.spent_today!=null) spendEl.textContent='spent today: $'+(bj.spent_today||0).toFixed(2)+' of $'+Number(bj.budget||0).toFixed(2)+' cap';
+}
+function saveCaps(){
+  const caps={allowlist:allowBox.value.split('\n').map(s=>s.trim()).filter(Boolean)};
+  capsBox.querySelectorAll('input[data-cap]').forEach(cb=>{caps[cb.dataset.cap]=cb.checked;});
+  capsBox.querySelectorAll('select[data-enum]').forEach(s=>{caps[s.dataset.enum]=s.value;});
+  fetch('/capabilities',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify(caps)}).catch(()=>{});
+}
+let _dialT;
+function saveDials(){
+  const dvals={}; dialsBox.querySelectorAll('input[data-dial]').forEach(s=>{dvals[s.dataset.dial]=parseInt(s.value);});
+  fetch('/dials',{method:'POST',headers:{'Content-Type':'application/json',...HDR},body:JSON.stringify({dials:dvals})}).catch(()=>{});
+}
+modelBox.onchange=saveBrain; keyBox.onchange=saveBrain; budgetBox.onchange=saveBrain;
+capsBox.addEventListener('change',e=>{ if(e.target.matches('input[data-cap], select[data-enum]')) saveCaps(); });
+allowBox.onblur=saveCaps;
+dialsBox.addEventListener('input',()=>{ clearTimeout(_dialT); _dialT=setTimeout(saveDials,450); });
+// open / close — cog toggles; the edge pull-bar or a tap on the chat dismisses
+document.getElementById('cog').onclick=()=>{ if(panel.classList.contains('open')){ panel.classList.remove('open'); } else { closeAllPanels(); openSettings(); } };
+document.getElementById('grab').onclick=()=>panel.classList.remove('open');
+// --- dashboard drawer (operator gauges + the pre-registered verdict) ---
+const dash=document.getElementById('dash'), dashBody=document.getElementById('dashbody');
+function _pct(x){ return (x==null)?'—':(x*100).toFixed(1)+'%'; }
+// which deployment is this dashboard talking to? derived from the URL host — local (Mac/tailnet)
+// vs a remote domain — so the operator always knows whose Mind these gauges describe.
+function _envLabel(){
+  const h=location.hostname||'localhost';
+  const isLocal = h==='localhost'||h==='127.0.0.1'||/^(192\.168|10|172\.(1[6-9]|2\d|3[01]))\./.test(h)||/\.local$|\.ts\.net$/.test(h);
+  return (isLocal?'local':'remote')+' · '+h;
+}
+async function openDash(){
+  dash.classList.add('open');
+  dashBody.innerHTML='<div class="dhint">loading…</div>';
+  let d; try{ const r=await fetch('/metrics',{headers:HDR});
+    if(!r.ok){ dashBody.innerHTML='<div class="dhint">dashboard is off — start the server with ANIMA_METRICS=1.</div>'; return; }
+    d=await r.json(); }
+  catch(e){ dashBody.innerHTML='<div class="dhint">couldn’t reach the server.</div>'; return; }
+  const c=d.contamination||{}, co=d.coherence||{}, g=d.growth||{};
+  dashBody.innerHTML=
+   '<h2 style="margin-bottom:4px">'+esc(document.title||'Vera')+' · identity health</h2>'
+   +'<div style="margin:0 0 14px;font-size:11px;letter-spacing:.06em;color:#6f6f76">'
+     +'<span style="text-transform:uppercase">env</span> · <b style="color:#9aa0ac;font-weight:500">'+esc(_envLabel())+'</b></div>'
+   +'<div class="gauge"><div class="gh">Contamination<span>is identity being corrupted?</span></div>'
+     +'<div class="grow"><span>organic break-rate</span><b>'+_pct(c.organic_break_rate)+'</b><span class="gn">'+(c.organic_n?'('+(c.organic_broken||0)+'/'+c.organic_n+')':'')+'</span></div>'
+     +'<div class="grow"><span>adversarial (eval)</span><b>'+_pct(c.eval_break_rate)+'</b><span class="gn">'+(c.eval_n?'('+(c.eval_broken||0)+'/'+c.eval_n+')':'')+'</span></div>'
+     +'<div class="grow"><span>narrative rejections</span><b>'+(c.narrative_rejections||0)+'</b></div></div>'
+   +'<div class="gauge"><div class="gh">Coherence<span>internally consistent?</span></div>'
+     +'<div class="grow"><span>narrative acceptance</span><b>'+_pct(co.narrative_accept_rate)+'</b><span class="gn">'+(co.narrative_total?'('+(co.narrative_acceptances||0)+'/'+co.narrative_total+')':'')+'</span></div></div>'
+   +'<div class="gauge"><div class="gh">Growth<span>becoming more accurate?</span></div>'
+     +'<div class="grow"><span>consolidations kept</span><b>'+_pct(g.accept_rate)+'</b></div>'
+     +'<div class="grow"><span>median pred. delta</span><b>'+(g.median_prediction_delta==null?'—':(+g.median_prediction_delta).toFixed(4))+'</b></div></div>'
+   +'<div class="verdict">'+esc(d.verdict||'').replace(/\n/g,'<br>')+'</div>'
+   +'<div class="row" style="margin-top:14px"><button type="button" class="mbtn" id="dRefresh">Refresh</button>'
+     +'<button type="button" class="mbtn" id="dExport">Export self</button></div>';
+  document.getElementById('dRefresh').onclick=openDash;
+  document.getElementById('dExport').onclick=()=>document.getElementById('idexport').click();
+}
+document.getElementById('dashknob').onclick=()=> dash.classList.contains('open') ? dash.classList.remove('open') : openDash();
+</script>
+</body>
+</html>

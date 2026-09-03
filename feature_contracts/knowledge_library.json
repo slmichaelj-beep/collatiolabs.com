@@ -1,0 +1,26 @@
+{
+  "feature": "knowledge_library",
+  "claim": "The Library drawer lists exactly what you have stored — every uploaded/pasted source in the Reference Library, each shown with its TRUE title, type, source label, rights, and destination — read straight from the durable store. An empty library shows nothing (no fabricated entries), and the section filter narrows the list without inventing items.",
+  "owner": "anima/server.py (GET /library -> _serve_library, with _section_matches), anima/intake_queue.py (references() + queue() as the durable source of truth, add_reference()), anima/web/index.html (#library drawer + #tbLib + loadLibrary() + #libChips section filter)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "source_label"
+  ],
+  "killer_test": {
+    "name": "library_lists_stored_reference_with_true_labels_and_empty_is_empty",
+    "setup": "Hermetic temp store. (A) An EMPTY library: server._serve_library returns ok=True with items==[] (no fabrication). (B) Seed ONE reference via intake_queue.add_reference (a unique source label/section); GET /library (via _serve_library) lists exactly that item with the correct id/title/type/source/rights/status, and every item carries title+type (no blank rows). (C) The reference is read FRESH from intake_queue.references() (durable store of truth), not from any in-process cache. (D) section=references includes the reference; a non-matching section (e.g. 'archived files') excludes it — the filter narrows, never invents. Real .anima byte-unchanged. scripts/certify_knowledge_library.py is the executable form.",
+    "prompt": "open my library",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Listing/labeling is deterministic by design (no model). The library reflects whatever the durable Reference Library + intake queue hold; it does not itself ingest — intake is the universal_knowledge_intake feature with its own cert.",
+    "Per-item confidence/objects_extracted are surfaced from provenance/candidates where present and default to 0 when absent — an honest empty value, not a fabricated score."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,26 @@
+{
+  "feature": "permissions",
+  "claim": "Vera's default-deny permission MODEL, proven behaviorally. Every outward power is an explicit capability in anima/caps.py that is OFF for a fresh creature. READ and ACT are SEPARATE grants (mail_read != mail; granting the read never grants the act). Enabling a capability persists and reads True; disabling reverts to denied. A corrupt/unknown enum value collapses to the SAFE DEFAULT (fail-safe coercion), never a wider grant. identity_agency is a held boolean, OFF by default under the 2026-07-03 freeze. Every connector ACTION is caps.enabled-gated in route.py — no silent power; sends are draft->confirm. The trust zones, permission model, and threat model are written down (docs/).",
+  "owner": "anima/caps.py (BOOL_KEYS/ENUM_KEYS, load/save/enabled, fail-safe coercion), anima/route.py (caps-gated connector actions), docs/permission_model.md + security_architecture.md + threat_model.md, scripts/certify_permissions.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "default_deny",
+    "read_not_act",
+    "grant_roundtrip",
+    "failsafe_enum",
+    "identity_frozen",
+    "action_gated"
+  ],
+  "killer_test": {
+    "name": "default_deny_read_not_act_failsafe_action_gated",
+    "setup": "scripts/certify_permissions.py proves (hermetic, real persistence): all bool caps OFF for a fresh creature; read != act across mail/imessage/calendar/reminders/notes; enabling persists + reads True and disabling reverts; granting mail_read does not grant mail; a corrupt enum coerces to the safe default; identity_agency is OFF by default; route.py gates every connector action on caps.enabled; the model is documented.",
+    "prompt": "enable a capability / feed a corrupt permission value",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Per-capability sub-scoping (e.g. mail to specific recipients only) and time-boxed grants are future refinements; today the model is a clean default-deny boolean+enum gate with read/act separation and fail-safe coercion."
+  ],
+  "status": "UNKNOWN"
+}

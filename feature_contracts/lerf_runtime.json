@@ -1,0 +1,32 @@
+{
+  "feature": "lerf_runtime",
+  "claim": "A verified skill with a unique trigger is RETRIEVED by the runtime router on a task-shaped turn, USED to render the answer with the small local model, GROUNDED-verified before it ships, and the LERF route is VISIBLE in the MRI (and the per-turn LERF route ledger).",
+  "owner": "anima/lerf.py, anima/lerf_router.py (route_task rungs), anima/server.py (_lerf_eligible/_lerf_task_first LERF-FIRST seam, _record_route), anima/caps.py (grow_intelligence/grow_mode gate Phase-6 GROWTH only — runtime use is independent), anima/web/index.html (lerf_skill search tag)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_retrieval",
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "unique_trigger_skill_retrieved_used_grounded_traced",
+    "setup": "Seed the shared skill library (default.lerf.json in a hermetic temp store) with ONE active skill carrying a unique trigger phrase. Drive anima.server._turn with a TASK-shaped request that matches only that skill. Assert: _lerf_eligible returns a rung-3 lerf_skill route for the unique trigger (and returns None for a feeling/personal/conversational turn — the #1-rule exclusion holds); the rendered answer is grounded-verified (router rung-5 small_local_verified, grounded True) BEFORE shipping; backend is lerf:*; and the LERF route ledger line + the whole_mri trace record lerf.solved True for this turn. Real .anima byte-unchanged.",
+    "prompt": "<the skill's unique trigger phrase, e.g. 'run the zorptangle triage checklist on this'>",
+    "must_contain": [
+      "<a token the skill's contract REQUIRES in its output>"
+    ],
+    "must_not_contain": [
+      "I don't have a skill",
+      "I can't do that",
+      "<a fabricated figure not present in the request>"
+    ]
+  },
+  "known_gaps": [
+    "UPGRADED (2026-06-07) UNKNOWN -> PARTIAL: the LERF-FIRST seam is wired and DETERMINISTIC retrieval is proven hermetically (a unique-trigger active skill is stored and surfaced by keyword/domain match, no model/embeddings). The remaining link — rendering the matched skill into the answer via the small local model in _lerf_task_first — genuinely needs --live (Ollama) to certify and is NOT faked. Honest gap: model-render, not wiring. --LIVE finding (2026-06-07): an attempted real-model render of a seeded task escalated to the LLM on every attempt — the GROUNDED CONTRACT (lerf.verify_rendered_output) correctly WITHHELD renders that didn't meet the skill contract (backend ollama:*, not lerf:*). So the grounded contract is live-proven, but a guaranteed LERF-solve is task/model-dependent; the USED-in-answer link stays honestly PARTIAL (not faked)."
+  ],
+  "status": "PARTIAL"
+}

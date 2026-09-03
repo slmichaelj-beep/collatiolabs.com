@@ -1,0 +1,25 @@
+{
+  "feature": "lerf_distillation",
+  "claim": "Vera grows new skills WITHOUT a human writing them: she interviews a paid teacher model to externalise a reusable procedure (steps, inputs, failure modes, and the concrete test cases it must pass to be trusted), lowers the answer into a structured, inspectable candidate skill, runs a transparent COMPETITION between teachers/framings, and pushes the winner through the REAL Wave-2 gate (schema+unit+adversarial+regression -> verified; then activation on a MEASURED compression ratio -> active). A teacher's opaque competence is decanted into a cognitive object you can open in a text editor and EXPLAIN (who taught it, when, under what framing, and exactly which test cases it passed). Only an ACTIVE skill is retrievable; a candidate whose own test cases FAIL stays REJECTED with the reason recorded and never becomes usable. Distillation is for TASK procedures ONLY — never Vera's identity, feelings, or inner life (frozen architecture / #1 product rule), refused before any teacher is paid.",
+  "owner": "anima/lerf_distill.py (interview = ask a teacher via the same cloud interface the mouth uses, parse to a structured InterviewResult; candidate_from_interview = lower into a lerf candidate SKILL with full provenance stamped into support[]; distill = the engine: interview every teacher x framing -> competition (score_candidate/rank_candidates: pass-rate then clarity then cheaper) -> certify; certify = run the winner through the REAL gate; provenance = the anti-black-box who-taught/what-tests query; _off_scope_reason = the identity/inner-life scope guard; StubTeacher = the deterministic $0 offline teacher for the hermetic selftest; CloudTeacher = the real teacher, --live only), anima/lerf.py (the REUSED Wave-2 gate: make_skill/store_skill, promote_skill schema+unit+adversarial+regression, activate_skill on a measured ratio, retrieve_skills serves ACTIVE only), consumed by anima/lerf_grow.py (autonomous '[x] Grow Intelligence', default-OFF) and anima/intake.py (skill distillation from uploads)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "verify_promote_gate_certifies_a_working_skill_and_rejects_a_broken_one_deterministically",
+    "setup": "Hermetic temp store (lerf/memory_lirf/constitution via _temp_store, plus reliability.DEFAULT_STORE and cloud.STORE redirected here), deterministic StubTeacher only (NO live teacher, NO cloud, NO network, NO key). (A) _off_scope_reason refuses an identity/inner-life task and passes a plain task verb; distill() on an identity task mints NO candidate. (B) interview(StubTeacher) parses to a structured spec with >=2 test cases; candidate_from_interview lowers it into a lerf SKILL state='candidate' that is NOT yet retrievable and carries who-taught + the verbatim test cases. (C) distill() runs a competition (substantive candidate beats a one-line stub) and certifies the winner through the REAL gate: every phase (schema+unit+adversarial+regression) ran ok, activation used a MEASURED ratio >= the floor, final_state=ACTIVE, the active skill is retrievable on a natural user task with full provenance (who-taught + what-tests + measured activation ratio). (D) a teacher whose own test cases FAIL is NOT activated: distill() returns ok=False with an explicit reason, no skill is left active, the failed candidate is REJECTED on disk (provenance kept) and never retrievable. Real .anima byte-unchanged; $0 (no spend.json / brain.json). scripts/certify_lerf_distillation.py is the executable form; anima.lerf_distill --selftest is the module's own hermetic suite.",
+    "prompt": "summarize an invoice and extract what I owe and when",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "PARTIAL (honest): the deterministic verify/promote gate is fully proven — the distillation factory takes a candidate skill through the REAL Wave-2 gate (schema+unit+adversarial+regression + a measured-ratio activation) and a candidate whose own tests fail is rejected, never activated. But the user-facing wire is INDIRECT (factory -> inventory): the engine ACCUMULATES certified, retrievable skills that the live mouth's task seam later retrieves; lerf_distill is not itself imported by server.py/mouth.py. Its direct consumers are anima/lerf_grow.py (autonomous '[x] Grow Intelligence', default-OFF, opt-in) and anima/intake.py (distillation from uploads).",
+    "The TEACHER INTERVIEW leg is a real, paid cloud-model call (CloudTeacher over cloud.build_cloud_brain, --live only, guarded by cloud.over_budget()). The cert proves everything downstream of the interview deterministically via the offline StubTeacher (the same interface), so the verify/promote gate — the safety-critical surface that decides whether an unverified skill becomes trusted and retrievable — is certified without a live provider call."
+  ],
+  "status": "UNKNOWN"
+}

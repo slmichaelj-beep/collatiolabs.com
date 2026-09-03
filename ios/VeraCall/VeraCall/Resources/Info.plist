@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Info.plist — VeraCall
+
+  Key entries for this app:
+    * UIBackgroundModes = voip + audio
+        - "voip" lets PushKit wake the app to receive an incoming-call push when
+          backgrounded or terminated, and report it to CallKit.
+        - "audio" keeps the WebRTC audio session alive while the call runs in the
+          background (screen locked / app not foreground).
+    * NSMicrophoneUsageDescription — required; the app records the mic to send to Vera.
+        The system shows this string in the mic permission prompt.
+
+  Bundle identifier is supplied by the Xcode build setting PRODUCT_BUNDLE_IDENTIFIER
+  (see project.pbxproj / README) — it MUST match the App ID you create in the Apple
+  Developer portal and the APNS_BUNDLE_ID you give voip_push.py.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleDisplayName</key>
+    <string>Vera</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <!-- Microphone permission prompt text (required for getUserMedia/mic capture). -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Vera needs the microphone so you can talk to her on a call.</string>
+
+    <!-- Background execution: VoIP push wake + ongoing call audio. -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>voip</string>
+        <string>audio</string>
+    </array>
+
+    <!-- Standard scene / launch boilerplate. -->
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string></string>
+    </dict>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+</dict>
+</plist>

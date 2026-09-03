@@ -1,0 +1,26 @@
+{
+  "feature": "sources_engine",
+  "claim": "Vera grows KNOWLEDGE from material BEYOND a teacher model — books, documents, conversations, resolved REALITY outcomes, and captured PERSONAL EXPERIENCE — and EVERY source obeys the SAME contract: raw MATERIAL -> a candidate skill/concept/heuristic/mental-model -> the REAL Wave-2 object gate (promote_object -> activate_object) -> an ACTIVE, retrievable object, PROVENANCE-STAMPED with WHICH source taught it. No source gets a private door around the gate; a candidate that cannot be verified never goes active (grounded, never a fabricated success). The model-free sources (reality + personal experience) are $0 by construction; the text sources distill via a teacher ($0 deterministic StubTeacher in test; one budget-guarded CloudTeacher only on the explicit --live corpus path). THE FREEZE is absolute (#1 product rule): a source grows knowledge about TASKS / the WORLD / the USER's own patterns — it NEVER mints Vera an identity, value, or inner life. A captured personal experience that names VERA as the value-holder is REFUSED by lerf's freeze-guarded factory and never reaches disk.",
+  "owner": "anima/sources.py (class Source + the five Source subclasses BookSource/DocumentSource/ConversationSource/RealityOutcomeSource/PersonalExperienceSource + TeacherSource; all_sources/get_source registry; source_provenance readback; _gate_object -> the REAL lerf gate (promote_object + activate_object) with _grounded_unit_cases + _measure_object_ratio; --selftest hermetic $0 proof), reusing anima/lerf.py (make_*/store_object/promote_object/activate_object/explain_object/retrieve_*; the FREEZE guard make_value/make_preference -> FreezeViolation; is_self_referential_subject) and anima/lerf_distill.py (distill/StubTeacher/_off_scope_reason for the text sources). Consumed by anima/lerf_grow.py (grow_from_source drives ONE source over supplied material under the default-OFF growth throttle); NOT imported by anima/server.py (internal factory -> inventory; the user-facing effect is INDIRECT — the live mouth retrieves the ACTIVE objects this engine accumulates).",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "many_mouths_one_gate_source_stamped_and_freeze_absolute",
+    "setup": "Hermetic temp store (lerf.STORE via _temp_store; cloud.STORE redirected here too). Deterministic $0 StubTeacher; no model, no network, no key. (A) all five sources + the teacher source are registered under exactly six SOURCE_KINDS; the material digest is bounded + whitespace-collapsed. (B) REALITY (model-free, $0): a CONFIRMED low-surprise resolved loop grows an ACTIVE HEURISTIC and a HIGH-surprise loop grows an ACTIVE MENTAL-MODEL revision, each through the REAL gate, grounded in the resolved-loop facts (category+surprise in support[]), source-stamped reality_outcome, the heuristic RETRIEVABLE; a category-less record grows NOTHING. (C) PERSONAL EXPERIENCE (model-free, $0, FREEZE-GUARDED): captured USER experiences grow exactly 2 ACTIVE patterns (preference + lesson), the USER's not Vera's, source-stamped + RETRIEVABLE; a Vera-self value is REFUSED (refused_self_referential==1) and never appears — and the freeze is lerf's OWN factory (make_value raises FreezeViolation directly). (D) TEXT (book) via the $0 stub: a book excerpt distills through the SAME Wave-2 gate to an ACTIVE retrievable skill carrying BOTH the teacher provenance AND source_kind=book; an identity excerpt is REFUSED before any teacher work; NO teacher -> NO work. (E) source_provenance reads the stamp off the object's own support[] (auditable); a non-source object reads source_kind=None. $0: no spend.json / brain.json written. Real .anima byte-identical before/after. scripts/certify_sources_engine.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "user_visible_entry is false: this is INTERNAL factory machinery. It has no server endpoint and no UI button — it is imported by anima/lerf_grow.py (grow_from_source), not by anima/server.py. The user-facing effect is INDIRECT: the live mouth later RETRIEVES the ACTIVE objects this engine accumulates (the factory -> inventory wire). The default-OFF growth surface that DRIVES it (the 'Grow Intelligence' toggle + grow_mode) is certified separately as autonomous_growth.",
+    "The text sources' real-corpus leg (books/documents/conversations distilled from a real teacher) is a live, paid CloudTeacher network call, reachable only on lerf_grow's explicit --live path and guarded by cloud.over_budget(). The cert proves the entire gate downstream of the teacher deterministically via the offline $0 StubTeacher (the same interface) and proves the no-teacher / identity-excerpt paths do NO work — so no live provider call is made. The model-free sources (reality + personal experience) need no teacher at all and are fully proven."
+  ],
+  "status": "UNKNOWN"
+}

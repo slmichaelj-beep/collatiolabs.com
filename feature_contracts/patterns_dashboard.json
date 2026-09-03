@@ -1,0 +1,30 @@
+{
+  "feature": "patterns_dashboard",
+  "claim": "The Founder Console — Patterns & Improvements (GET /console page + GET /console.json token-gated data + POST /console/decide approve/reject) — the visible face of Vera's self-improvement loop, fed by REAL stores, never a hardcoded good-news dashboard. LIVE PATTERNS: the repeated issues Vera has observed (reports/patterns.json from the Pattern Observatory) with severity, frequency, root-cause hypothesis, recommended fix, required cert, and evidence trace/turn IDs. IMPROVEMENTS: Vera's self-generated backlog (reports/improvement_backlog.json from the Improvement Engine) with recommendation, expected benefit, risk, required cert, and a persisted+audited approval status. LEARNING LOOP: which suggestions have been acted on (decision recorded). COMPLETED · ROI: the historical record of shipped, VERIFIED improvements (scripts/roi_ledger.py -> reports/roi_ledger.json) with a measured before->after and the return it bought us — and EVERY verified win is self-gated by an EXISTING cert file AND a COMPLETE feature contract, so a claim with no passing proof is shown 'unverified', never as a win. LIVE FEED: recent security events + Rover findings, newest first. Approve/Reject WORKS (POST /console/decide persists to .anima and writes a security event); build/verify are honestly labeled as dev-session actions, not one-click. Honest empty state when there is nothing — no fake 'all good'. The console patterns EQUAL the real pattern store and the improvements EQUAL the real backlog (proven, not invented).",
+  "owner": "anima/server.py (_console_data aggregator + _console_decide + GET /console + GET /console.json + POST /console/decide), anima/web/console.html, anima/patterns.py + scripts/pattern_observatory.py (pattern store), anima/improvement_engine.py + scripts/improvement_backlog.py (improvement store), scripts/roi_ledger.py + reports/roi_ledger.json (Completed · ROI ledger), anima/incident.py + reports/rover_report.json (live feed), scripts/certify_patterns_dashboard.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "page_served",
+    "data_authed",
+    "real_patterns",
+    "evidence_links",
+    "real_improvements",
+    "approve_reject_works",
+    "live_feed",
+    "not_hardcoded",
+    "completed_roi",
+    "honest_empty"
+  ],
+  "killer_test": {
+    "name": "real_patterns_improvements_feed_approve_reject_not_hardcoded_honest_empty",
+    "setup": "scripts/certify_patterns_dashboard.py proves: /console serves the page and /console.json is behind the auth wall; real pattern objects ride through with evidence trace IDs; improvements render with recommendation + expected benefit + required cert + status; approve/reject persists + audits (hermetic) and the page wires the controls (honestly labeling build/verify as not one-click); the live feed renders; the patterns EQUAL reports/patterns.json and the improvements EQUAL reports/improvement_backlog.json (not hardcoded); the Completed · ROI view shows shipped work with before->after where every verified entry is gated by an EXISTING cert file and a COMPLETE contract (check 11); and the page has an honest empty state.",
+    "prompt": "open /console — approve or reject an improvement",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: patterns from the live-path audit + MRI traces, improvements from the Improvement Engine, feed from security events + Rover. Pulling the FULL set of feed sources the directive lists (host pressure / Argus, source-use traces, final-gate blocks, performance traces) into the feed, and a real before/after metric delta in the learning loop (vs the current decision-recorded view), are the next enrichment. 'Mark as ticket / built / verified' beyond approve/reject is a dev-session action, honestly labeled as such, not faked one-click."
+  ],
+  "status": "UNKNOWN"
+}

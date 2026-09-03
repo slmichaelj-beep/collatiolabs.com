@@ -1,0 +1,25 @@
+{
+  "feature": "wisdom_theory",
+  "claim": "Vera turns accumulated experience into WISDOM: she generalises corroborated outcomes into durable THEORIES ('X tends to lead to Y', each with a corroboration-based confidence and the literal observations grounding it), refines each theory as new outcomes arrive, and crystallises the strongly-supported ones into long-horizon LESSONS (condition->action rules that carry their failure envelope). It is grounded only in observed results — an empty history yields empty wisdom, never a fabricated theory — and FREEZE-SAFE: theories model the world and the user, never Vera herself (any claim naming the assistant is refused at observe()).",
+  "owner": "anima/theory.py (observe/induce/refine/lessons/theories/lesson_set/from_reality; the freeze boundary is enforced here because lerf's guard only covers PREFERENCE/VALUE), anima/server.py (GET /theory -> _serve_theory), anima/web/index.html ('Wisdom' panel: loadWisdom -> GET /theory), anima/lerf.py (MENTAL_MODEL/HEURISTIC factories + store_object)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "observe_induce_refine_lesson_grounded_and_freeze_safe",
+    "setup": "Hermetic temp store (theory.STORE + lerf store redirected). (A) no observations -> no theories (induce never fabricates). (B) a corroborated pattern becomes a theory grounded in its observations with a corroboration posterior (3-of-4 -> ~0.67, never a jumped 1.0). (C) more corroboration raises confidence and firms it to 'supported'. (D) a supported theory crystallises into a long-horizon lesson (condition->action) with a failure envelope. (E) a claim about Vera herself is refused at observe() and never folded into a theory; a user/world claim passes. (F) from_reality() bridges the reality-learning ledger best-effort without crashing. Real .anima byte-unchanged. scripts/certify_wisdom_theory.py is the executable form; GET /theory is the live read behind the Settings 'Wisdom' panel.",
+    "prompt": "what have you learned holds true over time?",
+    "must_contain": [],
+    "must_not_contain": ["vera is", "i am becoming", "my personality"]
+  },
+  "known_gaps": [
+    "Theories are induced from explicit observations (observe()) and the reality-learning bridge (from_reality); the volume + quality of wisdom scales with accumulated outcomes — a thin history yields a thin (but honest) theory set, never invented to fill it out.",
+    "Capturing outcomes forward into observe() during a live turn is a future wiring step; today the engine, the read surface (GET /theory + Wisdom panel), and the reality-learning bridge are live, and certify_wisdom_theory.py proves the induction/refinement/lesson/freeze contract deterministically."
+  ],
+  "status": "UNKNOWN"
+}

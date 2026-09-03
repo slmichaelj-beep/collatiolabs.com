@@ -1,0 +1,25 @@
+{
+  "feature": "vera_status_cli",
+  "claim": "`python3 scripts/vera_status.py` is the ONE founder command: the whole honest state of Vera in a single glance. It composes the real self-knowledge subsystems — System Shape (what kind of mind this is), the Personal Digital Twin (what is grounded about the person), the Improvement Backlog (certified vs open work orders), and the Portable Mind (how much round-trips) — and adds the deploy state (is the live server running exactly the committed code?). compose() is PURE + READ-ONLY: every line is sourced from a real store/report, it is HONEST when empty (never a flattering guess), it never runs a model and never mutates a store. The deploy leg hits the live /version but degrades GRACEFULLY when the server is unreachable (running=None, up=False, green=False) — the command never depends on the server being up.",
+  "owner": "scripts/vera_status.py (compose() = the read-only composition of system_shape.compose + twin_dashboard.compose + portable.export_mind + improvement_engine.stats(load_backlog) + _deploy_state(); _deploy_state() = git HEAD vs the live /version sha, try/except-guarded so an unreachable server yields up=False/green=False; main()/_print/--json = the CLI surface), anima/system_shape.py (compose), anima/twin_dashboard.py (compose), anima/portable.py (export_mind), anima/improvement_engine.py (stats + load_backlog)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_retrieval",
+    "real_use_in_answer"
+  ],
+  "killer_test": {
+    "name": "compose_is_coherent_real_read_only_and_degrades_gracefully_offline",
+    "setup": "Hermetic temp store (every personal store redirected via gate0_prime_experience._temp_store; urllib.request.urlopen monkeypatched so the cert NEVER touches the live :8765). (A) compose() returns a dict carrying every founder section (person/honesty/mind/knows_you/improving/portable/deployed) and each section has its real declared shape (honesty has key+human+status; mind has headline+synthesis; knows_you has richness+synthesis+coverage; improving has total+certified+open_actionable; portable has identity_facts+cognitive_objects+round_trip_layers; deployed has head+running+green+up). (B) REAL, NOT FABRICATED: the composed sub-blocks are byte-equal to calling system_shape.compose / twin_dashboard.compose / portable.export_mind / improvement_engine.stats DIRECTLY — vera_status only forwards real subsystem output, it does not invent. (C) HONEST WHEN EMPTY: in the fresh temp store, knows_you.richness=='empty' and the portable counts are 0 (no flattering guess). (D) DETERMINISTIC + PURE/READ-ONLY: compose() called twice yields an identical dict (network stubbed), it is JSON-serializable (what --json prints), and the persisted temp store is byte-unchanged across the call. (E) DEPLOY DEGRADES GRACEFULLY: _deploy_state() with urlopen raising returns {up:False, green:False, running:None} and a real git HEAD; with a stub returning the same sha as HEAD it is green/up True; with a different sha it is up=True but green=False. So the GREEN line is a real function of (HEAD, running) and the command survives an unreachable server. Real .anima byte-unchanged. scripts/certify_vera_status_cli.py is the executable form.",
+    "prompt": "vera status",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The DEPLOYED ● GREEN line ('running == committed') requires the live :8765 server's GET /version. The hermetic cert does NOT hit the running server (HARD CONSTRAINT); instead it monkeypatches urllib so it PROVES all three transport outcomes deterministically — unreachable (up=False/green=False), reachable+matching-sha (green=True), reachable+different-sha (up=True/green=False) — and proves the rest of compose() is coherent + read-only with the server unreachable. The single unproven-here link is the real network round-trip to the live server's /version (a live-server leg, not a logic gap).",
+    "compose() reads the reports/*.json (program_reality_audit / live_path_results / feature_inventory / improvement_backlog / patterns) from the REAL repo reports/ dir read-only; the cert runs inside the real repo so those reflect whatever the audit last wrote. The personal/twin/portable stores ARE redirected to the temp dir, so in the cert they read empty and the 'honest when empty' contract is what is proven for those."
+  ],
+  "status": "UNKNOWN"
+}

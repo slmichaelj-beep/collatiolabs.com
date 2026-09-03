@@ -1,0 +1,26 @@
+{
+  "feature": "host_apps",
+  "claim": "Vera can read and — with a second confirmation — write the host Mac's Calendar, Reminders, and Notes, but only the powers you turn on. All six switches (calendar / reminders / notes x read / write) are OFF by default; an OFF power is provably SILENT (the host backend is never touched); reading note bodies is separate from reading titles; and no event, reminder, or note is EVER written without an explicit draft then confirm, mirroring the Messages send model. Everything is on-device (osascript / EventKit) and is paused under a cloud brain like any private fact.",
+  "owner": "anima/host_access.py (EventKit-preferred, AppleScript fallback; read + the confirm-gated create_event/create_reminder/complete_reminder/create_note/append_to_note executors), anima/route.py (caps-gated host reads + _parse_host_write -> _host_prepare -> _pending_set -> on-confirm _host_execute draft-confirm gate; _WRITE_CAP maps each action to its switch), anima/caps.py (calendar_read/calendar/reminders_read/reminders/notes_read/notes in BOOL_KEYS, default-OFF), anima/web/index.html (#caps Calendar/Reminders/Notes data-cap toggles)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "host_apps_off_by_default_silent_and_confirm_gated",
+    "setup": "Hermetic temp store + a tripwired anima.host_access (no osascript/EventKit ever runs). (A) caps.load(name) -> all six host flags False; the Settings toggles render from exactly this ledger. (B) With them OFF, route.route(name,'what are my reminders?') returns the honest off-message and NEVER calls host_access; route.route(name,'remind me to X') returns the off-message and sets NO pending draft. (C) caps.save({reminders_read:True}) is durable AND isolated on reload (no other host flag flips), and the read then reaches host_access.list_reminders. (D) With the write flag ON a write request prepares a DRAFT (pending stored) and executes nothing; an explicit 'yes' executes the create EXACTLY once; a clear 'no' cancels and writes nothing. (E) the notes-list read is titles-only (list_notes, never read_note). Real .anima byte-unchanged. scripts/certify_host_apps.py is the executable form.",
+    "prompt": "remind me to call the dentist tomorrow at 3pm",
+    "must_contain": ["off", "settings"],
+    "must_not_contain": ["done", "i've added", "reminder set", "i created", "all set"]
+  },
+  "known_gaps": [
+    "Live osascript/EventKit success is host- and TCC-grant-dependent; the cert tripwires the backend so it proves the CAP GATE + draft-confirm contract deterministically and offline. host_access.py degrades honestly (structured no_access) when a grant is missing, which selftest.py asserts separately.",
+    "Narration of the injected capability note rides the mouth's standard #1-rule final gate + Whole-System MRI (certified by their own probes); this probe certifies the deterministic gate/ledger/confirm floor, not the model's wording."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,28 @@
+{
+  "feature": "source_aware_answering",
+  "claim": "When the user asks what they uploaded/saved about a topic, Vera answers FROM the stored reference, LABELS it as the user's uploaded reference (never personal memory, never her own self), and ships it through the same #1-rule final gate as every reply.",
+  "owner": "anima/source_aware.py (classify_recall/recall/relevant_sources), anima/server.py (reference-recall seam in _turn; out['sources']), anima/mouth.py (final_output_gate), anima/web/index.html (addSources 'based on …' chips)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_retrieval",
+    "real_use_in_answer",
+    "source_label",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "blue_copper_ladder_recall",
+    "setup": "Store a durable reference containing 'blue copper ladder 92817' (via intake_queue.add_reference / approved intake). Drive the REAL anima.server._turn with the recall question. The deterministic reference-recall seam short-circuits BEFORE the LLM (backend must be reference:recall); shipped text must equal mouth.final_output_gate(source_aware.recall(...)) (no second return path); MRI must record reference_recall_match -> deterministic_reference_reply -> final_gate. Hermetic temp store; real .anima byte-unchanged.",
+    "prompt": "What did I upload about blue copper ladder 92817?",
+    "must_contain": ["blue copper ladder 92817", "uploaded reference"],
+    "must_not_contain": ["I'm not aware", "no record", "don't have any uploads"]
+  },
+  "known_gaps": [
+    "The seam answers FROM a stored REFERENCE only. A topic with NO matching stored reference correctly falls through (recall() returns None) — that is honest, not a gap, but the cert must prove the negative does not hijack a normal turn.",
+    "Reference-GROUNDED *generative* answering (the LLM composing FROM the source rather than the deterministic fixed-text recall) is a separate, harder path that must clear the #1-rule battery first; this contract certifies the deterministic recall use, not free-form generation over the source."
+  ],
+  "status": "UNKNOWN"
+}

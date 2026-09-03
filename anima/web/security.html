@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Security &amp; Quarantine</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f;--p0:#e0556b;--p1:#d6a13a;--p2:#6aa6ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:640px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .tabs{display:flex;gap:6px;margin:18px 0 14px;flex-wrap:wrap}
+  .tab{font-size:13px;color:var(--dim);padding:7px 14px;border:1px solid var(--line);border-radius:10px;background:#0d1422;cursor:pointer}
+  .tab.on{color:var(--ink);border-color:var(--accent-d);background:var(--accent-d)}
+  .tab .n{opacity:.6;font-size:11px;margin-left:5px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ph{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .pill.bad{color:#f6b3bf;border-color:var(--bad-d);background:var(--bad-d)} .pill.good{color:#9bf0cf;border-color:var(--good-d);background:var(--good-d)}
+  .pill.warn{color:#f4d79b;border-color:var(--warn-d);background:var(--warn-d)} .pill.accent{color:#bcd4ff;border-color:var(--accent-d);background:var(--accent-d)}
+  .ttl{font-weight:640;font-size:15px}
+  .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:9px}
+  .val{font-size:13px;color:var(--dim);margin-top:1px}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:7px;padding:7px 9px;white-space:pre-wrap;word-break:break-word}
+  .ev{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .ev code{font-size:11px;color:#f6b3bf;background:var(--bad-d);border:1px solid var(--bad-d);border-radius:6px;padding:2px 7px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:8px 11px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink);font-weight:620}
+  .btn{font-size:13px;padding:8px 15px;border-radius:9px;border:1px solid var(--line);cursor:pointer;background:#0d1422;color:var(--ink)}
+  .btn.danger{border-color:var(--bad-d);background:var(--bad-d);color:#f6b3bf;font-weight:620}
+  .btn.lift{border-color:var(--good-d);background:var(--good-d);color:#9bf0cf;font-weight:620}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .feed{font-size:13px}
+  .feed .row{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .feed .row:first-child{border-top:0}
+  .feed .t{color:var(--faint);font-size:11.5px;white-space:nowrap;min-width:120px}
+  .feed .k{font-size:11px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:6px;padding:1px 7px;white-space:nowrap;height:fit-content}
+  .feed .k.quarantine{color:#f6b3bf;background:var(--bad-d);border-color:var(--bad-d)}
+  .feed .k.lockdown{color:#f4d79b;background:var(--warn-d);border-color:var(--warn-d)}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  .lock{border-width:2px;margin-bottom:16px}
+  .lock.armed{border-color:var(--bad-d);background:linear-gradient(180deg,#1c0f16,#140b11)}
+  .lock.clear{border-color:var(--good-d)}
+  .lockrow{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .lockstate{font-size:17px;font-weight:680}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+  .counts{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · SECURITY</div>
+      <h1>Security &amp; Quarantine</h1>
+      <div class="sub">Vera's operable safety posture: the panic button, what the Context Immune System
+        has caught, which sources are quarantined, and the local security log. Real data, never an alarm
+        or an all-clear that isn't earned. Nothing here leaves your Mac.</div>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/trust">Trust Ledger →</a>
+      <a class="back" href="/console">Console →</a>
+      <a class="back" href="/observatory">Observatory →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="headline"></div>
+  <div id="lock"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view"><div class="na">loading…</div></div>
+
+  <footer>Read-only review surface · lockdown / restore is reversible &amp; audited · local-only.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  var DATA=null, TAB='quarantine', BUSY=false;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function when(s){return esc((String(s||'').replace('T',' ').slice(0,19))||'—');}
+
+  // ---- the panic button (lockdown / restore) ----------------------------------------------------
+  function lockView(d){
+    var armed=!!d.locked, el=document.getElementById('lock');
+    var reason=(d.lockdown&&d.lockdown.reason)?d.lockdown.reason:'', at=(d.lockdown&&d.lockdown.at)?d.lockdown.at:'';
+    var state=armed?'🔒 Lockdown ENGAGED':'🟢 Normal — capabilities follow your settings';
+    var btn=armed
+      ? '<button class="btn lift" id="lockbtn" data-action="restore">Lift lockdown</button>'
+      : '<button class="btn danger" id="lockbtn" data-action="lockdown">Engage lockdown</button>';
+    var detail=armed
+      ? '<div class="val">Reason: '+esc(reason||'manual')+(at?' · since '+when(at):'')+'</div>'
+      : '';
+    el.className='card lock '+(armed?'armed':'clear');
+    el.innerHTML='<div class="lockrow"><div><div class="lockstate">'+state+'</div>'+detail+'</div>'+btn+'</div>'+
+      '<div class="why"><b>What this is:</b> the panic button. Lockdown forces every outward capability '+
+      '(mail, iMessage, web, host access, growth) OFF at the gate no matter what is configured — instantly, '+
+      'reversibly, and logged. <b>What to do:</b> '+(armed
+        ? 'when you’ve confirmed things are safe, press <b>Lift lockdown</b> to return to your saved settings (they were never deleted).'
+        : 'if anything looks wrong, press <b>Engage lockdown</b> to put Vera in a safe state in one click.')+'</div>';
+    var b=document.getElementById('lockbtn');
+    if(b) b.onclick=function(){
+      var act=b.dataset.action;
+      if(act==='lockdown' && !confirm('Engage lockdown? Vera will hold ALL outward capabilities OFF until you lift it. This is reversible.')) return;
+      BUSY=true; b.disabled=true;
+      fetch('/security/action',{method:'POST',headers:HDR,body:JSON.stringify({action:act})})
+        .then(function(r){return r.json();}).then(function(){BUSY=false;load();})
+        .catch(function(){BUSY=false;b.disabled=false;});
+    };
+  }
+
+  // ---- the four truth-labelled sections ---------------------------------------------------------
+  function evCard(e,kindPill){
+    var mk=(e.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
+    var labs='<span class="pill">origin: '+esc(e.origin||'?')+(e.origin_inferred?' (inferred)':'')+'</span>'+
+      '<span class="pill">'+esc(e.active_state||'?')+'</span>'+
+      '<span class="pill">'+esc(e.visibility||'?')+'</span>';
+    var ctx='memory '+(e.entered_memory?'YES':'no')+' · prompt '+(e.entered_prompt_context?'YES':'no')+
+      ' · source '+(e.entered_source_context?'YES':'no')+' · tool '+(e.entered_tool_context?'YES':'no');
+    var link=[];
+    if(e.cert_name)link.push('cert: '+esc(e.cert_name));
+    if(e.scenario_id)link.push('scenario: '+esc(e.scenario_id));
+    if(e.run_id)link.push('run: '+esc(e.run_id));
+    if(e.trace_id)link.push('trace: '+esc(e.trace_id));
+    return '<div class="card"><div class="ph">'+kindPill+'<span class="ttl">route: '+esc(e.route||'output')+
+      '</span><span class="pill">'+when(e.at)+'</span></div><div class="ev" style="margin-top:6px">'+labs+'</div>'+
+      (mk?'<div class="lab">Markers</div><div class="ev">'+mk+'</div>':'')+
+      '<div class="lab">Context reach (did it touch anything?)</div><div class="val">'+ctx+'</div>'+
+      (link.length?'<div class="lab">Linkage</div><div class="val">'+link.join(' · ')+'</div>':'')+
+      '<div class="lab">Evidence (redacted, held as data — never obeyed)</div><div class="mono">'+esc(e.preview||'')+'</div></div>';
+  }
+  function quarantineView(d){
+    var sec=d.truth_sections||{}, ts=d.truth_summary||{};
+    var at=sec.active_threats||[], qs=sec.active_quarantined_sources||[], bl=sec.blocked_live_events||[], te=sec.security_test_evidence||[];
+    var out='';
+    // 1. ACTIVE THREATS
+    out+='<div class="lab">① Active threats (something is wrong right now)</div>';
+    if(!at.length){ out+='<div class="na">None. No active compromise. (Honest empty state.)</div>'; }
+    else out+=at.map(function(e){return evCard(e,'<span class="pill bad">ACTIVE</span>');}).join('');
+    // 2. ACTIVE QUARANTINED SOURCES
+    out+='<div class="lab" style="margin-top:16px">② Active quarantined sources (excluded from answers)</div>';
+    if(!qs.length){ out+='<div class="na">No sources are quarantined — nothing in your Library is acting as instructions.</div>'; }
+    else out+=qs.map(function(s){var mk=(s.markers||[]).map(function(m){return '<code>'+esc(m)+'</code>';}).join('');
+      return '<div class="card"><div class="ph"><span class="pill bad">excluded</span><span class="ttl">'+esc(s.title)+
+        '</span><span class="pill">'+esc(s.type||'source')+'</span></div>'+(mk?'<div class="lab">Why it tripped</div><div class="ev">'+mk+'</div>':'')+
+        '<div class="lab">Evidence (held, not obeyed)</div><div class="mono">'+esc(s.preview||'')+'</div></div>';}).join('');
+    // 3. BLOCKED LIVE EVENTS
+    out+='<div class="lab" style="margin-top:16px">③ Blocked live events (a real reply the gate dropped — never shown to you)</div>';
+    if(!bl.length){ out+='<div class="na">None — no live hostile output has reached the answer gate. Clean. (Honest empty state.)</div>'; }
+    else out+=bl.map(function(e){return evCard(e,'<span class="pill warn">blocked live</span>');}).join('');
+    // 4. SECURITY TEST EVIDENCE
+    out+='<div class="lab" style="margin-top:16px">④ Security test evidence (cert / rover / renegade fixtures, blocked before any user)</div>';
+    if(!te.length){ out+='<div class="na">No test-fixture evidence in the recent window.</div>'; }
+    else out+='<div class="why">These are the verification suites firing known-bad strings (PWNED, “wire money”, “delete emails”) '+
+      'through the real answer gate to prove it blocks them. They are <b>test evidence, not an attack</b> — held redacted, '+
+      'never obeyed, never shown to you, never stored.</div>'+te.map(function(e){return evCard(e,'<span class="pill accent">test fixture</span>');}).join('');
+    return out;
+  }
+
+  // ---- immune posture (the Context Immune System) -----------------------------------------------
+  function immuneView(d){
+    var im=d.immune||{}, routes=im.routes||[], def=im.defenses||{};
+    var defrows=Object.keys(def).map(function(k){
+      var on=!!def[k];
+      return '<div class="chips" style="margin-top:4px"><span class="pill '+(on?'good':'warn')+'">'+(on?'✓':'—')+' '+esc(k.replace(/_/g,' '))+'</span></div>';
+    }).join('');
+    return '<div class="card"><div class="ttl">Context Immune System</div>'+
+      '<div class="lab">Doctrine</div><div class="val">'+esc(im.doctrine||'—')+'</div>'+
+      '<div class="lab">Routes it covers</div><div class="chips">'+
+        (routes.length?routes.map(function(r){return '<span class="pill accent">'+esc(r)+'</span>';}).join(''):'<span class="na">none</span>')+'</div>'+
+      '<div class="lab">Live defenses</div>'+(defrows||'<span class="na">none</span>')+
+      '<div class="why"><b>What this is:</b> the firewall between what Vera <i>reads</i> and what she '+
+      '<i>trusts</i>. Hostile text on any of these routes is held as evidence and can never become an '+
+      'instruction. <b>What to do:</b> nothing — it runs on every turn. This panel just proves it’s on.</div></div>';
+  }
+
+  // ---- capabilities (what's reachable right now) ------------------------------------------------
+  function capsView(d){
+    var on=(d.caps&&d.caps.on)||[], off=(d.caps&&d.caps.off)||[];
+    return '<div class="card"><div class="ttl">Outward capabilities</div>'+
+      '<div class="lab">On (reachable)</div><div class="chips">'+
+        (on.length?on.map(function(c){return '<span class="pill warn">'+esc(c)+'</span>';}).join(''):'<span class="na">none on</span>')+'</div>'+
+      '<div class="lab">Off (held)</div><div class="chips">'+
+        (off.length?off.map(function(c){return '<span class="pill good">'+esc(c)+'</span>';}).join(''):'<span class="na">none off</span>')+'</div>'+
+      '<div class="why"><b>What this is:</b> the capabilities Vera can use to act in the world. Most ship '+
+      'OFF by default. <b>What to do:</b> if anything is On that you didn’t intend, turn it off in '+
+      'Settings, or press <b>Engage lockdown</b> above to force all of them off at once while you check.</div></div>';
+  }
+
+  // ---- the SOC trail (full local security log) --------------------------------------------------
+  function trailView(d){
+    var ev=d.events||[];
+    if(!ev.length) return '<div class="na">No security events recorded yet.</div>';
+    return '<div class="card feed">'+ev.map(function(e){
+      var k=esc(e.kind||'event'), cls=(e.kind==='quarantine')?'quarantine':(e.kind==='lockdown'?'lockdown':'');
+      return '<div class="row"><span class="t">'+when(e.at)+'</span>'+
+        '<span class="k '+cls+'">'+k+'</span><span>'+esc(e.detail||e.kind)+'</span></div>';
+    }).join('')+'</div>';
+  }
+
+  function render(){
+    var d=DATA; if(!d) return;
+    lockView(d);
+    var ts=d.truth_summary||{};
+    function sp(n,label,bad){return '<span class="pill '+(bad?(n?'bad':'good'):'')+'">'+n+' · '+label+'</span>';}
+    document.getElementById('counts').innerHTML=
+      '<span class="pill '+(d.locked?'bad':'good')+'">'+(d.locked?'LOCKED':'normal')+'</span>'+
+      sp(ts.active_contamination||0,'active contamination',true)+
+      sp(ts.active_quarantined_sources||0,'active quarantined sources',true)+
+      sp(ts.user_visible_hostile_outputs||0,'user-visible hostile',true)+
+      sp(ts.memory_contamination||0,'memory contamination',true)+
+      sp(ts.prompt_context_contamination||0,'prompt-context contamination',true)+
+      '<span class="pill">'+(ts.blocked_live_hostile_outputs||0)+' · blocked live hostile</span>'+
+      '<span class="pill">'+(ts.security_test_fixtures_blocked||0)+' · security test fixtures</span>'+
+      '<span class="pill '+(ts.action_required?'warn':'good')+'">action required: '+(ts.action_required?'YES':'no')+'</span>';
+    if(ts.headline){var hb=document.getElementById('headline'); if(hb) hb.innerHTML='<div class="why" style="border-left-color:'+(ts.action_required?'var(--warn-d)':'var(--good-d)')+'"><b>'+(ts.action_required?'⚠':'✓')+'</b> '+esc(ts.headline)+'</div>';}
+    var tabs=[['quarantine','Threats & Evidence',(ts.active_contamination||0)+(ts.blocked_live_hostile_outputs||0)+(ts.security_test_fixtures_blocked||0)],
+      ['immune','Immune posture',((d.immune&&d.immune.routes)||[]).length],
+      ['caps','Capabilities',(d.counts.caps_off||0)],
+      ['trail','Event log',(d.counts.events||0)]];
+    document.getElementById('tabs').innerHTML=tabs.map(function(t){
+      return '<span class="tab'+(TAB===t[0]?' on':'')+'" data-tab="'+t[0]+'">'+t[1]+'<span class="n">'+t[2]+'</span></span>';}).join('');
+    var v=TAB==='quarantine'?quarantineView(d):TAB==='immune'?immuneView(d):TAB==='caps'?capsView(d):trailView(d);
+    document.getElementById('view').innerHTML=v;
+    document.querySelectorAll('.tab').forEach(function(el){el.onclick=function(){TAB=el.dataset.tab;render();};});
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+
+  function load(){
+    fetch('/security.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open this from the app (it remembers your key) or add ?k=YOUR_TOKEN to the URL.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; DATA=j; render(); }).catch(function(){
+      document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>';
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

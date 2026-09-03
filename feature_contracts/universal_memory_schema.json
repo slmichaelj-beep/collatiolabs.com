@@ -1,0 +1,25 @@
+{
+  "feature": "universal_memory_schema",
+  "claim": "There is ONE canonical memory object every subsystem speaks — a founder-fixed 10-key shape (id/type/subject/predicate/value/confidence/sources/support/updated/lirf). No organ, engine, or telemetry sink invents its own memory format: a contributor builds exactly this object via make() (which canonicalises the predicate, clamps confidence into [0,1], and stamps a fresh lirf), and validate() rejects any record that isn't precisely this shape (wrong/extra/missing key, type outside the closed set, out-of-range or bool confidence, blank subject/predicate, non-ISO8601 timestamp). The live ledger reconciles onto it: every ACTIVE LIRF row a user's captured facts produce is projected through memory_lirf.as_memories() -> memory_schema.make() and ASSERTED through memory_schema.validate() before it can leave the module, so a malformed object can never reach the bus. The on-disk ledger format is unchanged; the one real friction (row support is an INT count, canon support is a LIST of evidence ids) is reconciled at this boundary.",
+  "owner": "anima/memory_schema.py (make = the one blessed constructor; validate = the (ok,reason) gate enforcing the exact 10-key founder shape + closed TYPES set; to_lirf canonical render; to_json/from_json with from_json rejecting schema-invalid payloads; from_lirf_row/to_lirf_candidate bridge to the live ledger), anima/memory_lirf.py (_row_to_memory + Facts.as_memories + module-level as_memories project ACTIVE ledger rows onto validated canonical Memories and assert validate()), anima/organs/base.py (schema_make/schema_validate -> every organ's _emit funnels through memory_schema.make so everything on the bus is schema-valid by construction), anima/event_bus.py (the bus carries Memory dicts; organs validate at emit)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_reconciliation",
+    "validation_gate",
+    "round_trip"
+  ],
+  "killer_test": {
+    "name": "canonical_record_validates_and_normalizes_bad_record_rejected_live_ledger_reconciles",
+    "setup": "Hermetic temp store (memory_lirf.STORE redirected via _temp_store). (A) make() produces exactly the 10 founder keys, canon-normalises a messy predicate, clamps confidence>1 to 1.0 and <0 to 0.0, stamps lirf, and validate() passes by construction. (B) validate() REJECTS every malformed record: non-dict, missing key, extra key, type outside the closed set, confidence out of [0,1], bool confidence, blank subject/predicate, non-ISO8601 updated; and accepts a good one with reason 'ok'. (C) to_json/from_json round-trips an equal memory and from_json RAISES on malformed JSON and on a schema-invalid payload. (D) LIVE RECONCILIATION: memory_lirf.capture() stores a real user fact, memory_lirf.as_memories() projects the ACTIVE ledger row onto a canonical Memory whose memory_schema.validate() passes, the row id is reused (addressable in both worlds), and the support INT count is expanded to a LIST of corroboration ids (entity->subject, trait->predicate preserved). (E) the bridge from_lirf_row reconciles a synthetic row and to_lirf_candidate collapses back to the {entity,trait,value,source} merge() expects. (F) anima.memory_schema --selftest exits 0 (41 checks). Real .anima byte-identical before/after. scripts/certify_universal_memory_schema.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The schema is an internal interlingua, not a user-facing surface: there is no endpoint/UI/CLI a user clicks to validate a record (user_visible_entry=false). Its user-facing EFFECT is indirect — it is the shape real captured facts reconcile onto before the Coordinator reasons over them and they ship in a reply — so this cert proves the LIVE BACKEND reconciliation path (capture -> as_memories -> validated Memory) and the validation gate deterministically, not a clicked entry point.",
+    "The event_bus transport that carries these Memory dicts to a live Coordinator turn is exercised by the organ substrate; this cert proves the canonical record + the LIRF read-side reconciliation seam (the load-bearing boundary where real data becomes a schema object), which is where a malformed object would otherwise leak."
+  ],
+  "status": "UNKNOWN"
+}

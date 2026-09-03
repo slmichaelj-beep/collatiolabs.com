@@ -1,0 +1,24 @@
+{
+  "feature": "portable_mind",
+  "claim": "Your mind is YOURS to carry: Vera exports a model-agnostic bundle of what she has grounded about you — your identity facts + how-you-think cognitive objects + facets — that round-trips losslessly into a fresh creature on any app or model. It is the user's mind, not Vera's character; the identity freeze holds on import too (a Vera-self object is refused at the mint choke point).",
+  "owner": "anima/portable.py (export_mind = manifest + identity + cognitive_objects + facets; import_mind = round-trips identity via Facts.merge + objects via lerf.store_object, freeze-guarded), anima/server.py (GET /mind/export -> a downloadable <name>.mind.json), anima/web/index.html ('Export my mind' button -> /mind/export)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "export_import_round_trips_losslessly_and_freeze_safe",
+    "setup": "Hermetic (anima.portable --selftest): seed a mind in store A, export it, import into a FRESH store B, and prove the identity facts + cognitive objects round-trip; the freeze guard refuses a Vera-self object on import; the real .anima is untouched. The live entry is GET /mind/export (server.py) behind the 'Export my mind' button (index.html).",
+    "prompt": "export my mind",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Import is exercised by the round-trip selftest and the /identity/import path; a dedicated 'import a mind bundle' button is a future UI affordance — export is the live button today."
+  ],
+  "status": "UNKNOWN"
+}

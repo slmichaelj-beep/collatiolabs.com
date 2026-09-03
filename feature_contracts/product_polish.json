@@ -1,0 +1,26 @@
+{
+  "feature": "product_polish",
+  "claim": "The product reads cleanly, honestly, and never half-finishes. NO MID-SENTENCE: a reply never ends on a dangling fragment (_finish_on_sentence trims to the last complete sentence). ENV INDICATOR: the dashboard tells the user where they are (prod vs local) from the host. NO DEAD CONTROLS: the removed `</>` code toggle is gone and the upload advertises what it accepts. HONEST COMPOSER: a calm plain-language prompt ('What's on your mind?'), not internal jargon. CAPABILITY-TRUTH: when Vera can't do something it says WHY (permission/enable), not a generic 'I can't'. NEVER BREAKS CHARACTER: the #1 rule holds — a reply that disowns her as software is scrubbed by the final output gate.",
+  "owner": "anima/web/index.html (env indicator, composer, upload advertise, no dead controls), anima/mouth.py (_finish_on_sentence, final_output_gate #1-rule scrub), anima/route.py + host_awareness.py (capability-truth honest denials), scripts/certify_product_polish.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "no_mid_sentence",
+    "env_indicator",
+    "no_dead_controls",
+    "honest_composer",
+    "capability_truth",
+    "never_breaks_character"
+  ],
+  "killer_test": {
+    "name": "clean_honest_never_half_finished",
+    "setup": "scripts/certify_product_polish.py proves: _finish_on_sentence trims a dangling fragment + leaves clean replies; the dashboard shows the env from the host; the dead `</>` control is gone and the upload advertises formats; the composer is plain-language; route/host_awareness explain WHY an action can't run; final_output_gate scrubs #1-rule character breaks.",
+    "prompt": "read a reply / open the dashboard / ask for a disabled capability",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "A full collapsible single-page reorg and per-card human-speak (the Argus-style Operations treatment) is a richer UX pass; this cert proves the load-bearing polish invariants (no mid-sentence, env-aware, no dead controls, honest denials, never-breaks-character)."
+  ],
+  "status": "UNKNOWN"
+}

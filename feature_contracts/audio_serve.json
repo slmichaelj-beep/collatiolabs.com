@@ -1,0 +1,25 @@
+{
+  "feature": "audio_serve",
+  "claim": "GET /audio/<name> serves a rendered TTS audio clip (a briefing/reminder Vera spoke) to the phone safely. The serve is BASENAME-ONLY and confined to the .anima audio store: a valid clip in the store serves with the correct audio/* content-type; any path-traversal attempt (../, an absolute path, a symlink that escapes the store) is REFUSED with 404 and never reads a byte outside the store; a non-audio extension is refused; and the whole route is AUTH-GATED — with a token configured, an HTTP request without the matching key gets 401 before the audio dispatch is ever reached, so a clip is only delivered to an authenticated caller (the phone that holds the token in the push URL).",
+  "owner": "anima/server.py (_serve_audio_file(fname): base=Path(fname).name drops all dir components -> ext must be in _AUDIO_TYPES -> f=(STORE/base) -> resolve() both and REQUIRE f_real.parent == STORE.resolve() and f_real.is_file() before read_bytes(), else 404; the GET /audio/<name> dispatch in do_GET wires it; the do_GET _authed() guard sends 401 'unauthorized' for any unauthenticated request BEFORE the /audio dispatch; legacy GET /audio serves STORE/{name}.last.wav, name basename-stripped too)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "audio_serves_safely_traversal_refused_and_auth_gated",
+    "setup": "Hermetic temp store (_temp_store redirects server.STORE -> temp dir; _serve_audio_file reads that same module-global STORE). SAFE SERVE: seed STORE/<name>.briefing.wav with known bytes; _serve_audio_file('<name>.briefing.wav') -> (200, 'audio/wav', <those exact bytes>); each supported ext (.wav/.aiff/.mp3/.m4a/.caf) maps to its declared _AUDIO_TYPES content-type; a dir-prefixed basename ('a/b/<name>.briefing.wav') still serves (path components dropped, NOT traversed). REFUSE TRAVERSAL: '../../../etc/hosts', an absolute '/etc/passwd', and a .wav SYMLINK inside the store that points OUTSIDE it all return 404 'no audio' and leak no foreign bytes (the resolved-parent==store check defeats the symlink); a non-audio ext ('<name>.txt'), a missing file, and '' return 404. AUTH-GATE (live, no socket): build a real server.Handler via __new__ and drive Handler._authed directly — token UNSET -> authed True (open dev mode); token SET + no key -> False, + wrong ?k -> False, + correct ?k -> True, + correct 'Bearer <token>' -> True; AND statically prove in do_GET the 401 'unauthorized' guard textually precedes the '/audio/' dispatch so an unauthenticated GET is rejected before any clip is served. Real .anima byte-identical before/after. scripts/certify_audio_serve.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The visible trigger is a push-notification payload that carries the https://vera.guruu.ai/audio/<name> URL the phone fetches with its token (Caddy fronts :8765); there is no in-page web button that calls /audio/ today, so the user-facing entry is the authenticated phone fetch, not a click in index.html. The cert proves the SAFE-SERVING + traversal-refusal + auth-gate contract through the exact functions the route runs (_serve_audio_file and the real Handler._authed), but does not stand up a live HTTP socket or render a real TTS clip (clip rendering is proactive.render_audio via Kokoro/`say`, a separate model/OS surface)."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,25 @@
+{
+  "feature": "personality_dials",
+  "claim": "You tune HOW Vera comes across with eight 0-100 personality sliders (warmth, edge, playfulness, flirtiness, directness, openness, length, mood) in the Settings 'Personality' panel. The sliders load with Vera's real default temperament (warm-down / edge-up), every move is saved and durable across a reload, the GET/POST /dials endpoint round-trips, and a dial value is clamped to 0-100 (garbage in -> a safe value) so a corrupt input can never produce an out-of-range manner. Honesty is NOT a dial: it is a hard rail in code and cannot be turned down here.",
+  "owner": "anima/dials.py (AXES + Vera's DEFAULT temperament; _clamp 0-100 + _merged defaults; load/save per-creature .anima/{name}.dials.json; ui() = the slider rows the panel renders; to_prompt = the live any-brain compile; to_vectors = the deeper llama.cpp path), anima/server.py (GET /dials -> dials.ui; POST /dials -> dials.save + _reset_mouth so the new manner takes effect at once), anima/web/index.html (Settings 'Personality' #dials slider rows, renderDials, GET/POST /dials with a debounced save)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "dials_load_defaults_save_durable_clamp_and_roundtrip",
+    "setup": "Hermetic temp store (dials.STORE is in gate0_prime_experience._temp_store's module list, so .anima/{name}.dials.json redirects to a temp dir). (A) A fresh creature's dials.load == dials.DEFAULT (Vera's real warm-down/edge-up temperament, not all-50); dials.ui returns one row per axis (8), each with key+label+value, and the GET /dials payload shape the panel renders is exactly these rows. (B) dials.save({warmth:90, edge:10}) returns the saved values AND re-reading dials.load fresh from disk still shows warmth 90 / edge 10 (durable -> restart-survival). (C) save clamps an over-range value to 100, an under-range to 0, a non-numeric to the neutral 50, and silently ignores an unknown key -> no out-of-range or junk manner can ever be persisted. (D) the GET->save->GET round-trip is value-stable. Real .anima byte-unchanged. scripts/certify_personality_dials.py is the executable form.",
+    "prompt": "(settings action: drag the Warmth slider -> POST /dials -> reload -> GET /dials)",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "to_prompt() compiles the dials into graded persona directives that ride the live model's reply; to_vectors() activates the deeper llama.cpp control-vector path only once per-model vectors exist on disk. Both are downstream of the model, so the cert proves the DETERMINISTIC contract floor (defaults, durable save, clamp, endpoint round-trip, and that to_prompt is a pure deterministic function of the dials) rather than the model's narrated manner, which the mouth's #1-rule final gate certifies separately."
+  ],
+  "status": "UNKNOWN"
+}

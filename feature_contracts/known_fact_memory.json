@@ -1,0 +1,37 @@
+{
+  "feature": "known_fact_memory",
+  "claim": "A durable user fact told in conversation (e.g. a birthday) is captured to the LIRF ledger, survives a restart, and is stated back EXACTLY when asked — with no hedge — because the Knowledge Spine binds the known fact and the verifier enforces it (regenerate under the hard binding contract, then a deterministic spine floor if the model still disclaims).",
+  "owner": "anima/memory_lirf.py (Facts.capture/about/lookup, SELF), anima/spine.py (truth_class/is_known_fact/answer_from_fact/honest_unknown), anima/server.py (_turn capture + verifier ignored_known_fact enforcement), anima/organs/verifier.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "birthday_survives_restart_stated_exactly",
+    "setup": "Turn 1: tell Vera a unique birthday ('my birthday is March 4th, 1991'); assert memory_lirf.capture wrote a durable fact and it is on disk in <name>.lirf.json. Simulate a restart: reload Facts(name) FRESH from disk (no re-telling). Turn 2: ask for the birthday. The bind/verify path must surface the KNOWN value (the MRI 'bind' frame shows a KNOWN truth-class binding); if the model hedges, the verifier regenerates under hard_bind and finally ships spine.answer_from_fact. Hermetic temp store; real .anima byte-unchanged.",
+    "prompt": "when is my birthday?",
+    "must_contain": [
+      "March 4",
+      "1991"
+    ],
+    "must_not_contain": [
+      "I don't have",
+      "I'm not sure",
+      "you haven't told me",
+      "remind me",
+      "I don't know your"
+    ]
+  },
+  "known_gaps": [
+    "RESOLVED (2026-06-07): the deterministic KNOWN-FACT seam (anima/spine.fact_question + server._turn, backend memory:known_fact / memory:honest_unknown) answers a clean fact question straight from memory — exact, warm, zero hedge, no model — and ships an honest admission for a not-on-record trait that never confabulates. real_use_in_answer is now proven DETERMINISTICALLY (no --live). Cert: scripts/certify_known_fact.py (16 checks, CERTIFIED)."
+  ],
+  "status": "COMPLETE"
+}

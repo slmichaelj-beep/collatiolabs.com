@@ -1,0 +1,25 @@
+{
+  "feature": "event_bus",
+  "claim": "The substrate's spine is an in-process async publish/subscribe Event Bus: organs don't call each other, they REACT to events. A turn enters as a Question on Topic.QUESTION; subscribed organs publish Observations onto Topic.OBSERVATION; the pure deterministic Coordinator decides (question, observations) -> Decision in code before the mouth speaks; the verdict goes out on Topic.DECISION and the closed turn on Topic.RESPONSE. A published event reaches EVERY subscriber of that topic concurrently, and the passive telemetry recorder (a peer subscriber wired by telemetry.attach) sees the very same events and RECORDS one append-only trace per turn that is replayable after the fact. Fan-out is resilient: one handler raising never drops a sibling handler or the turn — the exception is surfaced to telemetry's error sink, never re-raised into the turn.",
+  "owner": "anima/event_bus.py (EventBus.subscribe/unsubscribe/publish/gather_observations + set_error_sink; Topic enum [QUESTION/OBSERVATION/DECISION/RESPONSE]; frozen Event/Question/Observation/Decision payloads; the pure Coordinator.decide; new_turn_id), anima/telemetry.py (telemetry.attach(bus, name) wires a passive Telemetry recorder to all four topics + the error sink; commit flushes one trace per turn to .anima/{name}.telemetry.jsonl on RESPONSE; replay/last/bus_traces read it back)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_delivery",
+    "real_storage",
+    "real_replay"
+  ],
+  "killer_test": {
+    "name": "publish_reaches_subscribers_and_is_recorded_replayable_and_failsafe",
+    "setup": "Hermetic temp store (telemetry.STORE redirected via _temp_store). (A) A real telemetry recorder is attached to a fresh EventBus via telemetry.attach(bus, name); two non-organ coroutine subscribers (a real organ-like one that publishes an Observation, and a passive peer) are subscribed to QUESTION/OBSERVATION. (B) gather_observations(Question) publishes QUESTION -> the organ subscriber FIRES and emits an Observation -> the peer subscriber sees the SAME Observation -> the bus returns the collected Observations. (C) The Coordinator.decide is published onto DECISION and a RESPONSE closes the turn; the attached telemetry recorder COMMITTED exactly one trace to the redirected .anima/{name}.telemetry.jsonl and telemetry.replay(name, turn_id) reads back the question, the observation's memory id, and the decision (REAL DELIVERY -> REAL RECORD -> REAL REPLAY). (D) Fan-out is fail-safe: a handler that raises does NOT drop its sibling and the exception is surfaced to the error sink (recorded as a turn error). (E) subscribe is idempotent (no double-delivery), unsubscribe stops delivery, and publish to an empty topic is a clean no-op. Real .anima byte-unchanged. scripts/certify_event_bus.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "event_bus.py is the substrate spine but is NOT yet imported by anima/server.py, anima/route.py, or anima/mouth.py: the LIVE turn currently decides off-bus and drives the SAME telemetry recorder directly via telemetry.get(name) (per the telemetry docstring 'the DIRECT off-bus turn-loop path'). So there is no DIRECT user-facing trigger that publishes onto the bus in server._turn today — this is judged PARTIAL honestly. The bus's deterministic transport contract (publish -> every subscriber, recorded + replayable, fail-safe fan-out) is fully proven hermetically and offline; wiring real organs onto the bus in the production turn is the remaining (held) integration leg.",
+    "The Coordinator routing policy proven here is the explicit v1 seam (weight x confidence with an evidence floor, local-by-default with explicit cloud escalation); richer routing grows behind the same pure (question, observations) -> Decision signature."
+  ],
+  "status": "UNKNOWN"
+}

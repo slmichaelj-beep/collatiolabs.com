@@ -1,0 +1,24 @@
+{
+  "feature": "gate0_prime",
+  "claim": "THE certificate. Gate 0 Prime prints PASS only if every one of its hardening targets passes (repeatability, debt closure, gate strictness, long-horizon, population, recovery, experience, merge+growth), and its freeze-proof asserts the REAL Vera is byte-unchanged around the entire run — non-zero exit naming the failing target(s) otherwise.",
+  "owner": "scripts/gate0_prime.py (aggregator), scripts/gate0_prime_{longhorizon,population,recovery,experience,merge_growth}.py (Wave-2 stress modules), scripts/gate0.py + scripts/identity_sandbox.py (strictness), anima/twin.py (twins)",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "real_backend",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "prime_is_all_or_nothing_and_freeze_proof_holds",
+    "setup": "Run scripts/gate0_prime.py --json (the AGGREGATOR; do NOT run it here per the hard constraint while the live Gate 0 Prime is running concurrently — this contract DESCRIBES the gate's own pass-condition for the cert layer to assert). Two properties: (1) ALL-OR-NOTHING — the verdict is PASS iff every target reports PASS; force any single target to a reported FAIL (or a SKIP on target 7 when Ollama is down) and the overall exit is non-zero and names it. (2) FREEZE-PROOF — the aggregator fingerprints the real Vera identity AND the whole real .anima ONCE around the entire certificate and FAILS the verdict if a single real Vera byte moved (external non-Vera churn is attributed, never counted as a freeze violation).",
+    "prompt": "(meta: assert gate0_prime's own pass-condition + freeze-proof — not a Vera chat turn)",
+    "must_contain": ["GATE 0 PRIME: PASS", "byte-unchanged"],
+    "must_not_contain": ["PASS with a failing target", "freeze violation ignored", "SKIP counted as PASS"]
+  },
+  "known_gaps": [
+    "HARD CONSTRAINT for THIS audit: a clean Gate 0 Prime is already running in the BACKGROUND. This Phase-1 work must NOT run gate0_prime.py or any other gate, must not write the real .anima, must not hit 127.0.0.1:8765, and must not run a live-model turn. This contract therefore DEFINES the gate's pass-condition for the live-path cert to consume later; it does not execute it.",
+    "Target 7 (experience) requires the REAL local model; if Ollama is down it SKIPs LOUD and the SKIP is treated as a NON-PASS that FAILS the certificate (the cert cannot claim a grounded live experience it did not measure)."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,28 @@
+{
+  "feature": "host_pressure",
+  "claim": "Vera runs on the user's own Mac and OBSERVES the host environment + BEHAVES SAFELY inside it. It reads LIVE memory / swap / disk pressure (anima/host_pressure.py via psutil + macOS sysctl/vm_stat) AND the real memory-bound drivers — the GPU wired ceiling (sysctl iogpu.wired_limit_mb) and Ollama's resident footprint (/api/ps) via host_pressure.snapshot(). Under RED pressure: heavy intake (image=OCR, audio/audiobook/video=speech-to-text) is DEFERRED with an honest user-facing status ('Host is under memory pressure; I'll defer heavy intake until the system has headroom.') and is never committed; the turn prefers the deterministic / LERF path and bounds generation to the token floor; LIGHT formats (text/markdown) still parse; and Vera does NOT pin a large model — its Ollama keep_alive becomes '0' (unload immediately after the turn instead of a 30-min pin) and warm() refuses to PRELOAD a model, so Vera stops CONTRIBUTING to the pressure it's measuring. The disk pre-flight guard refuses a large upload BEFORE writing when free space is low (no ENOSPC mid-write). All of it is RECOVERABLE: when headroom returns (GREEN) heavy work resumes and the model stays warm again automatically.",
+  "owner": "anima/host_pressure.py (read_pressure/heavy_ok/prefer_deterministic/status_line + gpu_wired_limit_mb/ollama_loaded/snapshot), anima/intake.py (ingest defers image/audio/audiobook/video under red + classify_source surfaces the status), anima/mouth.py (prefer_deterministic caps max_tokens; OllamaBrain._eff_keep_alive unloads under red + warm() skips preload), anima/server.py (_intake_plan disk pre-flight), scripts/certify_host_pressure.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "signal",
+    "no_enospc",
+    "heavy_defers",
+    "light_proceeds",
+    "no_large_model",
+    "no_model_pin",
+    "observes_drivers",
+    "recoverable"
+  ],
+  "killer_test": {
+    "name": "heavy_defers_under_pressure_light_proceeds_no_enospc_recoverable",
+    "setup": "scripts/certify_host_pressure.py forces host pressure via monkeypatch (deterministic) and proves: read_pressure returns a valid level from real signals; a file upload on a near-full disk is refused before writing (no ENOSPC); under RED an image (OCR) and audio (STT) are DEFERRED with the honest pressure status and not committed; a LIGHT text source still parses under RED; prefer_deterministic is True under red/yellow and False under green and the turn caps max_tokens under pressure (no large model route); under GREEN the same heavy upload proceeds (recoverable); the degraded status is a clear user-facing line.",
+    "prompt": "drop a scanned PDF / audio while the Mac is swapping hard",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Thresholds (swap 80% red / 55% yellow, mem 8%/15% free, disk 2/5 GB) are heuristics tuned for a single-user Mac where heavy swap is the clearest distress signal; they can be refined with the Performance pass (Phase 11). The model-route bias under pressure is currently a max_tokens bound + the existing LERF-first preference; a fuller router that picks a smaller route under load is a Phase 11 item."
+  ],
+  "status": "UNKNOWN"
+}
