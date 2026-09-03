@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Total Reality Control Room</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ttl{font-weight:640;margin-bottom:8px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .strip{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{flex:1;min-width:120px;background:#0d1422;border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .stat .n{font-size:22px;font-weight:680} .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+  .row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .row:first-child{border-top:0}
+  .row .l{min-width:230px;color:var(--dim)} .row .v{font-family:ui-monospace,Menlo,monospace}
+  .pill{display:inline-flex;font-size:10.5px;padding:1px 8px;border-radius:999px;border:1px solid #1c5340;background:var(--good-d);color:#9bf0cf}
+  .pill.bad{border-color:#3a1620;background:var(--bad-d);color:#f6b3bf}
+  .na{color:var(--faint);font-style:italic;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · TOTAL REALITY</div>
+      <h1>Total Reality — Coverage</h1>
+      <div class="sub">The finite universe of meaningful user behaviour, discovered from the real product.
+        Every visible control has a scenario; every claim maps to a scenario; every scenario is fully
+        classified. No invented surfaces, no invented controls.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/console">Console →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+  <div id="view"><div class="na">Loading…</div></div>
+  <footer>Read-only · Level 0 inventory + scenario matrix · computed live from the real product.
+    <span id="stamp"></span></footer>
+</div>
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||'';
+  if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+  try{localStorage.removeItem('anima_token');}catch(e){}
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function frac(a){ var ok=a&&a[0]===a[1]; return '<span class="pill'+(ok?'':' bad')+'">'+a[0]+' / '+a[1]+'</span>'; }
+  function realityView(d){
+    var iv=d.inventory||{}, m=d.matrix||{}, hr=d.hard_rules||{};
+    return '<div class="card"><div class="ttl">Real product inventory</div><div class="strip">'+
+      '<div class="stat"><div class="n">'+(iv.surfaces||0)+'</div><div class="k">surfaces</div></div>'+
+      '<div class="stat"><div class="n">'+(iv.controls||0)+'</div><div class="k">controls</div></div>'+
+      '<div class="stat"><div class="n">'+(iv.routes||0)+'</div><div class="k">api routes</div></div>'+
+      '<div class="stat"><div class="n">'+(iv.contracts||0)+'</div><div class="k">feature claims</div></div>'+
+      '</div></div>'+
+      '<div class="card"><div class="ttl">Scenario matrix</div><div class="strip">'+
+      '<div class="stat"><div class="n">'+(m.total||0)+'</div><div class="k">scenario classes</div></div>'+
+      '<div class="stat"><div class="n">'+(m.critical||0)+'</div><div class="k">critical (L1)</div></div>'+
+      '<div class="stat"><div class="n">'+(m.adversarial||0)+'</div><div class="k">adversarial (L7)</div></div>'+
+      '</div><div class="why">By level: '+esc(JSON.stringify(m.by_level||{}))+'</div></div>'+
+      (function(){ var e=d.execution; if(!e) return '';
+        return '<div class="card"><div class="ttl">Level-2 Rover execution (real backing paths)</div><div class="strip">'+
+        '<div class="stat"><div class="n">'+(e.pass||0)+'</div><div class="k">executed · pass</div></div>'+
+        '<div class="stat"><div class="n">'+(e.fail||0)+'</div><div class="k">fail</div></div>'+
+        '<div class="stat"><div class="n">'+(e.blocked||0)+'</div><div class="k">delegated (gate/rover)</div></div>'+
+        '<div class="stat"><div class="n">'+(e.deferred||0)+'</div><div class="k">deferred (L3-9)</div></div>'+
+        '</div><div class="row"><span class="l">P0 / P1 open</span>'+
+        '<span class="pill'+((e.p0||e.p1)?' bad':'')+'">'+(e.p0||0)+' / '+(e.p1||0)+'</span></div></div>'; })()+
+      (function(){ var r=d.renegade; if(!r) return '';
+        return '<div class="card"><div class="ttl">Level-7 Renegade — integrated stress chains</div>'+
+        '<div class="row"><span class="l">attack chains held</span>'+
+        '<span class="pill'+(r.all_held?'':' bad')+'">'+(r.held||0)+' / '+(r.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">P0 breaches</span><span class="pill'+(r.p0?' bad':'')+'">'+(r.p0||0)+'</span></div></div>'; })()+
+      (function(){ var p=d.consent_matrix; if(!p) return '';
+        return '<div class="card"><div class="ttl">Level-3 permission / consent matrix</div>'+
+        '<div class="row"><span class="l">decisions correct (scope × domain × state)</span>'+
+        '<span class="pill'+(p.all_pass?'':' bad')+'">'+(p.pass||0)+' / '+(p.total||0)+'</span></div></div>'; })()+
+      (function(){ var dc=d.data_classes; if(!dc) return '';
+        return '<div class="card"><div class="ttl">Level-4 data-class coverage</div>'+
+        '<div class="row"><span class="l">data classes handled correctly</span>'+
+        '<span class="pill'+(dc.all_pass?'':' bad')+'">'+(dc.pass||0)+' / '+(dc.total||0)+'</span></div></div>'; })()+
+      (function(){ var sp=d.state_pairwise; if(!sp) return ''; var ss=sp.states||{}, pw=sp.pairwise||{};
+        return '<div class="card"><div class="ttl">Levels 5+6 — state &amp; pairwise coverage</div>'+
+        '<div class="row"><span class="l">host/system states reflected (L5)</span>'+
+        '<span class="pill'+(ss.all_pass?'':' bad')+'">'+(ss.pass||0)+' / '+(ss.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">axis pairs hold + discriminate (L6)</span>'+
+        '<span class="pill'+(pw.all_pass?'':' bad')+'">'+(pw.pass||0)+' / '+(pw.total||0)+'</span></div></div>'; })()+
+      (function(){ var sk=d.soak; if(!sk) return '';
+        return '<div class="card"><div class="ttl">Level 8 — long-session / soak</div>'+
+        '<div class="row"><span class="l">soak invariants hold over '+(sk.turns||0)+' turns (history capped at '+(sk.histmax||0)+')</span>'+
+        '<span class="pill'+(sk.all_pass?'':' bad')+'">'+(sk.pass||0)+' / '+(sk.total||0)+'</span></div></div>'; })()+
+      (function(){ var fz=d.fuzz; if(!fz) return '';
+        return '<div class="card"><div class="ttl">Level 9 — seeded fuzz of the safety pipeline</div>'+
+        '<div class="row"><span class="l">fuzz invariants hold over '+(fz.n||0)+' seeded inputs (seed '+(fz.seed||0)+')</span>'+
+        '<span class="pill'+(fz.all_pass?'':' bad')+'">'+(fz.pass||0)+' / '+(fz.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">P0 (marker leak / crash / unclassified)</span>'+
+        '<span class="pill'+(fz.p0?' bad':'')+'">'+(fz.p0||0)+'</span></div></div>'; })()+
+      (function(){ var pp=d.personas; if(!pp) return '';
+        return '<div class="card"><div class="ttl">Per-persona Rover — the floor holds for everyone</div>'+
+        '<div class="row"><span class="l">personas pass (founder / prober / novice / oversharer)</span>'+
+        '<span class="pill'+(pp.all_pass?'':' bad')+'">'+(pp.pass||0)+' / '+(pp.total||0)+'</span></div>'+
+        '<div class="row"><span class="l">safety floor holds for every persona (0 leaks / crashes / unclassified)</span>'+
+        '<span class="pill'+(pp.floor_ok?'':' bad')+'">'+(pp.floor_ok?'yes':'no')+'</span></div></div>'; })()+
+      '<div class="card"><div class="ttl">Hard rules</div>'+
+      '<div class="row"><span class="l">Every visible control has a scenario</span>'+frac(hr.controls_with_scenario)+'</div>'+
+      '<div class="row"><span class="l">Every surface is served</span>'+frac(hr.surfaces_served)+'</div>'+
+      '<div class="row"><span class="l">Every scenario fully classified</span>'+frac(hr.fully_classified)+'</div>'+
+      '</div>'+
+      '<div class="why"><b>'+esc(d.phase||'')+'</b><br>'+esc(d.law||'')+'</div>';
+  }
+  function load(){
+    fetch('/reality.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; document.getElementById('view').innerHTML=realityView(j); document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString(); })
+    .catch(function(){ document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

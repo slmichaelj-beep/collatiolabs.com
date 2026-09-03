@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Commercial</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:760px}
+  main{padding:18px 28px;max-width:1000px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .r-needs_audit{color:#f6c454}.r-sellable{color:#9af0b6}.r-not_sellable{color:#ff9a9a}.r-early{color:#8ab4ff}
+  .empty{color:#6f6f76;font-style:italic}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header>
+  <div class="brand">VERA · COMMERCIAL</div>
+  <h1>From software to a first sale</h1>
+  <div class="sub">The commercialization loop: asset inventory → first sellable wedge → offer
+    package. Nothing is claimed sellable without a readiness audit; pricing is a recommendation,
+    never a commitment.</div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/commercial.json').then(r=>r.json()).then(function(d){
+  var inv=d.inventory||{}, wedges=d.wedges||[], offers=d.offers||[], fw=d.first_wedge||null;
+  function gate(g){if(!g)return '';
+    if(g.allowed) return '<span class="tag" style="color:#9af0b6">sell-gate: clear</span>';
+    return '<span class="tag" style="color:#ff9a9a">sell-gate: blocked</span><div style="font-size:11px;color:#ff9a9a;margin-top:2px">'+esc((g.blockers||[]).join('; '))+'</div>';}
+  function assetRow(a){var r=(a.commercial_readiness||'').toLowerCase();
+    return '<div class="card"><b>'+esc(a.asset_name)+'</b> <span class="tag r-'+esc(r)+'">'+esc(a.commercial_readiness)+'</span>'
+      +'<span class="tag">'+esc(a.maturity)+'</span>'
+      +(a.readiness_verdict?'<span class="tag" style="color:#8ab4ff">'+esc(a.readiness_verdict)+(a.readiness_score!=null?' '+esc(a.readiness_score)+'%':'')+'</span>':'')
+      +'<div style="opacity:.7;margin-top:3px">'+esc(a.description)+'</div>'
+      +gate(a.sell_gate)
+      +(a.audit_findings?'<div style="font-size:11px;color:#9aa0ac;margin-top:3px">audit: '+esc(a.audit_findings)+'</div>':'')+'</div>';}
+  var h='<div class="step"><h2>1 · Software asset inventory</h2>'
+    +((inv.assets||[]).length? inv.assets.map(assetRow).join('') :'<div class="empty">no assets inventoried</div>')
+    +'<div style="font-size:12px;margin-top:6px">needs audit: '+esc((inv.needs_audit||[]).join(', ')||'none')
+    +' · sellable: '+esc((inv.sellable||[]).join(', ')||'none — audit first')+'</div></div>';
+  if(fw){h+='<div class="step"><h2>1b · Recommended first wedge (awaiting approval)</h2>'
+    +'<div class="card"><b>'+esc(fw.recommended_first_wedge||'none yet')+'</b>'
+    +'<span class="tag" style="color:#f6c454">approval required</span>'
+    +'<div style="opacity:.8;margin-top:3px">why this first: '+esc(fw.why_this_first||'')+'</div>'
+    +((fw.why_not_the_others||[]).length?'<div style="font-size:11px;color:#9aa0ac;margin-top:4px">excluded: '
+        +esc(fw.why_not_the_others.map(function(e){return e.asset+' ('+e.why+')';}).join(' · '))+'</div>':'')
+    +'</div></div>';}
+  h+='<div class="step"><h2>2 · First sellable wedge</h2>'
+    +(wedges.length? wedges.map(function(w){return '<div class="card"><b>'+esc(w.asset_name)+'</b> — '+esc(w.narrow_use_case)
+        +' <span class="tag">'+esc(w.status)+'</span></div>';}).join('')
+      :'<div class="empty">no wedge yet — audit an asset, then propose the smallest sellable slice</div>')+'</div>';
+  h+='<div class="step"><h2>3 · Offer package</h2>'
+    +(offers.length? offers.map(function(o){return '<div class="card"><b>'+esc(o.asset_name)+'</b> · ICP: '+esc(o.icp)
+        +'<div style="opacity:.7">'+esc(o.value_prop)+'</div>'
+        +'<div style="font-size:11px;color:#9aa0ac;margin-top:3px">price (recommendation, not a commitment): $'+esc(o.price_recommendation)
+        +' · binding price needs approval</div></div>';}).join('')
+      :'<div class="empty">no offer yet — build it on an approved wedge</div>')+'</div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/sales">Sales pipeline + revenue →</a> · <a href="/chairman">Chairman →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · External actions: <b>'
+    +(g.external_actions_enabled?'enabled':'disabled')+'</b> · Spending: <b>'+(g.spending_enabled?'enabled':'disabled')
+    +'</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')
+    +'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

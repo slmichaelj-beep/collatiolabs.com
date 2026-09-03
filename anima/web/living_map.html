@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Living Map</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f;--flow:#3b82f6;--sim:#a78bfa;--gray:#46566b}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1320px;margin:0 auto;padding:18px 16px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:22px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:12.5px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:6px 11px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .counts{display:flex;gap:7px;margin-top:8px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .modes{display:flex;gap:6px;margin:14px 0 10px;flex-wrap:wrap}
+  .mode{font-size:12.5px;color:var(--dim);padding:6px 12px;border:1px solid var(--line);border-radius:9px;background:#0d1422;cursor:pointer}
+  .mode.on{color:var(--ink);border-color:var(--accent-d);background:var(--accent-d)}
+  .mode.soon{opacity:.5;cursor:not-allowed}
+  .replaybar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#0d1422}
+  #scrubber{flex:1;accent-color:var(--accent);cursor:pointer}
+  .replayinfo{font-size:11.5px;color:var(--dim);min-width:240px;font-family:ui-monospace,Menlo,monospace;text-align:right}
+  .node.lit{border-color:var(--accent)!important;box-shadow:0 0 0 2px var(--accent),0 0 14px rgba(106,166,255,.5);z-index:3}
+  .node.dim{opacity:.32}
+  .node.pred{border-color:var(--warn)!important;box-shadow:0 0 0 2px var(--warn),0 0 14px rgba(214,161,58,.5);z-index:3}
+  .simbar{display:flex;align-items:center;gap:12px;margin:0 0 10px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#0d1422;flex-wrap:wrap}
+  #levers{display:inline-flex;gap:6px;flex-wrap:wrap}
+  .lever{font-size:11.5px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:#0e1626;color:var(--dim);cursor:pointer}
+  .lever.on{color:var(--ink);border-color:var(--warn-d);background:var(--warn-d)}
+  .siminfo{flex:1;min-width:240px;font-size:11.5px;color:var(--dim)}
+  .patbadge{position:absolute;top:-7px;right:-7px;min-width:16px;height:16px;border-radius:999px;font-size:10px;font-weight:700;line-height:16px;text-align:center;padding:0 4px;border:1px solid #0b0f17;z-index:4;color:#0b0f17}
+  .patbadge.P0{background:#e0556b} .patbadge.P1{background:#d6a13a} .patbadge.P2,.patbadge.P3{background:#6aa6ff}
+  .stage{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+  .mapbox{position:relative;background:linear-gradient(180deg,#0d1320,#0b0f18);border:1px solid var(--line);border-radius:14px;overflow:auto;min-height:560px}
+  #canvas{position:relative}
+  #edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .node{position:absolute;transform:translate(-50%,-50%);width:118px;padding:7px 8px;border-radius:10px;border:1px solid var(--line);background:#0e1626;cursor:pointer;transition:.12s;z-index:2}
+  .node:hover{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .node.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+  .node .nl{font-size:11.5px;font-weight:620;line-height:1.2;display:flex;align-items:center;gap:6px}
+  .node .nt{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .node .nm{font-size:10px;color:var(--dim);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--gray)}
+  .dot.green{background:var(--good)} .dot.yellow{background:var(--warn)} .dot.red{background:var(--bad)}
+  .dot.blue{background:var(--flow)} .dot.purple{background:var(--sim)} .dot.external{background:#7c8aa0}
+  .dot.unknown,.dot.stale,.dot.disabled,.dot.gray{background:var(--gray)}
+  .node.s-green{border-color:var(--good-d)} .node.s-yellow{border-color:var(--warn-d)} .node.s-red{border-color:var(--bad-d);background:#160c11}
+  .lane-label{position:absolute;top:6px;transform:translateX(-50%);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700;z-index:1}
+  .side{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:14px 15px;position:sticky;top:12px;min-height:560px}
+  .side h3{margin:.1em 0 .3em;font-size:16px}
+  .lab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-top:11px}
+  .val{font-size:12.5px;color:var(--dim);margin-top:2px}
+  .val.ink{color:var(--ink)}
+  .src{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+  .src code{font-size:10.5px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+  .metrics{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#9fb4cc;background:#0d1422;border:1px solid var(--line);border-radius:8px;padding:8px 9px;margin-top:3px;white-space:pre-wrap}
+  .statline{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:620;margin-top:2px}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--dim)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .bottle{font-size:12px;color:var(--dim);margin-top:4px}
+  .bottle b{color:var(--warn)}
+  .na{color:var(--faint);font-style:italic;font-size:13px}
+  footer{color:var(--faint);font-size:11.5px;text-align:center;margin-top:18px}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}.side{position:static}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · FOUNDER CONSOLE</div>
+      <h1>Living Map <span style="font-size:12px;color:var(--dim);font-weight:500">· operational digital twin</span></h1>
+      <div class="sub">How data, memory, sources, models, safety gates, host resources, patterns and
+        decisions move through Vera. Every node's status is backed by real telemetry — or honestly
+        marked <i>unknown</i>. Nothing here is decorative.</div>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/console">Console →</a>
+      <a class="back" href="/observatory">Observatory →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div class="modes" id="modes">
+    <span class="mode on" data-mode="live">Live Flow</span>
+    <span class="mode" data-mode="replay">Replay</span>
+    <span class="mode" data-mode="simulate">Simulation</span>
+    <span class="mode" data-mode="evidence">Evidence</span>
+  </div>
+
+  <div class="replaybar" id="replaybar" style="display:none">
+    <span style="font-size:11px;color:var(--faint);white-space:nowrap">◀ scrub history</span>
+    <input type="range" id="scrubber" min="0" max="0" value="0" step="1"/>
+    <div class="replayinfo" id="replayinfo">Loading replay…</div>
+  </div>
+
+  <div class="simbar" id="simbar" style="display:none">
+    <span style="font-size:11px;color:var(--faint);white-space:nowrap">pull a lever →</span>
+    <span id="levers"></span>
+    <div class="siminfo" id="siminfo">Pick a hypothetical to see its predicted impact (sandboxed — nothing real changes).</div>
+  </div>
+
+  <div class="stage">
+    <div class="mapbox" id="mapbox"><div id="canvas"><svg id="edges"></svg></div></div>
+    <div class="side" id="side"><div class="na">Loading the map…</div></div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot green"></span>healthy / certified</span>
+    <span><span class="dot yellow"></span>warning / degraded</span>
+    <span><span class="dot red"></span>blocked / pressure</span>
+    <span><span class="dot unknown"></span>unknown / not instrumented</span>
+    <span><span class="dot external"></span>external (the human)</span>
+  </div>
+
+  <footer>Read-only · the map never mutates Vera's state · every status names its source of truth ·
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||'';
+  if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+  try{localStorage.removeItem('anima_token');}catch(e){}
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
+  var DATA=null, SEL=null, MODE='live', EVENTS=[], _raf=null, _t0=null, REPLAY=null;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  // Milestone 2: animate REAL recent events as pulses travelling along their real edges. A pulse only
+  // exists because an event (a turn in the MRI, or a security catch) actually happened. No event -> no pulse.
+  function startPulses(){
+    if(_raf) cancelAnimationFrame(_raf);
+    function frame(ts){
+      if(_t0==null)_t0=ts;
+      var g=document.getElementById('pulses');
+      if(g && MODE==='live' && EVENTS.length){
+        var el=(ts-_t0)/1000, html='', N=Math.min(14,EVENTS.length);
+        for(var i=0;i<N;i++){
+          var ev=EVENTS[i], path=document.getElementById('edge-'+ev.edge_id);
+          if(!path||!path.getTotalLength)continue;
+          var L=path.getTotalLength(), frac=((el-i*0.16)/2.2)%1; if(frac<0)frac+=1;
+          var pt=path.getPointAtLength(frac*L);
+          var col=(ev.event_type==='quarantined'||ev.event_type==='lockdown')?'#e0556b':ev.event_type==='exited'?'#2fb380':'#6aa6ff';
+          html+='<circle cx="'+pt.x.toFixed(1)+'" cy="'+pt.y.toFixed(1)+'" r="3.4" fill="'+col+'" opacity="'+(0.85*(1-Math.abs(0.5-frac)*0.7)).toFixed(2)+'"/>';
+        }
+        g.innerHTML=html;
+      } else if(g){ g.innerHTML=''; }
+      _raf=requestAnimationFrame(frame);
+    }
+    _raf=requestAnimationFrame(frame);
+  }
+  function loadEvents(){
+    fetch('/founder/living-map/events',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(j&&j.events){ EVENTS=j.events; if(SEL==null) sideSummary(); }
+    }).catch(function(){});
+  }
+
+  // Milestone 3: REPLAY. Scrub the SAME real trace as a chronological timeline. Seeking lights the
+  // nodes that were active at the playhead — a deterministic function of the recorded events (the
+  // server's active_at; the trailing-window of 3 is mirrored here for the highlight).
+  function replayView(idx){
+    var info=document.getElementById('replayinfo');
+    if(!REPLAY||!REPLAY.frames||!REPLAY.frames.length){ if(info)info.textContent='No history to replay yet.'; return; }
+    var n=REPLAY.frames.length; idx=Math.max(0,Math.min(idx|0,n-1));
+    var lit={}; for(var i=Math.max(0,idx-2);i<=idx;i++){ lit[REPLAY.frames[i].node_id]=1; }
+    document.querySelectorAll('.node').forEach(function(el){
+      var on=lit[el.dataset.id]; el.classList.toggle('lit',!!on); el.classList.toggle('dim',!on);
+    });
+    var f=REPLAY.frames[idx], when=f.timestamp?new Date(f.timestamp*1000).toLocaleTimeString():'';
+    if(info) info.textContent='['+(idx+1)+'/'+n+'] '+when+' · '+esc(f.summary||f.node_id||'');
+  }
+  function loadReplay(){
+    fetch('/founder/living-map/replay',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; REPLAY=j;
+      var sc=document.getElementById('scrubber'), info=document.getElementById('replayinfo');
+      if(j.empty||!j.frames||!j.frames.length){ if(info)info.textContent='No history yet — talk with Vera, then replay it here.'; sc.max=0; return; }
+      sc.max=j.frames.length-1; sc.value=j.frames.length-1; replayView(j.frames.length-1);
+    }).catch(function(){});
+  }
+
+  // Milestone 4: SIMULATION. Pull a lever -> predicted impact, computed by re-running the REAL status
+  // derivation under a hypothetical (sandboxed server-side). Predicted-to-change nodes glow amber.
+  var SIM_LEVER=null;
+  function simLevers(list){
+    var box=document.getElementById('levers');
+    box.innerHTML=(list||[]).map(function(l){
+      return '<span class="lever'+(l.id===SIM_LEVER?' on':'')+'" data-lever="'+esc(l.id)+'" title="'+esc(l.source||'')+'">'+esc(l.label)+'</span>';
+    }).join('');
+    box.querySelectorAll('.lever').forEach(function(el){ el.onclick=function(){ simulateView(el.dataset.lever); }; });
+  }
+  function clearPred(){ document.querySelectorAll('.node').forEach(function(el){el.classList.remove('pred');}); }
+  function simulateView(leverId){
+    SIM_LEVER=leverId;
+    fetch('/founder/living-map/simulate?lever='+encodeURIComponent(leverId),{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; simLevers(j.levers||[]);
+      var info=document.getElementById('siminfo');
+      if(!j.ok){ if(info)info.textContent=j.error||'Could not simulate.'; clearPred(); return; }
+      clearPred();
+      var ch=j.predicted_changes||[];
+      ch.forEach(function(c){ var el=document.querySelector('.node[data-id="'+c.node_id+'"]'); if(el) el.classList.add('pred'); });
+      var lines=ch.map(function(c){return c.node_id+': '+c.from+'→'+c.to;}).join(' · ')||'no predicted change from the current baseline';
+      if(info) info.innerHTML='<b>Predicted:</b> '+esc(lines)+' &nbsp;·&nbsp; confidence '+Math.round((j.confidence||0)*100)+'% &nbsp;·&nbsp; '+
+        'sandboxed'+(j.sandbox_clean?' ✓':'')+' &nbsp;·&nbsp; <span style="opacity:.7">would require: '+esc(j.required_cert||'')+'</span><br><span style="opacity:.7">'+esc((j.assumptions||[])[0]||'')+'</span>';
+    }).catch(function(){});
+  }
+  function loadSim(){
+    fetch('/founder/living-map/simulate',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; simLevers(j.levers||[]);
+    }).catch(function(){});
+  }
+
+  // Milestone 5: PATTERN OVERLAY. Surface the REAL recurring patterns on the nodes they concern.
+  var OVERLAY=null;
+  function overlayView(){
+    if(!OVERLAY||!OVERLAY.by_node) return;
+    document.querySelectorAll('.patbadge').forEach(function(b){b.remove();});
+    Object.keys(OVERLAY.by_node).forEach(function(nid){
+      var b=OVERLAY.by_node[nid], el=document.querySelector('.node[data-id="'+nid+'"]');
+      if(!el) return;
+      var span=document.createElement('span');
+      span.className='patbadge '+(b.worst_severity||'P2');
+      span.textContent=b.count;
+      span.title=(b.patterns||[]).map(function(p){return p.severity+': '+p.title;}).join(' · ');
+      el.appendChild(span);
+    });
+  }
+  function loadOverlay(){
+    fetch('/founder/living-map/overlay',{headers:HDR}).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j)return; OVERLAY=j; overlayView();
+    }).catch(function(){});
+  }
+
+  // deterministic left->right lanes (the flow), assigned by node id
+  var LANES=[
+    ['user','chat_ui'],
+    ['route_classifier'],
+    ['context_immune'],
+    ['history','memory','known_facts','sources','intake','ocr','lerf'],
+    ['prompt_compiler'],
+    ['model_runtime','ollama'],
+    ['final_gate'],
+    ['capability_truth','agency_suggest','approval_queue','identity_sandbox','lockdown','security'],
+    ['audit','patterns','improvements'],
+    ['argus','jobs'],
+    ['founder_console']
+  ];
+  var LANE_NAMES=['input','route','immune','memory · sources','compile','model','gate','governance','analysis','host','console'];
+
+  function laneOf(id){ for(var i=0;i<LANES.length;i++){ if(LANES[i].indexOf(id)>=0) return i; } return LANES.length; }
+  function pos(node, W, H){
+    var li=laneOf(node.node_id), col=LANES[li]||[node.node_id];
+    var x=60 + li*((W-120)/(LANES.length-1));
+    var ri=col.indexOf(node.node_id); if(ri<0) ri=0;
+    var y=70 + (ri+0.5)*((H-90)/Math.max(1,col.length));
+    return {x:x,y:y};
+  }
+
+  function statusColor(s){ return ['green','yellow','red','blue','purple','external','unknown','stale','disabled','gray'].indexOf(s)>=0?s:'unknown'; }
+
+  function render(){
+    var d=DATA; if(!d||!d.nodes){return;}
+    var view=document.getElementById('mapbox'), box=document.getElementById('canvas'), svg=document.getElementById('edges');
+    var W=Math.max((view.clientWidth||1000)-4, 1340), H=Math.max(560, 70+ Math.max.apply(null,LANES.map(function(l){return l.length;}))*86);
+    box.style.width=W+'px'; box.style.height=H+'px';
+    // counts
+    var bs=(d.summary&&d.summary.by_status)||{};
+    document.getElementById('counts').innerHTML=
+      '<span class="pill"><span class="dot green"></span>'+(bs.green||0)+' healthy</span>'+
+      '<span class="pill"><span class="dot yellow"></span>'+(bs.yellow||0)+' warning</span>'+
+      '<span class="pill"><span class="dot red"></span>'+(bs.red||0)+' pressure/blocked</span>'+
+      '<span class="pill"><span class="dot unknown"></span>'+(d.summary.unknown||0)+' unknown (honest)</span>'+
+      '<span class="pill">'+(d.summary.node_count||d.nodes.length)+' nodes · '+(d.summary.edge_count||0)+' flows</span>';
+    // position map
+    var P={}; d.nodes.forEach(function(n){ P[n.node_id]=pos(n,W,H); });
+    // edges
+    var paths=d.edges.map(function(e){
+      var a=P[e.from], b=P[e.to]; if(!a||!b) return '';
+      var mx=(a.x+b.x)/2;
+      var col = e.status==='blocked'?'var(--bad)':e.status==='degraded'?'var(--warn)':e.status==='active'?'var(--flow)':'#26324a';
+      var w = e.status==='active'?2:e.status==='blocked'?2:1;
+      var dash = e.type==='telemetry_flow'?'4 4':e.type==='host_flow'?'2 4':e.type==='safety_flow'?'':'';
+      return '<path id="edge-'+e.edge_id+'" d="M'+a.x+','+a.y+' C'+mx+','+a.y+' '+mx+','+b.y+' '+b.x+','+b.y+'" fill="none" '+
+             'stroke="'+col+'" stroke-width="'+w+'" stroke-dasharray="'+dash+'" opacity="'+(e.status==='idle'?0.35:0.8)+'"/>';
+    }).join('');
+    svg.setAttribute('viewBox','0 0 '+W+' '+H); svg.innerHTML=paths+'<g id="pulses"></g>';
+    // lane labels
+    var laneHtml=LANE_NAMES.map(function(nm,i){ var x=60+i*((W-120)/(LANES.length-1)); return '<div class="lane-label" style="left:'+x+'px">'+esc(nm)+'</div>'; }).join('');
+    // nodes
+    var nodeHtml=d.nodes.map(function(n){
+      var p=P[n.node_id], sc=statusColor(n.status);
+      var m=n.live_metrics||{}, mk=Object.keys(m)[0];
+      var metric = mk? (mk.replace(/_/g,' ')+': '+ (typeof m[mk]==='object'?JSON.stringify(m[mk]):m[mk])) : (n.status==='unknown'?'not instrumented':'');
+      return '<div class="node s-'+sc+(SEL===n.node_id?' sel':'')+'" data-id="'+n.node_id+'" style="left:'+p.x+'px;top:'+p.y+'px">'+
+        '<div class="nl"><span class="dot '+sc+'"></span>'+esc(n.label)+'</div>'+
+        '<div class="nt">'+esc(n.type)+'</div>'+
+        (metric?'<div class="nm">'+esc(metric)+'</div>':'')+'</div>';
+    }).join('');
+    // clear old nodes/labels (keep svg)
+    Array.prototype.slice.call(box.querySelectorAll('.node,.lane-label')).forEach(function(el){el.remove();});
+    box.insertAdjacentHTML('beforeend', laneHtml+nodeHtml);
+    box.querySelectorAll('.node').forEach(function(el){ el.onclick=function(){ SEL=el.dataset.id; render(); side(); }; });
+    overlayView();   // re-apply the pattern badges after the nodes are rebuilt
+    document.getElementById('stamp').textContent='updated '+esc((d.generated_at||'').replace('T',' ').slice(0,19));
+    if(!SEL) sideSummary(); else side();
+  }
+
+  function sideSummary(){
+    var d=DATA, s=d.summary||{};
+    var bn=(s.bottlenecks||[]).map(function(b){ return '<div class="bottle"><b>'+esc(b.label)+'</b> ('+esc(b.status)+') — '+esc(b.why)+'</div>'; }).join('') || '<div class="na">No bottlenecks — all live paths nominal.</div>';
+    var act;
+    if(MODE==='live' && EVENTS.length){
+      act='<div class="lab">Live activity ('+EVENTS.length+' real events)</div>'+
+        EVENTS.slice(0,7).map(function(e){
+          var c=(e.event_type==='quarantined'||e.event_type==='lockdown')?'red':e.event_type==='exited'?'green':'blue';
+          var ev=Object.keys(e.evidence||{})[0]||'';
+          return '<div class="bottle"><span class="dot '+c+'" style="display:inline-block;vertical-align:middle"></span> '+
+            esc(e.summary)+' <span style="opacity:.55">· '+esc(ev)+'</span></div>';
+        }).join('');
+    }else if(MODE==='live'){
+      act='<div class="lab">Live activity</div><div class="na">No recent activity to animate — idle. (Honest: no pulses without a real event.)</div>';
+    }else{ act=''; }
+    document.getElementById('side').innerHTML=
+      '<h3>System at a glance</h3>'+
+      '<div class="val">Click any node to see what it does, its live status, and the real source behind that status.</div>'+
+      act+
+      '<div class="lab">Bottlenecks (real, surfaced)</div>'+bn+
+      '<div class="lab">Doctrine</div><div class="val">'+esc(s.doctrine||'')+'</div>';
+  }
+
+  function side(){
+    var n=(DATA.nodes||[]).filter(function(x){return x.node_id===SEL;})[0]; if(!n){sideSummary();return;}
+    var sc=statusColor(n.status);
+    var m=n.live_metrics||{}; var mtxt=Object.keys(m).length? Object.keys(m).map(function(k){return k+': '+(typeof m[k]==='object'?JSON.stringify(m[k]):m[k]);}).join('\n') : '(no live metrics — '+(n.status==='unknown'?'not instrumented yet':'n/a')+')';
+    var src=(n.source_of_truth||[]).map(function(s){return '<code>'+esc(s)+'</code>';}).join('') || '<span class="na">none — external</span>';
+    document.getElementById('side').innerHTML=
+      '<h3>'+esc(n.label)+'</h3>'+
+      '<div class="statline"><span class="dot '+sc+'"></span>'+esc(n.status)+'</div>'+
+      '<div class="lab">What it does</div><div class="val ink">'+esc(n.description)+'</div>'+
+      '<div class="lab">Status — why</div><div class="val">'+esc(n.status_detail||'—')+'</div>'+
+      '<div class="lab">Live metrics</div><div class="metrics">'+esc(mtxt)+'</div>'+
+      '<div class="lab">Source of truth '+(MODE==='evidence'?'(evidence mode)':'')+'</div><div class="src">'+src+'</div>'+
+      '<div class="lab">Last updated</div><div class="val">'+esc((n.last_updated||'').replace('T',' '))+'</div>'+
+      '<div style="margin-top:12px"><span class="back" id="clr" style="cursor:pointer">← back to overview</span></div>';
+    var c=document.getElementById('clr'); if(c) c.onclick=function(){SEL=null;render();};
+  }
+
+  document.getElementById('modes').onclick=function(ev){
+    var t=ev.target.closest('.mode'); if(!t||t.classList.contains('soon'))return;
+    MODE=t.dataset.mode; Array.prototype.slice.call(this.querySelectorAll('.mode')).forEach(function(m){m.classList.toggle('on',m===t);});
+    var rb=document.getElementById('replaybar'), sb=document.getElementById('simbar');
+    if(MODE==='replay'){ rb.style.display='flex'; loadReplay(); }
+    else { rb.style.display='none'; document.querySelectorAll('.node').forEach(function(el){el.classList.remove('lit','dim');}); }
+    if(MODE==='simulate'){ sb.style.display='flex'; SIM_LEVER=null; clearPred(); loadSim(); }
+    else { sb.style.display='none'; clearPred(); }
+    if(SEL) side();
+  };
+  document.getElementById('scrubber').addEventListener('input',function(){ replayView(parseInt(this.value,10)||0); });
+
+  // never let the map silently blank: an overlay message in the map area on loading / error / retry.
+  function mapMsg(html){
+    var box=document.getElementById('mapbox'); if(!box) return;
+    var ov=document.getElementById('mapmsg');
+    if(!ov){ ov=document.createElement('div'); ov.id='mapmsg';
+      ov.style.cssText='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:28px;color:var(--dim);font-size:13.5px;z-index:5'; box.appendChild(ov); }
+    ov.innerHTML='<div>'+html+'</div>';
+  }
+  function clearMapMsg(){ var ov=document.getElementById('mapmsg'); if(ov) ov.remove(); }
+  var _retry=0;
+  function load(){
+    if(!DATA) mapMsg('Loading the Living Map…');
+    fetch('/founder/living-map/state',{headers:HDR}).then(function(r){
+      if(r.status===401){ mapMsg('Locked — open this from the Vera app (it remembers your key), or add <b>?k=YOUR_TOKEN</b> to the URL.'); return null; }
+      if(!r.ok) throw new Error('http '+r.status);
+      return r.json();
+    }).then(function(j){
+      if(!j) return;
+      if(!j.nodes||!j.nodes.length){ mapMsg('No map data yet'+(j.summary&&j.summary.error?(' ('+esc(j.summary.error)+')'):'')+' — retrying…'); setTimeout(load,3000); return; }
+      _retry=0; clearMapMsg(); DATA=j; SEL=null; render(); loadEvents(); startPulses(); loadOverlay();
+    }).catch(function(){
+      _retry++;
+      mapMsg('Couldn’t reach Vera — the server may be restarting. Retrying… <span style="opacity:.6">['+_retry+']</span>');
+      setTimeout(load, Math.min(8000, 1500*_retry));
+    });
+  }
+  // refresh events when loaded; SELF-HEAL the state if it never loaded (e.g. loaded during a restart).
+  setInterval(function(){ if(DATA){ loadEvents(); loadOverlay(); } else { load(); } }, 9000);
+  window.addEventListener('resize', function(){ if(DATA) render(); });
+  load();
+})();
+</script>
+</body>
+</html>

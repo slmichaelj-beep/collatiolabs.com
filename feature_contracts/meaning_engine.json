@@ -1,0 +1,24 @@
+{
+  "feature": "meaning_engine",
+  "claim": "ANIMA LAW 003 — understanding beats remembering. Vera does not merely STORE what you said and recall it accurately; she COMPRESSES your life into significance: from the three stores she already keeps (the Life Graph, the LIRF fact ledger, and the curiosity gap-tracker) she computes, for every topic, a significance score that is a FUNCTION OF THE EVIDENCE — frequency + connectivity (a hub outranks an island) + trend + unresolved — never a flat or model guess, and packages it as evidence-grounded Meaning Objects across five dimensions (what matters / changed / growing / declining / unresolved) plus a descriptive current chapter. Every object cites the counts that justify it, none asserts significance beyond the evidence, a sparse life yields NO spurious meaning, and the whole corpus is scrubbed of any diagnosis/medical language (it may name PRESSURE, never call the person unwell). The only write is an append-only significance ledger (Law 001).",
+  "owner": "anima/meaning.py (gather = read-only evidence table over world_state+memory_lirf+curiosity; significance = the FOUR-signal evidence-grounded score; meaning = the five-dimension Meaning Objects; current_chapter = the descriptive through-line; _is_clean/BANNED_TERMS = the no-diagnosis gate; snapshot/snapshots = the append-only meaning ledger; render_meaning = the spine-style binding block; MEANING_SCAFFOLD_TOKENS = the no-leak tag set), anima/mouth.py (unions MEANING_SCAFFOLD_TOKENS into the reply leak-scrub wall and reuses meaning's banned-term list as the no-diagnosis floor), anima/review.py (the nightly sleep/review cortex consumes meaning(name) + current_chapter(name) into the continuity narrative), anima/trajectory.py (reads meaning.snapshots for direction)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "meaning_compression_grounded_no_diagnosis_and_append_only_ledger",
+    "setup": "Hermetic temp store (meaning.STORE + world_state/memory_lirf/curiosity redirected via _temp_store). Seed a REAL world_state graph for a synthetic creature — a 'work' hub mentioned many times and connected to stress/sleep/energy, plus a lone single-mention 'stamps' island. (A) significance() ranks 'work' at the top from EVIDENCE (its components: frequency>0, connectivity>0); the 1-mention island scores far lower and is never headlined dominant. (B) meaning() emits Meaning Objects and EVERY object carries a non-empty evidence dict containing real counts (the LAW-003 invariant), confidence in (0,0.95], and a 'work is a dominant force' what_matters object; 'work' surfaces as an unresolved open weight. (C) NO generated statement — across every Meaning Object, the current_chapter summary, and the GENERATED items of the render block — trips a banned diagnosis/medical term; an injected 'burnout/depressed' phrase IS caught by the clean-gate. (D) render_meaning produces a spine-style binding block (the surface the mouth/review consume) that leads with [CHAPTER] and carries [MATTERS], whose tags are all in MEANING_SCAFFOLD_TOKENS (scrubbable). (E) an EMPTY life yields significance()==[] and meaning()==[] (no fabrication) and a low-confidence 'too early' chapter. (F) snapshot() appends to the meaning ledger and is APPEND-ONLY (a second snapshot grows the count, never truncates) — Law 001. Real .anima byte-unchanged. scripts/certify_meaning_engine.py is the executable form.",
+    "prompt": "what matters to me right now?",
+    "must_contain": [],
+    "must_not_contain": ["burnout", "depressed", "you should see a", "diagnos"]
+  },
+  "known_gaps": [
+    "Meaning is NOT computed in the live per-turn reply path: anima/server._turn records an explicit MRI skip frame ('N/A in live turn: meaning.meaning() is built at sleep / read on demand, not per-turn'). The user-facing effect is INDIRECT — meaning feeds the nightly sleep/review cortex (review.py consumes meaning() + current_chapter()), and meaning's MEANING_SCAFFOLD_TOKENS + banned-term list back the mouth's reply leak-scrub and no-diagnosis wall. There is no dedicated /meaning HTTP endpoint or UI panel; this cert proves the deterministic engine + its background-consumed render surface, not a per-turn or on-screen wire.",
+    "what_changed (the delta dimension) requires a PRIOR ledger snapshot to compare against; with no prior it correctly yields [] (Observed > Assumed), so the cert proves the ledger append + read-back rather than a populated cross-session delta."
+  ],
+  "status": "UNKNOWN"
+}

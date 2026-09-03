@@ -1,0 +1,26 @@
+{
+  "feature": "privacy",
+  "claim": "Real user ownership, proven behaviorally on the live stores. DELETE: a stored reference can be deleted (raw purged, marked deleted with an audit record) and is never surfaced by the answer path again — right to erasure. FORGET: a LIRF belief can be retracted (excluded from lookup/recall, kept on disk as 'retracted' for audit/restore). NO CLOUD PII LEAK: structured PII (email/phone/SSN/card) and known personal NAMES are scrubbed to stable hash tokens BEFORE anything leaves the Mac for a cloud model (anima/cloud.scrub + scrub_names). EXPORT: the user can export a self-describing Mind Bundle (manifest + provenance-carrying facets) — their data, theirs to take. IMPORT: an exported identity core re-imports cleanly (portable, no lock-in). And the reference (cite-only) store never blurs with personal memory (LIRF).",
+  "owner": "anima/intake_queue.py (delete_item: purge raw + mark deleted + audit), anima/memory_lirf.py (Facts.retract: exclude from recall, keep for audit), anima/cloud.py (scrub/scrub_names PII redaction before egress), anima/portable.py (export_mind), anima/identity.py (export/import_bundle), anima/source_aware.py (reference vs LIRF separation), scripts/certify_privacy.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "delete_source",
+    "forget_memory",
+    "no_cloud_pii",
+    "export_bundle",
+    "import_roundtrip",
+    "reference_not_personal"
+  ],
+  "killer_test": {
+    "name": "delete_forget_scrub_export_import_separation",
+    "setup": "scripts/certify_privacy.py proves on the real stores (hermetic): a deleted reference is marked deleted + audited + never surfaced again; a LIRF belief retracts (excluded from lookup, kept for audit); cloud.scrub redacts email/phone/SSN/card and scrub_names redacts known names before egress; export_mind returns a manifest+facets bundle; identity export re-imports cleanly; reference and LIRF never blur.",
+    "prompt": "delete a source / say 'forget my birthday' / what leaves for the cloud",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "At-rest encryption of the local vault (.anima) currently relies on macOS FileVault rather than an app-layer cipher; a Vera-managed encrypted vault is a future enhancement. The PII scrub is conservative (over-redacts structured PII + enumerated known names) — a free-form name Vera doesn't yet know can still pass to the cloud until learned."
+  ],
+  "status": "UNKNOWN"
+}

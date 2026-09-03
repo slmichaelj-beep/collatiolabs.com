@@ -1,0 +1,27 @@
+{
+  "feature": "whole_system_mri",
+  "claim": "Every turn has ONE unified trace correlating the mind and the machine: a turn_id minted once at the top of the turn, with vera + argus + quality + cost + safety sections, recorded append-only, and a viewer that renders it. 'No turn_id = not observable.'",
+  "owner": "anima/whole_mri.py (mint_turn_id/assemble/record/by_turn_id, UnifiedTrace), anima/host_window.py (host before/during/after window), anima/server.py (_turn mints turn_id + assembles+records the UnifiedTrace last, after the final gate), scripts/whole_mri.py (viewer render_full), scripts/certify_whole_mri.py",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "every_turn_has_unified_trace_turnid_correlated_viewer_renders",
+    "setup": "Hermetic temp store. Drive a turn through anima.server._turn (deterministic reference-recall seam, no model needed). Assert: out['turn_id'] is a format-valid id; whole_mri.by_turn_id(name, turn_id) returns a trace whose vera/argus/quality/cost/safety sections are present and validate; assemble('') raises and record() without a turn_id raises (turn_id is mandatory); safety.final_gate_passed True and trace.vera.response.chars == len(shipped reply); the viewer render_full(by_turn_id) is a non-empty string emitting the named sections. (With Host Awareness OFF the trace is STILL recorded — argus.enabled False, queries empty.) Real .anima byte-unchanged.",
+    "prompt": "what did I upload about the blue copper ladder 92817?",
+    "must_contain": ["turn_id", "vera", "argus", "quality", "cost", "safety"],
+    "must_not_contain": ["no trace", "turn_id missing", "null trace"]
+  },
+  "known_gaps": [
+    "Several vera sub-sections are 'N/A in live turn' BY DESIGN (situation/meaning/reality_learning are built at sleep / on demand, not per-turn) — the trace records them as explicit skips, not silent gaps. The cert should confirm the per-turn sections (capture/memory/lerf/generation/final_gate/response + cost + safety) are populated, and the on-demand ones are honestly marked rather than missing.",
+    "Argus cost/host-window deltas are only populated when host_awareness is ON and a certified Argus is reachable; OFF turns legitimately carry empty argus.queries (still a valid, recorded trace)."
+  ],
+  "status": "UNKNOWN"
+}

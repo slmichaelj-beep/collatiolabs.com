@@ -1,0 +1,17 @@
+# Xcode / SwiftPM build artifacts and user state
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.moved-aside
+.DS_Store
+
+# Local SwiftPM checkout cache (the resolved pin in xcshareddata IS committed)
+.swiftpm/
+
+# Never commit signing secrets. The APNs .p8 key lives outside the repo and is
+# referenced by voip_push.py via $APNS_KEY_PATH — do not check it in.
+*.p8
+*.mobileprovision
+*.certSigningRequest

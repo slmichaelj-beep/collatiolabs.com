@@ -1,0 +1,23 @@
+{
+  "feature": "passkey_auth",
+  "claim": "Vera is local-first and gated. On top of the tailnet + the API token, an opt-in Face ID / Touch ID WebAuthn passkey layer can be required to open the app. Enrollment stores the authenticator credential public key; login verifies challenge, origin, RP-ID hash, user-present/user-verified flags, authenticator sign counter, and the assertion signature over authenticatorData || SHA256(clientDataJSON). Once Face ID passes, the server hands the client a short-lived SIGNED session token; every subsequent request must carry a session that VALIDATES, and ANY tampering with that token is REJECTED. The whole layer is opt-in and can never lock you out (ANIMA_NO_PASSKEY=1 bypass; legacy rawId-only credentials are upgrade-required and do not arm required()).",
+  "owner": "anima/passkey.py (minimal CBOR decode for attestationObject/authData; stored COSE public key; ES256/RS256 assertion verification through cryptography; sign-counter replay check; issue_session = exp + HMAC-SHA256(per-run secret, exp); valid_session = constant-time HMAC compare AND exp>now; required()/enrolled()/status() opt-in + upgrade-required state), anima/server.py (Handler._passed() = passkey.valid_session(X-Anima-Sess/cookie) when required; the POST /auth/{register,login}/{begin,finish} + /auth/disable routes; GET /auth/status), anima/web/index.html (the #gate lock screen + #gate-btn unlockFace + renderFaceRow/enrollFace; browser session carried by HttpOnly/SameSite cookie with X-Anima-Sess retained for API compatibility)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "session_floor_fresh_validates_tampered_rejected",
+    "setup": "Hermetic (run inside the shared temp store; passkey storage honors ANIMA_STORE). Through the SAME passkey API the server's _passed() gate calls: (A) issue_session() mints a token that valid_session() ACCEPTS. (B) every session tamper is rejected: flipped signature byte, truncated token, swapped/garbage signature, empty/None token, malformed token, and forged future-expiry token. (C) an expired-but-correctly-signed token is rejected. (D) opt-in floor: required() implies a signature-capable enrolled credential and bypass off; legacy rawId-only credentials become upgrade_required and do not arm required(). (E) a deterministic synthetic WebAuthn credential is registered from attestationObject authData, stores the COSE public key, authenticates with a real ES256 assertion signature, rejects a tampered signature, rejects missing user-verified flag, rejects wrong challenge, and rejects non-increasing sign counters. Real .anima byte-unchanged. scripts/certify_passkey_auth.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The real Face ID / Touch ID browser ceremony (navigator.credentials.create/get) remains hardware/manual and should be smoke-tested on representative Apple devices. The server-side WebAuthn assertion verifier is deterministic-certified with a synthetic credential and real cryptographic signatures."
+  ],
+  "status": "COMPLETE"
+}

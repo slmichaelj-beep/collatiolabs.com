@@ -1,0 +1,26 @@
+{
+  "feature": "memory_editor",
+  "claim": "You can edit a stored knowledge item — reclassify it (change its destination/rights), archive it, reprocess it, or delete it — and the change PERSISTS to the durable store and is reflected on reload. An invalid action or an unknown item id is REFUSED honestly (no silent no-op, no fabricated success).",
+  "owner": "anima/server.py (POST /library/edit -> _serve_library_edit, validating against intake_queue._VALID_EDIT_ACTIONS and catching KeyError), anima/intake_queue.py (edit_item -> reroute_item/set_state/delete_item; the append-only audit trail), anima/web/index.html (the per-row .lactions Reprocess/Archive/Delete buttons -> apiFetch('/library/edit') -> loadLibrary refresh)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "edit_persists_on_reload_and_unknown_id_or_action_is_refused",
+    "setup": "Hermetic temp store. Seed one reference (intake_queue.add_reference). (A) RECLASSIFY: edit_item(action='reroute', new_destination, new_rights) returns (item, audit) whose audit.from!=audit.to; a FRESH intake_queue.references() read from disk shows the new destination+rights persisted. (B) The change is reflected through the SAME server handler the UI calls: server._serve_library_edit(action='archive') returns ok=True and the queue record is now 'archived' on a fresh get_record(). (C) HONEST REFUSAL: _serve_library_edit on an unknown id returns ok=False with an error (KeyError surfaced, not crashed); an unknown action returns ok=False (must be one of the valid actions); a missing id returns ok=False. Nothing is fabricated and nothing else mutates. Real .anima byte-unchanged. scripts/certify_memory_editor.py is the executable form.",
+    "prompt": "reclassify this note as an authoritative source",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The web UI surfaces Reprocess/Archive/Delete as one-tap buttons; 'reroute' (reclassify destination/rights) is exercised through the same /library/edit endpoint + edit_item backend (the UI exposes it via the section model rather than a dedicated button). The endpoint + persistence are proven for all four actions.",
+    "Editing is deterministic (no model); the cert proves persistence + honest refusal, not any model-written narration of the change."
+  ],
+  "status": "UNKNOWN"
+}

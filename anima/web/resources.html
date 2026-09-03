@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Resources</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}.brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:800px}main{padding:18px 28px;max-width:1020px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header><div class="brand">VERA · RESOURCES</div>
+  <h1>What I need to grow</h1>
+  <div class="sub">I detect capacity bottlenecks, tie each to the revenue it blocks, and prepare a
+    procurement-ready request with minimum / recommended / premium options, costs, risks, and ROI.
+    I never buy, provision, or spend — every request is yours to approve.</div></header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/resources.json').then(r=>r.json()).then(function(d){
+  var bn=d.bottlenecks||[], reqs=d.requests||[];
+  var h='<div class="step"><h2>Bottlenecks</h2>'
+    +(bn.length? bn.map(function(b){return '<div class="card"><b>'+esc(b.host)+' · '+esc(b.resource)+'</b> <span class="tag">'+esc(b.status)+'</span> → '+esc(b.action)+'<div style="font-size:11px;opacity:.7">blocks: '+esc((b.blocks||[]).join(', '))+'</div></div>';}).join('')
+      :'<div class="empty">no bottlenecks detected — monitoring '+esc(d.monitored||0)+' resources</div>')+'</div>';
+  h+='<div class="step"><h2>Resource requests (approval-gated)</h2>'
+    +(reqs.length? reqs.map(function(r){return '<div class="card"><b>'+esc(r.title)+'</b> <span class="tag">'+esc(r.type)+'</span><span class="tag">'+esc(r.status)+'</span> recommended: '+esc(r.recommended)+'</div>';}).join('')
+      :'<div class="empty">no requests yet</div>')+'</div>';
+  h+='<div class="step"><h2>Blocked revenue</h2><div class="card">'+esc((d.blocked_revenue||[]).join(', ')||'none')+'</div></div>';
+  h+='<div class="step"><h2>Next move</h2><div class="card">'+esc(d.next_move||'—')+'</div><div class="honest">'+esc(d.honesty||'')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/empire">Empire →</a> · <a href="/self">Self →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Hardware/Cloud/API spend: <b>approval-required</b> · New hosts: <b>security-cert required</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')+'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

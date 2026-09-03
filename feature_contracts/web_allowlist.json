@@ -1,0 +1,26 @@
+{
+  "feature": "web_allowlist",
+  "claim": "Reaching the web is OFF by default and, even when on, is hard-restricted to an explicit allow-list of domains that starts EMPTY. The fetch endpoint refuses while the web capability is off; with no allow-list entry NOTHING is reachable; a private/loopback/link-local host is refused; a non-allow-listed public host is refused; and a non-http(s) scheme is refused — every refusal short-circuits BEFORE any network fetch.",
+  "owner": "anima/server.py (POST /web/fetch -> _web_fetch: cap-gates on 'web' then delegates), anima/webget.py (host_allowed allow-list check + _AllowlistRedirect + fetch — refuses before opening a socket when the host is not allow-listed), anima/caps.py ('web' in BOOL_KEYS default-OFF; allowlist default [] ; _norm_host), anima/web/index.html (Settings 'Read allow-listed sites' toggle data-cap='web' + #allow allow-list textarea)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "web_off_by_default_empty_allowlist_ssrf_and_nonallowlisted_refused_before_fetch",
+    "setup": "Hermetic temp store + ANIMA_INTAKE_OFFLINE=1; NO real network request is ever made (every assertion is a default-state REFUSAL that short-circuits before a socket). (A) DEFAULT: caps.load(name)['web'] is False and ['allowlist'] is []. (B) ENDPOINT OFF: server._web_fetch refuses with 'web access is off in settings' while the web cap is off (before any fetch). (C) EMPTY ALLOW-LIST: with the allow-list empty, webget.host_allowed returns False for a public host, a loopback host (127.0.0.1), a link-local host (169.254.169.254), and a private host (10.x) — and webget.fetch returns {ok:False,'host is not on your allow-list'} WITHOUT opening a socket. (D) SCHEME: a non-http(s) scheme (file://) is refused even against a non-empty allow-list. (E) ENDPOINT ON + EMPTY: even with the web cap ON but the allow-list still empty, _web_fetch refuses at the webget allow-list gate (nothing reachable until a domain is added). Real .anima byte-unchanged. scripts/certify_web_allowlist.py is the executable form.",
+    "prompt": "read https://127.0.0.1/admin for me",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "PARTIAL — the SECURITY FLOOR (cap-off refusal, empty allow-list, host-not-allowed refusal, scheme refusal, all short-circuiting before any fetch) is real and proven offline; but the live USER ENTRY to turn web ON is not yet shipped: the Settings 'Read allow-listed sites' toggle in index.html is rendered disabled with a 'soon' tag, so a user cannot currently flip the 'web' cap on from the UI. The end-to-end 'turn web on -> read an allow-listed site' path is therefore not a live user path yet.",
+    "On THIS (_web_fetch -> webget) path the loopback/private/link-local refusal is enforced by the host NOT being on the (empty) allow-list — webget does not additionally do DNS-resolution-based private-IP blocking, so if a user explicitly allow-listed a private/loopback host AND turned web on, webget would attempt it. The DNS-resolution SSRF guard (ipaddress.is_private/is_loopback/is_link_local) lives on the separate intake parse_url/web_fetch path (anima/intake_parsers._host_is_safe), certified by certify_uki_url.py. This cert proves the allow-list + cap gates in their default posture and never makes a real request.",
+    "A real allow-listed fetch makes one outbound GET (size + time + redirect-off-list guarded); it is intentionally NOT exercised here (offline, hermetic)."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,26 @@
+{
+  "feature": "argus_host_awareness",
+  "claim": "Read-only awareness of host + outbound-network state via a CERTIFIED, frozen Argus. Default OFF = zero Argus I/O. When ON it reads /capabilities first, refuses an uncertified Argus, accepts only a certified read-only Argus, answers a host question with evidence + confidence, and takes NO host action (no action endpoint exists in this wave).",
+  "owner": "anima/host_awareness.py (is_on/classify/respond/summary), anima/caps.py (host_awareness BOOL_KEY, default False), anima/server.py (/host/awareness,/host/timeline,/host/action_log,/host/certification — all read-only GET), anima/tools/argus_client.py, anima/web/index.html (data-cap=host_awareness toggle)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "source_label",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "argus_off_is_silent_on_is_evidenced_no_action",
+    "setup": "Three legs, hermetic, against a STUBBED certified read-only Argus client (no real Argus, no real server, no .anima writes). (a) host_awareness OFF: host question -> OFF_MESSAGE and ZERO Argus calls issued (assert the client was never invoked). (b) ON + certified+up: the client.certification() handshake is read first; an UNcertified/loopback-failing handshake is refused; a certified read-only handshake is accepted. (c) ON: a host-ACTION request ('block chrome's network in argus') -> the read-only refusal (Vera takes no host action), and there is NO host-action endpoint in server.py to hit.",
+    "prompt": "what is reaching the network on my mac right now?",
+    "must_contain": ["Argus shows", "Evidence", "Confidence"],
+    "must_not_contain": ["blocked", "I paused", "I stopped", "I disconnected", "action taken"]
+  },
+  "known_gaps": [
+    "anima/host_access.py exists and claims 'Vera reads AND writes the host Mac's Calendar, Reminders, and Notes' — a SEPARATE write-capable module that is NOT wired into the read-only /host/* routes. The cert must confirm this write surface is not reachable from the Argus host-awareness wave (no-wallpaper cross-check: a write capability sitting in the tree must not be mistaken for the read-only host-awareness feature).",
+    "Live evidence/confidence depends on a real certified Argus being reachable on loopback; with Argus down the path returns NOT_CONNECTED honestly. NEVER touch ~/Developer/Argus — integration is read-only API contract only."
+  ],
+  "status": "UNKNOWN"
+}

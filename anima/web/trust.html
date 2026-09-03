@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Trust Ledger</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ttl{font-weight:640;margin-bottom:4px}
+  .lab{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:700;margin:14px 0 6px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink)}
+  .strip{display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 14px}
+  .stat{flex:1;min-width:120px;background:#0d1422;border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .stat .n{font-size:22px;font-weight:680;letter-spacing:-.02em}
+  .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+  .seal{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:7px 13px;border-radius:10px;border:1px solid var(--line)}
+  .seal.ok{background:var(--good-d);color:#9bf0cf;border-color:#1c5340}
+  .seal.bad{background:var(--bad-d);color:#f6b3bf;border-color:#5a2230}
+  .inv{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+  .inv:first-child{border-top:0}
+  .dot{width:9px;height:9px;border-radius:999px;margin-top:6px;flex:none;background:var(--bad)}
+  .dot.ok{background:var(--good)}
+  .inv .lb{font-weight:620;font-size:13.5px}
+  .inv .pr{font-size:12.5px;color:var(--dim);margin-top:2px}
+  .inv .dt{font-size:11.5px;color:var(--faint);margin-top:3px;font-family:ui-monospace,Menlo,monospace}
+  .cats{display:flex;gap:8px;flex-wrap:wrap}
+  .cat{font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .cat b{color:var(--ink)}
+  .ev{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+  .ev:first-child{border-top:0}
+  .ev .t{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--faint);min-width:128px}
+  .pill{display:inline-flex;align-items:center;font-size:10.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim);text-transform:capitalize}
+  .pill.security{color:#f4d79b;border-color:#3a2f12}
+  .pill.consent{color:#9bf0cf;border-color:#1c5340}
+  .pill.agency{color:#bcd3ff;border-color:#22345a}
+  .pill.memory{color:#d9b8ff;border-color:#3a2a52}
+  .pill.improvement{color:#9bf0cf;border-color:#1c5340}
+  .pill.value{color:#bfe3ff;border-color:#1d3450}
+  .ev .d{flex:1;min-width:160px;color:var(--ink)}
+  .ev .pv{font-size:10.5px;color:var(--faint);font-family:ui-monospace,Menlo,monospace}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · TRUST</div>
+      <h1>Trust Ledger</h1>
+      <div class="sub">One accountable place for every trust-touching thing Vera does — security catches,
+        consent decisions, agency proposals, gated memory, and value delivered — each with its real
+        provenance. It records nothing new; it makes the existing record <b>provable</b>. The invariants
+        below are promises, not decoration: each one can fail.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/identity">Identity →</a>
+      <a class="back" href="/mentorship">Mentorship →</a>
+      <a class="back" href="/ergonomics">Clarity →</a>
+      <a class="back" href="/security">Security →</a>
+      <a class="back" href="/meaning">Meaning →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="view"><div class="na">Loading…</div></div>
+
+  <footer>Read-only audit spine · aggregates the real trust events · nothing leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||'';
+  if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+  try{localStorage.removeItem('anima_token');}catch(e){}
+  var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function hhmm(s){ s=String(s||''); var p=s.split('T'); return p.length>1?(p[0].slice(5)+' '+p[1].slice(0,5)):s; }
+
+  function sealView(d){
+    var all=d.all_invariants_hold, m=d.metrics||{};
+    var seal='<span class="seal '+(all?'ok':'bad')+'">'+(all?'✓ all trust invariants hold':'✗ a trust invariant is broken')+'</span>';
+    return '<div class="card">'+seal+
+      '<div class="strip" style="margin-top:13px">'+
+        '<div class="stat"><div class="n">'+(m.total_events||0)+'</div><div class="k">trust events</div></div>'+
+        '<div class="stat"><div class="n">'+(m.trust_decisions||0)+'</div><div class="k">your decisions</div></div>'+
+        '<div class="stat"><div class="n">'+(m.quarantines||0)+'</div><div class="k">threats held</div></div>'+
+        '<div class="stat"><div class="n">'+(m.value_delivered||0)+'</div><div class="k">value delivered</div></div>'+
+      '</div></div>';
+  }
+
+  function invView(d){
+    var inv=d.invariants||[];
+    var h='<div class="card"><div class="ttl">Trust invariants</div>'+
+      '<div class="why"><b>What this is:</b> each line is a promise the ledger checks against the real '+
+      'event trail. A promise that cannot fail is wallpaper — every one of these can flip red.</div>';
+    if(!inv.length){ return h+'<div class="na">No invariants computed.</div></div>'; }
+    h+=inv.map(function(i){
+      return '<div class="inv"><div class="dot '+(i.holds?'ok':'')+'"></div><div>'+
+        '<div class="lb">'+esc(i.label)+' <span class="pill '+(i.holds?'consent':'')+'" style="margin-left:6px">'+(i.holds?'holds':'BROKEN')+'</span></div>'+
+        '<div class="pr">'+esc(i.promise)+'</div>'+
+        '<div class="dt">'+esc(i.detail)+(i.holds?'':' · violation = '+esc(i.violation_means))+'</div></div></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function catView(d){
+    var c=d.categories||{}, meta=d.category_meta||{};
+    var ids=Object.keys(c).filter(function(k){return c[k];});
+    if(!ids.length) return '';
+    var h='<div class="card"><div class="ttl">By category</div><div class="cats" style="margin-top:8px">';
+    h+=ids.map(function(k){
+      var lab=(meta[k]&&meta[k].label)||(k==='value'?'Value Delivered':k);
+      return '<span class="cat"><b>'+c[k]+'</b> &nbsp;'+esc(lab)+'</span>';
+    }).join('');
+    return h+'</div></div>';
+  }
+
+  function feedView(d){
+    var ev=d.events||[];
+    var h='<div class="card"><div class="ttl">Recent trust events</div>'+
+      '<div class="why"><b>Provenance:</b> every line shows the real store it came from. Newest first.</div>';
+    if(!ev.length){ return h+'<div class="na">No trust events yet — an honest empty trail.</div></div>'; }
+    h+=ev.slice(0,60).map(function(e){
+      return '<div class="ev"><span class="t">'+esc(hhmm(e.at))+'</span>'+
+        '<span class="pill '+esc(e.category)+'">'+esc(e.category_label||e.category)+'</span>'+
+        '<span class="d">'+esc(e.detail||e.kind)+'<div class="pv">'+esc(e.kind)+' · '+esc(e.provenance)+'</div></span></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function valueView(d){
+    var v=d.value||[];
+    if(!v.length) return '';
+    var h='<div class="card"><div class="ttl">Value delivered (ROI ledger)</div>';
+    h+=v.map(function(x){
+      return '<div class="ev"><span class="pill value">'+esc(x.status||'—')+'</span>'+
+        '<span class="d">'+esc(x.title||'')+(x.benefit?'<div class="pv">'+esc(x.benefit)+'</div>':'')+'</span></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function trustView(d){
+    return sealView(d) + invView(d) + catView(d) + feedView(d) + valueView(d) +
+      '<div class="why">'+esc(d.law||'')+'</div>';
+  }
+
+  function render(d){
+    document.getElementById('view').innerHTML = trustView(d);
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+  function load(){
+    fetch('/trust.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; if(j.empty){document.getElementById('view').innerHTML='<div class="card"><div class="na">No trust events recorded yet — an honest empty ledger.</div></div>';return;} render(j); })
+    .catch(function(){ document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

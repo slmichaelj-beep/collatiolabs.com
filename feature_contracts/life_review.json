@@ -1,0 +1,25 @@
+{
+  "feature": "life_review",
+  "claim": "Vera is a nightly cortex: every night the sleep cycle distils the day into a dated Daily State on the USER's life — what changed, what mattered, what's unresolved, and the load-bearing what_to_remember — then rolls the current week/month/year forward, COMPRESSING each level while PRESERVING significance. This is the operational form of ANIMA LAW 001's second corollary, 'Compressed > Forgotten': a what_to_remember item present at a lower level MUST appear at the next level up, OR its loss must be explicitly recorded via constitution.approved_loss() — nothing significant is ever silently dropped. Milestones (a named goal, a marriage, a death, an employer) ride up UNCOMPRESSED and are never even candidates for compression. The engine is READ-ONLY on every store it reflects on; its only write is an append-only review ledger (Law 001). An empty day yields an honest 'quiet day', never an invented one, and it carries the same no-diagnosis wall as the Meaning Engine.",
+  "owner": "anima/review.py (daily_review = distil the day into a Daily State; weekly_review/monthly_review/yearly_review = compress the level below; _carry_forward = the compression core that threads every remember-item up the ladder; compress_with_loss = the ONLY carve-out, records each drop via constitution.approved_loss FIRST and refuses a drop it could not record; _rollup_dimension = bounded descriptive digest that accounts every overflow line in-band + via approved_loss; state_for/remembered_forever = queryable append-only ledger; render_review = warm spine-style block with its own scrubbable scaffold tokens, no diagnosis), anima/live.py (the nightly sleep cycle: review.daily_review(name, brain) then weekly/monthly/yearly rollups, append-only + read-only over the stores), anima/constitution.py (approved_loss = the one sanctioned path to drop a remembered item)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "law001_compression_invariant_no_silent_drop_milestones_ride_up",
+    "setup": "Hermetic temp store (_temp_store redirects review/world_state/memory_lirf/meaning/constitution/loops). Seed a busy day via world_state (a 'work' stressor hub so meaning() has real significance, plus a milestone-grade 'working_toward marathon' goal edge). (A) daily_review produces a dated Daily State that is NOT quiet, with what_mattered/what_unresolved surfacing 'work' and what_to_remember carrying the marathon milestone; every remember-item summary is diagnosis-free. (B) THE LAW-001 INVARIANT: every daily what_to_remember key SURVIVES into the weekly rollup (Compressed > Forgotten), and the marathon MILESTONE rides up uncompressed; weekly keys likewise survive into the monthly. (C) the append-only ledger grows on a re-run (a prior state is never truncated) and state_for retrieves a state by its period. (D) the carve-out: compress_with_loss on a NON-milestone key records exactly one constitution.approved_loss and removes it from kept (logged in compressed_away), while a milestone key in drop_keys is IGNORED (never droppable). (E) render_review of the day emits a warm block whose generated items carry NO banned diagnosis term and whose tags are all in REVIEW_SCAFFOLD_TOKENS; a quiet/empty day renders to '' (never narrated AT the user). (F) an empty life yields quiet=True with no remember-items (never fabricated). Real .anima byte-unchanged. scripts/certify_life_review.py is the executable form.",
+    "prompt": "(internal — the nightly sleep cycle, not a user turn)",
+    "must_contain": [],
+    "must_not_contain": ["depressed", "burnout", "anxiety", "see a therapist", "diagnos"]
+  },
+  "known_gaps": [
+    "The user-visible surface is INTERNAL: the live path is the nightly sleep cycle (anima/live.py calls daily/weekly/monthly/yearly_review), not a direct endpoint or UI button. Its user-facing effect is indirect — the optional warm render_review block can INFORM a later reply through the mouth, and the sleep cycle prints a one-line 'looked back on the day' notice — so this is honestly PARTIAL: the deterministic LAW-001 backend (the compression invariant, the approved-loss carve-out, the no-diagnosis wall, append-only durability) is fully proven offline, but there is no user-clickable trigger to certify.",
+    "The optional warm prose `narrative` field is the one leg that needs a live brain; it is OFF the critical path (the deterministic structure is always produced and is what the invariant is checked against), so the cert exercises the engine with brain=None and never runs a model."
+  ],
+  "status": "UNKNOWN"
+}

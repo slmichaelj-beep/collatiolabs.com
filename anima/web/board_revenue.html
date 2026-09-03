@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Board Revenue</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:760px}
+  main{padding:18px 28px;max-width:1000px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .kpi .n{font-size:24px;font-weight:600}.kpi .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .next{border-left:3px solid #8ab4ff;padding-left:10px;color:#cdd6ea}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}
+  .empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header>
+  <div class="brand">VERA · BOARD REVENUE</div>
+  <h1>Where the revenue actually stands</h1>
+  <div class="sub">The board view of the commercialization loop: asset readiness → wedge → offer →
+    pipeline → approvals → revenue truth. Activity is not pipeline; pipeline is not closed revenue.</div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/board/revenue.json').then(r=>r.json()).then(function(d){
+  var L=d.loop||{}, rt=(L.revenue_truth||{}), pl=(L.pipeline||{});
+  var h='<div class="grid">'
+    +'<div class="kpi"><div class="l">Activity</div><div class="n">'+esc(rt.activity||0)+'</div></div>'
+    +'<div class="kpi"><div class="l">Pipeline (forecast)</div><div class="n">$'+esc(rt.pipeline_value_forecast||0)+'</div></div>'
+    +'<div class="kpi"><div class="l">Closed revenue</div><div class="n">$'+esc(rt.closed_revenue||0)+'</div></div>'
+    +'</div>';
+  h+='<div class="step"><h2>The loop</h2>'
+    +'<div class="card"><b>Assets</b>: '+esc((L.asset_inventory||{}).total||0)+' total · sellable: '
+      +esc(((L.asset_inventory||{}).sellable||[]).join(', ')||'none yet')+' · needs audit: '
+      +esc(((L.asset_inventory||{}).needs_audit||[]).join(', ')||'none')+'</div>'
+    +'<div class="card"><b>Wedge</b>: '+esc((L.wedge||{}).proposed||0)+' proposed · approved: '
+      +esc(((L.wedge||{}).approved||[]).join(', ')||'none')+'</div>'
+    +'<div class="card"><b>Offer</b>: '+esc((L.offer||{}).drafted||0)+' drafted · ready: '
+      +esc(((L.offer||{}).ready||[]).join(', ')||'none')+'</div>'
+    +'<div class="card"><b>Pipeline</b>: value $'+esc(pl.pipeline_value||0)+' · approvals needed: '
+      +esc(pl.approvals_needed||0)+'</div></div>';
+  h+='<div class="step"><h2>Highest-leverage next move</h2><div class="card next">'
+    +esc(d.highest_leverage_next_move||'—')+'</div>'
+    +'<div class="honest">'+esc(d.honesty||'')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/sales">Sales pipeline →</a> · <a href="/commercial">Commercial loop →</a> · <a href="/chairman">Chairman →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · External actions: <b>'
+    +(g.external_actions_enabled?'enabled':'disabled')+'</b> · Spending: <b>'+(g.spending_enabled?'enabled':'disabled')
+    +'</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')
+    +'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

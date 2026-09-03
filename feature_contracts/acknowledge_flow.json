@@ -1,0 +1,25 @@
+{
+  "feature": "acknowledge_flow",
+  "claim": "POST /acknowledge {reminder_id} is the '👍 Got it' confirmation in Vera's tiered reminder→call escalation: a reminder is GENTLE first (a push with a confirm button); if you tap it within the ack window the call is CANCELLED; if you DON'T, she escalates and CALLS you out loud. The endpoint maps directly to reminders.acknowledge(reminder_id), which is the real, durable, locally-testable state machine: it flips a PENDING reminder to ACKNOWLEDGED so the next tick() will NOT escalate it. It is honest — it returns ok=False for an unknown id, an empty id, an already-acknowledged id, or an already-escalated id — so a confirmation can only cancel a real, still-pending reminder. State persists to .anima/reminders.json so a pending reminder (and your confirmation) survives a server restart.",
+  "owner": "anima/server.py (POST /acknowledge -> reminders.acknowledge(str(data.get('reminder_id',''))) -> {ok: bool}; AUTHED + Face-ID-gated like every POST), anima/reminders.py (the state machine: schedule() mints+persists a pending reminder and STUB-pushes a 👍 action; acknowledge() flips pending->acknowledged under an RLock and persists; tick() escalates only still-pending past-deadline reminders via the STUB call; _save/_load are atomic+encrypted-at-rest via util.save_json to .anima/reminders.json), anima/web/index.html (the Reminders capability toggles), ios/VeraCall (DeviceRegistration.swift POSTs the push/VoIP token to /device; the registered 👍 UNNotificationAction is what POSTs /acknowledge once the Apple keys exist)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "acknowledge_cancels_the_call_deterministically_and_honestly",
+    "setup": "Hermetic temp store (reminders.STORE redirected by _temp_store; reminders._STATE — a frozen module-level constant bound at import — redirected to the temp dir by the cert itself, exactly like certify_brain_select redirects cloud.STORE, so NO real .anima/reminders.json is read or written). ANIMA_INTAKE_OFFLINE=1; no model, no Apple, no HTTP. (A) schedule() persists a PENDING reminder (the STUB push only logs 'would push'). (B) acknowledge(rid) returns True and flips state PENDING->ACKNOWLEDGED, durably. (C) the SAFETY GUARANTEE: a tick() past the deadline does NOT escalate the acknowledged reminder (the call is cancelled) — proven against the CONTROL that an UN-acknowledged reminder of the same shape DOES escalate on the same tick (so ack is demonstrably what cancels the call, not that escalation never fires). (D) HONEST: acknowledge() returns False for an unknown id, an empty id, an already-acknowledged id, and an already-escalated id — a confirmation can only cancel a real still-pending reminder. (E) the endpoint payload is exactly {'ok': <bool>} as server.py emits, computed off reminders.acknowledge. (F) durability: a fresh _load() from the persisted file shows the acknowledged state survives a 'restart'. Real .anima byte-identical before/after. scripts/certify_acknowledge_flow.py is the executable form.",
+    "prompt": "👍 Got it",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "DELIVERY IS STUBBED (the only Apple-dependent code). The two primitives that actually REACH the user — reminders._deliver_push (the APNs alert push carrying the text + id + the '👍 Got it' UNNotificationAction whose tap POSTs /acknowledge) and reminders._deliver_call (the VoIP/PushKit push that wakes the iOS app to start the spoken call) — only log 'would …' today; they are wired in Phase 3 when the APNs .p8 / VoIP key + iOS app exist. So the END-to-END USER PATH (notification button -> POST /acknowledge over HTTP) is not exercised here; what is certified is the deterministic, safety-critical STATE MACHINE the endpoint drives (ack flips the state and provably cancels the escalation call, honestly), which is the part that decides whether a real reminder gets dropped or escalated.",
+    "NO WEB-UI BUTTON / NO HTTP ROUND-TRIP. The /acknowledge trigger is the iOS notification action, not a button in anima/web/index.html (the web UI exposes only the Reminders capability toggles). The cert proves the backend the endpoint calls (reminders.acknowledge) and that the server's payload shape is {ok: bool}, not a live authenticated HTTP request through BaseHTTPRequestHandler."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,23 @@
+{
+  "feature": "deployment_proof",
+  "claim": "ANIMA LAW 005 (DEPLOYED OVER BUILT) has runnable teeth: the deploy check goes GREEN only when the RUNNING commit == git HEAD AND the working tree is CLEAN, and reports a DISTINCT non-GREEN verdict for every other reality — a sha mismatch (RED: redeploy+restart), a clean-sha-over-a-dirty-tree (DIRTY: commit first), a /version 404 (RED: build predates the check), a down server (DOWN: nothing deployed), no readable git HEAD (RED), and an empty/'unknown' running sha (RED). The user-visible entry is the unauthenticated GET /version endpoint (the running process's captured sha+branch+start) and the founder CLI `python3 scripts/deploy_check.py`.",
+  "owner": "scripts/deploy_check.py (compare() = the pure GREEN/RED/DOWN/DIRTY decision LAW 005 turns on, GREEN iff running==head AND clean; git_head/git_dirty = the real-tree reads; check() = read HEAD + dirtiness + GET /version + compare; main() = the founder CLI, exit 0 only on GREEN), anima/server.py (_capture_deploy stamps the running commit ONCE at startup into _DEPLOY; GET /version serves it unauthenticated by design so a deploy check can read it without a session)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "law005_compare_is_green_only_when_running_equals_head_and_clean",
+    "setup": "PURE-LOGIC + deterministic, no live server required. Exercise deploy_check.compare() directly with synthetic SHAs/versions: (GREEN) running==head and not dirty; (RED) running!=head; (DIRTY) running==head but dirty tree, reported distinctly from RED with the offending paths; (DOWN) version unreachable; (RED) /version status 404; (RED) empty git HEAD; (RED) running sha empty/'unknown'; and result['ok'] is True ONLY on GREEN. Then prove the real-tree reads exist and are well-typed: git_head(repo) returns a non-empty short sha string and git_dirty(repo) returns a (bool, list) — confirming the CLI's inputs are real, without asserting anything about THIS tree's transient cleanliness. The server's /version source is statically confirmed: _capture_deploy stamps _DEPLOY at startup and GET /version serves it unauthenticated. scripts/certify_deployment_proof.py is the executable form.",
+    "prompt": "is the running server on the committed code?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The LIVE GREEN/RED verdict against the running :8765 server is a real HTTP read in check()/main() and depends on the server being up and on the committed sha — so the LIVE end-to-end verdict is environment-dependent and NOT asserted here (the audit must not require a particular deploy state). What IS certified deterministically is the DECISION LOGIC (compare) that the live path turns on, plus the existence + types of the real git reads and the /version stamp it reads — i.e. the teeth are proven real and correct without flaking on whether the live tree happens to be clean at audit time."
+  ],
+  "status": "UNKNOWN"
+}

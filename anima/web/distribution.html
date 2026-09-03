@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Distribution</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}.brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:800px}main{padding:18px 28px;max-width:1020px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header><div class="brand">VERA · DISTRIBUTION</div>
+  <h1>Where buyers come from</h1>
+  <div class="sub">Reusable channels that bring buyers to Collatio: a governed buyer database, draft
+    distribution assets, and partner channels. Buyer sources are policy-checked and contact is
+    approval-gated; assets are drafts whose claims are proof-checked; nothing is published without approval.</div></header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/distribution.json').then(r=>r.json()).then(function(d){
+  var b=d.buyers||{}, assets=d.assets||[];
+  var h='<div class="step"><h2>Buyer database</h2><div class="card">total: '+esc(b.total||0)
+    +' · approved-source: '+esc(b.approved||0)+' · needs-review: '+esc(b.needs_review||0)+'</div></div>';
+  h+='<div class="step"><h2>Distribution assets</h2>'
+    +(assets.length? assets.map(function(a){return '<div class="card"><b>'+esc(a.type)+'</b> <span class="tag">'+esc(a.status)+'</span></div>';}).join('')
+      :'<div class="empty">no distribution assets yet — build drafts (proof-checked, approval to publish)</div>')+'</div>';
+  h+='<div class="step"><h2>Published</h2><div class="card">'+esc((d.published||[]).join(', ')||'none yet')+'</div></div>';
+  h+='<div class="step"><h2>Next move</h2><div class="card">'+esc(d.next_move||'—')+'</div><div class="honest">'+esc(d.honesty||'')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/revenue/intelligence">Revenue intelligence →</a> · <a href="/trust">Trust →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Publishing: <b>approval-required</b> · Outreach: <b>approval-required</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')+'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

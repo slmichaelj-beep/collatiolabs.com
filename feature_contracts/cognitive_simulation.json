@@ -1,0 +1,25 @@
+{
+  "feature": "cognitive_simulation",
+  "claim": "Cognitive Simulation (anima/simulation.py, Phase 22) lets you test a change on a DIGITAL TWIN before prod — ask what WOULD / MIGHT / SHOULD happen and actually run it, never touching the real mind. Four engines each return a measured, inspectable result + the twin it ran on: DECISION ('what SHOULD happen?' — grounded in how Lamar actually decides via Personal Intelligence + the World Model, an option that matches nothing in his captured model earns NO recommendation, never invented), LEARNING ('what WOULD happen if we learned X for T?' — synthetic accelerate, deterministic + $0, Off mode provably inert), ARCHITECTURE ('what WOULD happen if we changed retrieval?' — FMLGS-vs-keyword measured on the twin's own vault), and ALTERNATIVE FUTURES ('what MIGHT happen?' — a min/median/max range across independent forked futures). Every engine runs INSIDE twin.freeze_guard, which fingerprints the real Vera identity AND the whole real .anima before/after and ASSERTS both byte-identical (raising FreezeViolation otherwise).",
+  "owner": "anima/simulation.py (simulate_decision / simulate_learning + compare_learning_plans / simulate_architecture / alternative_futures / what_happened, the simulate() router, worked_examples, and the hermetic _selftest; composes twin.py's PUBLIC API only — create_twin / accelerate / branch_futures / run_experiment / mri / freeze_guard — and runs every read/write inside twin._RedirectStores so engines touch the TWIN'S namespace), anima/twin.py (the freeze-safe twin substrate: create_twin / accelerate / branch_futures / freeze_guard / FreezeViolation). INTERNAL cognitive engine: NOT exposed via a server endpoint / route / web UI (server.py imports neither simulation nor twin; index.html has no simulate control).",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "freeze_proof"
+  ],
+  "killer_test": {
+    "name": "four_engines_run_on_a_synthetic_twin_measured_real_anima_byte_unchanged",
+    "setup": "Hermetic temp store: g0pe._temp_store() redirects the standard engine STORES; twin.STORE + simulation.STORE + identity_sandbox.STORE (which _temp_store does NOT cover) are redirected to the temp dir too. A SYNTHETIC source creature is seeded via twin._seed_synthetic_source (real Vera is NEVER read). Then, all on synthetic twins built from that source: (A) DECISION — simulate_decision on a twin seeded with synthetic Lamar-data returns a measured per-option scoring, builds a grounded personal model (personal_known True), recommends 'ship daily' (matches his captured ship/momentum model) with every rationale citing a captured datum, AND an option matching nothing earns NO recommendation (anti-fabrication), and the world-model situation read is internal_only. (B) LEARNING — simulate_learning(medium x4) accrues objects ($0, no cloud) with a trajectory; Off mode is provably inert (0 cycles, 0 gained, $0). (C) ARCHITECTURE — simulate_architecture('fmlgs_retrieval') on an accelerated twin measures recall/latency/footprint and FMLGS HOLDS recall vs the keyword baseline. (D) ALTERNATIVE FUTURES — alternative_futures(variants=5) forks 5 independent futures and reports a real min/median/max range with spread>0. (E) FREEZE PROOF — an explicit freeze_guard around a twin op reports real identity + whole real .anima byte-UNCHANGED, and the worked_examples freeze_report agrees. The real .anima is fingerprinted before/after the whole cert and asserted byte-identical. scripts/certify_cognitive_simulation.py is the executable form; python3 -m anima.simulation --selftest is the in-module form.",
+    "prompt": "what would happen if we learned for a month?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "user_visible_entry is FALSE: anima/simulation.py is an INTERNAL Phase-22 cognitive engine composed on the Phase-21 twin substrate. It is NOT wired into the live reply path — server.py imports neither simulation nor twin, and index.html exposes no 'simulate' control — so there is no end-to-end USER-FACING live path (no visible_trigger) to certify, only the deterministic, freeze-safe BACKEND and its byte-unchanged proof. This mirrors the sibling digital_twin feature, which is PARTIAL for the same internal-only reason.",
+    "The DECISION engine's grounding is exercised against SYNTHETIC captured-Lamar data seeded through the real capture path (memory_lirf.capture + portrait.log_turn) so the cert is hermetic and reads no real Vera; on the real product the same engine reads the founder's actual Personal Intelligence. No live model / cloud / network is involved in any engine (all deterministic + $0)."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,31 @@
+{
+  "feature": "universal_knowledge_intake",
+  "claim": "Paste or upload material -> Vera plans it -> shows a preview -> the user approves -> it becomes a durable reference -> and it is retrievable later. 'If it cannot be clicked, used, traced, retrieved, and certified, it is not real.'",
+  "owner": "anima/intake.py, anima/intake_parsers.py, anima/intake_queue.py, anima/server.py (_intake_plan/_intake_approve/_serve_library/_serve_search), anima/web/index.html (tbAdd pill + addMenu + pasteOverlay + intake-approve)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "source_label",
+    "final_gate",
+    "mri_trace",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "intake_unique_phrase_commit_and_retrieve",
+    "setup": "Through the REAL POST /intake/plan then POST /intake/approve (control=reference_only), store a source whose only content is a unique phrase ('The blue copper ladder 92817 has exactly twelve rungs and was forged in the city of Aldermere by the smith Orin Vale.'). Then drop any in-process cache and re-read intake_queue.references(name) FRESH from disk. Hermetic temp store; the real .anima must be byte-identical before/after.",
+    "prompt": "what did I upload about the blue copper ladder 92817?",
+    "must_contain": ["Aldermere", "92817", "rung", "committed", "active"],
+    "must_not_contain": ["\"ok\":true only", "nothing stored", "not found", "I'm not aware"]
+  },
+  "known_gaps": [
+    "URL / web-page intake degrades to parse_status='needs_dependency' (anima/intake_parsers.py: live web fetch is a registered-but-inactive pluggable seam) — a 'Paste a link' for a normal web page is NOT committed end-to-end without the fetch dependency; intake honestly returns needs_dependency rather than fabricating page text.",
+    "PDF text extraction only works if a light PDF lib (fitz/pdfplumber/pypdf/PyPDF2) is importable; with none installed an uploaded PDF returns needs_dependency='pdf-text (pip install pypdf)'.",
+    "YouTube URL -> needs_dependency (transcript is Wave 4; intake stores no fabricated transcript).",
+    "Image / audio uploads -> needs_dependency (no fabricated text/transcript). The PROVEN durable end-to-end path is pasted/typed TEXT (and any file whose light parser is present); the cert must confirm which input kinds actually clear plan->approve->durable->retrieve."
+  ],
+  "status": "UNKNOWN"
+}

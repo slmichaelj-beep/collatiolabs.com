@@ -1,0 +1,26 @@
+{
+  "feature": "privacy_receipt_viewer",
+  "claim": "Vera exposes a normal-user Privacy Flight Recorder: per-turn receipts, sanitized off-device egress events, default-deny connector receipt policy, and weather/location precision. Weather uses coarse coordinates by default for named users, exact coordinates only when selected, and off blocks before a socket. Receipt files do not store prompt text, API keys, query tokens, raw URL paths, message bodies, or connector payloads.",
+  "owner": "anima/privacy_receipts.py (receipt_history, connector_policy, record_connector_egress, prepare_location_for_egress), anima/context_gather.py (weather precision before Open-Meteo egress), anima/caps.py (location_precision enum), anima/server.py (/privacy shell + /privacy/receipts.json), anima/web/privacy.html (viewer), scripts/certify_privacy_receipt_viewer.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "normal_user_surface",
+    "receipt_history",
+    "egress_feed",
+    "connector_policy",
+    "location_precision_mode",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "privacy_flight_recorder_receipts_connector_policy_and_coarse_location",
+    "setup": "Hermetic temp store. Seed turn receipts, weather lookups, and a connector event. Prove named users default to coarse weather coordinates; exact requires selecting exact; off blocks weather before urlopen. Prove /privacy and /privacy/receipts.json are wired, the viewer strips query keys and does not store auth secrets, connector events require connector/action/decision/purpose, and raw prompts/API keys/query tokens/raw URL paths/message bodies are absent from receipt files. Real .anima byte-unchanged.",
+    "prompt": "show me what left my Mac",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "This is a receipt and policy layer for connector egress. Future Gmail/GitHub/etc. connectors must still be individually certified against this policy when they are added."
+  ],
+  "status": "UNKNOWN"
+}

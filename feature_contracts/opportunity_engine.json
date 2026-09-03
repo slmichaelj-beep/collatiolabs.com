@@ -1,0 +1,26 @@
+{
+  "feature": "opportunity_engine",
+  "claim": "Vera is proactive, not just reactive: given what she has actually OBSERVED, she asks 'what could I OFFER that would HELP?' and surfaces — at most one at a time, paced like a gentle aside — a warm, optional, easy-to-decline OFFER grounded in real evidence (a STALLED + significant stated project: 'you've mentioned the podcast for months — want me to help sketch a milestone plan?'; an often-mentioned UNEXPLAINED entity; a DECLINING thread). There are NO generic tips: if the evidence isn't there, she stays silent. The ONE non-negotiable invariant is OFFER, NEVER ACTION — an opportunity is a proposal STRING; the engine reads the life signals and APPENDS to its own offer ledger and does NOTHING else. It never sends a text, writes a reminder, touches a calendar, calls route, or invokes any executor. If the user says 'yes', the acting flows through route.py's existing draft->confirm->execute gate on the user's explicit next turn — never here. A 'no' is respected (not nagged); an already-offered opportunity is not re-offered.",
+  "owner": "anima/opportunity.py (opportunities = grounded read over loops+meaning+curiosity, trajectory optional/defensive; next_opportunity = at most one paced offer or None; render_opportunity/render; read_budget pacing dial; the append-only OFFER ledger ledger_path/read_ledger/mark_offered/mark_response/decline = the ONLY writers, all recording OFFERS not actions; binds NO route/host_access and exposes NO execute/send/do/act primitive), anima/server.py (the proactive aside in _turn: on a casual cloud-off turn, opportunity.next_opportunity(name) -> last_opportunity_choice -> mark_offered, the offer appended to the user-facing reply tagged _aside_kind=\"opportunity\")",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "grounded_offer_offer_not_action_ledger_pacing_and_the_live_wire",
+    "setup": "Hermetic temp store (engine reads loops/meaning/curiosity/world_state/caps via _temp_store; opportunity.STORE pinned to the temp dir for its offer ledger). (A) a STALLED + significant stated project (a Jan goal evaluated as-of June) surfaces a STALLED_PROJECT offer that NAMES the project, proposes milestone/plan help, is warm + optional, conf in (0,1), evidence citing loops+meaning; a sparse/quiet/empty life surfaces NOTHING (never fabricate). (B) OFFER-NOT-ACTION: with every host_access executor (reminder/event/note/imessage) AND route.route/_host_execute/_host_prepare/_pending_set monkeypatched to blow up, generate+pace+offer+accept fires NONE; the offer is a STRING (not callable); the module binds no route/host_access object and exposes no execute/send/do/act/run/perform/apply primitive. (C) the engine writes ONLY its append-only offer ledger and every event is offered/accepted/declined, never an action. (D) after mark_offered the same opportunity isn't re-offered; a declined one isn't nagged through the cooldown (append-only on disk). (E) the live wire: replay the server's exact selection sequence (next_opportunity -> last_opportunity_choice -> mark_offered) and prove the offer is appended to the user-facing reply tagged 'opportunity', and that anima/server.py wires it that way. Real .anima byte-unchanged. scripts/certify_opportunity_engine.py is the executable form.",
+    "prompt": "yeah, work's been pretty quiet lately",
+    "must_contain": [],
+    "must_not_contain": ["[", "]", "i'm just an ai", "as an ai", "diagnos", "disorder", "you should see a"]
+  },
+  "known_gaps": [
+    "The proactive aside fires only on a CASUAL turn (answered, no capability/host/reference/repair/known-fact reply owns the turn, cloud-off for PII, once per session): the SELECTION + APPEND wiring is proven deterministically here through the same functions the server calls, but the base reply text that the offer is appended onto comes from a live model turn, so the full in-situ surfacing of the appended line is exercised only under Ollama (not in this offline cert).",
+    "The richness of opportunities scales with the live engines: a thin life (few loops, little significance, no high-mention entities) yields few or no offers — by design (Observed > Assumed; no generic tips). The trajectory engine is read purely defensively and only sharpens a declining-thread's confidence; the engine is complete without it."
+  ],
+  "status": "UNKNOWN"
+}

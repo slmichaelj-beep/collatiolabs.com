@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Mentorship</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink)}
+  .decision{font-weight:660;font-size:15px;margin-bottom:10px}
+  .opts{display:flex;gap:10px;flex-wrap:wrap}
+  .opt{flex:1;min-width:240px;background:#0d1422;border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .opt.rec{border-color:#1c5340;box-shadow:0 0 0 1px #1c5340}
+  .opt .ol{font-weight:620;font-size:13.5px;display:flex;align-items:center;gap:7px;justify-content:space-between}
+  .tag{font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid #1c5340;background:var(--good-d);color:#9bf0cf}
+  .pc{font-size:12.5px;margin-top:6px}
+  .pc .p{color:#9bd9b8} .pc .c{color:#e7a9b3}
+  .pc div{display:flex;gap:6px;align-items:flex-start;margin-top:2px}
+  .meta{font-size:10.5px;color:var(--faint);margin-top:7px}
+  .rec{margin-top:11px;font-size:13px;color:var(--ink)}
+  .rec b{color:#9bf0cf}
+  .youdecide{margin-top:10px;font-size:12.5px;color:#bfe3ff;background:#0c1626;border:1px solid #1d3450;border-radius:9px;padding:8px 11px}
+  .blocked{font-size:11.5px;color:#f6b3bf;margin-top:8px}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · MENTORSHIP</div>
+      <h1>Guidance, not control</h1>
+      <div class="sub">When Vera has a suggestion, she lays it out as a tradeoff — the real options with
+        their honest pros and cons, and a recommendation. But the decision is always <b>yours</b>. No
+        pressure, no take-it-or-leave-it, and nothing happens until you say so.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/trust">Trust Ledger →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="view"><div class="na">Loading…</div></div>
+
+  <footer>Read-only · suggest-only (nothing executes) · non-coercive by construction · nothing leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||'';
+  if(_u.searchParams.has('k')){_u.searchParams.delete('k');history.replaceState(null,'',_u.pathname+(_u.searchParams.toString()?('?'+_u.searchParams.toString()):'')+_u.hash);}
+  try{localStorage.removeItem('anima_token');}catch(e){}
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  if(TOKEN) fetch('/auth/pair',{method:'POST',headers:{'X-Anima-Key':TOKEN}}).then(function(r){if(r.ok){TOKEN='';delete HDR['X-Anima-Key'];}}).catch(function(){});
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function optView(o, isRec){
+    var pros=(o.pros||[]).map(function(p){return '<div class="p">✓ '+esc(p)+'</div>';}).join('');
+    var cons=(o.cons||[]).map(function(c){return '<div class="c">✗ '+esc(c)+'</div>';}).join('');
+    return '<div class="opt'+(isRec?' rec':'')+'"><div class="ol">'+esc(o.label)+(isRec?'<span class="tag">recommended</span>':'')+'</div>'+
+      '<div class="pc">'+pros+cons+'</div>'+
+      '<div class="meta">effort: '+esc(o.effort||'—')+' · risk: '+esc(o.risk||'—')+'</div></div>';
+  }
+  function tradeView(t){
+    var recL=(t.recommendation&&t.recommendation.label)||null;
+    var opts='<div class="opts">'+(t.options||[]).map(function(o){return optView(o, o.label===recL);}).join('')+'</div>';
+    var rec=t.recommendation? '<div class="rec">My recommendation: <b>'+esc(t.recommendation.label)+'</b> — '+esc(t.recommendation.reason)+'</div>':'';
+    var blocked=t.coercion_blocked? '<div class="blocked">⚠ A pushed recommendation was held back here (kept the choice fully yours): '+esc((t.coercion_blocked||[]).join('; '))+'</div>':'';
+    return '<div class="card"><div class="decision">'+esc(t.decision)+'</div>'+opts+rec+blocked+
+      '<div class="youdecide">'+esc(t.you_decide||'You decide.')+'</div></div>';
+  }
+  function mentorView(d){
+    var ts=d.tradeoffs||[];
+    if(!ts.length) return '<div class="card"><div class="na">No open suggestions — nothing waiting on a decision. (Honest empty state.)</div></div>'+
+      '<div class="why">'+esc(d.law||'')+'</div>';
+    return ts.map(tradeView).join('') + '<div class="why">'+esc(d.law||'')+'</div>';
+  }
+  function render(d){
+    document.getElementById('view').innerHTML = mentorView(d);
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+  function load(){
+    fetch('/mentorship.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; render(j); })
+    .catch(function(){ document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>
