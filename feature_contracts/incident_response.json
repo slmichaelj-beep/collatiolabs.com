@@ -1,0 +1,26 @@
+{
+  "feature": "incident_response",
+  "claim": "A real panic button + SOC trail for a local-first creature. SAFE STATE: one incident.lockdown() call forces EVERY outward capability OFF (mail/imessage/web/host_awareness/calendar/reminders/notes/grow_intelligence), enforced at the gate (caps.enabled returns False while locked) regardless of what the user had enabled. AUDITED: the lockdown is recorded (status.locked + reason) and written to an append-only, timestamped, local security event trail. REVERSIBLE: restore() lifts the lockdown and hands the user's STORED settings back intact (lockdown overrides, never deletes). IDEMPOTENT: a second lockdown is safe; restoring with nothing active is a no-op. Triggerable from the CLI (python3 -m anima.incident lockdown/restore/status) with a runbook (docs/incident_response.md) and a GRC control map (docs/compliance_controls.md).",
+  "owner": "anima/incident.py (lockdown/restore/status/security_event/recent_events), anima/caps.py (enabled() honors incident.is_locked), scripts/certify_incident_response.py, docs/incident_response.md, docs/compliance_controls.md",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "lockdown_forces_safe_state",
+    "audited",
+    "reversible_settings_intact",
+    "idempotent",
+    "soc_trail",
+    "caps_gate_honors_lockdown"
+  ],
+  "killer_test": {
+    "name": "lockdown_safe_state_audited_reversible_soc_trail",
+    "setup": "scripts/certify_incident_response.py proves (hermetic): with several caps enabled, lockdown() forces every outward capability OFF at the caps gate; the lockdown is recorded + written to the security event trail; restore() lifts it and the user's stored settings read True again (override, not delete); a second lockdown is safe and restore-with-nothing is a no-op; the event trail is append-only + queryable + timestamped; and caps.enabled itself checks incident.is_locked().",
+    "prompt": "python3 -m anima.incident lockdown 'drill'  /  restore",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Lockdown is manual (CLI/API) by design — no auto-trip heuristic yet (avoids false-positive self-lockouts; an Argus-signal auto-trip is tracked). A one-click dashboard button is the surfacing step; the mechanism + CLI + runbook are complete. Event sources currently include lockdown/restore + any caller of security_event; wiring more passive sources (auth failures, injection flags) is incremental."
+  ],
+  "status": "UNKNOWN"
+}

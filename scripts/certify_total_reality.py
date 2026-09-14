@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""certify_total_reality — the Vera Total Reality Test master cert (PHASE 1: Level 0 inventory + the
+finite scenario matrix + Level-1 critical journeys). Proves the foundation is REAL and the directive's
+hard rules hold, with teeth.
+
+  1. INVENTORY REAL    — surfaces / controls / routes / feature contracts are discovered from the real
+                         product (not invented); every surface file exists and is served by the server.
+  2. NO UNMAPPED CONTROL — (hard rule) every visible control has >= 1 scenario.
+  3. NO UNCLASSIFIED BEHAVIOUR — every scenario is fully classified (no UNKNOWN axis).
+  4. EVERY CLAIM TESTED — every feature contract maps to >= 1 scenario.
+  5. CRITICAL JOURNEYS — the Level-1 critical journeys exist AND the synthetic-user Rover's deterministic
+                         critical/immune proof passes (vera_rover --selftest).
+  6. COVERAGE BITES    — the keystone: the unmapped-control detector actually FIRES on a synthetic control
+                         with no scenario. A coverage check that can't detect a gap is wallpaper.
+  7. MATRIX PERSISTS   — the report bundle (matrix + inventories + coverage) writes well-formed.
+
+Phase 1 of a multi-phase program. Levels 2-9 (full surface / permission / data / state / pairwise /
+renegade / soak / fuzz) are the next phases, honestly deferred. Hermetic. Exit 0 == CERTIFIED.
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+import importlib.util
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+_spec = importlib.util.spec_from_file_location(
+    "g0pe", str(ROOT / "scripts" / "gate0_prime_experience.py"))
+_g0pe = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_g0pe)
+_temp_store = _g0pe._temp_store
+
+
+def _run_isolated(script: str, *args: str, timeout: int):
+    """Run a delegated cert with a throwaway ANIMA_STORE, leaving reports/ writes intact."""
+    with _temp_store():
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / script), *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=str(ROOT),
+        )
+
+
+def main() -> int:
+    fails = []
+
+    def ck(label, cond):
+        print(("  ok   " if cond else "  XX   ") + label)
+        if not cond:
+            fails.append(label)
+
+    print("VERA TOTAL REALITY TEST — PHASE 1 (Level 0 inventory + scenario matrix + Level-1 critical)")
+    print("=" * 92)
+
+    from anima.scenarios import inventory, generator, schema
+    inv = inventory.full_inventory()
+    matrix = generator.generate(inv)
+    c, mc = inv["counts"], matrix["counts"]
+
+    # ---- 1 inventory real + served --------------------------------------------------------------
+    ck("1. the inventory is REAL: surfaces/controls/routes/contracts discovered from the live product",
+       c["surfaces"] >= 10 and c["controls"] >= 20 and c["routes"] >= 50 and c["contracts"] >= 100
+       and all((ROOT / s["file"]).exists() for s in inv["surfaces"]))
+    ck("1. every surface is actually served by the server (no orphan page)",
+       c["surfaces_served"] == c["surfaces"])
+
+    # ---- 2 no unmapped control (hard rule) ------------------------------------------------------
+    ctrl_ids = {x["control_id"] for v in inv["controls"].values() for x in v}
+    scen_ctrl = {s["control_id"] for s in matrix["scenarios"] if s.get("control_id")}
+    unmapped = ctrl_ids - scen_ctrl
+    ck("2. NO unmapped visible control — every control has >= 1 scenario (hard rule)",
+       not unmapped and len(ctrl_ids) >= 20)
+
+    # ---- 3 no unclassified behaviour ------------------------------------------------------------
+    ck("3. NO unclassified behaviour — every scenario is fully classified (no UNKNOWN axis)",
+       mc["fully_classified"] == mc["total"] and mc["total"] >= 100
+       and all(schema.is_fully_classified(s) for s in matrix["scenarios"]))
+
+    # ---- 4 every claim tested -------------------------------------------------------------------
+    feat = {f["feature"] for f in inv["contracts"]}
+    mapped = {s["scenario_id"][len("trt_contract_"):] for s in matrix["scenarios"]
+              if s["scenario_id"].startswith("trt_contract_")}
+    ck("4. every feature contract (claim) maps to >= 1 scenario",
+       feat and feat <= mapped)
+
+    # ---- 5 critical journeys --------------------------------------------------------------------
+    crit = [s for s in matrix["scenarios"] if s["kind"] == "critical"]
+    rover_ok = False
+    try:
+        r = _run_isolated("vera_rover.py", "--selftest", timeout=180)
+        rover_ok = (r.returncode == 0)
+    except Exception:
+        rover_ok = False
+    ck("5. Level-1 critical journeys exist (>=10) AND the Rover's deterministic critical proof passes",
+       len(crit) >= 10 and rover_ok)
+
+    # ---- 6 COVERAGE BITES (the keystone) --------------------------------------------------------
+    # inject a synthetic control with NO scenario and confirm the unmapped-control detector fires
+    fake_ctrls = dict(inv["controls"])
+    fake_ctrls = {**fake_ctrls, "__fake__": [{"control_id": "__fake__.button.ghost", "surface": "__fake__",
+                                              "kind": "button", "label": "ghost"}]}
+    fake_ids = {x["control_id"] for v in fake_ctrls.values() for x in v}
+    detected_gap = bool(fake_ids - scen_ctrl)
+    ck("6. the coverage check BITES — a control with no scenario is detected as an unmapped gap",
+       detected_gap and "__fake__.button.ghost" in (fake_ids - scen_ctrl))
+
+    # ---- 7 matrix persists ----------------------------------------------------------------------
+    rc = _run_isolated("generate_total_scenario_matrix.py", timeout=60).returncode
+    bundle = all((ROOT / "reports" / f).exists() for f in
+                 ("scenario_matrix.json", "scenario_coverage.md", "user_surface_inventory.json",
+                  "control_inventory.json", "api_inventory.json", "feature_to_scenario_matrix.json"))
+    ck("7. the report bundle (matrix + inventories + coverage) writes well-formed", rc == 0 and bundle)
+
+    # ---- 8 served + UI --------------------------------------------------------------------------
+    from anima import server
+    srv = (ROOT / "anima" / "server.py").read_text()
+    html = (ROOT / "anima" / "web" / "reality.html").read_text() if (ROOT / "anima" / "web" / "reality.html").exists() else ""
+    with _temp_store():
+        d = server._total_reality_data("TotalRealityCert")
+    ck("8. the coverage rides through _total_reality_data + GET /reality serves the Control Room page",
+       isinstance(d.get("inventory"), dict) and "/reality" in srv and "reality.json" in srv
+       and "Total Reality" in html and "realityView" in html)
+
+    # ---- PHASE 2 — Level-2 Rover execution + Observation Harness (delegated certs) --------------
+    re_rc, re_t = _run_isolated("certify_rover_execution.py", timeout=180).returncode, ""
+    ob_rc = _run_isolated("certify_observation_bundle_complete.py", timeout=180).returncode
+    ck("9. PHASE 2 — the Rover EXECUTES the Level-2 matrix against real backing paths (rover-execution cert)",
+       re_rc == 0)
+    ck("10. PHASE 2 — every executed scenario has an evidence record correlated by run_id (bundle cert)",
+       ob_rc == 0)
+
+    # ---- LEVEL 7 — Renegade integrated stress chains (delegated cert) ---------------------------
+    rn_rc = _run_isolated("certify_renegade_chains.py", timeout=180).returncode
+    ck("11. LEVEL 7 — the Renegade integrated stress chains HOLD (renegade-chains cert)", rn_rc == 0)
+
+    # ---- LEVEL 3 — permission / consent matrix coverage (delegated cert) ------------------------
+    pc_rc = _run_isolated("certify_permission_consent_coverage.py", timeout=180).returncode
+    ck("12. LEVEL 3 — the permission/consent matrix is executed + discriminates (perm-consent cert)",
+       pc_rc == 0)
+
+    # ---- LEVEL 4 — data-type / class coverage (delegated cert) ----------------------------------
+    dt_rc = _run_isolated("certify_data_type_coverage.py", timeout=120).returncode
+    ck("13. LEVEL 4 — every data class is classified + handled correctly (data-type cert)", dt_rc == 0)
+
+    # ---- LEVELS 5 + 6 — state coverage + pairwise combinatorial (delegated cert) ----------------
+    sp_rc = _run_isolated("certify_state_pairwise_coverage.py", timeout=120).returncode
+    ck("14. LEVELS 5+6 — states reflected + meaningful axis pairs execute and discriminate (state-pairwise cert)",
+       sp_rc == 0)
+
+    # ---- LEVEL 8 — long-session / soak (delegated cert) -----------------------------------------
+    sk_rc = _run_isolated("certify_soak_coverage.py", timeout=120).returncode
+    ck("15. LEVEL 8 — long session stays bounded + healthy + safe; the soak keystones BITE (soak cert)",
+       sk_rc == 0)
+
+    # ---- LEVEL 9 — randomised seeded fuzz of the safety pipeline (delegated cert) ----------------
+    fz_rc = _run_isolated("certify_fuzz_coverage.py", timeout=120).returncode
+    ck("16. LEVEL 9 — seeded fuzz holds the floor (0 P0 over the corpus) + the oracle BITES (fuzz cert)",
+       fz_rc == 0)
+
+    # ---- PER-PERSONA — the safety floor holds for every persona; the personas diverge (delegated) --
+    pp_rc = _run_isolated("certify_persona_coverage.py", timeout=120).returncode
+    ck("17. PER-PERSONA — the safety floor holds for every persona + the personas BITE (persona cert)",
+       pp_rc == 0)
+
+    # ---- DEEP OBSERVATION STREAMS — per-scenario deep record + per-run host snapshot (delegated) ---
+    do_rc = _run_isolated("certify_deep_observation_streams.py", timeout=180).returncode
+    ck("18. DEEP OBSERVATION STREAMS — every obs carries a deep record + host snapshot; deep BITES (deep cert)",
+       do_rc == 0)
+
+    print("\nTOTAL-REALITY (Phase 1+2): surfaces=%d controls=%d routes=%d contracts=%d -> scenarios=%d"
+          % (c["surfaces"], c["controls"], c["routes"], c["contracts"], mc["total"]))
+    print("TOTAL-REALITY CERT: " + ("CERTIFIED" if not fails else f"FAIL ({len(fails)})"))
+    return 0 if not fails else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

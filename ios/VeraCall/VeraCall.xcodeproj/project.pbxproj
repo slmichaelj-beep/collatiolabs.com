@@ -1,0 +1,410 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2068F32B73384E47BA537298 /* VeraCallApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC12585D5E39429E91723FC0 /* VeraCallApp.swift */; };
+		3DAC72666B224141BC96D425 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9590977B28CB44B299275923 /* AppDelegate.swift */; };
+		57C28E3254C2458DAEA885A4 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CA42EB503F44FDA496A073 /* Settings.swift */; };
+		7E9B30892FC548F78020C06D /* WebRTCClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4109FB2CAD284D3D9D04C0E5 /* WebRTCClient.swift */; };
+		30EFA9CCB51F43C08F905764 /* CallController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD64024ABD046479DA057D7 /* CallController.swift */; };
+		7EB797C6E307445E96D3A20B /* DeviceRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 028EBC9CBFA14DDAB4F18CA2 /* DeviceRegistration.swift */; };
+		9DD313552502496AB5454EA8 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B22033895EE94A8F9DCF892C /* RootView.swift */; };
+		0364A94A30BB447793215153 /* InCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C19546997D4B9D96E96ECD /* InCallView.swift */; };
+		3411F431A70146688E8815A5 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 575A1F96F20D4D0599920906 /* SettingsView.swift */; };
+		E218AE617D8B4613A2D4DB5A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 270471E703C84742BF614D7B /* Assets.xcassets */; };
+		C9C6B9C863BE4C23A87E6B0E /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 296FE9C304274A768D306D85 /* WebRTC */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F293FEF6FC0F4A748C9D1EA5 /* VeraCall.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VeraCall.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FC12585D5E39429E91723FC0 /* VeraCallApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VeraCallApp.swift; sourceTree = "<group>"; };
+		9590977B28CB44B299275923 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E0CA42EB503F44FDA496A073 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+		4109FB2CAD284D3D9D04C0E5 /* WebRTCClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebRTCClient.swift; sourceTree = "<group>"; };
+		2FD64024ABD046479DA057D7 /* CallController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallController.swift; sourceTree = "<group>"; };
+		028EBC9CBFA14DDAB4F18CA2 /* DeviceRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRegistration.swift; sourceTree = "<group>"; };
+		B22033895EE94A8F9DCF892C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		12C19546997D4B9D96E96ECD /* InCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InCallView.swift; sourceTree = "<group>"; };
+		575A1F96F20D4D0599920906 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		15DA46A220034EB8B45A5097 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		EB4E0083A2CB4E45A9402132 /* VeraCall.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VeraCall.entitlements; sourceTree = "<group>"; };
+		270471E703C84742BF614D7B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		C4B40C3D7F2646DB9505D08D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C9C6B9C863BE4C23A87E6B0E /* WebRTC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A252CF421CB845F8A05889B1 = {
+			isa = PBXGroup;
+			children = (
+				F6B9F691E8994FEE94F2DC07 /* VeraCall */,
+				530C5E55A3634536A39C861D /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		530C5E55A3634536A39C861D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F293FEF6FC0F4A748C9D1EA5 /* VeraCall.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F6B9F691E8994FEE94F2DC07 /* VeraCall */ = {
+			isa = PBXGroup;
+			children = (
+				402994B95F534FFFA6105ED7 /* Sources */,
+				29F137A41262474BB67D2BCF /* Resources */,
+			);
+			path = VeraCall;
+			sourceTree = "<group>";
+		};
+		402994B95F534FFFA6105ED7 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				FC12585D5E39429E91723FC0 /* VeraCallApp.swift */,
+				9590977B28CB44B299275923 /* AppDelegate.swift */,
+				E0CA42EB503F44FDA496A073 /* Settings.swift */,
+				4109FB2CAD284D3D9D04C0E5 /* WebRTCClient.swift */,
+				2FD64024ABD046479DA057D7 /* CallController.swift */,
+				028EBC9CBFA14DDAB4F18CA2 /* DeviceRegistration.swift */,
+				B22033895EE94A8F9DCF892C /* RootView.swift */,
+				12C19546997D4B9D96E96ECD /* InCallView.swift */,
+				575A1F96F20D4D0599920906 /* SettingsView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		29F137A41262474BB67D2BCF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				15DA46A220034EB8B45A5097 /* Info.plist */,
+				EB4E0083A2CB4E45A9402132 /* VeraCall.entitlements */,
+				270471E703C84742BF614D7B /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		798A5F449F4B411598A9F215 /* VeraCall */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5D75A3BED55E41B18B50B87C /* Build configuration list for PBXNativeTarget "VeraCall" */;
+			buildPhases = (
+				D6E380E14B694FD99C9E1BEC /* Sources */,
+				C4B40C3D7F2646DB9505D08D /* Frameworks */,
+				4C019C3BAA58465CAA5458BC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VeraCall;
+			packageProductDependencies = (
+				296FE9C304274A768D306D85 /* WebRTC */,
+			);
+			productName = VeraCall;
+			productReference = F293FEF6FC0F4A748C9D1EA5 /* VeraCall.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5FE9EC495CD141B2A0747D92 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					798A5F449F4B411598A9F215 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = 77F9CFAE4F2A4EA68B49771F /* Build configuration list for PBXProject "VeraCall" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A252CF421CB845F8A05889B1;
+			packageReferences = (
+				FF976220414142A58FE03690 /* XCRemoteSwiftPackageReference "WebRTC" */,
+			);
+			productRefGroup = 530C5E55A3634536A39C861D /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				798A5F449F4B411598A9F215 /* VeraCall */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		4C019C3BAA58465CAA5458BC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E218AE617D8B4613A2D4DB5A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D6E380E14B694FD99C9E1BEC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2068F32B73384E47BA537298 /* VeraCallApp.swift in Sources */,
+				3DAC72666B224141BC96D425 /* AppDelegate.swift in Sources */,
+				57C28E3254C2458DAEA885A4 /* Settings.swift in Sources */,
+				7E9B30892FC548F78020C06D /* WebRTCClient.swift in Sources */,
+				30EFA9CCB51F43C08F905764 /* CallController.swift in Sources */,
+				7EB797C6E307445E96D3A20B /* DeviceRegistration.swift in Sources */,
+				9DD313552502496AB5454EA8 /* RootView.swift in Sources */,
+				0364A94A30BB447793215153 /* InCallView.swift in Sources */,
+				3411F431A70146688E8815A5 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E67FD387CB2C4545808DB6F7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		B7863F1235BF4FF89FC20534 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5631C1491DFF4A46B7C16125 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VeraCall/Resources/VeraCall.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VeraCall/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ai.guruu.vera.VeraCall";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E25B3A4BE48F4746B0A86F1E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VeraCall/Resources/VeraCall.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = VeraCall/Resources/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ai.guruu.vera.VeraCall";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		77F9CFAE4F2A4EA68B49771F /* Build configuration list for PBXProject "VeraCall" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E67FD387CB2C4545808DB6F7 /* Debug */,
+				B7863F1235BF4FF89FC20534 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5D75A3BED55E41B18B50B87C /* Build configuration list for PBXNativeTarget "VeraCall" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5631C1491DFF4A46B7C16125 /* Debug */,
+				E25B3A4BE48F4746B0A86F1E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FF976220414142A58FE03690 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 137.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		296FE9C304274A768D306D85 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FF976220414142A58FE03690 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5FE9EC495CD141B2A0747D92 /* Project object */;
+}

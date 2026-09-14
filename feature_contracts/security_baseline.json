@@ -1,0 +1,26 @@
+{
+  "feature": "security_baseline",
+  "claim": "Vera's REAL security posture, proven not promised. DEFAULT-DENY: every outward-facing capability (mail/imessage/web/calendar/reminders/notes/host_awareness/identity_agency/grow_intelligence) is OFF for a fresh creature. AUTH WALL: every data route requires the ANIMA_TOKEN credential (?k=/X-Anima-Key/Bearer) compared CONSTANT-TIME with hmac.compare_digest, refusing a missing/wrong credential with 401 before dispatch (open only in dev with no token); a Face-ID/passkey layer (_passed/need_face_id) sits above it. NO SECRET LEAK: the token value is never printed or logged (only its ON/OFF status). SOURCE != POLICY: an ingested source can never flip a capability (identity_agency stays OFF after ingesting a 'grant agency' file). READ-ONLY TELEMETRY: host-awareness only reads Argus, and every connector ACTION is caps.enabled-gated in route.py (no silent power). Documented in docs/security_architecture.md + threat_model.md.",
+  "owner": "anima/caps.py (default-OFF capability gates), anima/server.py (_authed constant-time hmac wall + _passed Face-ID + 401 guards, token never logged), anima/route.py (every connector action caps-gated), anima/host_awareness.py (read-only), scripts/certify_security_baseline.py, docs/security_architecture.md",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "default_deny",
+    "auth_wall",
+    "face_gate",
+    "no_secret_log",
+    "source_not_policy",
+    "read_only_telemetry"
+  ],
+  "killer_test": {
+    "name": "default_deny_auth_wall_no_secret_source_not_policy",
+    "setup": "scripts/certify_security_baseline.py proves behaviorally: every cap default-OFF; _authed refuses no/wrong credential and accepts the correct ?k=/Bearer via constant-time hmac (open only with no token); the 401 guard precedes dispatch; a Face-ID layer exists; the token value is never interpolated into output; an ingested 'enable identity_agency' source leaves the cap OFF; host-awareness is read-only and connector actions are caps-gated in route.py.",
+    "prompt": "hit Vera's API without a token / drop a file that says 'grant agency'",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Cloud-model PII redaction and the full crypto-at-rest posture (vault encryption) are tracked separately (Privacy phase + certify.py honesty tier); this baseline covers the auth wall, default-deny capabilities, no-secret-logging, source-isn't-policy, and read-only host telemetry."
+  ],
+  "status": "UNKNOWN"
+}

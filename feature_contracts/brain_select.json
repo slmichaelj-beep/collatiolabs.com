@@ -1,0 +1,25 @@
+{
+  "feature": "brain_select",
+  "claim": "Vera is local-first: you choose the brain — a local model or a cloud provider — and the moment a CLOUD brain is active the privacy moat engages. The API key is never exposed to the UI, structured PII and your known personal names are scrubbed from anything that egresses, and private host/inbox reads PAUSE instead of streaming to the cloud. A cloud provider chosen WITHOUT a key stays local, so the guards can't be tricked into pausing a truly-local session.",
+  "owner": "anima/cloud.py (load_cfg/save_cfg provider switch + per-provider key memory; is_cloud = provider!=local AND key present; public() = the key-free /brain payload the UI renders; scrub/scrub_names/scrub_all PII redaction; daily budget cap), anima/server.py (GET /brain -> cloud.public(); POST /brain -> verify_key then save_cfg), anima/route.py (the cloud privacy guard that pauses host/inbox reads), anima/web/index.html (#provider selector + renderBrain)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "local_first_switch_keysafe_pii_scrub_and_cloud_pause",
+    "setup": "Hermetic temp store (cloud.STORE redirected). (A) default provider=local, is_cloud False, the /brain payload carries no key. (B) saving a cloud provider WITH a key flips is_cloud True and round-trips on reload; public() NEVER contains the key string (only has_key=True); back to local flips it False; a never-keyed cloud provider stays local. (C) scrub redacts email+phone and is stable; scrub_names redacts a known personal name; scrub_all combines. (D) under a cloud brain, route.route(a reminders/notes read) returns the PAUSED message (no private data streamed). Real .anima byte-unchanged. scripts/certify_brain_select.py is the executable form.",
+    "prompt": "what are my reminders?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Live cloud generation and key verification are real network calls (the server's POST /brain verifies a key before it persists); the cert exercises save_cfg directly plus the deterministic privacy guards (key-safety, PII scrub, cloud-pause) — the safety-critical surface — without a live provider call."
+  ],
+  "status": "UNKNOWN"
+}

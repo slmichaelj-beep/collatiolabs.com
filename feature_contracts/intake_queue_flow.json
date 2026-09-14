@@ -1,0 +1,28 @@
+{
+  "feature": "intake_queue_flow",
+  "claim": "Adding knowledge is a two-step, consent-gated flow: you PLAN an intake (it is staged and previewed, awaiting your approval — nothing durable yet), then you explicitly APPROVE it, and only then does it become a durable, retrievable item. Without the explicit approve call, NOTHING is committed or stored — there is no silent training.",
+  "owner": "anima/server.py (POST /intake/plan -> _intake_plan -> _write_staging; POST /intake/queue [GET] -> intake_queue.queue; POST /intake/approve -> _intake_approve -> intake_queue.commit_on_approval), anima/intake.py (ingest -> Wave-1 plan, committed=False), anima/intake_queue.py (commit_on_approval, references, queue, ST_ACTIVE), anima/web/index.html (tbAdd + addMenu + pasteOverlay -> runIntake -> /intake/plan; intake-approve controls; #queueOverlay -> openQueue -> /intake/queue)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "plan_stages_then_explicit_approve_commits_and_nothing_durable_without_approve",
+    "setup": "Hermetic temp store + ANIMA_INTAKE_OFFLINE=1. A TEXT intake (no heavy parser). (A) PLAN: server._intake_plan(kind=text) returns ok=True, committed=False, a real source_id, parse_status='ok'; the raw is STAGED (server._read_staging finds the file) and is the 'awaiting approval' artifact; NOTHING durable yet (intake_queue.references()==[] for this source). (B) APPROVE: server._intake_approve(source_id, control='reference_only') returns ok=True, committed=True; the item is now in intake_queue.references() AND the queue record is ST_ACTIVE; GET /library shows it 'active'. (C) The committed reference is read FRESH from intake_queue.references() (durable, survives an in-process cache drop) and contains the unique phrase. (D) NO-APPROVE GUARD: a SECOND plan that is never approved commits NOTHING — its source_id never appears in references(), and the queue gains no active record for it. Real .anima byte-unchanged. scripts/certify_intake_queue_flow.py is the executable form.",
+    "prompt": "add this note to my knowledge base",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "PLAN stages the raw bytes to .anima/{name}.intake_staging and runs the Wave-1 plan (committed=False); the durable QueueRecord (intake_queue.queue) is created by APPROVE's commit_on_approval. The 'pending/awaiting approval' state therefore lives in staging (previewed in the plan response), and the /intake/queue viewer shows the committed lifecycle record — both real, both reachable.",
+    "Proven for TEXT (and any input whose light parser is present). URL/PDF/YouTube/image inputs degrade to needs_dependency at plan time (honest, not a stub) per universal_knowledge_intake; this cert deliberately exercises the TEXT path so plan->approve->durable->retrieve is deterministic and offline.",
+    "Control is reference_only here (durable, citable, NOT trained). The other controls (approve_all/never_train/use_only_this_chat/delete_raw/review) are covered by scripts/intake_cert.py."
+  ],
+  "status": "UNKNOWN"
+}

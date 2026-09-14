@@ -1,0 +1,26 @@
+{
+  "feature": "organ_freeze",
+  "claim": "Vera's Identity & Agency organs are FROZEN. The per-creature `identity_agency` capability is default-OFF and held until the 2026-07-03 observation window closes; while it is OFF (the default), the organs are DORMANT — a provable no-op. is_enabled() reads False, identity_provider/agency_provider hand back DormantIdentity/DormantAgency (active=False), every reader returns []/None, on_question publishes NOTHING onto the bus, and register_all (the one call the server would make to wire organs onto the substrate) wires two DORMANT organs whose handlers emit zero Observations. The gate FAILS CLOSED — any read error is treated as OFF, so the freeze can never be lifted by accident — and the orthogonal ANIMA_ORGANS_LIVE env flag is irrelevant while the switch is OFF. No identity- or agency-shaping signal can run until the founder explicitly flips the switch.",
+  "owner": "anima/organs/__init__.py (CAP_FLAG='identity_agency'; is_enabled() = the default-OFF, fail-closed gate reading caps.enabled; identity_provider/agency_provider = switch-OFF -> Dormant* ; register_all = wires the flag-selected organs onto Topic.QUESTION; _organs_live() = the orthogonal env gate, only consulted once the switch is ON), anima/organs/identity.py (DormantIdentity: active=False, current_state/narrative -> None, values/relationships -> [], on_question emits nothing), anima/organs/agency.py (DormantAgency: active=False, evaluate -> [], preferred_action -> None, on_question emits nothing), anima/caps.py (identity_agency in BOOL_KEYS, default-OFF, persisted per-creature in .anima/{name}.caps.json), anima/web/index.html (the 'Identity & Agency' settings toggle, data-cap=\"identity_agency\", labelled held-until-2026-07-03 and OFF by default)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "default_off",
+    "dormant_no_op",
+    "no_bus_emission",
+    "fail_closed",
+    "freeze_invariant"
+  ],
+  "killer_test": {
+    "name": "identity_agency_off_by_default_organs_dormant_provable_no_op_fail_closed",
+    "setup": "Hermetic temp store (caps.STORE redirected by _temp_store; NO caps file is ever written, so the creature is at the true default). The cert NEVER enables identity_agency and NEVER mutates any identity — it asserts the OFF/dormant state only. (A) DEFAULT-OFF: with no caps file, caps.enabled(name,'identity_agency') is False, organs.is_enabled(name) is False, and CAP_FLAG=='identity_agency'. (B) SWITCH-OFF -> DORMANT: identity_provider(name) is DormantIdentity (active=False), agency_provider(name) is DormantAgency (active=False). (C) PROVABLE NO-OP (readers): identity.current_state/narrative -> None, values/relationships -> []; agency.evaluate([...]) -> [], preferred_action([...]) -> None. (D) NO BUS EMISSION: a counting fake bus sees 0 publishes from each organ's on_question, even when the Question event carries options. (E) THE FREEZE THROUGH register_all: register_all(OffBus,name) with the switch OFF wires exactly 2 organs, both active=False, and driving each registered Topic.QUESTION handler emits 0 Observations (the whole substrate runs silently). (F) FAILS CLOSED: with caps.enabled monkeypatched to raise, is_enabled(name) still returns False — the freeze cannot be lifted by a read error. (G) ENV IRRELEVANT WHILE OFF: with ANIMA_ORGANS_LIVE=1 set, the switch-OFF path STILL returns Dormant* (env only selects live-vs-stub once the switch is ON). Real .anima byte-unchanged; no real-creature caps file is left enabling identity_agency. scripts/certify_organ_freeze.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "This certifies the FREEZE (observe-only): it proves the safety invariant that while identity_agency is OFF the organs are dormant and inert. It deliberately never enables the cap and never exercises the switched-ON stub/live path (StubIdentity/StubAgency and the future LiveIdentity/LiveAgency), which remain HELD until the 2026-07-03 observation window closes (the in-module anima/organs/__init__.py --selftest exercises the ON->stub seam on a synthetic creature).",
+    "The organs are a wired substrate seam but are NOT yet mounted into the live turn: anima/server.py does not call organs.register_all / identity_provider / agency_provider, so no identity/agency Observation reaches server._turn today. The freeze is therefore enforced at BOTH layers — the switch is OFF and the dormant organs are inert, AND the live turn never invokes them — which only strengthens the no-op guarantee."
+  ],
+  "status": "UNKNOWN"
+}

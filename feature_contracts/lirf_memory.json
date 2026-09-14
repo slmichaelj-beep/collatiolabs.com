@@ -1,0 +1,26 @@
+{
+  "feature": "lirf_memory",
+  "claim": "Vera durably remembers atomic facts the user tells her about themselves (birthday, where they live, their dog's name, ...). Each captured fact is an append-only LIRF row with a stable id, a confidence, the verbatim evidence snippet that set it, and a dated source — full provenance, never a black box. Capture happens the SAME turn the fact is stated (not just at sleep), the fact survives a restart (it is persisted to .anima/{name}.lirf.json), and on a clean direct question it is RECALLED and USED in the live reply: the turn answers STRAIGHT from memory, model-free, with the exact stored value. A fact about Vera herself can never enter this store (the user is always the entity 'you' — the identity-freeze at the schema level), and a trait that was never captured is NEVER fabricated — she admits she doesn't have it and asks.",
+  "owner": "anima/memory_lirf.py (capture = extract durable first-person facts + merge into the ledger with provenance, persisted via util.save_json; Facts.load/lookup = O(1) exact recall of the active row; Facts.block / retrieve = the injectable fact-block; SELF='you' schema invariant kills the user/creature conflation), anima/spine.py (fact_question = is this a clean direct fact question; is_known_fact = does the row clear the [KNOWN] bar; answer_from_fact = the deterministic, model-free, warm assembly of the stored value; honest_unknown = the inverse floor that admits + asks for an unstored trait), anima/organs/router.py (select_facts = Organ-3 query-aware injection of the relevant rows into every turn), anima/server.py (_turn known-fact seam: fact_question -> Facts.lookup -> answer_from_fact -> mouth.final_output_gate, backend memory:known_fact / memory:honest_unknown; per-turn memory_lirf.capture writes facts NOW), anima/mouth.py (final_output_gate = the shared #1-rule final gate the deterministic recall ships through)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "capture_durable_with_provenance_then_recalled_and_used_in_a_live_deterministic_turn",
+    "setup": "Hermetic temp store (memory_lirf/spine/server stores redirected by _temp_store; reliability.DEFAULT_STORE redirected here). (A) memory_lirf.capture('LirfCert','my birthday is June 12') writes ONE durable row: entity=='you', value carries 'June 12', the verbatim evidence snippet is kept, a dated source is stamped, confidence>=CONF_NEW, and .anima/LirfCert.lirf.json now exists on disk. (B) RESTART: a FRESH Facts.load from disk recalls the row via lookup(SELF,'birthday') with the value AND provenance preserved; fact_note carries the provenance string. (C) USED IN A LIVE DETERMINISTIC TURN (the headline) — replicate server._turn's known-fact seam model-free: spine.fact_question('when is my birthday?') routes to 'birthday'; the loaded row is is_known_fact True; spine.answer_from_fact(text,row,name) assembles a reply; mouth.final_output_gate(reply) ships it CONTAINING 'June 12' (and not a hedge/disclaimer). (D) HONESTY WALL: a never-captured trait (phone) -> lookup None -> spine.honest_unknown admits + asks and asserts NO value. (E) INJECTION: organs.router.select_facts(name,'when is my birthday?') returns the birthday row in its relevant set + a block string carrying the value (Organ-3 per-turn injection). (F) ENTITY INVARIANT: merging a candidate tagged entity='vera' folds to SELF — a fact about Vera can never enter as a user belief. (G) CORRECTION+HISTORY: a corrected birthday supersedes newest-wins while the prior value is kept in history[] (provenance never deleted). Real .anima byte-unchanged. scripts/certify_lirf_memory.py is the executable form.",
+    "prompt": "when is my birthday?",
+    "must_contain": [],
+    "must_not_contain": ["i don't have", "not on record", "i think it", "if i remember", "i'm not sure"]
+  },
+  "known_gaps": [
+    "Tier-A capture is regex-grounded over the user's verbatim words (declarative first-person present); a fact phrased outside those frames is not captured rather than guessed — coverage widens over time, but the floor is 'observed, never inferred'. An optional Tier-B model-assisted extractor exists behind a flag and is NOT on the live turn's critical path.",
+    "The deterministic recall seam fires only on a CLEAN, single-clause fact question (spine.fact_question); a compound/emotional turn ('I'm down today, when's my birthday again?') defers to the model, which still has the same fact bound by the spine + a post-hoc deterministic floor. That model leg is real but needs Ollama, so this cert proves the model-free deterministic path (the safety-critical floor), not the generative leg."
+  ],
+  "status": "UNKNOWN"
+}

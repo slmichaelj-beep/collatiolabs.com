@@ -1,0 +1,28 @@
+{
+  "feature": "observatory",
+  "claim": "A served, no-jargon Observatory dashboard at GET /observatory (page shell, public like index.html) backed by GET /observatory.json (behind the auth wall — personal data is token-gated). It aggregates Vera's real observation surfaces into one honest view: WHAT'S REAL (the live-path audit numbers, equal to the matrix — 95/96 proven, 0 wallpaper, not hardcoded), WHAT KIND OF MIND (the system-shape dimensions: honesty / live-path integrity / coverage), WHAT VERA KNOWS ABOUT YOU (the grounded digital-twin dimensions + items), LATEST ACTIVITY (the most recent turn from the MRI trace — input -> reply -> the stages it flowed through), and TRUST/SECURITY (lockdown status + which capabilities are ON). Read-only; a missing report degrades to an HONEST null section, never a faked one. The page translates the internals (no LERF/MRI/GRC jargon) so a non-builder can read it, and is linked from the chat settings drawer.",
+  "owner": "anima/server.py (_observatory_data aggregator + GET /observatory page route + GET /observatory.json authed data route), anima/web/observatory.html (the no-jargon page), anima/web/index.html (settings link), scripts/certify_observatory.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "page_served",
+    "data_authed",
+    "real_audit",
+    "real_mind",
+    "real_twin",
+    "real_activity",
+    "honest_nulls",
+    "no_jargon"
+  ],
+  "killer_test": {
+    "name": "served_real_audit_mind_twin_activity_honest_nulls_no_jargon",
+    "setup": "scripts/certify_observatory.py proves: /observatory serves the page and /observatory.json sits behind the auth wall; the audit numbers EQUAL the live-path matrix (real, not hardcoded); the system-shape dimensions, the digital-twin dimensions, and the latest-turn trace all ride through; a creature with no trace yields an honest null activity section (no wallpaper); and the page is no-jargon + read-only/local-first framed.",
+    "prompt": "open /observatory",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "This is the read-only ONE-GLANCE observatory (Activity/Proof + System Shape + Twin + Trust). The deeper per-observatory drill-downs (Decision / Causal / Evolution / Conservation / Confidence) remain CLI tools; surfacing each as its own web panel is a future enhancement. The page auto-refreshes every 12s; a websocket live-push is a later refinement."
+  ],
+  "status": "UNKNOWN"
+}

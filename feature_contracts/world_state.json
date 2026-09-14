@@ -1,0 +1,28 @@
+{
+  "feature": "world_state",
+  "claim": "Vera does not just hold isolated facts in slots — she connects them into SITUATIONS. When you say your work's been stressful because of your new manager, and that it's eating your sleep, she captures those as typed relational/causal EDGES (you stressed_by work, work because new manager, the stress affecting sleep), stores them in a SEPARATE additive graph that never touches the LIRF ledger, and later surfaces the CONNECTED CLUSTER — manager -> stress -> sleep linked together — so she speaks to the whole situation, not one stranded slot. She NEVER fabricates a link you didn't state (no 'because' said -> no causal edge; a wish/hypothetical asserts nothing), an unrelated query returns an empty cluster, and the relations are durable + additive (a concurrent save never overwrites-and-loses).",
+  "owner": "anima/world_state.py (capture/capture_relations = deterministic never-infer relation extraction -> additive World graph at .anima/{name}.world.json; situation = bounded BFS over the relation graph unioned with read-only LIRF facts, returning the connected cluster; render_situation = spine-style binding block with no-scaffold-leak tags WORLD_SCAFFOLD_TOKENS; relate/retract/World.save = union-on-disk additive persistence), anima/server.py (_turn calls world_state.capture_relations(name, text) inside the per-turn lock + films a 'situation' MRI stage), anima/mouth.py (builds world_state.situation(heart.name, user_text) and injects render_situation into the prompt 'mem' so it shapes the live reply; imports WORLD_SCAFFOLD_TOKENS into the leak-scrub)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "real_use_in_answer",
+    "mri_trace",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "capture_relations_builds_situations_retrievable_rendered_and_never_fabricates",
+    "setup": "Hermetic temp store (world_state.STORE redirected by _temp_store). (A) capture_relations('work's stressful because of my new manager' / 'not sleeping well' / 'the stress is affecting my sleep') persists relational edges (you stressed_by work, work because new manager, stress affects sleep). (B) situation('work') returns the CONNECTED cluster with manager + stress + sleep linked in one graph; an unrelated query returns an empty cluster. (C) render_situation(cluster) produces a non-empty spine-style block ([SITUATION]/[LINK]) that reads as understanding, every emitted tag in WORLD_SCAFFOLD_TOKENS; empty cluster -> ''. (D) NEVER fabricates: no 'because' said -> no causal edge; a hypothetical asserts no stressed_by. (E) relations survive reload + two concurrent additive saves both survive (continuity). (F) static wiring: server._turn calls world_state.capture_relations, mouth injects render_situation into mem + imports WORLD_SCAFFOLD_TOKENS, the LIRF ledger file is NOT written for the world name (additive isolation). Real .anima byte-unchanged. scripts/certify_world_state.py is the executable form.",
+    "prompt": "how's work been?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "An OFF-by-default model pass (capture_model, Tier B parity with LIRF) exists for richer extraction but is never on a turn's critical path; the certified path is the deterministic always-on extractor only.",
+    "situation()/render_situation() shape the prompt block deterministically; the final natural-language expression of that understanding is produced by the live local model on a real turn (not exercised here, no Ollama) — the cert proves the connected cluster is built, retrievable, and injected into the prompt, which is the user-facing seam."
+  ],
+  "status": "UNKNOWN"
+}

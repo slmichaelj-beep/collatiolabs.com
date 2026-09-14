@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Learning Integrity</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}
+  .sub{color:var(--dim);font-size:13px;max-width:760px}
+  .integrity{display:flex;gap:18px;margin:12px 0 0;flex-wrap:wrap}
+  .pill{border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px}
+  .pill.good{border-color:rgba(120,255,160,.4);color:#9af0b6}
+  .pill.bad{border-color:rgba(255,120,120,.5);color:#ff9a9a}
+  main{padding:18px 28px;max-width:1000px}
+  .sec{margin:18px 0}
+  .sec h2{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .claim{font-size:14px}
+  .meta{font-size:11.5px;color:var(--dim);margin-top:4px}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .st-active{color:#9af0b6}.st-superseded{color:#f6c454}.st-retracted{color:#ff9a9a}
+  .st-unsupported{color:#ff9a9a}.st-conflict{color:#ff9a9a}
+  .ev{font-size:11px;color:#7f8694;word-break:break-all}
+  .empty{color:#6f6f76;font-size:12.5px;font-style:italic}
+  a.evlink{color:#8ab4ff;text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">VERA · LEARNING INTEGRITY</div>
+  <h1>What Vera knows — and why</h1>
+  <div class="sub">Every claim traces to a Truth Ledger event. Memory needs provenance; corrections
+    supersede; forgotten means retracted; teaching is approved; packs are cited; nothing is invented.</div>
+  <div class="integrity" id="integrity"></div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function row(r){
+  var st=(r.status||'').toLowerCase();
+  return '<div class="card"><div class="claim">'+esc(r.claim||r.content||r.proposed||'(no text)')+'</div>'
+    +'<div class="meta">'
+    +(r.type?'<span class="tag">'+esc(r.type)+'</span>':'')
+    +(r.scope?'<span class="tag">'+esc(r.scope)+'</span>':'')
+    +(r.status?'<span class="tag st-'+esc(st)+'">'+esc(r.status)+'</span>':'')
+    +(r.state?'<span class="tag">'+esc(r.state)+'</span>':'')
+    +(r.source?'<span class="tag">via '+esc(r.source)+'</span>':'')
+    +(r.confidence!=null?'<span class="tag">conf '+esc(r.confidence)+'</span>':'')
+    +'</div>'
+    +(r.event_id?'<div class="ev">event: <a class="evlink" href="/truth/trace?event_id='+esc(r.event_id)+'">'+esc(r.event_id)+'</a>'
+        +((r.evidence&&r.evidence.length)?' · evidence: '+esc(r.evidence.join(', ')):'')
+        +((r.superseded_by&&r.superseded_by.length)?' · superseded_by: '+esc(r.superseded_by.join(', ')):'')+'</div>':'')
+    +(r.truth_event?'<div class="ev">truth: '+esc(r.truth_event)+'</div>':'')
+    +'</div>';
+}
+function section(title, items){
+  var h='<div class="sec"><h2>'+esc(title)+' ('+items.length+')</h2>';
+  if(!items.length){h+='<div class="empty">none</div>';}
+  else items.forEach(function(r){h+=row(r);});
+  return h+'</div>';
+}
+fetch('/learning.json').then(r=>r.json()).then(function(d){
+  var s=d.sections||{}, i=d.integrity||{};
+  var ig=document.getElementById('integrity');
+  ig.innerHTML=
+    '<span class="pill '+(i.unsupported_claims?'bad':'good')+'">unsupported claims: '+(i.unsupported_claims||0)+'</span>'
+    +'<span class="pill '+(i.unproven_active_memory?'bad':'good')+'">unproven active memory: '+(i.unproven_active_memory||0)+'</span>';
+  document.getElementById('main').innerHTML=
+    section('Active Memories', s.active_memories||[])
+    +section('Corrections', s.corrections||[])
+    +section('Retracted Memories', s.retracted_memories||[])
+    +section('Unsupported Claims', s.unsupported_claims||[])
+    +section('Conflicts', s.conflicts||[])
+    +section('Teaching Drafts', s.teaching_drafts||[])
+    +section('Auto Learn Suggestions', s.auto_learn_suggestions||[])
+    +section('Knowledge Pack Facts', s.knowledge_pack_facts||[])
+    +section('Rollback History', s.rollback_history||[]);
+}).catch(function(e){
+  document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';
+});
+</script>
+</body>
+</html>

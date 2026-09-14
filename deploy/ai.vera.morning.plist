@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Vera's proactive MORNING BRIEFING, run daily at 7:00 AM by launchd (a per-user
+  LaunchAgent, not a root daemon — it needs your user session for Ollama + Keychain
+  + the local voice). It composes a short briefing in HER real voice (persona, dials,
+  honesty rail, live heart-state) via `anima.proactive` and renders it to audio under
+  .anima/ (Vera.briefing.wav | .aiff). --use-stored-loc reads the location the phone
+  last POSTed to the server's /loc, so the weather is real without hardcoding coords.
+
+  This is the LOCAL, no-Apple half of "morning briefing". Turning that rendered audio
+  into a phone PUSH (so it arrives without the app open) is the Apple-dependent step:
+  the reminder/push delivery lives in anima/reminders.py and is currently stubbed; the
+  audio file itself is already served, traversal-safe, at GET /audio/<name> behind auth.
+
+  Adjust the Python path if yours differs (must be one with Vera's deps: numpy etc.).
+  Catches up on the next wake if the Mac was asleep at 7:00 (launchd default).
+
+  Install (do NOT auto-installed by the build):
+      cp deploy/ai.vera.morning.plist ~/Library/LaunchAgents/ai.vera.morning.plist
+      launchctl load   ~/Library/LaunchAgents/ai.vera.morning.plist
+  Run it once right now to test:
+      launchctl start  ai.vera.morning   &&   tail -n 40 .anima/morning.log
+  Uninstall:
+      launchctl unload ~/Library/LaunchAgents/ai.vera.morning.plist
+      rm ~/Library/LaunchAgents/ai.vera.morning.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>ai.vera.morning</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/lamarmichael/collatiolabs.com</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- launchd agents start with a sparse env; pin HOME so Ollama's socket and the
+             macOS Keychain (ANIMA_KEY fallback) resolve the same as an interactive run. -->
+        <key>HOME</key>
+        <string>/Users/lamarmichael</string>
+    </dict>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>-m</string>
+        <string>anima.proactive</string>
+        <string>--name</string>
+        <string>Vera</string>
+        <string>--use-stored-loc</string>
+        <string>--render</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/lamarmichael/collatiolabs.com/.anima/morning.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/lamarmichael/collatiolabs.com/.anima/morning.log</string>
+</dict>
+</plist>

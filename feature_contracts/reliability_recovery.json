@@ -1,0 +1,26 @@
+{
+  "feature": "reliability_recovery",
+  "claim": "Everything that IS the creature lives in .anima/ — her heart, her felt memory, the LIRF fact ledger (her strongest memory), the world-state relations, the Portrait that knows you. Reliability is the life-insurance layer: atomic timestamped backups (raw bytes, so at-rest encryption survives), a structured health check, corruption detection (truncated/invalid JSON, NaN/inf in the heart's vectors, empty-but-expected files, wrong encryption key), and confirm-gated, undoable restore. The user-facing payoff is automatic: when a critical memory store fails to parse on a live turn, it self-heals from the most-recent GOOD backup instead of silently returning 0 rows (TOTAL silent memory loss) — and if no good backup exists it stops CLEANLY with a recorded constitution.approved_loss, never a silently-wrong empty store. Snapshot rotation (keep=N) is a sanctioned, bounded discard that is itself ACCOUNTED for with an approved_loss (LAW 001: Archived > Deleted), never silent.",
+  "owner": "anima/reliability.py (health_check; backup = atomic raw-byte snapshot + _rotate with _record_rotation_loss approved_loss; verify_integrity = corruption scan naming the recovery backup; restore = confirm-gated + undoable; guarded_load = self-heal the heart on load; guarded_store_load = self-heal a memory store on load or stop-clean-and-record; maybe_backup_store = capture good state; latest_good_backup; --selftest), wired into the LIVE load paths of anima/memory_lirf.py (Facts.load), anima/world_state.py (World.load), anima/lerf.py, anima/intake_queue.py, and the anima/live.py periodic daemon; anima/constitution.py (approved_loss continuity ledger)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "corrupt_store_recovered_from_backup_with_recorded_loss",
+    "setup": "Hermetic temp store (memory_lirf/world_state via _temp_store; reliability.DEFAULT_STORE + constitution.STORE redirected here too). (A) backup() makes an atomic snapshot that copies the heart + LIRF + portrait as RAW bytes (byte-identical to live) and writes a self-describing manifest. (B) three real corruptions — truncated/invalid JSON in the heart, NaN smuggled into the heart's feeling-vector, an emptied-out Portrait — are each flagged by verify_integrity, which names the most-recent good backup; health_check goes CRITICAL on the truncated heart; restore is confirm-gated (a dry run touches nothing) and a confirmed restore recovers the EXACT good bytes; guarded_load returns a finite heart after self-heal. (C) THE LIVE PATH: corrupt the real LIRF ledger ({name}.lirf.json) on disk, then call the production memory_lirf.Facts.load(name) — the SAME function a live turn calls — and prove it self-heals (recovers the captured fact rows from the backup) instead of returning 0 rows; a SECOND corruption with NO backup makes Facts.load stop CLEANLY (flagged-empty, 0 rows) AND record a constitution.approved_loss in the continuity ledger (loss accounted, never silent). (D) snapshot rotation keep=N prunes the oldest AND records an approved_loss naming the pruned ids. (E) the module --selftest passes end to end. Real .anima byte-unchanged. scripts/certify_reliability_recovery.py is the executable form.",
+    "prompt": "what's my dog's name?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "There is no user-clickable backup/restore button in the web UI; recovery is AUTOMATIC on the live load path (memory_lirf.Facts.load / world_state.World.load self-heal a corrupt store from backup) and additionally operable via the CLI (python3 -m anima.reliability --name Vera --health|--backup|--verify|--restore TS --confirm). The certified user-visible effect is the automatic self-heal of memory on a turn, not a manual control surface.",
+    "The heart-load guard (guarded_load) RAISES when it cannot recover (a wrong heart is worse than a clean stop); the high-volume memory stores (LIRF/world) use guarded_store_load which instead returns a flagged-empty result + records an approved_loss. The cert proves both shapes."
+  ],
+  "status": "UNKNOWN"
+}

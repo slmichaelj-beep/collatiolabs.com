@@ -1,0 +1,28 @@
+{
+  "feature": "agency_suggest_only",
+  "claim": "Wave 2 Alpha controlled activation: Vera may SUGGEST actions but NEVER execute them. A suggestion is a proposal object carrying suggestion/reason/evidence/risk/action_type, born requires_approval=True + execution_allowed=False + status=proposed (unknown risk fail-safes to 'high', unknown action_type to 'draft'). Submitting writes the intent to an append-only per-creature intent ledger AND queues it as pending. THE LOAD-BEARING INVARIANT: approval records the founder's decision (audited) but NEVER flips execution_allowed — execution is a separate, separately-certified wave (2B). is_executable() returns False for everything the suggest+approve loop produces. Rejection records 'rejected' and the item can never execute. Submission/approval/rejection each write a security event to the SOC trail. The queue + decisions persist across restart, per-creature.",
+  "owner": "anima/agency_suggest.py (make_suggestion + is_executable gate), anima/agency_intent_ledger.py (append-only intent log), anima/agency_approval_queue.py (submit/pending/approve/reject/status, execution_allowed pinned False), anima/incident.py (SOC audit), scripts/certify_agency_suggest_only.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "schema_suggest_only",
+    "intent_logged",
+    "no_execution",
+    "approval_gated",
+    "approve_not_execute",
+    "rejection_blocks",
+    "audited",
+    "durable"
+  ],
+  "killer_test": {
+    "name": "suggest_logged_no_exec_approval_gated_approve_not_execute_audited",
+    "setup": "scripts/certify_agency_suggest_only.py proves (hermetic): a suggestion carries the full schema and is born non-executable; submit logs the intent + queues it; nothing is executable at any stage; a fresh queue auto-approves nothing; approve() records the decision but does NOT flip execution_allowed (is_executable stays False); reject() blocks it; each transition writes a SOC event; and the queue persists across a reload.",
+    "prompt": "Vera proposes an action -> founder approves/rejects in the queue",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "EXECUTION is deliberately out of scope (Wave 2B): approval never grants execution here; a separate certified preview->approve->execute->audit->undo path is required before any approved suggestion can act. A one-click Approval Queue UI + a server endpoint are the surfacing step (the engine + invariants are proven now). Identity-refinement proposals (the diff/approval/rollback loop over the sandbox) are a sibling module in this same wave."
+  ],
+  "status": "UNKNOWN"
+}

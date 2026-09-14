@@ -1,0 +1,24 @@
+{
+  "feature": "cross_store_search",
+  "claim": "One search box reaches every store — personal memory (LIRF), the uploaded Reference Library, learned LERF skills, the personal model, and the world model — and each hit is labeled with its TRUE source_type, which is NEVER blurred: your private memory is never mislabeled as an external reference, and an external reference is never shown as your own memory. Scopes narrow the search; an empty query scans nothing.",
+  "owner": "anima/intake_search.py (search + the per-store searchers _search_lirf/_search_reference/_search_lerf/_search_personal/_search_world, each setting its own source_type before the merge), anima/server.py (POST /search -> _serve_search), anima/web/index.html (#searchPanel + doSearch)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "labeled_cross_store_hits_never_blur_memory_and_external",
+    "setup": "Hermetic temp store. Seed a personal FACT (memory) and an uploaded REFERENCE, each with a unique token. (A) the fact is found with source_type='memory'; the reference is found with a reference-family label (reference/web_page/uploaded_pdf) and NEVER 'memory'; the two source_types are disjoint (the hard non-blur contract). (B) scoping to [reference] hides the memory hit and vice-versa; an empty/whitespace query returns []. (C) server._serve_search returns {ok:True, results} for a real query and {ok:False} (q required) for an empty one. Real .anima byte-unchanged. scripts/certify_cross_store_search.py is the executable form.",
+    "prompt": "search my knowledge for the blue copper ladder",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Keyword (offline) search by design on this path — no embeddings here; the FMLGS embedding retriever is a separate feature with its own retrieval surface."
+  ],
+  "status": "UNKNOWN"
+}

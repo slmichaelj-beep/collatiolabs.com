@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Founder Command Center</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 12px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}
+  .lead{font-size:15px;margin:10px 0 0}
+  .caveat{color:#f6c454;font-size:12.5px;margin-top:6px}
+  main{padding:18px 28px;max-width:980px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .card.full{grid-column:1 / -1}
+  h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .big{font-size:16px;font-weight:600}
+  ul{margin:6px 0 0;padding-left:18px}li{margin:3px 0}
+  .empty{color:#6f6f76;font-style:italic}
+  .ok{color:#9af0b6}.warn{color:#f6c454}.bad{color:#ff9a9a}
+  a{color:#8ab4ff;text-decoration:none}
+</style>
+</head>
+<body>
+<div id="govBanner" style="font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)"></div>
+<header>
+  <div class="brand">VERA · FOUNDER COMMAND CENTER</div>
+  <h1>Where do we stand?</h1>
+  <div class="lead" id="lead">loading…</div>
+  <div class="caveat" id="caveats"></div>
+</header>
+<main id="main">
+  <div class="card full" id="founderDecisionLane">
+    <h2>Founder decisions needed</h2>
+    <div class="empty">loading verified company briefing...</div>
+  </div>
+</main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function list(items,fmt){if(!items||!items.length)return '<div class="empty">none</div>';
+  return '<ul>'+items.map(fmt).join('')+'</ul>';}
+fetch('/company/briefing.json').then(r=>r.json()).then(function(b){
+  var s=b.sections||{};
+  document.getElementById('lead').innerHTML='<span class="big">'+esc(s.highest_leverage_next_move||'')+'</span>';
+  var cav=b.caveats||[];
+  document.getElementById('caveats').innerHTML=cav.length?('⚠️ '+cav.map(esc).join(' · ')):'';
+  var cs=s.company_status||{}, ob=s.open_blockers||{};
+  document.getElementById('main').innerHTML=
+    '<div class="card"><h2>Company status</h2><div>commit <b>'+esc(cs.commit)+'</b></div>'
+      +'<div>deploy clean: <b class="'+(cs.deploy_clean?'ok':'bad')+'">'+cs.deploy_clean+'</b></div>'
+      +'<div>highest green tier: <b>'+esc(cs.highest_green_tier)+'</b></div></div>'
+    +'<div class="card"><h2>Open blockers</h2>'
+      +'<div>product red: <b class="'+((ob.product_red||[]).length?'bad':'ok')+'">'+esc((ob.product_red||[]).join(", ")||"none")+'</b></div>'
+      +'<div>product partial: <b class="'+((ob.product_partial||[]).length?'warn':'ok')+'">'+esc((ob.product_partial||[]).join(", ")||"none")+'</b></div>'
+      +'<div>stale certs: <b class="'+((ob.stale_certs||[]).length?'warn':'ok')+'">'+esc((ob.stale_certs||[]).join(", ")||"none")+'</b></div></div>'
+    +'<div class="card full"><h2>Founder decisions needed</h2>'
+      +list(s.founder_decisions_needed,function(q){return '<li><b>'+esc(q.q)+'</b> <span class="warn">['+esc(q.urgency)+']</span>'
+          +(q.recommended?' — recommend: '+esc(q.recommended):'')+'</li>';})+'</div>'
+    +'<div class="card"><h2>Top risks</h2>'+list(s.risks,function(r){return '<li>'+esc(r.title)+' <span class="warn">('+esc(r.severity)+')</span></li>';})+'</div>'
+    +'<div class="card"><h2>Open decisions</h2>'+list(s.open_decisions,function(d){return '<li>'+esc(d.title)+'</li>';})+'</div>'
+    +'<div class="card full"><h2>Deferred / not claimed</h2><div>'+esc((s.deferred_not_claimed||[]).join(", ")||"none")+'</div>'
+      +'<div style="margin-top:8px;font-size:12px"><a href="/learning">Learning integrity →</a> · <a href="/verification">Verification →</a> · <a href="/security">Security →</a></div></div>';
+}).catch(function(e){document.getElementById('lead').innerHTML='<span class="bad">could not reach the server ('+esc(e)+')</span>';});
+</script>
+<script>
+// GOVERNANCE VISIBILITY — the operator surface always states where authority stands.
+fetch('/governance.json').then(r=>r.json()).then(function(d){
+  var g=(d.governance||{});
+  var el=document.getElementById('govBanner');
+  if(el) el.innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b>'
+    +' · External actions: <b>'+(g.external_actions_enabled?'enabled':'disabled')+'</b>'
+    +' · Spending: <b>'+(g.spending_enabled?'enabled':'disabled')+'</b>'
+    +' · Legal/Financial: <b>human-only</b>'
+    +' · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')+'</b>'
+    +' · <span title="this surface is observed; every view is a trace-linked event">Observed • Trace linked</span>'
+    +' · <a href="/observation" style="color:#8ab4ff;text-decoration:none">Observation →</a>';
+}).catch(function(){});
+</script>
+</body>
+</html>

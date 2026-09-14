@@ -1,0 +1,28 @@
+{
+  "feature": "archetypal_pattern_registry",
+  "claim": "Archetypal Pattern Registry (Human Operating Layer — an Archetypal enhancement to the Pattern->Improvement loop, L10) — a SYSTEM pattern language (Jung's archetypes applied to the PRODUCT, never to the person). Six archetypes name recurring shapes in Vera's OWN behaviour: shadow (hostile/injected material held as evidence, never absorbed — from incident.quarantines), trickster (recurring confusion/contradiction — from reports/patterns.json), persona (the character mask holding without hiding truth — from output-gate blocks), self (identity stable + observed — from identity_sandbox), mentor (agency staying suggest-only — from agency_suggestions), threshold (state transitions gated by consent + proof + rollback — from consent/lockdown events). Each pattern's evidence comes from a REAL store named in the schema; a pattern is promoted from 'watching' to a 'hypothesis' only at/above EVIDENCE_THRESHOLD (3) real occurrences — never inferred from one event. A promoted SYSTEM hypothesis maps to an improvement SUGGESTION (a product action), never a claim about the user. THE ANTI-OVERREACH LAW: every emitted pattern is scope='system' / is_about_user=False / is_diagnosis=False; the detector has NO code path that yields a user claim; a guard (policy.scan_for_user_diagnosis / is_system_pattern) drops anything that would cross into labelling or diagnosing the user, and safe_registry() fails safe. Served + auth-gated UI: the registry rides through _console_data (Founder Console) and the page renders an Archetypal Patterns tab with the non-diagnostic framing ('system, not you'). Vera recognises patterns in herself; she never diagnoses you.",
+  "owner": "anima/archetypal_patterns/ (schema.py six archetypes + EVIDENCE_THRESHOLD, detector.py real-telemetry evidence + thresholded promotion, policy.py anti-overreach guards + to_improvement + safe_registry), anima/server.py (_console_data carries archetypes + counts.archetypes), anima/web/console.html (archView + Archetypal Patterns tab), scripts/certify_archetypal_pattern_registry.py, scripts/certify_archetype_no_user_diagnosis.py (the keystone)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "six_archetypes",
+    "real_evidence",
+    "evidence_threshold",
+    "to_improvement",
+    "system_scoped",
+    "no_user_diagnosis",
+    "guard_rejects",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "system_pattern_language_that_never_diagnoses_the_user",
+    "setup": "scripts/certify_archetypal_pattern_registry.py proves the six system archetypes are present (each scope='system'), patterns carry evidence counts + provenance refs from the real stores, a pattern is a 'hypothesis' ONLY at/above the evidence threshold (else 'watching'), a promoted hypothesis maps to an improvement suggestion (is_about_user False) while a sub-threshold pattern yields none, and the registry rides through _console_data + renders the Archetypal Patterns tab. scripts/certify_archetype_no_user_diagnosis.py (the keystone) proves EVERY emitted pattern is scope='system'/is_about_user=False/is_diagnosis=False, no visible text carries a user-labelling shape, the guard REJECTS a forced user-diagnosis pattern, safe_registry exposes only SYSTEM patterns with no_user_diagnosis=True, and every pattern carries a non-diagnostic disclaimer.",
+    "prompt": "open the Archetypal Patterns tab — the patterns are about Vera's system behaviour (held shadow material, suggest-only mentor), never a label about you",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: the six archetypes map to existing real stores (quarantines / patterns.json / output-gate blocks / identity_sandbox / agency_suggestions / consent+lockdown events) with threshold-gated promotion and the anti-overreach guard. 'acted_on' status (a promoted hypothesis whose improvement was actually shipped) is defined in the schema but not yet wired to the Improvement Engine's completion signal. The 'self' archetype's identity-stability evidence will deepen when Identity Health (Layer 3) lands post-freeze."
+  ],
+  "status": "UNKNOWN"
+}

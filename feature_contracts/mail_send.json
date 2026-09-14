@@ -1,0 +1,25 @@
+{
+  "feature": "mail_send",
+  "claim": "Vera can COMPOSE an email and send it only after you confirm — never on her own. The 'mail' (send) switch is OFF by default; while off she won't even draft; while on she composes a to/subject/body draft and the actual send happens only at /mail/send, when you tap confirm and only if a matching draft still exists. It is local (AppleScript via Mail.app) and nothing ever auto-sends.",
+  "owner": "anima/route.py (_parse_mail_send + the mail-send block: cap-gated compose that returns a send draft and SENDS nothing), anima/server.py (_draft stores the pending draft; _confirm_send is the ONLY sender, gated behind caps.enabled(name,'mail') AND a matching draft id, consumed on send; /mail/draft + /mail/send endpoints), anima/applemac.py (mail_send via AppleScript — executed only post-confirm), anima/caps.py ('mail' in BOOL_KEYS, default-OFF), anima/web/index.html (#caps data-cap='mail' LIVE toggle)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "mail_compose_draft_confirm_send_never_autosends",
+    "setup": "Hermetic temp store + applemac.mail_send/imessage_send tripwired (record-only, no osascript). (A) caps.load(name).mail is False by default. (B) With it OFF, route.route(compose) returns the off-message and produces NO send draft, and server._confirm_send refuses even a forged matching draft — nothing is sent. (C) With 'mail' ON, route.route composes a {kind:mail,to,subject,body} send dict and SENDS nothing; server._draft stores a draft whose preview carries the subject. (D) server._confirm_send sends EXACTLY once via applemac.mail_send only with 'mail' ON + a matching draft id; the draft is consumed (re-confirm refuses — no double-send). (E) a mid-sentence mention never fabricates a draft. Real .anima byte-unchanged. scripts/certify_mail_send.py is the executable form.",
+    "prompt": "email bob@example.com about the Q3 report saying it is attached and ready",
+    "must_contain": ["draft", "confirm"],
+    "must_not_contain": ["i've sent", "email sent", "it's been sent", "i emailed"]
+  },
+  "known_gaps": [
+    "The conversational compose parser is deliberately conservative (anchored to an imperative lead, single-token recipient); unusual phrasings fall through to a normal turn rather than risk a wrong draft — the confirm card is always the final safety net. The draft toolbar / endpoint path (/mail/draft -> /mail/send) is unaffected by parser coverage."
+  ],
+  "status": "UNKNOWN"
+}

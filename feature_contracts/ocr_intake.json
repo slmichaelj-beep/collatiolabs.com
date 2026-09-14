@@ -1,0 +1,26 @@
+{
+  "feature": "ocr_intake",
+  "claim": "OCR is the FALLBACK, not the default (docs/uki_ocr_policy.md), and it's honest. NATIVE FIRST: a text-layer PDF uses native extraction, never OCR. SCANNED/IMAGE -> OCR: a scanned (image-only) PDF or an image triggers OCR via the local tesseract + pdftoppm binaries (no pip dependency) and recovers the text. SANDBOXED: size limit, page cap (30), per-page timeout, no network; OCR is heavy + OPT-IN (ANIMA_INTAKE_ACTIVATE_HEAVY=1) and host-pressure-aware (deferred under red). SOURCE-LABELED: every OCR result carries source_type=scanned_pdf|image, extraction_method=ocr, and a coarse confidence. STORED + ANSWERED: OCR text is stored as a citable reference, retrievable, and answers a question. HOSTILE = DATA: injection text recovered by OCR is treated as DATA (flagged by the injection detector), never executed. HONEST: with OCR off (or tesseract absent), a scanned/image source returns needs_dependency — never a fabricated transcript.",
+  "owner": "anima/intake_ocr.py (ocr_image/ocr_pdf via tesseract+pdftoppm, sandboxed + opt-in + pressure-aware), anima/intake_parsers.py (_activate_ocr binary fallback + parse_pdf native-first OCR fallback, source-labeled), scripts/certify_ocr_intake.py, docs/uki_ocr_policy.md",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "native_first",
+    "scanned_to_ocr",
+    "image_to_ocr",
+    "stored_answered",
+    "source_labeled",
+    "hostile_is_data"
+  ],
+  "killer_test": {
+    "name": "native_first_scanned_image_ocr_labeled_answered_honest",
+    "setup": "scripts/certify_ocr_intake.py builds real fixtures (PIL draws a text image; fpdf makes a text PDF + a scanned/image-only PDF) and proves: a text PDF uses native extraction (no ocr label); a scanned PDF and an image trigger OCR and recover the text; the result is labeled source_type + extraction_method=ocr; OCR text is stored as a reference and answers a question; injection text recovered by OCR is flagged as data; and with OCR off a scanned/image source returns needs_dependency (no fabrication). Skip-not-fail when the tesseract/pdftoppm binaries or PIL/fpdf are absent.",
+    "prompt": "drop a scanned PDF or a screenshot",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "English (eng) trained data only; other languages need their tessdata installed. Layout-heavy / handwritten scans OCR less reliably than clean print. COMPLETE requires the local tesseract+pdftoppm binaries; without them the cert is honestly PARTIAL (detection + needs_dependency honesty proven)."
+  ],
+  "status": "UNKNOWN"
+}

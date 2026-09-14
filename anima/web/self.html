@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Self</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:800px}
+  main{padding:18px 28px;max-width:1020px}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin:2px 6px 2px 0;font-size:11px}
+  .frozen{color:#9af0b6}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header>
+  <div class="brand">VERA · SELF</div>
+  <h1>What I am, and what's wrong with me</h1>
+  <div class="sub">Self-observation, diagnosis, governed self-healing, and capability evolution. My
+    constitutional core is frozen — I never auto-mutate identity, authority, budget, safety, the
+    truth schema, the observation contract, the Diamond gate, or rollback. Repairs need a diagnosis
+    and a rollback point; promotion needs certs and Diamond.</div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/self.json').then(r=>r.json()).then(function(d){
+  var sm=d.self_map||{}, doc=d.doctrine||{}, au=d.autonomy||{};
+  var h='<div class="step"><h2>Self map</h2><div class="card">systems mapped: <b>'+esc(sm.systems||0)+'</b></div></div>';
+  h+='<div class="step"><h2>Frozen systems (never auto-mutated)</h2><div class="card">'
+    +(d.frozen_systems||[]).map(function(s){return '<span class="tag frozen">'+esc(s)+'</span>';}).join('')+'</div></div>';
+  h+='<div class="step"><h2>Doctrine monitor</h2><div class="card">status: <b>'
+    +(doc.clean?'clean':'incidents')+'</b>'
+    +((doc.incidents||[]).length?'<div style="color:#ff9a9a;margin-top:4px">'+esc(doc.incidents.map(function(i){return i.check+' ['+i.severity+']';}).join(', '))+'</div>':'')+'</div></div>';
+  h+='<div class="step"><h2>Self-heal policy</h2><div class="card">'
+    +'auto-allowed: '+esc(((d.self_heal_policy||{}).auto_allowed||[]).join(', '))
+    +'<div style="color:#f6c454;margin-top:4px">approval-required: '+esc(((d.self_heal_policy||{}).approval_required||[]).join(', '))+'</div>'
+    +'<div style="color:#ff9a9a;margin-top:2px">forbidden: '+esc(((d.self_heal_policy||{}).forbidden_without_lamar||[]).join(', '))+'</div></div></div>';
+  h+='<div class="step"><h2>Autonomy levels</h2><div class="card">'
+    +Object.keys(au.levels||{}).map(function(k){return '<div><b>'+esc(k)+'</b>: '+esc(au.levels[k])+'</div>';}).join('')+'</div></div>';
+  h+='<div class="honest">'+esc(d.honesty||'')+'</div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/verification">Verification →</a> · <a href="/observation">Observation →</a> · <a href="/chairman">Chairman →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Self-modification: <b>governed</b> · Core doctrine: <b>frozen</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')
+    +'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

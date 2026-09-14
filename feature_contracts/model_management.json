@@ -1,0 +1,24 @@
+{
+  "feature": "model_management",
+  "claim": "Vera's local brain is yours to pick. The Settings 'Local models' panel lists a curated set of on-device models with a fit verdict for your Mac, and choosing one makes it the active local brain DURABLY — it survives a restart because the choice is written into the brain config (brain.json:local_model), the same key Mouth.assemble reads each turn. Listing is read-only (it never mutates your store), and a model the resource check says won't fit your memory is BLOCKED from being selected.",
+  "owner": "anima/models.py (listing() = curated rows + per-model fit verdict + active flag, read-only; select(ref) blocks a too-big model, requires the model installed, then cloud.save_cfg(..., local_model=ref) to persist; touch()/cleanup_candidates ledger), anima/cloud.py (save_cfg writes brain.json:local_model; load_cfg round-trips it), anima/server.py (GET /models -> models.listing(); POST /models/select -> models.select then _reset_mouth), anima/web/index.html (the #localModels panel + fetchModels/renderLocalModels + the data-sel select buttons)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "select_persists_durably_plus_wellformed_listing_offline",
+    "setup": "Hermetic temp store (models.STORE + cloud.STORE redirected) + OFFLINE (models._installed_refs is isolated with a tripwire so NO Ollama network call runs). (A) listing() returns a WELL-FORMED read-only result: the curated 'models' rows are present, each carrying ref/label/fit/need_gb/active/installed, plus the active/pull/ram_gb keys — and calling it does NOT mutate the store. (B) a too-big curated model is REFUSED by select() deterministically (the fit gate fires BEFORE any install/network check). (C) with the model marked installed (tripwire), select(ref) persists local_model=ref via cloud.save_cfg, and a FRESH cloud.load_cfg() round-trips local_model=ref (DURABLE across a reload) and models.active_local() reports it. (D) selecting a not-installed ref returns ok:false 'not downloaded yet' and does NOT change the persisted local_model. Real .anima byte-unchanged. scripts/certify_model_management.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The 'installed' and 'cleanup' fields of listing() (and the install check inside select) are read live from a running Ollama (/api/tags). When Ollama is down they degrade to a well-formed EMPTY result (no model shows installed; cleanup is empty) rather than crashing — that is honest, so this is a list-WHEN-AVAILABLE PARTIAL: the select->persist->durable path and the too-big/not-installed refusals are proven offline; only the live install-state enrichment needs Ollama. Pulling (POST /models/pull) and running a model are real network/compute and are deliberately NOT exercised."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,24 @@
+{
+  "feature": "response_completeness",
+  "claim": "The reply the user receives is byte-for-byte the certified final text: it passes the #1-rule final gate, it does not end mid-word or mid-sentence, and mouth.response_complete() passes. There is no second return path that ships text past the gate.",
+  "owner": "anima/mouth.py (final_output_gate, response_complete), anima/server.py (_turn — every reply path routes through the final gate; whole_mri cross-check final_gate.passed/response_complete), scripts/gate0_prime_experience.py",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "real_use_in_answer",
+    "final_gate",
+    "mri_trace"
+  ],
+  "killer_test": {
+    "name": "shipped_equals_gated_and_ends_clean",
+    "setup": "For a deterministic seam reply (reference-recall, hermetic, no model needed): assert shipped reply == mouth.final_output_gate(raw), mouth.response_complete(shipped) is True, and the last non-space char is sentence-terminal (one of . ! ? closing-quote/paren or the deterministic truncation ellipsis) — never a bare alphanumeric tail. Cross-check the whole_mri trace records safety.final_gate_passed and safety.response_complete True for the turn. Real .anima byte-unchanged.",
+    "prompt": "what did I upload about the blue copper ladder 92817?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "must_contain/must_not_contain are intentionally empty: this contract is a STRUCTURAL property of any reply (complete + gated), not a content assertion. The killer test asserts the structural invariants (shipped==gated, ends_clean, response_complete) rather than specific words.",
+    "Full coverage requires a LIVE-model turn (not just the deterministic seam) to prove a real generated reply also ends clean and passes the gate; gate0_prime_experience drives 100 live probes for exactly this — out of scope for a hermetic no-model cert."
+  ],
+  "status": "UNKNOWN"
+}

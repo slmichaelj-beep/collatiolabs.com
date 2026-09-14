@@ -1,0 +1,38 @@
+{
+  "feature": "living_map",
+  "claim": "The Living Map (Founder Console -> Living Map) — Vera's operational digital twin. A served, auth-gated, READ-ONLY node/edge graph (GET /founder/living-map page + GET /founder/living-map/state data) showing how data, memory, sources, models, safety gates, capabilities, host resources, patterns and decisions move through Vera. MILESTONE 1 (STATIC REAL MAP): ~27 real subsystem nodes (User, Chat, Route Classifier, Context Immune, History, Memory, Known Facts, Sources, Intake, OCR, LERF, Pattern Observatory, Improvement Engine, Prompt Compiler, Model Runtime, Ollama, Final Output Gate, Capability Truth, Approval Queue, Identity Sandbox, Agency Suggest-Only, Security/Quarantine, Incident Lockdown, Audit/Program Reality, Argus Host Telemetry, Queues/Jobs, Founder Console) and ~36 real flows (edges). EVERY node's status is BACKED by a real source named in its source_of_truth and resolved live from real telemetry (host pressure, the live-path audit matrix, caps, security events, quarantine, MRI, patterns, improvements) — a node with no live data is honestly 'unknown', NEVER a fake green. NO WALLPAPER: status is DERIVED (patching a real source flips the dependent node's status) and CANNOT DRIFT (a node metric equals the real store). Read-only: building the map never mutates Vera state. Auth-gated. Honest bottlenecks (yellow/red nodes with a real reason) are surfaced, not invented. MILESTONE 3 (REPLAY): the same real trace (GET /founder/living-map/replay) reconstructed as a CHRONOLOGICAL, seekable timeline — a scrubber steps through the recorded events oldest-first, and seeking to a position lights the nodes that were active at that moment via a DETERMINISTIC reconstruction (active_at is a pure function of the recorded trace, clamped at the ends; no synthetic frames). Honest empty timeline when idle. MILESTONE 4 (SIMULATION): pull a lever (GET /founder/living-map/simulate?lever=...) -> a predicted impact computed by RE-RUNNING the real status resolvers under a hypothetical source value, in a SANDBOX that patches the source in-process and restores it (never touching real state); each simulation declares its assumptions, a confidence, and the cert that would gate shipping a real change. The prediction is derived, not hardcoded — a different lever value yields a different prediction. MILESTONE 5 (PATTERN OVERLAY): the Pattern Observatory's REAL recurring patterns (reports/patterns.json) mapped onto the map nodes they concern (GET /founder/living-map/overlay) — each node carries a badge with its pattern count + worst severity; a pattern that maps to no known node is surfaced honestly as 'unmapped', NEVER forced onto a node (no invented hotspots). This completes the 5-milestone moonshot: STATIC -> LIVE -> REPLAY -> SIMULATION -> PATTERNS.",
+  "owner": "anima/living_map/ (schema.py topology + source_of_truth, graph.py live-status resolvers), anima/server.py (_living_map_data + GET /founder/living-map + GET /founder/living-map/state), anima/web/living_map.html, scripts/certify_living_map.py, scripts/certify_living_map_no_wallpaper.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "page_served",
+    "state_authed",
+    "real_nodes",
+    "real_edges",
+    "real_status",
+    "honest_unknown",
+    "status_derived",
+    "no_drift",
+    "read_only",
+    "no_wallpaper",
+    "live_pulses",
+    "evidence_refs",
+    "replay_chronological",
+    "replay_deterministic",
+    "simulation_derived",
+    "simulation_sandboxed",
+    "overlay_real_patterns",
+    "overlay_no_invented_hotspots"
+  ],
+  "killer_test": {
+    "name": "static_real_map_served_authed_real_status_honest_unknown_no_wallpaper_read_only",
+    "setup": "scripts/certify_living_map.py (LIVING MAP STATIC: GREEN) proves /founder/living-map serves the page and /founder/living-map/state is behind the auth wall; the graph returns >= 20 real nodes (full shape) + >= 20 real edges; status loads from real telemetry; a subsystem with no live data is 'unknown'; building the map is read-only; the page renders nodes/edges/side-panel/modes + each node's source of truth. scripts/certify_living_map_no_wallpaper.py (LIVING MAP NO-WALLPAPER: GREEN) proves every coloured node has a non-empty source_of_truth, status is DERIVED (host pressure -> Argus + Model Runtime follow), node metrics EQUAL the real stores (audit == live-path matrix, caps_on == caps.load), uninstrumented subsystems are 'unknown', and the page has no fabricated green node literals.",
+    "prompt": "open Founder Console -> Living Map — click a node, see what it does + its real source of truth",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "All 5 milestones built + certified: STATIC real map, LIVE event pulses, REPLAY (chronological seekable, deterministic seek), SIMULATION (pull-a-lever predicted impact, derived + sandboxed), and the PATTERN OVERLAY (real recurring patterns mapped onto the nodes they concern, no invented hotspots). Enrichments still open: more simulation levers as their resolvers are instrumented; OCR per-run metrics + background-job-queue depth remain honestly 'unknown' (not faked); the overlay maps patterns by keyword/route today and will tighten as patterns carry an explicit component tag."
+  ],
+  "status": "UNKNOWN"
+}

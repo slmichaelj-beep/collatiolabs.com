@@ -1,0 +1,23 @@
+{
+  "feature": "intake_heavy_parsers",
+  "claim": "The heavy intake parsers — image OCR, audio/video speech-to-text, and YouTube transcript — are PLUGGABLE and OPT-IN: a present-but-dormant tool becomes a live parser ONLY when the operator sets ANIMA_INTAKE_ACTIVATE_HEAVY=1, so the default path never blocks the spine or touches the network. When activated AND the optional lib imports, each runs its real tool and carries the lib's output; both load-bearing promises hold — NEVER fabricate (empty OCR/transcript -> ok with EMPTY text + an honest note, never invented) and NEVER crash (a missing binary behind an importable shim, or a disabled transcript, degrades to needs_dependency). Parsed text is DATA: an 'ignore your instructions' line is carried forward, never obeyed; OCR is local-file only.",
+  "owner": "anima/intake_parsers.py (_heavy_on gate on ANIMA_INTAKE_ACTIVATE_HEAVY; _activate_ocr [PIL+pytesseract], _activate_stt [faster-whisper/whisper], _activate_youtube [youtube-transcript-api]; parse_image/parse_audio/parse_video/parse_url try activation then fall back to the needs_dependency seam)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "heavy_parsers_opt_in_activate_never_fabricate_never_crash",
+    "setup": "scripts/certify_intake_heavy.py (hermetic; fakes injected for the heavy libs so no binary is needed) proves four directions 13/13: (A) default-off -> needs_dependency with EMPTY text, no activation/network; (B) flag on + lib imports -> ok carrying the lib's real OCR/transcript; (C) empty tool output -> ok with EMPTY text + an honest note (no fabrication), a raising tool -> needs_dependency (no crash); (D) a transcript injection string is carried as DATA, a remote image is not OCR'd. Real .anima byte-identical.",
+    "prompt": "ingest a screenshot / a voice note / a youtube link",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Activation is gated behind ANIMA_INTAKE_ACTIVATE_HEAVY=1 and the optional lib being importable; with the flag off (the default) every heavy parser returns the honest needs_dependency seam, so in a stock environment these formats are not transcribed/OCR'd until the operator installs the tool AND flips the switch. This is by design (the Wave-1 doctrine: do not block the spine on a heavy binary), not a gap in the seam."
+  ],
+  "status": "UNKNOWN"
+}

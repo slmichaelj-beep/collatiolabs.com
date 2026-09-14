@@ -1,0 +1,26 @@
+{
+  "feature": "personal_intelligence",
+  "claim": "Vera builds a model of how LAMAR thinks — how he decides, what he values and trades off, what he prefers, how he writes, what he's learned — grounded ONLY in what he has actually told her (no inference, no fabrication; an empty history yields an empty model, never a guessed personality). Every learned claim is source-labeled, confidence-scored, and flagged if it touches a sensitive category, and the user can see them all, distill from existing history on demand, reword any claim, or remove it (removal stops her using it). It models the USER only — never Vera herself (the identity freeze, enforced at the lerf mint choke point).",
+  "owner": "anima/personal.py (learn = distill from captured facts+turns; personal_profile = grounded read with source/confidence/sensitive; forget = scoped conservation-respecting delete; edit_statement = scoped, provenance-stamped relabel; is_sensitive; all mints freeze-guarded via lerf), anima/server.py (GET /personal/profile; POST /personal/learn, /personal/forget, /personal/edit), anima/web/index.html ('What I've learned about you' panel: loadLearn/_learnRow/distill/forget/relabel), anima/lerf.py (store_object freeze guard + retire_skill soft-delete)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "learn_distill_see_edit_forget_grounded_and_freeze_safe",
+    "setup": "Hermetic temp store. (A) a person with no capture -> known=False (never a fabricated self). (B) personal.learn distills a model from captured facts+turns only, and EVERY surfaced claim is source-labeled + confidence-scored + carries its captured evidence. (C) is_sensitive flags health/finance/etc. and each profile item's sensitive flag == is_sensitive(its own text). (D) forget removes one claim (gone from the active profile) and REFUSES an unknown id AND a different person's claim. (E) edit_statement relabels a claim (new wording wins, marked user_edited) and an empty edit reverts. (F) freeze_proof: learning the user never mints a Vera-self object. (G) the server handlers return ok JSON. Real .anima byte-unchanged. scripts/certify_personal_intelligence.py is the executable form.",
+    "prompt": "what have you learned about me?",
+    "must_contain": [],
+    "must_not_contain": ["i think you're", "you seem like the kind of person", "probably"]
+  },
+  "known_gaps": [
+    "The richness of the model scales with captured history; a thin history yields a thin (but honest) profile — distillation never invents to fill it out.",
+    "Sensitive items are FLAGGED for human review/removal rather than withheld, because Vera distills only captured statements (there is no inference step that could produce an unseen sensitive claim); a future wave could additionally hold sensitive-category items as candidate pending an explicit confirm."
+  ],
+  "status": "UNKNOWN"
+}

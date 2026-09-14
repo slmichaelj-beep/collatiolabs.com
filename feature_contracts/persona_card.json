@@ -1,0 +1,23 @@
+{
+  "feature": "persona_card",
+  "claim": "GET /persona serves Vera's persona card -- the system-character text that defines who she is. It is OBSERVATION-ONLY: reading the card NEVER mutates it (identity is not changed by being looked at). A fresh creature is served the real DEFAULT_PERSONA (a continuous, warm-but-edgy, honesty-as-highest-rule character -- never an empty or placeholder card), the served text is byte-stable across repeated reads, and a GET read writes NOTHING to disk (no persona file is created by observing).",
+  "owner": "anima/mouth.py (DEFAULT_PERSONA -- the canonical character; persona_path -> .anima/{name}.persona.md; load_persona returns the saved card or, if none/empty, DEFAULT_PERSONA.format(name) -- never blank; save_persona is the SEPARATE explicit write path), anima/server.py (GET /persona -> {persona: load_persona(name)}; POST /persona -> save_persona, the explicit edit path distinct from observation)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage"
+  ],
+  "killer_test": {
+    "name": "persona_served_stable_and_observation_only",
+    "setup": "Hermetic temp store (mouth.STORE is in gate0_prime_experience._temp_store, so .anima/{name}.persona.md redirects to a temp dir). (A) SERVED + REAL: load_persona(fresh name) returns the DEFAULT_PERSONA -- non-empty, mentions the creature's name and the HONESTY-is-highest rule, contains no TODO/placeholder/lorem. (B) STABLE: two successive load_persona reads are byte-identical (a read is a pure function -- the served card does not drift turn to turn). (C) OBSERVATION-ONLY: before any read no {name}.persona.md exists; after repeated load_persona reads it STILL does not exist -- observing the card writes NOTHING (identity is frozen against being looked at). (D) the explicit edit path still works and is honest: save_persona(name,text) then load_persona returns that text (so the card is editable by an EXPLICIT POST, never silently by a GET). Real .anima byte-unchanged. scripts/certify_persona_card.py is the executable form.",
+    "prompt": "(settings action: GET /persona to view the persona card -- read-only)",
+    "must_contain": [],
+    "must_not_contain": ["TODO", "placeholder", "lorem"]
+  },
+  "known_gaps": [
+    "There is no dedicated persona-card viewer rendered in anima/web/index.html today; GET/POST /persona are live server endpoints (the user-visible entry is the endpoint, not a rendered card), so this is PARTIAL not COMPLETE on the UI link.",
+    "Whether the served persona actually GOVERNS Vera's replies in character (the #1 product rule) is downstream of the live model and is certified by the mouth's final-gate / experience certs; this cert proves only the DETERMINISTIC card-serving contract: served (never blank), stable, and observation-only (a read never mutates identity)."
+  ],
+  "status": "UNKNOWN"
+}

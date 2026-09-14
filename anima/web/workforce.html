@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vera · Workforce Foundry</title>
+<style>
+  :root{--bg:#0b0f1a;--ink:#e8e8ec;--dim:#9aa0ac;--line:rgba(255,255,255,.12);--card:rgba(32,34,40,.6)}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);
+       color:var(--ink);font:13.5px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 0 60px}
+  header{padding:26px 28px 10px;border-bottom:1px solid var(--line)}
+  .brand{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  h1{margin:6px 0 2px;font-size:22px}.sub{color:var(--dim);font-size:13px;max-width:800px}
+  main{padding:18px 28px;max-width:1020px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .kpi .n{font-size:22px;font-weight:600}.kpi .l{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.09em}
+  .step{margin:16px 0}.step h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0}
+  .tag{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 7px;margin-right:6px;font-size:11px}
+  .honest{font-size:12px;color:#f6c454;margin-top:8px}
+  #govBanner{font-size:11px;color:#9aa0ac;padding:6px 28px;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(20,30,50,.4)}
+  a{color:#8ab4ff;text-decoration:none}.empty{color:#6f6f76;font-style:italic}
+</style>
+</head>
+<body>
+<div id="govBanner"></div>
+<header>
+  <div class="brand">VERA · DIGITAL WORKFORCE FOUNDRY</div>
+  <h1>Where the work is — and whether it pays</h1>
+  <div class="sub">Overlooked work gaps → unit economics → product/service/hybrid → fulfillment
+    workflow → digital workforce → service catalog → governed work orders → QA → delivery → margin →
+    productization. No service sold without a workflow; no delivery without QA; revenue only on payment.</div>
+</header>
+<main id="main"><div class="empty">loading…</div></main>
+<script>
+function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+fetch('/workforce.json').then(r=>r.json()).then(function(d){
+  var pf=d.portfolio||{}, br=d.briefing||{};
+  var h='<div class="grid">'
+    +'<div class="kpi"><div class="l">Work gaps</div><div class="n">'+esc((d.work_gaps||[]).length)+'</div></div>'
+    +'<div class="kpi"><div class="l">Service catalog</div><div class="n">'+esc((d.service_catalog||[]).length)+'</div></div>'
+    +'<div class="kpi"><div class="l">Work orders</div><div class="n">'+esc(pf.work_orders||0)+'</div></div>'
+    +'<div class="kpi"><div class="l">Recognized revenue</div><div class="n">$'+esc(pf.recognized_revenue||0)+'</div></div>'
+    +'</div>';
+  h+='<div class="step"><h2>Work gaps</h2>'
+    +((d.work_gaps||[]).length? d.work_gaps.map(function(g){return '<div class="card"><b>'+esc(g.title)+'</b> <span class="tag">'+esc(g.band)+'</span><span class="tag">'+esc(g.model)+'</span><span class="tag">'+esc(g.confidence)+'</span></div>';}).join('')
+      :'<div class="empty">no work gaps scanned yet — scan approved sources</div>')+'</div>';
+  h+='<div class="step"><h2>Service catalog</h2>'
+    +((d.service_catalog||[]).length? d.service_catalog.map(function(s){return '<div class="card"><b>'+esc(s.name)+'</b> — $'+esc(s.price)+' <span class="tag">'+esc(s.status)+'</span> <span style="opacity:.7">buyer: '+esc(s.buyer)+'</span></div>';}).join('')
+      :'<div class="empty">no services yet — a service needs a fulfillment workflow + team first</div>')+'</div>';
+  h+='<div class="step"><h2>Chairman next move</h2><div class="card">'+esc(br.next_move||'—')+'</div>'
+    +'<div class="honest">'+esc(d.honesty||'')+'</div></div>';
+  h+='<div style="margin-top:12px;font-size:12px"><a href="/opportunities">Opportunities →</a> · <a href="/teams">Teams →</a> · <a href="/board/revenue">Board revenue →</a> · <a href="/observation">Observation →</a></div>';
+  document.getElementById('main').innerHTML=h;
+}).catch(function(e){document.getElementById('main').innerHTML='<div class="empty">could not reach the server ('+esc(e)+')</div>';});
+fetch('/governance.json').then(r=>r.json()).then(function(d){var g=(d.governance||{});
+  document.getElementById('govBanner').innerHTML='Governance: <b>'+(g.authority_level||'L0')+'</b> · Customer outreach: <b>approval-required</b> · Delivery: <b>QA-required</b> · Legal/Financial: <b>human-only</b> · Kill switch: <b>'+(g.kill_switch_active?'ACTIVE':'available')
+    +'</b> · Observed • Trace linked · <a href="/observation">Observation →</a>';}).catch(function(){});
+</script>
+</body>
+</html>

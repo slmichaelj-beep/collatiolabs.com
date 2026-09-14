@@ -1,0 +1,14 @@
+# The mouth's heavy organs — install on your home machine (e.g. M-series Mac).
+# The creature itself needs none of this; the mouth is a swappable organ.
+
+# Voice (TTS) — Kokoro: near-premium naturalness at 82M params.
+kokoro>=0.3
+soundfile>=0.12
+
+# Ears (STT) — faster-whisper large-v3-turbo, with VAD for snappy turn-taking.
+faster-whisper>=1.0
+
+# Brain (LLM) runs in a separate app, not pip:
+#   1. install Ollama:        https://ollama.com
+#   2. pull the model:        ollama pull qwen2.5:7b-instruct
+# The mouth talks to it over http://localhost:11434 — no python dependency.
