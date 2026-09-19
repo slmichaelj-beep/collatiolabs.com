@@ -1,0 +1,30 @@
+{
+  "feature": "consent_boundaries",
+  "claim": "Consent & Boundaries (Human Operating Layer, Layer 2) — beyond permissions (CAN Vera access this?) into context-aware CONSENT (SHOULD Vera proceed, at this speed, with this sensitivity?). A deterministic sensitivity classifier (anima/consent/classifier.py) flags 14 sensitive domains (health, mental_health, therapy, sex, trauma, relationships, finance, legal, family, location, religion/politics, identity, workplace_conflict, private_messages) and spares everyday talk. A consent store (anima/consent/policy.py -> .anima/{name}.consent.json) holds per-(scope,domain) consent: granted / denied / ask_each_time / revoked, with go-slow pacing; the safe DEFAULT is ask_each_time for the durable-state scopes (memory_write / identity_learning / source_use). THE ENFORCED BOUNDARY: a sensitive-domain conclusion is never written to durable memory SILENTLY — gate_memory_candidates() runs inside the LIVE capture path (memory_lirf.capture, before f.save) and HOLDS sensitive candidates (.anima/{name}.consent_pending.json) for the user to approve (-> written) or reject (-> forgotten). Granting allows; denying/revoking blocks; every change + hold/write/discard is audited as a trust event. Served + auth-gated UI (GET /consent page + GET /consent.json + POST /consent/decide): per-domain controls, revocation, and held-memory approvals. Read-only review; the user calls the shot; consent is revocable any time.",
+  "owner": "anima/consent/ (schema.py domains/scopes, classifier.py sensitivity, policy.py store + decisions + the memory gate), anima/memory_lirf.py (capture runs the consent gate before persisting), anima/server.py (_consent_data + _consent_action + GET /consent + GET /consent.json + POST /consent/decide), anima/web/consent.html, scripts/certify_consent_boundaries.py, scripts/certify_no_silent_sensitive_memory.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "sensitive_detected",
+    "safe_default",
+    "grant_deny",
+    "revocation",
+    "pacing",
+    "no_silent_sensitive_memory",
+    "approve_writes",
+    "reject_discards",
+    "audited",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "sensitive_consent_granted_denied_revoked_and_no_silent_sensitive_memory",
+    "setup": "scripts/certify_consent_boundaries.py proves the classifier flags sensitive domains + spares everyday talk; sensitive memory_write defaults to ask-each-time while general is allowed; granting -> allow and denying -> block (persisted+audited); revoking blocks future use; sensitive domains carry go-slow pacing; settings() exposes the full posture; /consent serves the page and /consent.json + POST /consent/decide are behind the auth wall. scripts/certify_no_silent_sensitive_memory.py proves, through the LIVE memory_lirf.capture path, that a sensitive conclusion writes NO durable fact (held), a general fact still captures, approving the held item persists it, rejecting never persists it, and hold/write/discard are audited.",
+    "prompt": "tell Vera something sensitive — it is held, not silently remembered; approve or forget it on /consent",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: a deterministic keyword/phrase sensitivity classifier (conservative on the safe side) + the memory-write boundary enforced in the LIVE capture path. The other consent scopes (source_use / connector_access / agency_suggestion) have store + decision + UI but their enforcement at each call site is the next wiring step. Pacing is recorded + shown; threading 'confirm_each_step' into the live answer cadence is the next enrichment."
+  ],
+  "status": "UNKNOWN"
+}

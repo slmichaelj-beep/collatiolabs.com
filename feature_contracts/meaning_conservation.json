@@ -1,0 +1,24 @@
+{
+  "feature": "meaning_conservation",
+  "claim": "Vera measures whether what MATTERED survived the pipeline, not just whether the bytes did. For a real utterance ('My daughter Maya started kindergarten') the engine extracts the LITERAL layer (the facts/tokens) AND the MEANING layer (the significance — a life-event, a milestone, a relational weight, an emotional tone), grounds EVERY meaning unit in BOTH the user's own words AND a structural signal from the live engines (a world edge / a reported_feeling row / a milestone trait) — never inventing — and walks each unit CAPTURED -> STORED -> SURFACEABLE against the REAL memory_lirf/world_state/meaning/review engines on a real capture, naming the first gate that drops it. It reports four conservation rates (literal, meaning, emotional-tone, life-event); a meaning can survive even where the literal words are gone, and a literal token can survive while its meaning goes mute.",
+  "owner": "anima/meaning_conservation.py (literal_units = the data-layer tokens via the live LIRF/world extractors; meaning_units = DERIVED + GROUNDED significance units across the four dimensions; _ground/_grounded_surface = the #1-rule gate that refuses any meaning not present in the user's words; retention_of = walk CAPTURED->STORED->SURFACEABLE naming loss_reason; conservation_rates = the four rates; _is_clean = the no-diagnosis wall). scripts/meaning_conservation.py (the Meaning-Conservation Observatory: runs the REAL engines on a real capture inside a hermetic temp store via meaning_ledger/run_battery, --selftest). Consumed by scripts/digital_mind_cert.py (the Final Digital Mind cert runs the engine --selftest) and anima/twin.py (the digital twin redirects its store).",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "meaning_derived_grounded_and_conserved_through_the_real_engines_on_a_real_capture",
+    "setup": "Hermetic temp store (every engine store — memory_lirf/world_state/meaning/review/curiosity/constitution/reliability/telemetry/cloud — redirected to a throwaway dir). On the founder's worked example 'My daughter Maya started kindergarten last week': (A) literal_units extracts the data-layer tokens ('maya','kindergarten'); meaning_units DERIVES a LIFE_EVENT + a RELATIONAL_WEIGHT + a MILESTONE, every unit rolled up into the MEANING dimension. (B) THE #1 RULE: every emitted unit is grounded in a surface that literally appears in the utterance AND carries non-empty structural evidence; an UNGROUNDED candidate ('graduation', a word never said) is REJECTED (_ground -> None), and no statement trips the no-diagnosis wall. (C) THE REAL CAPTURE: drive memory_lirf.capture + world_state.capture_relations to DISK, reload Facts/World FROM DISK, build the CAPTURED/STORED/SURFACEABLE gate-surfaces from the real engines (STORED from the on-disk reload, SURFACEABLE from meaning.significance + review.daily_review), and retention_of shows the meaning was CAPTURED, STORED, and SURFACEABLE — what MATTERED rode through, not just the bytes. (D) conservation_rates returns all four rates in [0,1], MEANING conservation == 1.0 when every unit is retained, and an emotional-tone unit absent from the gates is flagged with a CAPTURE loss_reason (the routinely-thin class, counted not silent). Real .anima byte-identical before/after. scripts/certify_meaning_conservation.py is the executable form.",
+    "prompt": "My daughter Maya started kindergarten last week",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "INTERNAL ENGINE, NOT WIRED INTO A LIVE REPLY: meaning_conservation has no server endpoint, no route/mouth wire, and no UI button — it is a measurement engine consumed by the CLI observatory (scripts/meaning_conservation.py) and the Final Digital Mind cert (scripts/digital_mind_cert.py), not a feature that shapes a user-facing turn. The deterministic backend is proven on a real capture through the real engines; the user-facing surface is the CLI, not a reply. A future leg could surface the conservation rates in a dashboard or fold the meaning-retention signal into the live answer.",
+    "SURFACEABLE is theme-identity, not prose: a meaning unit re-surfaces only if its SUBJECT is a significant theme / keep-forever item, never because a sentence happens to contain a matching common word — so emotional tone, captured as a durable reported_feeling, may legitimately not rank as a significant theme until it RECURS (a low rate is the truth being reported, now counted and attributed rather than silent)."
+  ],
+  "status": "UNKNOWN"
+}

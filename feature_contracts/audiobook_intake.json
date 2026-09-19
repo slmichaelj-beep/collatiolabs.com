@@ -1,0 +1,26 @@
+{
+  "feature": "audiobook_intake",
+  "claim": "Audiobook / long-form audio is a first-class Universal Knowledge Intake media type, implemented HONESTLY over OPEN, UNENCRYPTED formats only: .m4b (the open audiobook container) plus ordinary audio (.mp3, .m4a, .wav, .aac, .flac, .ogg, .aiff). Vera reads SAFE container metadata (title/author/duration/codec/chapters via ffprobe — headers only, no decode, no key), converts a decodable file to an intermediate 16 kHz mono wav with ffmpeg (NO key, NO decryption flag — standard transcode args only), and transcribes it with the approved LOCAL STT (faster-whisper; cloud only on explicit opt-in) into a real transcript chunked with timestamps (chapter-aware where ffprobe exposes chapters). The transcript is stored as a citable Reference (kind=audio/audiobook transcript, never trained as Vera's own), retrievable, and answered by the source-aware path with section/timestamp source labels. DRM-PROTECTED stores (e.g. Audible .aax/.aaxc/.aa) are intentionally NOT supported and there is NO DRM-handling code anywhere in the pipeline — no keys, no key-recovery, no decryption flags; a file that cannot be decoded WITHOUT a key returns an honest needs_dependency with an EMPTY transcript (never fabricated). Transcription is heavy and opt-in (ANIMA_INTAKE_ACTIVATE_HEAVY=1). The Intake MRI records uploaded -> detected audio/audiobook -> metadata -> decode status -> transcription status -> stored -> indexed -> used.",
+  "owner": "anima/intake_audio.py (media_probe/is_decodable/decode_to_wav/transcribe_wav/chunks_from_segments/parse_longform_audio — open formats only, NO DRM code), anima/intake_parsers.py (.m4b -> 'audiobook' -> the chapter-aware intake_audio path; .mp3/.m4a/.wav/.aac/.flac/.ogg/.aiff -> 'audio' -> the approved local-STT parser _activate_stt; both honest, local, opt-in), anima/intake.py (classify_source audio/audiobook -> Reference + the product messages), anima/web/index.html (upload advertises audiobooks .mp3/.m4a/.m4b/.wav), scripts/certify_audiobook_intake.py",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "real_use_in_answer",
+    "no_drm_code"
+  ],
+  "killer_test": {
+    "name": "audio_detected_undecodable_honest_decodable_transcribed_stored_retrieved_answered_no_drm",
+    "setup": "scripts/certify_audiobook_intake.py proves 8 things: (1) .m4b/.mp3/.m4a/.wav/.aac detected as audiobook/audio + routed to the honest parser, and DRM stores (.aax) are NOT claimed; (2) an undecodable file returns needs_dependency with an EMPTY transcript + an honest message (never fabricated); (8) NO DRM/decrypt/key/activation/Audible token exists anywhere in anima/intake_audio.py and the ffmpeg commands pass only safe transcode args. Then, with the approved LOCAL tooling (macOS say + ffmpeg + faster-whisper; skip-not-fail when absent), it ingests a DRM-FREE audio fixture END TO END: (3) decode + real local-STT transcript with timestamped chunks; (4) stored as a citable reference; (5) retrievable; (6) the source-aware recall answers from the transcript; (7) labelled as a reference with audio/audiobook transcript provenance. The Intake MRI pipeline (detected->metadata->decode->transcription) rides in the parse meta.",
+    "prompt": "drop in an audiobook (.m4b) or long-form audio (.mp3/.m4a/.wav/.aac)",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "End-to-end transcription is proven on a DECODABLE fixture through the approved local path; COMPLETE requires that local tooling (ffmpeg + a local STT model) to be present, else the contract is honestly PARTIAL (transcription blocked by tooling). DRM-protected stores are out of scope by design — not a gap to close but a deliberate boundary."
+  ],
+  "status": "UNKNOWN"
+}

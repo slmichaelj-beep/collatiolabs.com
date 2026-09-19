@@ -1,0 +1,23 @@
+{
+  "feature": "sysinfo_fit",
+  "claim": "Vera is local-first, so before she ever pulls or selects a local model she checks whether it FITS this Mac. On Apple Silicon CPU and GPU share one unified RAM pool, so total RAM decides what a GGUF model can run. sysinfo estimates a model's footprint from its name (parameter count x bytes-per-param from the quantization) plus runtime overhead, then compares against (RAM - an 8 GB OS/app reserve): need <= 70% of free -> 'comfortable', <= free -> 'tight', > free -> 'too big', and 'unknown' when RAM or the param count can't be read. The decision is REAL (read from os.sysconf, not hard-coded) and DETERMINISTIC, and it is the safety invariant the model manager enforces: a model the check says 'too big' is BLOCKED from select/pull ('that model won't fit your Mac's memory') before any network call, so the user can never pick a model that won't load or that thrashes the machine.",
+  "owner": "anima/sysinfo.py (ram_gb = real os.sysconf(SC_PAGE_SIZE*SC_PHYS_PAGES); params_b = parse '<n>B' out of a model name; _bytes_per_param = quant->bytes/param table (q2..f16, default ~Q4_K_M); need_gb = params*bytes/param + overhead; comfy_params_b = biggest ~Q4 model that fits; fit(name) = the verdict gate {ram_gb,chip,params_b,need_gb,verdict,comfy_b}), anima/models.py (_fit_of -> fit(); listing() decorates each curated row with fit verdict+need_gb; select()/pull() REFUSE a 'too big' verdict with 'that model won't fit your Mac's memory' BEFORE any Ollama call), anima/cloud.py (public() embeds fit(ANIMA_MODEL) as the /brain 'system' block the Settings UI renders)",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "real_backend",
+    "deterministic_decision",
+    "enforced_invariant"
+  ],
+  "killer_test": {
+    "name": "real_ram_probe_then_deterministic_monotonic_fit_gate_refuses_too_big",
+    "setup": "Hermetic temp store (no store is written; .anima fingerprinted before/after, asserted byte-identical). (A) REAL PROBE: ram_gb() reads a positive RAM figure from os.sysconf (not a constant) and chip() names a real CPU. (B) PARSER: params_b pulls the B-count out of real names (8B, 0.5B, 405B) and is 0 on a nameless ref; _bytes_per_param rises monotonically q2<q4<q5<q6<q8<f16; need_gb = params*bytes/param + overhead and is 0 when no param count. (C) REAL-MACHINE VERDICT: on THIS Mac a 405B and a 70B model are refused 'too big' while a 1B and an 8B are allowed (comfortable/tight), and an unparseable name is 'unknown' (never a false 'fits'). (D) MACHINE-INDEPENDENT DETERMINISM: with ram_gb monkeypatched to a fixed 16.0 GB, fit() is a pure function (same input -> same verdict across repeated calls), the verdict is strictly monotonic in size (a bigger model is never a BETTER verdict than a smaller one), the boundary is exact (need just over free -> 'too big', need just under -> not 'too big'), and a model whose need exceeds free RAM is ALWAYS 'too big' regardless of hardware. (E) ENFORCED INVARIANT: a 'too big' verdict is the exact gate models.select()/models.pull() use to BLOCK with 'that model won't fit your Mac's memory' before any network, while a fitting ref is not blocked by the fit gate. Real .anima byte-unchanged. scripts/certify_sysinfo_fit.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The verdict for ANY specific named model depends on the host's real RAM, so the ABSOLUTE verdict differs across machines (here a 25.8 GB M4 Pro). The cert proves both the real-machine verdicts AND the machine-independent invariants (purity, monotonicity, exact boundary, refuse-when-over-free) by pinning ram_gb to a fixed value, so the fit logic is certified deterministic on any hardware. The footprint constants (8 GB reserve, 1.5 GB overhead, the quant bytes/param table) are heuristic estimates, not measured GGUF loads; they are tuned to err toward refusing rather than over-promising, but the cert does not validate them against a live model load (no Ollama)."
+  ],
+  "status": "UNKNOWN"
+}

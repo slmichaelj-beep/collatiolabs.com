@@ -1,0 +1,26 @@
+{
+  "feature": "performance",
+  "claim": "The efficiency posture for a 24 GB local Mac: cheap deterministic paths first, heavy work opt-in and off the hot path, generation bounded, and back off under host pressure. HEAVY INTAKE IS OPT-IN: OCR/STT never auto-spin a model (ANIMA_INTAKE_ACTIVATE_HEAVY default-off -> needs_dependency). LERF/DETERMINISTIC FIRST: task turns route through the LERF-FIRST seam (a certified skill answers without the LLM) and reference recall is deterministic (model-free). BOUNDED: the reply has a token floor + ceiling and is capped to the floor under host pressure (no large model route). NO HEAVY WORK ON THE HOT PATH: the turn runs no OCR/STT/decode — heavy parsing is intake-time and queued. BACKS OFF: heavy intake defers and the model unloads (keep_alive=0) under red. DIAGNOSABLE: per-stage timing (llm/tts/tok-s) is instrumented every turn.",
+  "owner": "anima/intake_audio.py (_heavy_on opt-in gate), anima/server.py (LERF-FIRST routing), anima/source_aware.py (deterministic recall), anima/mouth.py (token bounds + pressure cap + per-stage timing), anima/host_pressure.py (defer + unload under pressure), scripts/certify_performance.py",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "heavy_opt_in",
+    "lerf_deterministic_first",
+    "bounded_generation",
+    "hot_path_light",
+    "backs_off",
+    "diagnosable"
+  ],
+  "killer_test": {
+    "name": "heavy_opt_in_lerf_first_bounded_light_hot_path_backs_off",
+    "setup": "scripts/certify_performance.py proves: heavy transcription is opt-in (default-off -> needs_dependency, no model spun); task turns route LERF-FIRST and reference recall is model-free; the reply is token-bounded and capped under pressure; the live answer path runs no OCR/STT/decode; the turn defers + unloads under host pressure; per-stage timing is instrumented.",
+    "prompt": "drop a file / ask a task / answer under load",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Quantitative latency/throughput budgets (e.g. p95 turn under N ms) and a perf-trace dashboard are a future refinement; today the cert proves the STRUCTURAL efficiency posture (cheap-first, opt-in heavy, bounded, backs off) that keeps the hot path light on a memory-constrained Mac."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,24 @@
+{
+  "feature": "intake_storage_tiers",
+  "claim": "The Reference Library is tiered by liveness — HOT (recently stored OR recently cited: verbatim, instant), WARM (mid-age, uncited: verbatim, a demotion candidate), COLD (old AND never cited: gzip-compressed into a cold blob). LAW 001 (Compressed > Forgotten): COLD never DELETES — it compresses, and restore_cold round-trips the chunks BYTE-EXACT; a cold source is still the Mind's, just denser. savings() reports the real bytes reclaimed (raw vs gzip) — intelligence-per-GB at the storage layer. Safe by construction: the tier layer is ADDITIVE (its own append-only ledger + cold-blob store under intake.STORE), reads references read-only, and never mutates a reference record or any cognitive store; a cited source is always kept HOT (citation overrides age) and an unparseable age stays HOT (never cold by accident).",
+  "owner": "anima/intake_tiers.py (recommend/plan/apply over intake_queue.references read-only; archive_cold gzip + restore_cold byte-exact; the tier ledger + .cold blob store under intake.STORE; savings())",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "restart_survival",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "tiers_hot_warm_cold_compress_never_forget",
+    "setup": "anima.intake_tiers --selftest (hermetic; intake.STORE redirected) proves 11/11: a fresh source is HOT, a mid-age uncited source is WARM, an old uncited source is COLD; a CITED old source is kept HOT (citation overrides age); apply tiers the library (1 hot/1 warm/1 cold) and COLD compression actually saves bytes; restore_cold round-trips the chunks BYTE-EXACT (Compressed > Forgotten); savings() reports a real ratio > 1; the reference records are UNTOUCHED by tiering (additive); real .anima byte-unchanged.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "apply() is additive — it writes the compressed cold copy and records the saving, but does not (yet) trim the hot reference's verbatim text in place; the reclaim is realised when a compaction step drops a hot copy that already has a cold blob. The compression + the byte-exact restore + the ledger are proven now; in-place hot-copy trimming is a follow-on. No HTTP/UI surface yet (driven in-process)."
+  ],
+  "status": "UNKNOWN"
+}

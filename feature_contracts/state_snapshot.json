@@ -1,0 +1,23 @@
+{
+  "feature": "state_snapshot",
+  "claim": "GET /state returns a COHERENT, REAL, read-only snapshot of the creature's felt experience — never a fabricated mood. It reads the persisted heart from .anima/{name}.json and computes the affect vector (valence/arousal/reaching/settled + unrest) deterministically from that stored state (Heart.feeling() = tanh(probes @ h), pure numpy — no model, no network). The same persisted state yields the same snapshot every time, and the served snapshot is byte-equal to computing feeling() directly off the persisted dict, so /state can only mirror what is on disk; it cannot invent.",
+  "owner": "anima/heart.py (Heart.from_dict reconstructs the genome from its stored seed + living h-vector; Heart.feeling() = the deterministic affect read, AFFECTS + unrest, pure math), anima/server.py (GET /state -> Heart.from_dict(load_json(_path(name))).feeling(); _path(name)=STORE/{name}.json — read-only, no mutation)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval"
+  ],
+  "killer_test": {
+    "name": "state_is_a_real_deterministic_read_only_heart_snapshot",
+    "setup": "Hermetic temp store (server.STORE redirected). Persist a born heart (fixed seed) to STORE/{name}.json via save_json. Then reproduce EXACTLY what GET /state serves — Heart.from_dict(load_json(_path(name))).feeling() — and assert: it carries every AFFECTS key plus unrest; every value is a finite float in [-1,1]; it is DETERMINISTIC (re-reading the same file gives an identical dict); it is REAL not fabricated (it equals feeling() computed directly off the persisted to_dict); and it reflects state CHANGE (a heart advanced/tended to a different feeling, persisted, then served, yields a DIFFERENT snapshot — proving it reads the file, not a constant). Read-only: the .anima fingerprint is byte-identical before/after (serving /state writes nothing). scripts/certify_state_snapshot.py is the executable form.",
+    "prompt": "how are you feeling?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "user_visible_entry is the authenticated GET /state endpoint itself (any client / the founder CLI can read it); the shipping web index.html does not render a dedicated 'feeling' widget from /state today (it is consumed as an API surface), so this is certified as a REAL + deterministic + read-only BACKEND snapshot rather than a UI-button live path. The proof is the absence of fabrication (served == direct compute off the persisted file) and determinism, not a specific rendered string."
+  ],
+  "status": "UNKNOWN"
+}

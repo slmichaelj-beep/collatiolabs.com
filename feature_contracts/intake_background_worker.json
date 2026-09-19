@@ -1,0 +1,24 @@
+{
+  "feature": "intake_background_worker",
+  "claim": "A background worker runs the SLOW half of intake (detect -> parse -> classify -> route) OFF the request thread and enqueues the plan at `classified` — the approval gate — and STOPS there. It parallelizes THROUGHPUT, never CONSENT: there is no code path that calls the durable writer, so a processed source sits at `classified` with the default review_before_adding control exactly as the synchronous path leaves it (ingestion is not learning). Crash-safe + LAW 001: the job log is an append-only event stream under intake.STORE; a failing job records its error (never silently dropped) and a job stranded `running` by a crash is recovered by requeue_stale (never lost). OFF by default — importing spawns nothing; only Worker.start() spawns the daemon thread.",
+  "owner": "anima/intake_worker.py (submit/drain_once/jobs/requeue_stale + the Worker daemon thread; drain_once calls intake.ingest then intake_queue.enqueue, and NEVER intake_queue.commit_on_approval)",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "restart_survival",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "worker_drains_off_thread_but_never_crosses_the_approval_gate",
+    "setup": "anima.intake_worker --selftest (hermetic; intake.STORE redirected) proves 11/11: submit -> a pending job (no thread); drain_once -> done at `classified`, committed=False; the queue record holds the review_before_adding default; a re-drain with nothing pending is idempotent; a failing job records a FAILED event with its error; requeue_stale recovers a stranded running job; the worker's durable step is enqueue() (the gate), never commit_on_approval; the daemon thread starts, drains all, and stops cleanly; real .anima byte-unchanged.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The worker is a backend engine with no HTTP endpoint or UI control yet — it is driven in-process (submit + Worker.start, or a one-shot drain_once). A POST /intake/async + GET /intake/jobs surface is a future affordance; the engine + its safety invariants are proven now."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,23 @@
+{
+  "feature": "passkey_auth",
+  "claim": "Vera is local-first and gated. On top of the tailnet + the API token, an opt-in Face ID / Touch ID (WebAuthn passkey) layer can be required to open the app. Once a Face ID passes, the server hands the client a short-lived SIGNED session token; every subsequent request must carry a session that VALIDATES, and ANY tampering with that token is REJECTED — so a stolen or forged session cannot pass the second gate. The whole layer is opt-in and can never lock you out (ANIMA_NO_PASSKEY=1 bypass; inert until a credential is enrolled and marked required).",
+  "owner": "anima/passkey.py (issue_session = exp + HMAC-SHA256(per-run secret, exp); valid_session = constant-time HMAC compare AND exp>now; required()/enrolled()/status() opt-in state; the stdlib WebAuthn register/auth ceremonies), anima/server.py (Handler._passed() = passkey.valid_session(X-Anima-Sess) when required; the POST /auth/{register,login}/{begin,finish} + /auth/disable routes; GET /auth/status), anima/web/index.html (the #gate lock screen + #gate-btn unlockFace + renderFaceRow/enrollFace + the X-Anima-Sess header on every fetch)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "session_floor_fresh_validates_tampered_rejected",
+    "setup": "Hermetic (run inside the shared temp store; the session check is pure in-memory HMAC, no file I/O). Through the SAME passkey API the server's _passed() gate calls: (A) issue_session() mints a token that valid_session() ACCEPTS (a fresh session validates). (B) the session-security FLOOR — every tamper is rejected: a flipped signature byte, a truncated token, a swapped/garbage signature, an empty/None token, and a forged FUTURE-expiry token with a made-up signature all return False (no valid HMAC can be produced without the per-run secret). (C) an expired-but-correctly-signed token is rejected (expiry is enforced, not just the signature). (D) the opt-in floor: with no credential enrolled, required() is False (inert; can never lock you out), and status() is well-formed. Real .anima byte-unchanged. scripts/certify_passkey_auth.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The real Face ID / Touch ID ceremony (navigator.credentials.create/get) and the WebAuthn assertion verification (challenge/origin/RP-ID-hash + the user-PRESENT/VERIFIED authenticator flags in passkey.auth_finish) are live hardware flows; passkey.py deliberately verifies device-presence rather than the assertion's cryptographic signature (no crypto lib), and the token + private tailnet remain the primary network gate. The cert proves the deterministic, security-critical SESSION floor (mint -> validate, tamper -> reject, expiry enforced) without touching hardware."
+  ],
+  "status": "UNKNOWN"
+}

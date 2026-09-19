@@ -1,0 +1,28 @@
+{
+  "feature": "world_model",
+  "claim": "Vera makes the leap from a flat graph of remembered facts to a CAUSAL MODEL of a domain: from captured situation-facts (what Lamar actually said) plus the reality loop's competing hypotheses, build_model_from_graph constructs a small directed graph of nodes and typed, confidence-weighted causal links (manager_change -> strain -> poor_sleep -> low_energy). Every edge is GROUNDED in observed evidence and cites it — an edge with no stated world-edge and no reality hypothesis is NEVER emitted (an ungrounded domain yields an EMPTY model; co-occurrence corroborates but never invents). The model is retrievable: it persists to its own .anima/{name}.worldmodel.json store and round-trips by id, additively (a second model never overwrites the first). It can be read back as a multi-hop causal through-line, and it LEARNS — a resolved reality outcome strengthens a confirmed link / weakens a contradicted one with an append-only history. It is INTERNAL-ONLY: flagged internal_only, every human-readable line passes the no-diagnosis clean-gate, and the module is imported by NOTHING on the live reply path (a shadow model that never speaks 'your manager is causing your insomnia' at the user).",
+  "owner": "anima/world_model.py (build_model_from_graph = fuse world_state causal edges + reality competing hypotheses + co-occurrence into a grounded causal model; causal_chains = the multi-hop through-line; explain_model/explain_body = the clean-gated internal render; update_model_with_outcome = strengthen/weaken from a resolved outcome, append-only history; compare_models = the auditable before/after diff; get_model/models/store_path = the own-store retrieval; build_synthetic_model = the canonical seeded build reused by the observatory). Substrate: anima/world_state.py (capture_relations -> stated causal edges), anima/reality.py (form/resolve -> competing hypotheses). NO server/route/mouth wire by design (LAW 2 internal-only).",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "captured_facts_in",
+    "real_backend",
+    "grounded_no_invention",
+    "real_storage",
+    "real_retrieval",
+    "learns_from_outcome",
+    "internal_only_clean_gate"
+  ],
+  "killer_test": {
+    "name": "facts_to_grounded_causal_model_retrievable_internal_only",
+    "setup": "Hermetic temp store (world_model.STORE + world_state/reality/meaning/memory_lirf/constitution/reliability redirected). From captured situation-facts ('work's stressful because of my new manager', 'the stress is affecting my sleep', sleep -> low energy) plus a seeded+resolved reality competition (manager_change leading, sleep_decline confirmed): (A) build_model_from_graph builds a non-empty causal model with the manager_change -> strain -> poor_sleep -> low/energy chain, flagged internal_only. (B) GROUNDED: every edge carries a world-edge or reality-hypothesis source AND concrete evidence; >=1 edge from a stated world-edge and >=1 from a reality hypothesis; NO edge rests on co-occurrence alone. (C) NEGATIVE: an ungrounded domain on a fresh, never-seeded creature (photosynthesis) yields ZERO edges/nodes, and an unrelated topic on the seeded creature still emits no ungrounded causation. (D) RETRIEVABLE: causal_chains yields a >=3-hop through-line from an upstream cause to a downstream consequence; the model round-trips by id through its own .worldmodel.json store; a second build is ADDED not overwritten. (E) LEARNS: a confirmed sleep_decline outcome STRENGTHENS strain->poor_sleep with an append-only history entry; a contradicted one WEAKENS it (floored, never annihilated); compare_models reports the strengthened link. (F) INTERNAL-ONLY: explain_model names it an INTERNAL model, every generated body line passes the no-diagnosis clean-gate, and anima.world_model is imported by NOTHING in server.py/route.py/mouth.py. Real .anima byte-unchanged. scripts/certify_world_model.py is the executable form; the module's own `python3 -m anima.world_model --selftest` is the broader unit proof.",
+    "prompt": "(internal-only — no live user turn; world_model is a shadow model never wired into the reply)",
+    "must_contain": [],
+    "must_not_contain": ["is causing your", "you will", "diagnos", "burnout"]
+  },
+  "known_gaps": [
+    "INTERNAL-ONLY by design (LAW 2): world_model is a SHADOW model that reads the already-recorded world_state graph + reality ledger and accrues its own store. It is imported by NOTHING on the live reply path (no /world-model endpoint, no UI panel, no mouth wire) — so there is no user-visible entry; the deterministic engine + its grounded/retrievable/learning behavior are fully proven hermetically, but the user-facing leg is internal-only. This is the honest PARTIAL: a real, durable, grounded backend with no live user surface yet.",
+    "TIME-HONEST: confidence shifts (update_model_with_outcome) are exercised on a synthetic seeded series here; live confidence sharpening accrues on its own as real outcomes resolve over real calendar time."
+  ],
+  "status": "UNKNOWN"
+}

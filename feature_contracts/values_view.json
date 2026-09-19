@@ -1,0 +1,26 @@
+{
+  "feature": "values_view",
+  "claim": "GET /values is an OBSERVATION-ONLY window onto Vera's character: it serves the user the live set of named values (honesty, warmth, openness, playfulness, directness, curiosity) — each with its label, on/off, and level — read straight from the saved order (or the built-in default when nothing is saved). It is a pure read of the IDENTITY: it NEVER mints, mutates, or persists anything (reading an as-yet-unconfigured creature returns the defaults but writes NO values file), it can only surface values from the frozen VALUES catalog (an injected unknown key can never appear), and the same values it displays are the ones that actually shape the live reply (compose_persona folds them into the system prompt). The catalog is the identity freeze — a read can never grow or alter it.",
+  "owner": "anima/mouth.py (VALUES = the frozen named-trait catalog; values_for_ui = the read-only display: saved order or DEFAULT_VALUES, every catalog value present, labeled; load_values = pure disk read; compose_persona/resolved_persona = the SAME values folded into the live system prompt), anima/server.py (GET /values -> {\"values\": mouth.values_for_ui(name)} — read-only; the write lives behind the separate POST /values), anima/bridge.py (_active_values reads VALUES/load_values into the inspectable heart->mouth state)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_use_in_answer",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "values_read_is_observation_only_frozen_and_persona_shaping",
+    "setup": "Hermetic temp store (mouth.STORE redirected by _temp_store). (A) GET /values on a fresh creature returns ALL six catalog values, each with key+label+on+level, AND writes NOTHING — no <name>.values.json appears and the .anima fingerprint is unchanged by the read. (B) the read can ONLY surface frozen-catalog keys: a hand-injected unknown value persisted to disk never appears in values_for_ui, and every returned label == VALUES[key][0] (no fabricated trait). (C) a saved custom order/level round-trips through the read in order, proving it reads real saved state, not a hardcoded list; the read of that saved state still writes nothing. (D) the SAME values shape the live reply: compose_persona folds an on-value's instruction text into the system prompt and omits an off-value (the display and the behavior are one source). (E) the GET handler body in server.py is a pure read (calls values_for_ui, no save_values), and POST /values (the mutation) is a DISTINCT branch. Real .anima byte-identical before/after. scripts/certify_values_view.py is the executable form.",
+    "prompt": "what are your values?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The read-only display is served by GET /values; the current web Settings panel (index.html) wires the personality dials (POST/GET /dials) but does not itself fetch /values, so the user-facing surface for THIS endpoint is the HTTP read + the persona-shaping effect rather than a dedicated rendered panel. The endpoint, its backend, and its live use in the prompt are proven deterministically; a future UI wave could surface a values panel that fetches /values directly.",
+    "Mutating values is the SEPARATE POST /values path (save_values, key-filtered to the frozen VALUES catalog); this contract certifies only the observation-only read and that the read never writes."
+  ],
+  "status": "UNKNOWN"
+}

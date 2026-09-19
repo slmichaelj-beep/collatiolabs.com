@@ -1,0 +1,24 @@
+{
+  "feature": "platform_portability",
+  "claim": "Your WHOLE mind is portable: Vera exports a model-agnostic full-mind bundle — her identity (dials/persona/values) PLUS the entire grounded cognitive vault (every skill, decision-pattern, heuristic, mental-model, your preferences/values, failure-modes) PLUS the wisdom theories & lessons — that round-trips LOSSLESSLY into a fresh creature on any machine or under any brain. Freeze-safe: a Vera-self value/preference in a bundle is REFUSED on import (counted, never written), because import rides lerf's single freeze-guarded store choke. An empty mind yields an empty (honest) bundle, never a fabricated one.",
+  "owner": "anima/platform.py (export_full = portable.export_mind + the full lerf vault incl. theories; import_full restores identity via portable.import_mind + the vault via lerf.store_object — the freeze-guarded choke), anima/server.py (GET /platform/export -> _serve_platform_export; POST /platform/import -> _serve_platform_import), anima/web/index.html ('Carry everything' button -> /platform/export)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "full_mind_bundle_round_trips_losslessly_and_freeze_safe",
+    "setup": "anima.platform --selftest (hermetic): seed a grounded mind (a user value + a heuristic + an induced theory), export_full -> import_full into a FRESH creature -> the value + the theory are restored and a re-export matches the original vault size; a Vera-self value forged into a bundle is REFUSED on import (counted, never written); real .anima untouched. certify_platform.py adds: export_full of an empty mind -> a vera.full-mind bundle with an empty vault (no fabrication); GET /platform/export serves it; POST /platform/import refuses a non-bundle. The 'Carry everything' button is the live entry.",
+    "prompt": "export my whole mind",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The world_model's separate causal-model store is surfaced read-only in the character bundle's facets; the round-tripped layers are identity + the full lerf cognitive vault (which includes the wisdom theories/lessons as lerf objects). A dedicated 'import a bundle' button is a future UI affordance — export ('Carry everything') is the live button today; import is exercised by the cert + the /platform/import endpoint."
+  ],
+  "status": "UNKNOWN"
+}

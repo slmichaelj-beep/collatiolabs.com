@@ -1,0 +1,25 @@
+{
+  "feature": "autonomous_growth",
+  "claim": "The '[x] Grow Intelligence' switch (master grow_intelligence boolean) and its grow_mode intensity (off/low/medium/high/research) let Vera, ONLY when explicitly opted in, learn task-skills during idle time. THE SAFETY PROPERTY: it ships OFF and is provably INERT while OFF -- the master switch defaults OFF, the mode defaults 'off', and on the OFF path the idle loop is a complete no-op: ZERO autonomous activity (nothing selected, nothing grown, no state written) and $0 (no cloud imported, no key read, no spend file written). The mode is durable across reloads and any invalid value coerces to the safe 'off'. This governs ONLY task-knowledge growth; the identity freeze is independent and absolute (no mode can ever grow who Vera is).",
+  "owner": "anima/lerf_grow.py (CAP_FLAG grow_intelligence default-OFF, fails CLOSED; MODE_FLAG grow_mode default 'off'; GROW_MODES profiles where off = cadence inf / cap 0 / budget $0; should_learn_now refuses while Off; run_idle_cycle + grow_from_source return ran=False on the inert path having done nothing; mode_profile/get_mode/set_mode; status() is a pure read), anima/caps.py (grow_intelligence in BOOL_KEYS default-OFF; grow_mode in ENUM_KEYS = (('off','low','medium','high','research'),'off'); grow_mode()/set_grow_mode() fail-safe to 'off'), anima/server.py (grow_intelligence + grow_mode ride GET/POST /capabilities -> caps.load/save), anima/web/index.html (Settings 'Access' caps panel)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "growth_off_is_provable_noop_zero_spend_and_mode_durable_coerce",
+    "setup": "Hermetic temp store, with lerf_grow.STORE and cloud.STORE ALSO redirected to the temp dir (lerf_grow + cloud are not in the default module list, so the cert redirects them like brain_select redirects cloud.STORE -- any spend/state write would land in temp where we assert its absence). (A) DEFAULT-OFF: a fresh creature has grow_intelligence OFF, get_mode == 'off', is_enabled False; mode_profile for off is budget_ceiling $0 / max_per_run 0 / cadence inf. (B) OFF IS INERT: should_learn_now(idle=True, way past any cadence) returns ok=False with enabled=False; run_idle_cycle(idle=True) returns ran=False having selected NO teacher, grown nothing, built no curriculum; grow_from_source(...) likewise ran=False. (C) $0 PROOF: across the whole OFF run NO spend.json and NO brain.json is written under cloud.STORE, and NO {name}.grow.json state file is written under lerf_grow.STORE. (D) status() reports the switch OFF and budget_ceiling 0.0 -- the inspectable surface tells the truth. (E) DURABLE + COERCE: caps.set_grow_mode(name,'high') persists 'high' on reload; an invalid mode ('ludicrous') coerces to 'off' and is not stored; lerf_grow.set_mode keeps the master switch in lockstep (a non-off mode flips it ON, 'off' flips it OFF). Real .anima byte-unchanged. scripts/certify_autonomous_growth.py is the executable form.",
+    "prompt": "(no user prompt -- the safety property is that with growth OFF, an idle window does NOTHING)",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "There is no DEDICATED Grow-Intelligence / grow-mode control rendered in anima/web/index.html today (only the held identity_agency toggle is shown); the switch + mode are caps keys that persist through the SAME GET/POST /capabilities ledger (certified round-tripping by capability_truth.json). So the safety-critical OFF-is-inert + $0 + durable/coerce floor is fully proven, but the user-visible entry is currently the /capabilities endpoint, not a Settings toggle -- hence PARTIAL, not COMPLETE.",
+    "The ON path (an enabled idle window that distills a real skill via a teacher) needs a live teacher model and is exercised by lerf_grow's own --selftest with a $0 StubTeacher; this cert certifies the SAFETY property (OFF == provable no-op, $0) which is the only behavior that matters for shipping default-OFF, and the identity freeze (no mode grows identity) is enforced + tested separately in lerf_grow/sources."
+  ],
+  "status": "UNKNOWN"
+}

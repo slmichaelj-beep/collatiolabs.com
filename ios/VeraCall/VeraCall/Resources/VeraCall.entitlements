@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  VeraCall.entitlements
+
+  aps-environment = development
+    Enables Apple Push Notification service (which VoIP/PushKit pushes ride on). For a
+    TestFlight/App Store build, Xcode rewrites this to "production" automatically when you
+    archive with a distribution profile; for development/device runs it stays "development".
+    The matching APNs server host for voip_push.py:
+        development -> api.sandbox.push.apple.com
+        production  -> api.push.apple.com
+
+  NOTE ON SWIPE-TO-ANSWER vs AUTO-ANSWER:
+    The native full-screen swipe-to-answer screen comes from CallKit's
+    reportNewIncomingCall(...) and needs NO special entitlement — it is the supported path
+    and is what this app uses. There is a separate, restricted entitlement
+    `com.apple.developer.allow-auto-answer-calls` that would let the call auto-connect with
+    no swipe, but Apple grants it only to specific use cases (it requires a request/approval
+    and is rarely granted). We deliberately do NOT depend on it. If you were ever granted it,
+    you'd add it here; otherwise leave it out and use swipe-to-answer.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>aps-environment</key>
+    <string>development</string>
+</dict>
+</plist>

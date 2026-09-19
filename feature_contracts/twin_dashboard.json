@@ -1,0 +1,23 @@
+{
+  "feature": "twin_dashboard",
+  "claim": "The Personal Digital Twin composes ONE honest read-only portrait of what Vera actually knows about YOU, across five dimensions — identity (who you are), how_you_think (decisions/values/preferences), trajectory (where you're heading), what_matters (what you care about), your_world (people/projects/situations). Each dimension is sourced from a REAL grounded per-creature store (memory_lirf / personal / trajectory / meaning / world_state); an empty store yields an honest present=False with zero items, NEVER an invented trait. The whole gets a richness headline (empty/sparse/forming/rich) and a plain-English synthesis that names the present dimensions and the gaps. It is pure, deterministic, and read-only: it composes the same picture every time from the same stores and mutates nothing. It is NOT the digital-twin SIMULATION (anima/twin.py) — it is the read-only knowledge PORTRAIT.",
+  "owner": "anima/twin_dashboard.py (compose = build the 5-dimension portrait from the grounded stores; _identity via memory_lirf.Facts.about(SELF); _how_you_think via personal.personal_profile; _trajectory via trajectory.snapshot_trajectory; _what_matters via meaning.snapshot; _your_world via world_state.render; _richness + _synthesize = the honest-when-empty headline + synthesis; rank_dimensions = richest-first; save = write reports/twin_dashboard.json; --selftest). Consumed by scripts/vera_status.py (the founder CLI 'KNOWS YOU' line -> twin_dashboard.compose(name)). NOT wired into a server endpoint or the web UI in this wave.",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "real_backend",
+    "real_retrieval"
+  ],
+  "killer_test": {
+    "name": "twin_composer_is_real_deterministic_and_honest_on_empty",
+    "setup": "Hermetic temp store (gate0_prime_experience._temp_store redirects memory_lirf/personal's lerf+portrait/world_state/meaning/trajectory). (A) compose() on a FRESH person -> richness 'empty', all 5 dimensions present=False with 0 items, coverage items_known=0, synthesis says nothing grounded yet — NO fabricated trait. (B) it is keyed to the person + reads the stores: a DIFFERENT fresh name is also empty (not a cached constant). (C) seed 4 real identity facts via memory_lirf.capture -> the identity dimension flips present=True, counts the grounded facts (>=4), items mention the seeded name; an UNGROUNDED dimension (how_you_think — no personal-intelligence seeded) stays honestly present=False; richness rises off 'empty'; the synthesis names a present dimension AND the gaps. (D) DETERMINISTIC: compose() twice on the same store is byte-identical; rank_dimensions puts a present dimension first and an absent one last. (E) save() round-trips valid JSON whose coverage reflects the grounded items. Real .anima byte-unchanged (read-only). scripts/certify_twin_dashboard.py is the executable form.",
+    "prompt": "what do you know about me?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "user_visible_entry is the founder CLI (scripts/vera_status.py renders the 'KNOWS YOU' line from twin_dashboard.compose); there is NO server endpoint and NO web UI control that renders the twin portrait in this wave — so this is certified as a REAL + deterministic + honest-on-empty read-only BACKEND composer surfaced via the CLI, not a web-button live path.",
+    "No restart-survival link of its own: twin_dashboard writes nothing durable on the compose path (save() is opt-in to reports/, not part of the live read); durability lives in the upstream grounded stores it reads (memory_lirf/personal/meaning/trajectory/world_state), which are certified by their own features."
+  ],
+  "status": "UNKNOWN"
+}

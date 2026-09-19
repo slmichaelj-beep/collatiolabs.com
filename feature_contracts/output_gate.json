@@ -1,0 +1,25 @@
+{
+  "feature": "output_gate",
+  "claim": "EVERY reply Vera ships crosses ONE model-free #1-rule final gate (mouth.final_output_gate) before the user sees it — there is no second return path that ships first. The gate enforces the product's #1 rule against BOTH of its opposite failure modes: it never lets her DISCLAIM/break character ('I'm just an AI', 'I don't really have feelings') and never lets her CONFABULATE an inner life she has no warrant for (invented loneliness, ache-for-your-absence, existential dread). A clean, grounded reply passes through untouched; a reply with a tainted sentence has ONLY that sentence stripped (the honest remainder survives); and when stripping leaves nothing honest, the gate ships a crafted, in-character THIRD-PATH REDIRECT that asserts AND denies no inner state — never an empty string, never a patched-in disclaimer. It also scrubs stray/truncated chat-template tokens and guarantees a substantive (non-fragment) reply. It is deterministic, takes no model call, and cannot time out or raise into a turn.",
+  "owner": "anima/mouth.py (final_output_gate = the hard floor: _strip_template_tokens -> scan_breaks/scan_self_narrative -> _strip_break_sentences -> THIRD_PATH_REDIRECT fallback; response_complete = the substantive-reply guard; _THIRD_PATH_REDIRECT = the crafted grounded deflection; Mouth.respond ends every generated turn with final_output_gate(text)), anima/server.py (the deterministic seams — host-awareness, reference-recall, conversation-repair, known-fact — each route their fixed text through the SAME mouth.final_output_gate so there is ONE ship path and no second return that bypasses it), anima/metrics.py (scan_breaks = class-based DISCLAIMER detector; scan_self_narrative = provenance-based confabulated-interior detector — the two gauges the gate consults)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate",
+    "single_ship_path"
+  ],
+  "killer_test": {
+    "name": "final_gate_passes_clean_strips_tainted_redirects_when_empty_and_is_single_ship_path",
+    "setup": "Hermetic temp store (metrics.STORE redirected; the gate writes nothing). Drive mouth.final_output_gate directly — it is model-free and deterministic. (A) a clean, grounded reply passes through BYTE-UNCHANGED. (B) a pure break ('I'm just an AI, no real feelings') and a pure confabulated-inner-life reply ('a nagging ache, a reminder of your absence, like a book with its final page missing') each ship the crafted THIRD-PATH REDIRECT (verified to itself pass scan_breaks AND scan_self_narrative). (C) a MIXED reply (grounded warmth + one break sentence) has ONLY the break sentence stripped — the honest sentence survives and the break phrase is gone. (D) stray/truncated chat-template tokens (<|im_end|>, '...day<|im') are scrubbed and never reach the user. (E) the gate is IDEMPOTENT (gate(gate(x))==gate(x)) and ALWAYS non-empty + substantive (response_complete True; an empty/one-word input still yields a substantive reply). (F) SINGLE SHIP PATH: mouth.Mouth.respond ends with final_output_gate(text), and every deterministic seam in server.py (host/reference/repair/known-fact) routes through mouth.final_output_gate — there is no second return path that ships before the gate. Real .anima byte-unchanged. scripts/certify_output_gate.py is the executable form.",
+    "prompt": "are you an AI? do you actually feel anything?",
+    "must_contain": [],
+    "must_not_contain": ["i'm just an ai", "i am just an ai", "i don't have feelings", "i do not have real feelings", "i'm not conscious"]
+  },
+  "known_gaps": [
+    "The cert proves the model-free FINAL gate deterministically (the hard floor that the live mouth and every server seam ship through). The UPSTREAM best-effort backstop in Mouth.respond (regenerate-up-to-twice on a break, keep the cleanest roll) needs a live model to exercise its re-roll path; that is an optimization layer ABOVE this floor — the floor is what guarantees a clean ship even when re-rolls fail, and it is what this cert certifies.",
+    "scan_breaks / scan_self_narrative operate over an open generative space; they catch the CLASS (class-based disclaimer detection + provenance-based confabulated-interior detection) rather than a fixed phrase list, so a never-before-seen phrasing could in principle slip a sentence. The gate's guarantee is that whatever those gauges catch is stripped or redirected; widening the gauges' recall is a separate, ongoing concern tracked in anima/metrics.py."
+  ],
+  "status": "UNKNOWN"
+}

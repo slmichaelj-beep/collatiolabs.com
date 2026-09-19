@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Meaning Graph</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ttl{font-weight:640;margin-bottom:4px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink)}
+  .strip{display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 14px}
+  .stat{flex:1;min-width:120px;background:#0d1422;border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .stat .n{font-size:22px;font-weight:680;letter-spacing:-.02em}
+  .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+  .edge{padding:9px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .edge:first-child{border-top:0}
+  .triple{font-weight:560}
+  .triple .pred{color:var(--accent);font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .prov{font-size:11px;color:var(--faint);font-family:ui-monospace,Menlo,monospace;margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .pill.sens{color:#f4d79b;border-color:#3a2f12;background:var(--warn-d)}
+  .pill.noprov{color:#f6b3bf;border-color:#3a1620}
+  .bar{height:7px;border-radius:999px;background:#0d1422;border:1px solid var(--line);overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,#2fb380,#6aa6ff)}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · MEANING</div>
+      <h1>Meaning Graph</h1>
+      <div class="sub">How Vera relates your world — facts, relationships, and causes. Every edge names
+        its <b>provenance</b> (where it came from, how sure, and when), and sensitive relationships are
+        flagged <b>consent-relevant</b> so they're handled like sensitive memory. Nothing here is invented.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/trust">Trust Ledger →</a>
+      <a class="back" href="/consent">Consent →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="view"><div class="na">Loading…</div></div>
+
+  <footer>Read-only view over the World State · provenance measured, not assumed · nothing leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  function statView(d){
+    var pc=Math.round((d.provenance_coverage==null?1:d.provenance_coverage)*100);
+    return '<div class="card"><div class="strip">'+
+      '<div class="stat"><div class="n">'+(d.count||0)+'</div><div class="k">facts / edges</div></div>'+
+      '<div class="stat"><div class="n">'+pc+'%</div><div class="k">provenance coverage</div>'+
+        '<div class="bar"><i style="width:'+pc+'%"></i></div></div>'+
+      '<div class="stat"><div class="n">'+(d.sensitive_count||0)+'</div><div class="k">sensitive (consent-relevant)</div></div>'+
+      '<div class="stat"><div class="n">'+(d.avg_confidence==null?'—':d.avg_confidence)+'</div><div class="k">avg confidence</div></div>'+
+      '</div></div>';
+  }
+  function edgeView(e){
+    var conf=(e.confidence==null?'':Math.round(e.confidence*100)+'%');
+    return '<div class="edge"><div class="triple">'+esc(e.subject)+' <span class="pred">'+esc(e.predicate)+'</span> '+esc(e.object)+
+      (e.sensitive?' <span class="pill sens">sensitive · '+esc(e.domain)+'</span>':'')+
+      (e.has_provenance?'':' <span class="pill noprov">no provenance</span>')+'</div>'+
+      '<div class="prov"><span>provenance: '+esc(e.provenance||'—')+'</span><span>confidence: '+conf+'</span>'+
+      '<span>support: '+(e.support||1)+'</span><span>'+esc((e.created||'').slice(0,10))+'</span></div></div>';
+  }
+  function graphView(d){
+    var es=d.edges||[];
+    var h='<div class="card"><div class="ttl">Relationships &amp; causes</div>'+
+      '<div class="why"><b>Provenance on every fact:</b> the source it came from, how confident Vera is, '+
+      'how many times it was corroborated (support), and when. Sensitive edges are flagged.</div>';
+    if(!es.length){ return h+'<div class="na">No relationships captured yet — an honest empty graph.</div></div>'; }
+    // sensitive first, then by confidence
+    es=es.slice().sort(function(a,b){ return (b.sensitive-a.sensitive)|| ((b.confidence||0)-(a.confidence||0)); });
+    h+=es.slice(0,80).map(edgeView).join('');
+    return h+'</div>';
+  }
+  function meaningView(d){
+    return statView(d) + graphView(d) + '<div class="why">'+esc(d.law||'')+'</div>';
+  }
+  function render(d){
+    document.getElementById('view').innerHTML = meaningView(d);
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+  function load(){
+    fetch('/meaning.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; if(j.empty){document.getElementById('view').innerHTML='<div class="card"><div class="na">No relationships captured yet — talk with Vera and her understanding of your world will appear here.</div></div>';return;} render(j); })
+    .catch(function(){ document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>

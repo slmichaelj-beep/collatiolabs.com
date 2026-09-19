@@ -1,0 +1,22 @@
+{
+  "feature": "call_auth",
+  "claim": "The WebRTC voice-call server (anima/call_server.py, port 8766) gates POST /webrtc_offer behind ANIMA_TOKEN exactly like the main server's /loc and /device. A loop-mode offer opens a LIVE voice channel to Vera's brain, so EVERY offer must present the token — via a ?k= query param, an X-Anima-Key header, or an Authorization: Bearer header (constant-time compare). An unauthenticated offer is refused with HTTP 401 BEFORE the body is read or a peer connection is built, so it never reaches CallSession. With ANIMA_TOKEN UNSET the server is open for the local echo/dev test (matching the main server's auth-off dev posture); with a token set, even echo mode is gated.",
+  "owner": "anima/call_server.py (_authed mirrors server.py::_authed; _offer returns 401 on _authed failure before constructing the CallSession / peer connection)",
+  "user_visible_entry": false,
+  "durable": false,
+  "live_path": [
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "unauthenticated_loop_offer_refused_authed_proceeds",
+    "setup": "scripts/certify_call_auth.py proves it 14/14: _authed() is open only with no token, else requires the correct token via ?k=/X-Anima-Key/Bearer (constant-time); calling the real _offer handler with a token configured + no credentials returns HTTP 401 and creates NO peer connection (loop OR echo); statically, the 401 gate precedes the CallSession construction, the phase-2 TODO is gone, and the docstring SECURITY note reflects the closed gate.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Tailnet binding (host allow-listing beyond the token) is a deployment concern handled at the Tailscale/WireGuard layer, not in this process; the token wall is the application-level gate proven here. The /calltest dev page posts without a token and is therefore an echo test for the no-token dev posture only."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Verification Dashboard</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--blk:#7a8aa3;--blk-d:#1b2536;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ttl{font-weight:640;margin-bottom:8px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .banner{border-radius:14px;padding:18px 18px;margin:14px 0;border:1px solid var(--line)}
+  .banner.green{background:linear-gradient(180deg,#0f2a20,#0c1c16);border-color:#1c5340}
+  .banner.amber{background:linear-gradient(180deg,#2c2410,#1c1709);border-color:#5a4413}
+  .banner.red{background:linear-gradient(180deg,#2c1218,#1c0c11);border-color:#5a1626}
+  .banner.blocked{background:linear-gradient(180deg,#1b2536,#121a28);border-color:#2b3850}
+  .banner .state{font-size:26px;font-weight:720;letter-spacing:-.01em}
+  .banner .dec{font-size:13px;color:var(--dim);margin-top:3px}
+  .strip{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .stat{flex:1;min-width:110px;background:#0d1422;border:1px solid var(--line);border-radius:11px;padding:11px 13px}
+  .stat .n{font-size:20px;font-weight:680} .stat .k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+  .row{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13.5px}
+  .row:first-child{border-top:0}
+  .row .l{min-width:200px;color:var(--dim)} .row .v{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  .row .ev{color:var(--faint);font-size:12px;flex:1}
+  .pill{display:inline-flex;font-size:10.5px;padding:1px 9px;border-radius:999px;border:1px solid #1c5340;background:var(--good-d);color:#9bf0cf;text-transform:uppercase;letter-spacing:.05em;min-width:62px;justify-content:center}
+  .pill.amber{border-color:#5a4413;background:var(--warn-d);color:#f0d79b}
+  .pill.red{border-color:#3a1620;background:var(--bad-d);color:#f6b3bf}
+  .pill.blocked,.pill.unknown,.pill.stale{border-color:#2b3850;background:var(--blk-d);color:#aebbd0}
+  .na{color:var(--faint);font-style:italic;padding:8px 0}
+  .next{color:var(--warn);font-size:12px}
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 6px}
+  .tab{font-size:12px;padding:6px 11px;border-radius:9px;border:1px solid var(--line);background:#0d1422;color:var(--dim);cursor:pointer}
+  .tab:hover{border-color:var(--accent-d);color:var(--ink)}
+  .tab.on{background:#13233f;border-color:var(--accent-d);color:var(--ink)}
+  .tab .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:middle;background:var(--good)}
+  .tab .dot.amber{background:var(--warn)} .tab .dot.red{background:var(--bad)}
+  .tab .dot.blocked,.tab .dot.unknown,.tab .dot.stale{background:var(--blk)}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · VERIFICATION</div>
+      <h1>Verification Dashboard</h1>
+      <div class="sub">The computed release verdict — the product court of law. Observation says what
+        happened; Verification decides whether the evidence proves Vera is real, covered, safe, and
+        releasable. Nothing here is hardcoded green.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/reality">Total Reality →</a>
+      <a class="back" href="/console">Console →</a>
+    </div>
+  </header>
+  <div id="view"><div class="na">Loading…</div></div>
+  <footer>Read-only · computed live from reports + build identity. <span id="stamp"></span></footer>
+</div>
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  var D=null, CUR='diamond';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function pill(st){var c=({green:'',amber:' amber',red:' red',blocked:' blocked',unknown:' unknown',stale:' stale'})[st]||' blocked';
+    return '<span class="pill'+c+'">'+esc(st||'unknown')+'</span>';}
+  function yn(b){return '<span class="pill'+(b?'':' red')+'">'+(b?'YES':'NO')+'</span>';}
+  function gate(id){return (D.gates||[]).filter(function(g){return g.gate_id===id;})[0]||{status:'unknown',name:id,evidence:''};}
+  function gst(id){return gate(id).status;}
+  function gateCard(id){var g=gate(id);
+    return '<div class="card"><div class="ttl">'+esc(g.name)+'</div>'+
+      '<div class="row">'+pill(g.status)+'<span class="ev">'+esc(g.evidence||'')+'</span></div>'+
+      (g.next_action?'<div class="row"><span class="l">next action</span><span class="next">'+esc(g.next_action)+'</span></div>':'')+
+      '<div class="row"><span class="l">owner · last run</span><span class="ev">'+esc(g.owner||'')+' · '+esc(g.last_run||'—')+'</span></div></div>';}
+
+  // ---- per-tab renderers --------------------------------------------------------------------
+  function tBanner(){var t=D.top,stl=(t.release_state||'BLOCKED').toLowerCase();
+    return '<div class="banner '+stl+'"><div class="state">RELEASE: '+esc(t.release_state)+'</div>'+
+      '<div class="dec">'+esc(t.release_decision)+' — '+esc(t.reason)+'</div><div class="strip">'+
+      '<div class="stat"><div class="n">'+(t.diamond_eligible?'YES':'NO')+'</div><div class="k">Diamond eligible</div></div>'+
+      '<div class="stat"><div class="n">'+(t.p0_open||0)+'</div><div class="k">P0 open</div></div>'+
+      '<div class="stat"><div class="n">'+(t.unclassified_flakes||0)+'</div><div class="k">Unclassified flakes</div></div>'+
+      '<div class="stat"><div class="n">'+(t.repeatability_confirmed?'YES':'NO')+'</div><div class="k">Repeatability</div></div>'+
+      '<div class="stat"><div class="n">'+(t.stale_certs||0)+'</div><div class="k">Stale certs</div></div>'+
+      '<div class="stat"><div class="n">'+(t.open_blockers||0)+'</div><div class="k">Open blockers</div></div>'+
+      '<div class="stat"><div class="n" style="font-size:13px">'+esc(t.highest_diamond_tier_label||'none yet')+'</div><div class="k">Highest Diamond tier</div></div></div></div>';}
+  function tDiamond(){var t=D.top,h=tBanner();
+    h+='<div class="card"><div class="ttl">All release gates</div>';
+    (D.gates||[]).forEach(function(g){h+='<div class="row">'+pill(g.status)+'<span class="l" style="min-width:230px">'+esc(g.name)+'</span><span class="ev">'+esc(g.evidence||'')+'</span></div>';});
+    h+='</div><div class="why">'+esc(D.doctrine||'')+'</div>';return h;}
+  function tBuild(){var t=D.top;
+    return '<div class="card"><div class="ttl">Build Identity — running == committed == served == certified</div>'+
+      '<div class="row"><span class="l">match</span>'+yn(t.running_eq_committed_eq_served_eq_certified)+'</div>'+
+      '<div class="row"><span class="l">running commit</span><span class="v">'+esc(t.running_commit||'unknown')+'</span></div>'+
+      '<div class="row"><span class="l">committed commit</span><span class="v">'+esc(t.committed_commit||'unknown')+'</span></div>'+
+      '<div class="row"><span class="l">certified commit</span><span class="v">'+esc(t.certified_commit||'unknown')+'</span></div>'+
+      '<div class="row"><span class="l">served frontend hash</span><span class="v">'+esc(t.served_frontend_hash||'unknown')+'</span></div>'+
+      '<div class="row"><span class="l">clean tree</span>'+yn(t.clean_tree)+'</div>'+
+      '<div class="row"><span class="l">branch · worktree</span><span class="v">'+esc(t.active_branch||'?')+' · '+esc(t.active_worktree||'?')+'</span></div></div>';}
+  function tScenario(){var sm=D.scenario_matrix||{};
+    return gateCard('scenario_coverage')+'<div class="card"><div class="ttl">Total Scenario Matrix</div>'+
+      '<div class="strip">'+
+      '<div class="stat"><div class="n">'+(sm.total||0)+'</div><div class="k">scenario classes</div></div>'+
+      '<div class="stat"><div class="n">'+(sm.critical||0)+'</div><div class="k">critical</div></div>'+
+      '<div class="stat"><div class="n">'+(sm.adversarial||0)+'</div><div class="k">adversarial</div></div>'+
+      '<div class="stat"><div class="n">'+(sm.fully_classified||0)+'/'+(sm.total||0)+'</div><div class="k">classified</div></div>'+
+      '</div></div>';}
+  function tLUR(){var h=gateCard('live_user_reality');var ed=D.external_dependencies||[];
+    if(ed.length){h+='<div class="card"><div class="ttl">External dependency state</div>';
+      ed.forEach(function(x){h+='<div class="row">'+pill(x.state==='running'?'green':(x.state==='degraded'?'amber':'red'))+'<span class="l" style="min-width:110px">'+esc(x.daemon)+'</span><span class="ev">port '+esc(x.port)+' · code '+esc(x.code)+' · '+esc(x.latency_ms)+'ms</span></div>';});h+='</div>';}
+    return h;}
+  function tFlake(){var cf=D.classification||{};
+    function r(label,arr,bad){arr=arr||[];return '<div class="row"><span class="l">'+label+'</span>'+(bad?pill(arr.length?'red':'green'):'')+'<span class="ev">'+esc(arr.join(', ')||'none')+'</span></div>';}
+    return gateCard('flake_classification')+'<div class="card"><div class="ttl">Cert-flake classification — no unclassified flakes</div>'+
+      r('intentional external partial',cf.intentional_external_partial,false)+r('environmental dependency',cf.env_dependency_partial,false)+
+      r('verification harness flake',cf.harness_flake,false)+r('product partial',cf.product_partial,true)+
+      r('product red (defect)',cf.product_red,true)+r('UNCLASSIFIED (blocks Diamond)',cf.unclassified,true)+'</div>';}
+  function tRepeat(){var rp=D.repeatability;var h=gateCard('repeatability');
+    h+='<div class="card"><div class="ttl">Diamond repeatability — N consecutive runs, same head</div>';
+    if(!rp){h+='<div class="row">'+pill('unknown')+'<span class="ev">no repeatability run recorded — single-run Diamond is not allowed.</span></div>';}
+    else{h+='<div class="row">'+pill(rp.repeatable?'green':'red')+'<span class="l" style="min-width:140px">'+(rp.runs||0)+' consecutive runs</span><span class="ev">complete/run '+esc(JSON.stringify(rp.complete_per_run||[]))+' · identity stable '+(rp.identity_stable?'yes':'no')+' · unclassified '+((rp.unclassified||[]).length)+'</span></div>';}
+    return h+'</div>';}
+  function tEvidence(){var er=D.evidence_room;if(!er)return '<div class="na">no evidence room data</div>';
+    var h='<div class="card"><div class="ttl">Evidence Room — '+(er.present||0)+'/'+(er.total||0)+' documents</div>';
+    (er.documents||[]).forEach(function(x){h+='<div class="row">'+pill(x.exists?'green':'red')+'<span class="l" style="min-width:230px">'+esc(x.document)+'</span><span class="ev">'+esc(x.exists?(x.path+(x.age_hours!=null?(' · '+x.age_hours+'h'):'')):'missing')+'</span></div>';});
+    return h+'</div>';}
+  function tFresh(){var fr=D.freshness;if(!fr)return '<div class="na">no freshness data</div>';
+    var h=gateCard('cert_freshness')+'<div class="card"><div class="ttl">Cert freshness — old green is not current green</div>';
+    (fr.reports||[]).forEach(function(r){h+='<div class="row">'+pill(r.stale?'red':'green')+'<span class="l" style="min-width:230px">'+esc(r.report)+'</span><span class="ev">'+esc(r.stale?(r.reason||'stale'):'fresh')+'</span></div>';});
+    return h+'</div>';}
+  function tBlockers(){var b=D.blockers||[];var h='<div class="card"><div class="ttl">Open Blockers ('+b.length+')</div>';
+    if(!b.length)h+='<div class="na">none</div>';
+    else b.forEach(function(x){h+='<div class="row"><span class="pill'+((x.severity==='P0')?' red':' amber')+'">'+esc(x.severity)+'</span><span class="l" style="min-width:200px">'+esc(x.blocker_id)+'</span><span class="ev">'+esc(x.required_fix||'')+'</span></div>';});
+    return h+'</div>';}
+  function tTiers(){var ts=D.release_tiers||[],hi=D.top.highest_diamond_tier;
+    function lst(label,arr,cls){arr=arr||[];if(!arr.length)return '';
+      return '<div class="row"><span class="l" style="min-width:150px">'+label+'</span><span class="'+(cls||'ev')+'">'+arr.map(esc).join(' · ')+'</span></div>';}
+    var h=tBanner()+'<div class="card"><div class="ttl">Release Tiers — the four-rung Diamond ladder (a lower tier is a smaller surface, never a lower standard)</div>'+
+      '<div class="row"><span class="l">highest Diamond now</span><span class="ev"><b>'+esc(D.top.highest_diamond_tier_label||'none yet')+'</b></span></div></div>';
+    if(!ts.length)h+='<div class="na">no tier data</div>';
+    ts.forEach(function(r){
+      var pass=(r.passed_gates||[]).length, tot=(r.required_gates||[]).length;
+      h+='<div class="card"><div class="ttl">'+pill((r.color||'').toLowerCase())+' '+esc(r.name||r.label)+
+         (r.tier_id===hi?'  ◀ current ceiling':'')+'</div>'+
+         '<div class="row"><span class="l">Diamond</span><span class="ev"><b>'+(r.diamond_eligible?'YES':'NO')+
+         '</b> · decision: '+esc(r.decision||'')+' · gates '+pass+'/'+tot+' green · '+esc(r.surface||'')+'</span></div>'+
+         lst('claims',r.release_claims,'ev')+
+         lst('does NOT claim',r.not_claimed,'next')+
+         lst('blocking',r.blocking_items)+
+         lst('non-blocking (visible)',r.non_blocking_items,'next')+
+         lst('missing evidence',r.missing_evidence)+
+         '<div class="row"><span class="l">reason</span><span class="ev">'+esc(r.reason||'')+'</span></div></div>';});
+    return h+'<div class="why">'+esc(D.tiers_doctrine||'')+'</div>';}
+  function tRelease(){var t=D.top,ov=D.founder_overrides||[];
+    var h=tBanner()+'<div class="card"><div class="ttl">Release Decision (computed — not manually settable)</div>'+
+      '<div class="row"><span class="l">decision</span><span class="ev">'+esc(t.release_decision)+'</span></div>'+
+      '<div class="row"><span class="l">diamond eligible</span>'+yn(t.diamond_eligible)+'</div>'+
+      '<div class="row"><span class="l">reason</span><span class="ev">'+esc(t.reason)+'</span></div></div>'+
+      '<div class="card"><div class="ttl">Founder Overrides ('+ov.length+')</div>';
+    if(!ov.length)h+='<div class="na">none — Diamond Green is computed from gates; a human cannot set it without a recorded override.</div>';
+    else ov.forEach(function(o){h+='<div class="row"><span class="l">'+esc(o.who)+' · '+esc(o.gate)+'</span><span class="ev">'+esc(o.why)+' · risk '+esc(o.risk_accepted)+' · expires '+esc(o.expires_at)+'</span></div>';});
+    return h+'</div>';}
+
+  // ---- §4 row-level detail under a gate tab (real evidence, never summary-only-green) ----------
+  function detailRows(tab){
+    var dt=(D.detail||{})[tab]; if(!dt) return '';
+    var h='<div class="card"><div class="ttl">Row-level evidence — '+esc(dt.label||tab)+' ('+dt.row_count+' contributing features · rolled '+esc(dt.rolled_status||'?')+')</div>';
+    if(!dt.rows||!dt.rows.length){ h+='<div class="na">no contributing-feature rows for this tab</div>'; }
+    (dt.rows||[]).forEach(function(r){
+      h+='<div class="row" style="flex-direction:column;align-items:stretch;gap:3px">'+
+         '<div>'+pill((({COMPLETE:"green",PARTIAL:"amber",DEFERRED:"amber",DISABLED:"amber",STUB:"red",WALLPAPER:"red",UNKNOWN:"red",REGRESSED:"red"})[r.status]||"unknown"))+
+         '<span class="l" style="min-width:220px">'+esc(r.feature)+'</span><span class="ev">'+esc(r.status)+'</span></div>'+
+         ((r.evidence&&r.evidence.length)?'<div class="ev" style="font-size:11px;color:#9fb4cc">'+r.evidence.map(esc).join('<br>')+'</div>':'')+
+         ((r.missing_links&&r.missing_links.length)?'<div class="next">missing: '+r.missing_links.map(esc).join(', ')+'</div>':'')+
+         (r.reason?'<div class="why" style="margin:2px 0">'+esc(r.reason)+'</div>':'')+'</div>';
+    });
+    var en=dt.enrichment||{};
+    if(Object.keys(en).length){ h+='<div class="lab" style="margin-top:8px">enrichment (live reports)</div><div class="mono" style="font-size:11px">'+esc(JSON.stringify(en,null,1)).slice(0,1400)+'</div>'; }
+    return h+'</div>';
+  }
+  var TABS=[
+    ['diamond','Diamond v2',function(){return tDiamond();}],
+    ['build_identity','Build Identity',tBuild],
+    ['program_reality','Program Reality',function(){return gateCard('program_reality');}],
+    ['feature_certs','Feature Certs',function(){return gateCard('feature_certs');}],
+    ['scenario_coverage','Scenario Coverage',tScenario],
+    ['rover_journeys','Rover Journeys',function(){return gateCard('rover_journeys')+detailRows('rover_journeys');}],
+    ['renegade','Renegade Trials',function(){return gateCard('renegade')+detailRows('renegade');}],
+    ['live_user_reality','Live User Reality',tLUR],
+    ['observation_bundle','Observation Bundle',function(){return gateCard('observation_bundle')+detailRows('observation_bundle');}],
+    ['performance','Performance Reality',function(){return gateCard('performance')+detailRows('performance');}],
+    ['host_reality','Host Reality',function(){return tLUR()+detailRows('host_reality');}],
+    ['ai_security','AI Security',function(){return gateCard('ai_security')+detailRows('ai_security');}],
+    ['consent_privacy','Consent / Privacy',function(){return gateCard('consent_privacy')+detailRows('consent_privacy');}],
+    ['ui_truth_consistency','UI Truth',function(){return gateCard('ui_truth_consistency');}],
+    ['recovery','Recovery',function(){return gateCard('recovery')+detailRows('recovery');}],
+    ['flake_classification','Cert-Flake',tFlake],
+    ['repeatability','Repeatability',tRepeat],
+    ['evidence_room','Evidence Room',tEvidence],
+    ['cert_freshness','Cert Freshness',tFresh],
+    ['open_blockers','Open Blockers',tBlockers],
+    ['release_tiers','Release Tiers',tTiers],
+    ['release_decision','Release Decision',tRelease]
+  ];
+  function render(){
+    if(!D){document.getElementById('view').innerHTML='<div class="na">Loading…</div>';return;}
+    if(D.error){document.getElementById('view').innerHTML='<div class="card"><div class="ttl">Verification error</div><div class="why">'+esc(D.error)+'</div></div>';return;}
+    var bar='<div class="tabs">';
+    TABS.forEach(function(t){var st=(t[0]==='diamond'||t[0]==='release_decision'||t[0]==='release_tiers')?(D.top.release_state||'').toLowerCase():(gst(t[0])||'unknown');
+      bar+='<div class="tab'+(CUR===t[0]?' on':'')+'" data-tab="'+t[0]+'"><span class="dot '+st+'"></span>'+esc(t[1])+'</div>';});
+    bar+='</div>';
+    var body='';try{TABS.forEach(function(t){if(t[0]===CUR)body=t[2]();});}catch(e){body='<div class="na">render error: '+esc(e.message)+'</div>';}
+    document.getElementById('view').innerHTML=bar+body;
+    [].forEach.call(document.querySelectorAll('.tab'),function(el){el.onclick=function(){CUR=el.getAttribute('data-tab');render();};});
+  }
+  function load(){
+    fetch('/verification.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){if(!j)return;D=j;render();document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();})
+    .catch(function(){document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>';});
+  }
+  load();
+})();
+</script>
+</body>
+</html>

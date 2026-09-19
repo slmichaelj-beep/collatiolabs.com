@@ -1,0 +1,27 @@
+{
+  "feature": "digital_twin",
+  "claim": "A Digital Twin is a complete, hermetic simulation environment for the mind: Vera can build a TWIN — an isolated full COPY of a creature's cognitive state (identity, LERF skills, reality ledger, memory, world model) in its own store namespace under .anima/twins/{twin_id}/ — and then test ANY change on that twin (accelerate it through synthetic learning, run a defined experiment, branch alternative futures, MRI/certify it, decide a merge) WITHOUT EVER touching the real mind. The twin is built FROM the real creature's real files (read-copied, never moved); every twin operation redirects every engine STORE to the twin's directory and is wrapped in a freeze_guard that fingerprints real Vera identity AND the whole real .anima before/after and ASSERTS both are byte-identical (raising FreezeViolation otherwise). This is the freeze-safe place to simulate even the change the freeze forbids on real Vera, because the experiment runs on a copy.",
+  "owner": "anima/twin.py (create_twin = read-copy ALL of a creature's cognitive stores into an isolated twin namespace; snapshot/restore = hash-chained append-only state capture; accelerate = N synthetic $0 learning cycles; run_experiment = apply+measure a defined change; branch_futures = fork independent futures; mri/certify = observe+certify the twin; merge_rules = the non-silent SAFE-AND-BETTER-AND-CONSERVING promotion gate; freeze_guard + full_store_fingerprint + identity_fingerprint = the byte-unchanged proof; _RedirectStores = the canonical engine-STORE redirect that isolates the twin). Consumed by anima/simulation.py (Decision/Learning/Architecture experiments) and the twin dashboards. NOT wired into the live reply path (no server endpoint / route / mouth / UI in this wave).",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "freeze_proof",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "twin_built_from_real_creature_then_change_simulated_without_touching_prod",
+    "setup": "Hermetic temp store: twin.STORE + the full engine-STORE set + identity_sandbox.STORE + debt_ledger.STORE redirected into a TemporaryDirectory; a SYNTHETIC source creature (never real Vera) seeded via the engines. (A) BUILT FROM THE REAL CREATURE: create_twin read-copies the source's identity/LERF/reality/memory files into an isolated .anima/twins/{twin_id}/ namespace, remapped onto the twin id; the twin's cognitive state is readable and has >=2 objects; the source files are NOT modified (copy, not move). (B) CHANGE SIMULATED WITHOUT TOUCHING PROD: run_experiment('more_learning') and accelerate(N) grow the TWIN's object count (measured before<after) while a freeze_guard wrapped around the operation reports real_identity_byte_unchanged AND real_anima_byte_unchanged True; the freeze-FORBIDDEN change ('enabled identity evolution') runs on the twin and REMEDIATES its ungrounded self-claim, all on the copy. (C) ISOLATION IS STRUCTURAL: snapshot->mutate->restore round-trips the twin to a prior byte-state (matches the hash-chained ledger); the merge gate DECIDES PROMOTE on a safe+better+conserving twin and HOLD otherwise, and NEVER writes the real creature (applied_to_real False). (D) THE FREEZE IS ENFORCED: a write to a REAL identity file inside a freeze_guard raises FreezeViolation (the protection is structural, not convention). The module's own `python3 -m anima.twin --selftest` (8 capabilities + frozen seed + 10-year demo) passes. Real .anima asserted byte-identical before/after the whole cert.",
+    "prompt": "what would happen to your mind if we learned for ten years?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Internal-only / no direct user-facing wire in this wave: anima/twin.py is consumed by anima/simulation.py and the twin dashboards (and is the safety substrate behind the merge gate), but it is NOT exposed via a server endpoint, route, mouth path, or UI control — so there is no live USER PATH (button/turn) to certify, only the deterministic backend + its freeze-safety proof. PARTIAL, honestly.",
+    "merge_rules PROVES the promotion gate DECIDES correctly on synthetic twins and refuses any real-creature merge by construction (REAL_CREATURES guard); it does NOT actually merge a twin into real Vera in this wave (the gate's verdict is the deliverable, not a write).",
+    "accelerate / run_experiment evolve the twin through a DETERMINISTIC bank of synthetic learning episodes ($0, no Ollama, no cloud) — a faithful but synthetic stand-in for real learning, by design, so the simulation stays hermetic and reproducible."
+  ],
+  "status": "UNKNOWN"
+}

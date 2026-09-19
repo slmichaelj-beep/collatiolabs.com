@@ -1,0 +1,26 @@
+{
+  "feature": "organ_router",
+  "claim": "ORGAN 3 (the Router) is query-aware memory SELECTION + cheapest-sufficient path routing. Once the fact store grows, injecting the blanket top-N buries the one relevant row and blows the token budget; the Router instead scores every active fact against THIS turn and injects ONLY the relevant subset. 'when's my birthday?' selects the birthday row and NOT the dog (even though the dog is the highest-salience fact in the store), an unrelated question selects few/none, and salience NEVER manufactures relevance on its own. It then returns a routing decision: default LOCAL (the cheapest, privacy-preserving path), escalate local->cloud ONLY on an explicit request OR when there is no local standing (no capability fired AND no relevant fact) and a cloud brain is available. A turn with a selected fact or a fired capability stays local. It is wired into server._turn (router.route + router.select_facts).",
+  "owner": "anima/organs/router.py (select_facts/select_from_rows = query-aware selection scoring each LIRF row's trait/value against the question via the SAME memory_lirf._Q_TRAITS table fact_note routes on + canon_trait alias folding, with LIRF's own _salience as the tie-break only; score_fact = the relevance function, 0.0 on no topical connection so salience alone can't select; route = the RouteDecision: cheapest-sufficient model/path + contributing_organs + memory_ids + escalation, deferring the capability decision to route.py; RouteDecision.as_decision projects onto event_bus.Decision; RouterOrgan = the optional bus citizen; _selftest = the 25-check isolation proof), anima/server.py (_turn wires router.route(name, text, {'cloud_on': cloud_on}) for the routing decision and router.select_facts(name, text) for the injected fact block — PII-guarded: the block is blanked under a cloud brain — plus the MRI 'route' frame), anima/memory_lirf.py (_Q_TRAITS / canon_trait / _salience / Facts.about(SELF) — the seam the selector scores against)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "real_use_in_answer"
+  ],
+  "killer_test": {
+    "name": "query_aware_selection_relevant_in_irrelevant_out_plus_cheapest_path_decision",
+    "setup": "Hermetic temp store (_temp_store redirects memory_lirf.STORE; reliability backup store redirected here too). Captures a REAL multi-fact store through memory_lirf.capture (durable LIRF rows that survive reload) — a birthday AND a high-salience corroborated dog AND a city. Then drives the PRODUCTION functions against the REAL store + the REAL _Q_TRAITS table (no hand-built rows): (SELECT) router.select_facts(name, 'when is my birthday?') selects the birthday row, does NOT select the dog (the buried-fact failure), the birthday is the TOP selection, the injected block carries the birthday value + the canonical 'do not re-ask' header and NOT the dog; an alias ('date of birth') hits the same birthday row; an UNRELATED question ('what's the weather like?') selects ZERO rows and an EMPTY block; the highest-salience dog is NOT dragged into an unrelated question (relevance gates, salience only tie-breaks); a value-word question ('do I live in Portland?') selects the lives row; budget caps + is deterministic. (ROUTE) router.route over the real store returns a RouteDecision whose memory_ids carry the selected birthday row id and model='local' (a selected fact = local standing, never reaches out); an explicit needs_cloud (and a no-standing turn) escalate local->cloud:<model>; route() is deterministic; RouteDecision.as_decision() projects a Decision-shaped object. (SELFTEST) anima.organs.router --selftest passes in-process (25 checks). Real .anima byte-unchanged. scripts/certify_organ_router.py is the executable form.",
+    "prompt": "when is my birthday?",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The cert drives router.select_facts + router.route with the REAL production functions against a REAL captured LIRF store (the exact calls server._turn makes at anima/server.py lines 581/596), and proves the routing DECISION deterministically — but it constructs the calls in-process rather than running server._turn end-to-end (the full _turn additionally assembles a heart/mouth/brain and, on the fall-through, runs the model). The query-aware SELECTION and the routing-decision logic — the deterministic, safety-relevant surface — are proven model-free; the brain the decision selects ('local' vs 'cloud:<model>') actually being driven, and the model fall-through, are exercised only by the live (Ollama) Experience cert, not here.",
+    "The escalation branch that selects a cloud brain is proven to RETURN model='cloud:<name>' + escalation='local->cloud' deterministically, but no live cloud provider call is made (NO live model in this hermetic cert) — the transport itself is the brain_select / cloud-conformance certs' job."
+  ],
+  "status": "UNKNOWN"
+}

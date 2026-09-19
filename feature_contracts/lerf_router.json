@@ -1,0 +1,24 @@
+{
+  "feature": "lerf_router",
+  "claim": "Vera's runtime spends the CHEAPEST faculty that is actually sufficient for a task, and stops. For every task the LERF Runtime Router walks an escalating ladder — a deterministic rule (~free) -> a LIRF memory lookup -> a retrieved LERF skill (~hundreds of tokens) -> a small local render of that skill -> a GROUNDED verifier that checks the render against the skill's contract -> and ONLY on verifier failure (or when nothing local has standing and a cloud brain is available) does it escalate to a larger/cloud model ($$ + data egress). It returns the FIRST rung that suffices with a readable {route, why, fallback}; the decision is deterministic (same task -> identical Route). The verifier is a real gate, never a rubber stamp: a render that fabricates a figure or goes off-contract is WITHHELD (never served) when no cloud is available. This router is wired into the live turn: anima/server._lerf_eligible calls route_task to decide whether a turn is a LERF-skill task before the model is ever consulted, and again (rung 5) to adjudicate the small-model render and withhold a contract-violating one.",
+  "owner": "anima/lerf_router.py (route_task = the six-rung cheapest-sufficient ladder returning a frozen Route{route,why,fallback,rung,cost_tier,considered,skill_id,score,escalated,grounded}; the COST table enforcing free<lookup<tokens<local<cloud; SKILL_MATCH_FLOOR; the pure rung probes _rule_hit/_lirf_hit/_skill_hit/_cloud_available; explain_route prose; --selftest), anima/lerf.py (retrieve_skills/_score/verify_rendered_output — the substrate the router plans over), anima/server.py (_lerf_eligible gates the turn on route_task's rung-3 decision; _lerf_task_first re-enters route_task with rendered= to adjudicate rung 5 and WITHHOLD a failed render; _turn calls _lerf_eligible at the top of every reply)",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "final_gate"
+  ],
+  "killer_test": {
+    "name": "cheapest_sufficient_ladder_grounded_verifier_and_live_server_wiring",
+    "setup": "Hermetic temp store (lerf/lerf_router/memory_lirf/server via _temp_store, plus constitution.STORE + reliability.DEFAULT_STORE redirected). LADDER: COST tiers are strictly ordered free<lookup<tokens<local<cloud; a known-fact question is detected by the cheap gate and a skill task is not; seed two ACTIVE skills, then (rung3) a skill task routes to lerf_skill naming the right skill + a fallback that cites verifier->cloud, ruling out the two cheaper rungs and NOT escalating; the router is deterministic; (rung5 PASS) a contract-faithful render verifies to small_local_verified without escalating; (rung5 FAIL -> rung6) a fabricated-figure render escalates to cloud when one is available; (GROUNDED) the SAME bad render with NO cloud is WITHHELD (verifier_failed_no_cloud), never served; (no-skill) a task no skill covers escalates to cloud iff available else reports no_local_faculty; (rung2) a fact-question with no stored value does NOT claim lirf_memory. LIVE WIRING: the real server._lerf_eligible (the function _turn calls) returns the rung-3 lerf_skill Route for a task-shaped turn whose skill is in the shared library, returns None for a feeling/companion turn (the companion path owns it), and returns None when a deterministic cap_note already owns the turn — proving route_task steers the live reply path, deterministically, before any model is consulted. Real .anima byte-unchanged. scripts/certify_lerf_router.py is the executable form.",
+    "prompt": "Summarize this doctor's note and turn it into reminders",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The router is a PURE deterministic planner: it never itself calls a model. Rungs 4-6 (small-local render, cloud escalation) are EXECUTED by anima/server._lerf_task_first, which drives the small local model and re-enters route_task for the rung-5 verdict; the small-model GENERATION and the cloud call are the only legs that need a live model, so they are out of scope for this offline cert. What this cert proves is the routing DECISION + the grounded WITHHOLD, both deterministic, and that they are wired into the live server turn (server._lerf_eligible, exercised here on the real function).",
+    "The rung-2 LIRF and rung-1 deterministic-rule legs are exercised through the router's own probes (with no fact on the synthetic ledger, a fact-question correctly falls through rather than confabulating); a fully-populated ledger answer is proven by the known_fact_memory feature, not re-proven here."
+  ],
+  "status": "UNKNOWN"
+}

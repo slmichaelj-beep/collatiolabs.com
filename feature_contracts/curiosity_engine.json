@@ -1,0 +1,26 @@
+{
+  "feature": "curiosity_engine",
+  "claim": "Vera has the genuine curiosity of a companion who actually wants to know you, governed by ANIMA LAW 002 — never make the same discovery twice. The Curiosity Engine reads (read-only) what she KNOWS (the LIRF ledger) and what she has NOTICED (the world model) and, over a taxonomy of life-categories, classifies every fact-slot as KNOWN / UNKNOWN / SUSPECTED / CONTRADICTED; it turns the single highest-signal GAP into a warm, in-character, optional-to-answer question anchored to what you actually said (a person you keep mentioning, a category she's never asked about) — never a canned 'what's your favorite color?', never an AI-disclaimer. The moment a gap becomes KNOWN she stops producing it, and the moment she surfaces a gap as a question she records it to an append-only Asked Ledger and NEVER asks it again. On a casual turn the live reply path appends exactly one such question to her reply, persists it, and marks it asked.",
+  "owner": "anima/curiosity.py (detect_gaps = classify the taxonomy + world entities into KNOWN/UNKNOWN/SUSPECTED/CONTRADICTED gaps; generate_question = the deterministic warm-question floor keyed to entity/category, safety-gated against scaffold tags + break-character; candidate_gaps = detected gaps MINUS already-asked; next_question = the budgeted single-question entry the turn calls; mark_asked = the append-only Asked Ledger writer; asked_keys/ledger_path = the Law-002 never-re-ask read; law_002), anima/server.py (the casual-turn PROACTIVE ASIDE in _turn: curiosity.next_question(name, recent_text=text) -> append to the reply -> curiosity.mark_asked(name, candidate_gaps()[0]); plus the curiosity MRI stage frame), anima/mouth.py (the Curiosity persona dial, default on/balanced)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "final_gate",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "gap_becomes_question_and_is_never_re_asked_nor_re_discovered",
+    "setup": "Hermetic temp store (curiosity/memory_lirf/world_state redirected). (A) an empty creature -> many UNKNOWN/SUSPECTED gaps; an UNKNOWN birthday slot becomes a warm question that names the category and is clean of scaffold tags + AI-disclaimers; a 42-mention unknown-relationship entity (Mike) becomes a SUSPECTED gap whose question NAMES Mike and asks how they know each other (a 1-mention entity stays below the floor); the Mike gap outranks an empty favorite-food slot; no question is the banned 'favorite color'. (B) LAW 002 [never re-discover the KNOWN]: a corroborated KNOWN birthday produces NO birthday gap, no generated question references it, and 40 deep next_question draws never ask it. (C) LAW 002 [never re-ask]: after mark_asked(Mike) it is gone from candidate_gaps forever and next_question never re-asks it; the Asked Ledger grows by one (append-only, Law 001) and the asked gap-key survives a fresh read from disk. (D) LIVE WIRE: replaying the exact server._turn sequence (next_question -> candidate_gaps -> mark_asked(cands[0])) on a fresh creature burns the gap and never re-surfaces it. (E) a superseded value (Portland -> Seattle) -> a CONTRADICTED gap whose clarify question names both values, warmly + safely. Real .anima byte-unchanged. scripts/certify_curiosity_engine.py is the executable form.",
+    "prompt": "yeah, work's been busy lately",
+    "must_contain": [],
+    "must_not_contain": ["favorite color", "as an ai", "i'm just a", "[known]", "[suspected]"]
+  },
+  "known_gaps": [
+    "The cert proves the live-wire seam through the SAME three functions server._turn calls (next_question -> candidate_gaps -> mark_asked) on a seeded creature, hermetically and deterministically; it does NOT drive a full live-model turn (that needs Ollama), so the question's final naturalness model-refinement pass (off by default) and the surrounding reply text are not exercised here — only the deterministic engine + the wiring contract are.",
+    "generate_question has an OFF-by-default model_pass for extra naturalness; the certified path is the deterministic template floor, which is what ships when no model is wired."
+  ],
+  "status": "UNKNOWN"
+}

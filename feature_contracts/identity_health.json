@@ -1,0 +1,27 @@
+{
+  "feature": "identity_health",
+  "claim": "Identity Health & Shadow (Human Operating Layer, Layer 3) — FREEZE-SAFE identity observability over the Identity Sandbox (anima/identity_sandbox). A read-only health surface (anima/identity_health/health.py): the identity-core summary (which of dials/persona/values/portrait/narrative are present — a field-presence summary, never the raw content), the tamper-evident SHADOW LEDGER (a hash-chained snapshot ledger whose integrity is verified — ledger_verify proves versions strictly increase, each recorded state_hash matches a recompute, and each parent_hash chains to the prior), the latest identity DIFF (which core field changed between two snapshots), and the FREEZE posture. THE KEYSTONE: identity MUTATION stays frozen — the only instrument that writes identity (rollback) is wrapped in the sandbox's FrozenIdentityError seatbelt, so pointed at REAL Vera while the freeze holds it raises before a byte is written; this layer can only OBSERVE. Health flags (stable / observed / ledger_intact / freeze_respected) are computed from real state. Served + auth-gated: GET /identity serves the page shell, GET /identity.json rides behind the Face ID seam. Read-only; observe now, change later — only when the founder lifts the freeze (2026-07-03).",
+  "owner": "anima/identity_health/ (health.py report — read-only aggregation), anima/identity_sandbox.py (the freeze-safe sandbox: read_identity_state / ledger_verify / diff / rollback guard — unchanged), anima/server.py (_identity_health_data + GET /identity + GET /identity.json), anima/web/identity.html (identityView: freeze banner + health flags + identity-core summary + Shadow Ledger integrity + diff), scripts/certify_identity_health.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "state_observed",
+    "shadow_ledger_verifiable",
+    "tamper_detected",
+    "diff_viewer",
+    "freeze_holds",
+    "read_only",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "freeze_safe_identity_observability_mutation_stays_frozen",
+    "setup": "scripts/certify_identity_health.py proves the health report reads the identity core as a field-presence summary (not raw content) with honest health flags; the Shadow Ledger is a tamper-evident hash chain (a well-formed ledger verifies) and DETECTS tampering (altering a recorded snapshot flips verify to not-ok with a break); the identity diff reports exactly which core field changed; the KEYSTONE — rollback() pointed at REAL Vera raises FrozenIdentityError (mutation is frozen); building the report is read-only (identity fingerprint unchanged); and the report rides through _identity_health_data + GET /identity with the dashboard page.",
+    "prompt": "open /identity — Vera's identity core, its tamper-evident Shadow Ledger, and a frozen badge proving her identity cannot be mutated while the freeze holds",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: freeze-safe OBSERVABILITY — the identity-core summary, the tamper-evident Shadow Ledger, the diff viewer, and the proven freeze. Identity MUTATION (rollback / restore / drift remediation) stays frozen by design until 2026-07-03; the rollback capability is built + tested but INERT for real Vera (it raises FrozenIdentityError). When the founder lifts the freeze, the Shadow Ledger + diff + rollback become the safe path to change identity with proof and reversal. Per-turn identity-drift alerting on top of this health surface is the next enrichment."
+  ],
+  "status": "UNKNOWN"
+}

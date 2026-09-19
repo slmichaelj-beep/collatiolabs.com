@@ -1,0 +1,24 @@
+{
+  "feature": "enterprise_readiness",
+  "claim": "The capstone: Vera's posture is explainable to a buyer / security reviewer WITHOUT Lamar in the room. READY only when every hardening cert passes (security_baseline, permissions, privacy, performance, ai_security, product_polish) AND the evidence exists: the live-path audit matrix has 0 wallpaper/stub/unreachable/regressed/unknown with the only PARTIAL honestly external-dependency-blocked; the security evidence is written down (security_architecture + threat_model + permission_model); and the diamond baseline reports exist so a reviewer can read the posture cold. This is an AGGREGATE meta-cert — it cannot be green while any hardening cert is red or the audit has a hidden gap.",
+  "owner": "scripts/enterprise_readiness.py (runs every hardening cert + checks the clean audit matrix + docs + diamond reports), the per-phase certs it aggregates, docs/, reports/",
+  "user_visible_entry": false,
+  "durable": true,
+  "live_path": [
+    "all_hardening_certified",
+    "audit_clean",
+    "evidence_documented",
+    "posture_readable"
+  ],
+  "killer_test": {
+    "name": "all_hardening_green_audit_clean_evidence_present",
+    "setup": "scripts/enterprise_readiness.py runs the 6 hardening certs (security/permissions/privacy/performance/ai-security/polish) and requires all CERTIFIED; requires the audit matrix to have 0 hard-gaps with partials external-blocked only; requires the security docs (architecture/threat-model/permission-model) and the diamond baseline reports to exist. READY only when all hold.",
+    "prompt": "show me the security posture",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "Formal compliance artifacts (SOC 2 / ISO control mappings, a signed DPA, a vendor security questionnaire) are GRC paperwork beyond this technical readiness gate; this cert proves the engineering posture is sound, certified, and documented — the foundation those artifacts would attest to."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,25 @@
+{
+  "feature": "curiosity_budget",
+  "claim": "A Curiosity Budget caps how OFTEN Vera surfaces a contextual question (FREQUENCY only, never the content): 'minimal' rarely asks, 'balanced' is the default cadence, 'deep' asks readily. It defaults to 'balanced', a set value is durable across reloads, any invalid value coerces to the safe 'balanced' default (a corrupt store can never silently switch curiosity off or crank it up), and the Curiosity Engine actually READS the budget and paces itself by it.",
+  "owner": "anima/caps.py (curiosity in ENUM_KEYS = (('minimal','balanced','deep'),'balanced'); curiosity_budget() reads it fail-safe; set_curiosity_budget() writes it through the normalising save(); _norm_enum coerces any off-list/missing value to 'balanced'; persisted per-creature in .anima/{name}.caps.json), anima/curiosity.py (read_budget() reads the caps 'curiosity' key defensively; _BUDGET_RATE minimal=0.20/balanced=0.60/deep=1.00; _budget_allows is the deterministic FREQUENCY gate; next_question gates on it), anima/server.py (the 'curiosity' enum rides GET/POST /capabilities -> caps.load/caps.save, the SAME ledger the Settings Access panel writes)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "real_backend",
+    "real_storage",
+    "real_use_in_answer",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "curiosity_budget_default_durable_coerce_and_engine_reads_it",
+    "setup": "Hermetic temp store (caps.STORE + curiosity.STORE are both in gate0_prime_experience._temp_store). (A) caps.curiosity_budget(name) defaults to 'balanced' on a fresh creature. (B) caps.set_curiosity_budget(name,'deep') persists 'deep' and re-reading caps.curiosity_budget fresh from disk is still 'deep' (durable -> restart-survival); 'minimal' likewise. (C) an invalid value ('reckless') coerces to 'balanced' and is NOT stored as junk -> fail-safe. (D) THE LIVE LINK: the Curiosity Engine reads it -- curiosity.read_budget(name) returns exactly the value set via caps.set_curiosity_budget (deep/minimal/balanced), and a fresh creature reads 'balanced'; and the engine's deterministic frequency gate honours it (deep allows readily, minimal far less, over a fixed gap set -- proving the budget governs cadence, not content). Real .anima byte-unchanged. scripts/certify_curiosity_budget.py is the executable form.",
+    "prompt": "(settings action: set Curiosity Budget -> POST /capabilities {curiosity}) ; then a casual turn where the engine paces by it",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "There is no DEDICATED Curiosity-Budget control rendered in anima/web/index.html today; the budget is a caps ENUM that persists through the SAME GET/POST /capabilities ledger the Settings 'Access' panel already drives (and which capability_truth.json certifies round-tripping). So the deterministic backend + engine-read + frequency-pacing floor is fully proven, but the user-visible entry is currently the /capabilities endpoint, not a slider -- hence PARTIAL, not COMPLETE.",
+    "The WORDING of any surfaced question is the Curiosity Engine's template floor + an off-by-default model pass, gated by the mouth's #1-rule final gate; this cert proves the FREQUENCY contract (default/durable/coerce/engine-reads-it), not the model's phrasing."
+  ],
+  "status": "UNKNOWN"
+}

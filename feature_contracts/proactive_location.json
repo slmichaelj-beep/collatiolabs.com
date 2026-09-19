@@ -1,0 +1,25 @@
+{
+  "feature": "proactive_location",
+  "claim": "For Vera to reach out first — a morning briefing with your real local weather, a reminder that can ring your phone — she needs two facts from your device: where you are and how to push to you. The iPhone POSTs its last {lat, lon} to /loc and its APNs/PushKit token to /device; both are PERSISTED under .anima/ and both endpoints are AUTHED-gated (they sit behind the token gate, so the tailnet can't spoof your location or hijack the push target). The stored location is then read back by the proactive briefing (proactive.last_location) to fetch weather, and the stored token is what the reminder/call subsystem rings.",
+  "owner": "anima/server.py (_store_location validates lat/lon ranges + persists {lat,lon,ts} to .anima/<name>.loc.json; _store_device persists {token, voip_token, platform, bundle_id} to .anima/<name>.device.json; both dispatched in do_POST UNDER the _authed()+_passed() gate), anima/proactive.py (last_location reads the stored loc.json -> feeds context_gather weather; compose_briefing narrates only from those facts), ios/VeraCall (DeviceRegistration.swift POSTs /device with the PushKit voip_token + Bearer token; the phone/Shortcut POSTs /loc consumed by the morning job's --use-stored-loc)",
+  "user_visible_entry": true,
+  "durable": true,
+  "live_path": [
+    "visible_trigger",
+    "real_backend",
+    "real_storage",
+    "real_retrieval",
+    "restart_survival"
+  ],
+  "killer_test": {
+    "name": "loc_and_token_persist_authed_and_feed_briefing",
+    "setup": "Hermetic temp store (server.STORE + proactive.STORE redirected to the SAME temp dir, so the write and the read-back connect) + OFFLINE (no weather/APNs network; we test only the store). (A) _store_location with a real {lat,lon,ts} returns ok and WRITES .anima/<name>.loc.json; a FRESH read survives (durable), and proactive.last_location() reads back exactly those coords — proving the stored location FEEDS the briefing's weather lookup. (B) junk is rejected: non-numeric lat/lon and out-of-range coords return ok:false and write NOTHING. (C) _store_device with a voip_token (the iOS PushKit path) returns ok + have_voip and persists .anima/<name>.device.json durably; an empty post (no token, no voip) returns ok:false and writes nothing. (D) the AUTHED gate: in anima/server.py both /loc and /device are dispatched only after _authed() (and _passed()) in do_POST — a static proof that an unauthenticated request never reaches the store. Real .anima byte-unchanged. scripts/certify_proactive_location.py is the executable form.",
+    "prompt": "",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "The downstream consumers — the weather fetch (context_gather over the stored lat/lon) and the actual APNs/PushKit delivery to the stored token — are real network calls and are deliberately NOT exercised; the cert proves the deterministic STORE contract (validate -> persist -> durable -> read-back-by-the-briefing) and the auth-gating, which is the no-spoof safety surface. The iOS /loc poster is the phone/Shortcut (the /device poster is DeviceRegistration.swift); the endpoints are the certified server-side entry."
+  ],
+  "status": "UNKNOWN"
+}

@@ -1,0 +1,26 @@
+{
+  "feature": "meaning_graph",
+  "claim": "Meaning & Relationship Graph (Human Operating Layer, Layer 4) — a read-only view over the World State relational/causal edges (anima/world_state), formalised with two guarantees. PROVENANCE: every edge names where it came from (source), how sure Vera is (confidence), how many times it was corroborated (support), and when (created/updated) — and provenance COVERAGE is measured honestly (anima/meaning_graph/graph.py provenance_coverage), never assumed 100%; a single un-sourced edge pulls it below 1.0. SENSITIVITY: each edge is classified by the consent sensitivity classifier (anima/consent/classifier.py) over its subject+predicate+object text, so a sensitive relationship (e.g. mental_health) is flagged sensitive + consent_relevant — tying the Meaning Graph to the Consent & Boundaries layer (sensitive meaning is gated like sensitive memory). The graph groups edges by subject, reports average confidence and a sensitive count, and exposes the full per-edge provenance. Served + auth-gated: GET /meaning serves the page shell, GET /meaning.json rides behind the Face ID seam. Read-only; creates no new truth; never mutates the World store.",
+  "owner": "anima/meaning_graph/ (graph.py build/enrich/provenance_coverage/has_provenance), anima/world_state.py (the source edges, unchanged), anima/consent/classifier.py (sensitivity, reused), anima/server.py (_meaning_graph_data + GET /meaning + GET /meaning.json), anima/web/meaning.html (meaningView: coverage gauge + per-edge provenance + sensitivity flags), scripts/certify_meaning_graph.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "provenance_on_every_fact",
+    "provenance_measured",
+    "sensitive_flagged",
+    "confidence_corroboration",
+    "read_only",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "every_fact_carries_provenance_and_sensitive_facts_are_consent_relevant",
+    "setup": "scripts/certify_meaning_graph.py seeds World State edges (a sensitive mental-health relation + a benign one) and proves: every active edge carries provenance (source + confidence + created) the graph exposes, with coverage computed == 1.0; the keystone — provenance coverage BITES (an un-sourced edge pulls it below 1.0, so the metric is honest, not hardcoded); the sensitive relation is flagged sensitive + consent_relevant (domain != general) while the benign one is not (the classifier discriminates, tying L4 to L2 Consent); edges expose confidence + support and the graph reports avg confidence; building the graph is read-only (no writes to the World store); and the graph rides through _meaning_graph_data + GET /meaning with the dashboard page.",
+    "prompt": "open /meaning — every relationship Vera holds about your world shows where it came from, how sure she is, and whether it's sensitive (consent-relevant)",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: provenance is surfaced + measured and sensitivity is classified per edge (reusing the consent classifier). The next enrichment is threading a held-for-consent flow for a NEW sensitive relation at capture time (today the consent gate covers sensitive memory candidates; sensitive World State edges are flagged here and the gating tie-in at relate() time is the follow-up), plus multi-hop causal-path provenance (why Vera believes a chain, not just an edge)."
+  ],
+  "status": "UNKNOWN"
+}

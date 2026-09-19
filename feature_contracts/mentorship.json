@@ -1,0 +1,27 @@
+{
+  "feature": "mentorship",
+  "claim": "Mentorship Support (Human Operating Layer, Layer 6) — guidance WITHOUT control. When Vera has a suggestion, she frames it as a TRADEOFF (anima/mentorship/explainer.py): the real options each with honest pros AND cons, plus a recommendation — but the decision is always the user's (decision_owner='user'), and it is suggest-only (execution_allowed=False / requires_approval=True, inherited from the agency layer). The output is provably NON-COERCIVE: the anti-coercion guard (anima/mentorship/policy.py scan_for_coercion / is_non_coercive) rejects any tradeoff that offers fewer than two options (take-it-or-leave-it), takes the decision away from the user, permits execution, hides an option's downsides (a stacked deck), or uses pressure language (a curated COERCION_MARKERS list: 'you must', 'the only option', 'act now', 'last chance', etc.); safe_tradeoff() fails safe by neutralising any coercive item (decision returned to the user, a pushed recommendation dropped). from_suggestion() turns a REAL pending agency suggestion (anima/agency_approval_queue) into a non-coercive tradeoff with a standing 'keep things as they are' alternative so doing nothing is always a real choice. Served + auth-gated: GET /mentorship serves the page shell, GET /mentorship.json rides behind the Face ID seam. Read-only; nothing executes; the user calls the shot.",
+  "owner": "anima/mentorship/ (schema.py tradeoff vocabulary + COERCION_MARKERS + MIN_OPTIONS + the no-control law, explainer.py explain_tradeoff/from_suggestion, policy.py the anti-coercion guards + safe_tradeoff), anima/server.py (_mentorship_data + GET /mentorship + GET /mentorship.json), anima/web/mentorship.html (mentorView: options/pros/cons + recommendation + 'you decide'), scripts/certify_mentorship.py",
+  "user_visible_entry": true,
+  "durable": false,
+  "live_path": [
+    "tradeoff_shape",
+    "alternatives_kept",
+    "non_coercive",
+    "guard_bites",
+    "real_suggestions",
+    "suggest_only",
+    "served_authed"
+  ],
+  "killer_test": {
+    "name": "guidance_that_advises_but_provably_cannot_coerce",
+    "setup": "scripts/certify_mentorship.py proves a tradeoff offers >= 2 options (each with pros AND cons), user-owned and suggest-only; every option shows a real downside (no stacked deck) and the recommendation is optional (never the only option); a normal tradeoff passes the guard with no pressure phrase; the keystone — a forced coercive tradeoff (single option / decision taken from the user / execution permitted / 'you must' language) is REJECTED and the fail-safe neutralises it (decision returned to the user, pushed recommendation dropped); a REAL pending agency suggestion becomes a non-coercive tradeoff with a standing 'do nothing' alternative; nothing the layer produces is executable; and the tradeoffs ride through _mentorship_data + GET /mentorship with the dashboard page.",
+    "prompt": "open /mentorship — any open suggestion is shown as options with honest pros and cons and a recommendation, but it says 'you decide' and nothing acts on its own",
+    "must_contain": [],
+    "must_not_contain": []
+  },
+  "known_gaps": [
+    "First cut: the tradeoff explainer + the anti-coercion guard, fed by REAL pending agency suggestions (each rendered as proposal-vs-do-nothing). Richer multi-option tradeoffs (3+ genuine alternatives drawn from the situation, not just proposal/do-nothing) will come as the agency layer proposes structured option sets; the coercion lexicon is conservative and will widen as real phrasings are observed. The tradeoff is presented read-only here; threading it into the live answer cadence (Vera speaking the tradeoff in chat) is the next wiring step."
+  ],
+  "status": "UNKNOWN"
+}

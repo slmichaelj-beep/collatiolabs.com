@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Vera · Cognitive Ergonomics</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#121826;--panel2:#0f1420;--line:#1f2937;--ink:#e6edf6;--dim:#8aa0b8;
+    --faint:#5d7088;--good:#2fb380;--good-d:#143a2c;--warn:#d6a13a;--warn-d:#3a2f12;--bad:#e0556b;
+    --bad-d:#3a1620;--accent:#6aa6ff;--accent-d:#15243f}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 700px at 50% -10%,#10182a 0%,var(--bg) 60%);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 20px 70px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:12px;color:var(--dim)}
+  h1{margin:.1em 0 .12em;font-size:24px;font-weight:680;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px;max-width:680px}
+  .back{color:var(--accent);text-decoration:none;font-size:13px;border:1px solid var(--accent-d);padding:7px 12px;border-radius:9px;background:#0e1830;white-space:nowrap}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+  .ttl{font-weight:640;margin-bottom:4px}
+  .why{font-size:12.5px;color:var(--dim);margin-top:8px;padding:9px 12px;border-left:2px solid var(--accent-d);background:#0c1526;border-radius:0 8px 8px 0}
+  .why b{color:var(--ink)}
+  .big{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .gauge{font-size:46px;font-weight:720;letter-spacing:-.03em;line-height:1}
+  .gauge small{font-size:16px;color:var(--faint);font-weight:600}
+  .grade{font-size:13px;font-weight:600;padding:5px 12px;border-radius:999px;border:1px solid var(--line)}
+  .grade.clear{background:var(--good-d);color:#9bf0cf}
+  .grade.okay{background:var(--warn-d);color:#f4d79b}
+  .grade.hard{background:var(--bad-d);color:#f6b3bf}
+  .meta{font-size:12px;color:var(--faint)}
+  .issue{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+  .issue:first-child{border-top:0}
+  .sevdot{width:9px;height:9px;border-radius:999px;margin-top:6px;flex:none;background:var(--warn)}
+  .sevdot.high{background:var(--bad)} .sevdot.low{background:var(--faint)}
+  .issue .h{font-weight:620;font-size:13.5px}
+  .issue .m{font-size:12.5px;color:var(--dim);margin-top:2px}
+  .issue .a{font-size:12.5px;color:#bfe3ff;margin-top:3px}
+  .issue .a b{color:#dbecff}
+  .row{display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+  .row:first-child{border-top:0}
+  .sc{font-family:ui-monospace,Menlo,monospace;font-size:12px;min-width:48px;text-align:right}
+  .sc.clear{color:#9bf0cf} .sc.okay{color:#f4d79b} .sc.hard{color:#f6b3bf}
+  .pv{flex:1;min-width:160px;color:var(--dim)}
+  .pill{display:inline-flex;font-size:10.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);background:#0d1422;color:var(--dim)}
+  .na{color:var(--faint);font-style:italic;font-size:13.5px;padding:8px 0}
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand">VERA · CLARITY</div>
+      <h1>Cognitive Ergonomics</h1>
+      <div class="sub">How easy Vera is to follow — scored on her <b>real</b> recent replies with
+        deterministic, model-free metrics: jargon, reading ease, sentence load, hedging, and unexplained
+        acronyms. Every issue is explained plainly: what it means, and what to do.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end">
+      <a class="back" href="/trust">Trust Ledger →</a>
+      <a class="back" href="/">← Chat</a>
+    </div>
+  </header>
+
+  <div id="view"><div class="na">Loading…</div></div>
+
+  <footer>Read-only · deterministic scorers (no model in the loop) · nothing leaves your Mac.
+    <span id="stamp"></span></footer>
+</div>
+
+<script>
+(function(){
+  var _u=new URL(location.href), TOKEN=_u.searchParams.get('k')||localStorage.getItem('anima_token')||'';
+  if(TOKEN) localStorage.setItem('anima_token',TOKEN);
+  var HDR={'Content-Type':'application/json'}; if(TOKEN) HDR['X-Anima-Key']=TOKEN;
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  var ILABEL={jargon:'Specialist vocabulary',readability:'Reading ease',load:'Sentence load',hedging:'Hedging',acronyms:'Unexplained acronyms'};
+
+  function gaugeView(d){
+    var g=d.grade||'okay', a=(d.avg_clarity==null?'—':d.avg_clarity);
+    return '<div class="card"><div class="big">'+
+      '<div class="gauge">'+a+'<small>/100</small></div>'+
+      '<div><span class="grade '+g+'">'+esc(g)+'</span>'+
+      '<div class="meta" style="margin-top:6px">average clarity across '+(d.count||0)+' recent repl'+((d.count===1)?'y':'ies')+'</div></div>'+
+      '</div></div>';
+  }
+
+  function topIssuesView(d){
+    var ti=d.top_issues||[];
+    if(!ti.length) return '<div class="card"><div class="ttl">Recurring clarity issues</div><div class="na">No recurring clarity issues — Vera is reading clearly.</div></div>';
+    var h='<div class="card"><div class="ttl">Recurring clarity issues</div>'+
+      '<div class="why"><b>What this is:</b> the issue types that came up most across recent replies — the best places to improve.</div>';
+    h+=ti.map(function(x){
+      return '<div class="row"><span class="pill">'+x.turns+'×</span><span class="pv">'+esc(ILABEL[x.id]||x.id)+'</span></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function worstView(d){
+    var w=d.worst||[];
+    if(!w.length) return '';
+    var h='<div class="card"><div class="ttl">Lowest-clarity replies</div>';
+    h+=w.map(function(s){
+      var iss=(s.issue_ids||[]).map(function(i){return ILABEL[i]||i;}).join(', ');
+      return '<div class="row"><span class="sc '+s.grade+'">'+s.clarity+'</span>'+
+        '<span class="pv">'+esc(s.preview||'')+(iss?'<div style="font-size:11px;color:var(--faint);margin-top:2px">'+esc(iss)+'</div>':'')+'</span></div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function samplesView(d){
+    var s=d.samples||[];
+    if(!s.length) return '';
+    var h='<div class="card"><div class="ttl">Recent replies, scored</div>';
+    h+=s.slice(0,30).map(function(x){
+      return '<div class="row"><span class="sc '+x.grade+'">'+x.clarity+'</span>'+
+        '<span class="pv">'+esc(x.preview||'')+'</span>'+
+        (x.top_issue?'<span class="pill">'+esc(x.top_issue)+'</span>':'')+'</div>';
+    }).join('');
+    return h+'</div>';
+  }
+
+  function ergoView(d){
+    return gaugeView(d) + topIssuesView(d) + worstView(d) + samplesView(d) +
+      '<div class="why">'+esc(d.law||'')+'</div>';
+  }
+
+  function render(d){
+    document.getElementById('view').innerHTML = ergoView(d);
+    document.getElementById('stamp').textContent=' · '+new Date().toLocaleTimeString();
+  }
+  function load(){
+    fetch('/ergonomics.json',{headers:HDR}).then(function(r){
+      if(r.status===401){document.getElementById('view').innerHTML='<div class="na">Locked — open from the app or add ?k=YOUR_TOKEN.</div>';return null;}
+      return r.json();
+    }).then(function(j){ if(!j)return; if(j.empty){document.getElementById('view').innerHTML='<div class="card"><div class="na">No replies scored yet — talk with Vera and her clarity will be measured here.</div></div>';return;} render(j); })
+    .catch(function(){ document.getElementById('view').innerHTML='<div class="na">Could not reach Vera.</div>'; });
+  }
+  load();
+})();
+</script>
+</body>
+</html>
